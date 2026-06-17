@@ -11,12 +11,11 @@
 
   <div class="max-w-md mx-auto min-h-screen flex flex-col bg-white shadow-xl">
     <header class="bg-gradient-to-r from-indigo-700 to-purple-800 text-white p-5 text-center shadow-md">
-      <h1 id="page-title" class="text-xl font-black tracking-wider">電子科 文化祭案内システム</h1>
-      <p id="page-subtitle" class="text-xs opacity-80 mt-1">リアルタイム混雑マップ（15秒自動更新）</p>
+      <h1 class="text-xl font-black tracking-wider">電子科 文化祭案内システム</h1>
+      <p class="text-xs opacity-80 mt-1">リアルタイム混雑マップ（15秒自動更新）</p>
     </header>
 
     <main class="flex-1 p-4 space-y-6">
-      
       <div id="loading-view" class="flex flex-col items-center justify-center py-24">
         <div class="animate-spin h-12 w-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
         <p class="text-gray-500 font-bold text-sm tracking-widest">データを同期中...</p>
@@ -25,17 +24,15 @@
 
       <div id="auth-view" class="hidden py-10 text-center space-y-4">
         <h2 class="text-lg font-bold text-gray-700">管理者コントロール認証</h2>
-        <input type="password" id="admin-password" placeholder="パスワードを入力" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-center focus:outline-none focus:border-indigo-500 transition">
-        <button onclick="verifyAdmin()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-md active:scale-95 transition">認証</button>
+        <input type="password" id="admin-password" placeholder="パスワードを入力" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-center focus:outline-none">
+        <button onclick="verifyAdmin()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-md">認証</button>
         <p id="auth-error" class="text-red-500 text-xs hidden">パスワードが正しくありません</p>
       </div>
 
       <div id="user-view" class="hidden space-y-6">
         <div class="bg-gray-50 p-4 rounded-2xl border border-gray-200 shadow-sm">
           <h2 class="text-sm font-black text-gray-700 mb-3 flex items-center gap-1">🗺️ リアルタイム校内マップ</h2>
-          
           <div id="dynamic-map-container" class="grid grid-cols-2 gap-3 p-2 bg-gray-200 rounded-xl"></div>
-          
           <p class="text-[10px] text-gray-400 mt-2 text-center">※混雑度に応じてマップの色が自動で変わります。</p>
         </div>
 
@@ -48,7 +45,6 @@
       <div id="admin-view" class="hidden space-y-4">
         <div id="admin-booth-list" class="space-y-4"></div>
       </div>
-
     </main>
 
     <footer class="p-4 bg-gray-50 border-t border-gray-200 text-center text-xs text-gray-400 font-medium">
@@ -57,8 +53,9 @@
   </div>
 
   <script>
-    // --- 環境変数設定（最新のGAS URLを完全インジェクション済） ---
+    // --- 環境変数設定 ---
     const LIFF_ID = '2010429448-fUV9jRNs';
+    // ⚠️ 下記のURLが最新のGASデプロイURLと一致しているか確認すること
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbx6uGuIsZCRB6fs-1MHkMJcNT0Zdnlta_1F0AiQ4FpIUBUyQ3OEMyqrBIu0eS0MOZXF/exec';
     const ADMIN_PASS = 'kuroko2026';
 
@@ -78,9 +75,11 @@
       try {
         await liff.init({ liffId: LIFF_ID });
         if (!liff.isLoggedIn()) {
-          liff.login({ redirectUri: isAdminMode ? window.location.href : undefined });
+          liff.login({ redirectUri: window.location.href });
           return;
         }
+        
+        // ログイン完了を厳密に待ってから画面遷移とデータ取得を行う
         if (isAdminMode) {
           switchView('auth');
         } else {
@@ -88,7 +87,7 @@
           startAutoRefresh();
         }
       } catch (error) {
-        showDebugError('LIFFエラー: ' + error.message);
+        showDebugError('LIFF初期化失敗: ' + error.message);
       }
     }
 
@@ -125,10 +124,17 @@
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
-        const response = await fetch(GAS_URL, { signal: controller.signal });
+        
+        // セキュリティ制限を通過させるためのCORSリクエスト設定
+        const response = await fetch(GAS_URL, { 
+          method: 'GET',
+          mode: 'cors',
+          headers: { 'Accept': 'application/json' },
+          signal: controller.signal 
+        });
         clearTimeout(timeoutId);
         
-        if (!response.ok) throw new Error('HTTP ' + response.status);
+        if (!response.ok) throw new Error('HTTPエラーステータス: ' + response.status);
         const data = await response.json();
 
         if (isAdminMode) {
@@ -137,7 +143,7 @@
           renderUserView(data);
         }
       } catch (error) {
-        if (!isBackground) showDebugError('同期失敗: ' + error.message);
+        if (!isBackground) showDebugError('通信エラー(load failed): ' + error.message);
       }
     }
 
@@ -238,6 +244,7 @@
       try {
         const response = await fetch(GAS_URL, {
           method: 'POST',
+          mode: 'cors',
           body: JSON.stringify({ id: id, status: newStatus })
         });
         const result = await response.json();
