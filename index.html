@@ -57,9 +57,9 @@
   </div>
 
   <script>
-    // --- 環境変数設定 ---
+    // --- 環境変数設定（最新のGAS URLを完全インジェクション済） ---
     const LIFF_ID = '2010429448-fUV9jRNs';
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxFxWV4OsKNK9fT2zMY13nnlSRWDM_WfO4mXbn5C036pBtVo9zUsitWd-yBmvO2zmS6/exec';
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycby8ygjG1ucw1NojYrlJ1qk2n_gwLczIogEPShu4KQ6XOxoc2SmjKWRmwmEi2QVWXsU/exec';
     const ADMIN_PASS = 'kuroko2026';
 
     let isAdminMode = false;
@@ -155,7 +155,6 @@
       
       listContainer.innerHTML = '';
       
-      // マップ要素の初期生成（初回のみ実行）
       if (mapContainer.children.length === 0) {
         data.forEach(booth => {
           const cleanId = String(booth.id).trim();
@@ -173,7 +172,6 @@
       data.forEach(booth => {
         const cleanId = String(booth.id).trim();
         
-        // リストアイテムの構築
         const card = document.createElement('div');
         card.className = 'p-4 bg-white rounded-xl shadow-sm border border-gray-100 flex justify-between items-center';
         card.innerHTML = `
@@ -187,7 +185,6 @@
         `;
         listContainer.appendChild(card);
 
-        // マップの色とテキストの動的更新
         const cell = document.getElementById(`map-cell-${cleanId}`);
         const statusText = document.getElementById(`map-status-${cleanId}`);
         if (cell && statusText) {
