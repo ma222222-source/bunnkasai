@@ -44,7 +44,7 @@
   </div>
 
   <script>
-    // --- 【重要】環境変数設定 ---
+    // --- 環境変数設定 ---
     const LIFF_ID = '2010429448-fUV9jRNs';
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbwJqYnlWS7CzMdvOys9gazxyFmiWDj3ObOw3dAbU2argt30IhKvnuzHneHEj34IQmz6/exec';
     const ADMIN_PASS = 'kuroko2026';
@@ -52,7 +52,6 @@
     let isAdminMode = false;
 
     window.addEventListener('DOMContentLoaded', () => {
-      // 判定ロジックのロバスト化（URL・liff.stateの両面からパラメータを抽出）
       const urlParams = new URLSearchParams(window.location.search);
       const liffState = urlParams.get('liff.state');
       
@@ -67,7 +66,6 @@
         await liff.init({ liffId: LIFF_ID });
         
         if (!liff.isLoggedIn()) {
-          // ログイン遷移時、管理者モードのパラメータを引き継ぐ
           const redirectUri = isAdminMode ? window.location.href : undefined;
           liff.login({ redirectUri: redirectUri });
           return;
@@ -117,7 +115,6 @@
 
     async function fetchStatus() {
       try {
-        // タイムアウト監視層の追加（10秒で強制切断）
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -137,9 +134,9 @@
         }
       } catch (error) {
         if (error.name === 'AbortError') {
-          showDebugError('通信タイムアウト: GASからの応答が10秒間ありません。デプロイ設定を確認してください。');
+          showDebugError('通信タイムアウト: GASからの応答が10秒間ありません。');
         } else {
-          showDebugError('データ同期エラー: ' + error.message + ' (URLが正しいか、デプロイが「全員」になっているか確認してください)');
+          showDebugError('データ同期エラー: ' + error.message);
         }
       }
     }
@@ -148,7 +145,6 @@
       const errEl = document.getElementById('debug-error');
       errEl.innerText = msg;
       errEl.classList.remove('hidden');
-      // ローディングアニメーションを停止してエラーを明示
       const spinner = document.querySelector('.animate-spin');
       if (spinner) spinner.classList.add('hidden');
     }
@@ -219,4 +215,35 @@
         if (result.status === 'success') {
           const currentBadge = document.getElementById(`current-${id}`);
           currentBadge.innerText = newStatus;
-          currentBadge.className = `px-2 py-
+          currentBadge.className = `px-2 py-0.5 rounded text-xs font-bold ${getStatusClass(newStatus)}`;
+        } else {
+          alert('更新に失敗しました: ' + result.message);
+        }
+      } catch (error) {
+        alert('通信エラーが発生しました。');
+      } finally {
+        buttons.forEach(b => b.disabled = false);
+        btnElement.innerText = originalText;
+      }
+    }
+
+    function getStatusClass(status) {
+      switch(status) {
+        case '空いています': return 'bg-green-100 text-green-800';
+        case 'やや混雑': return 'bg-yellow-100 text-yellow-800';
+        case '混雑しています': return 'bg-red-100 text-red-800';
+        default: return 'bg-gray-100 text-gray-800';
+      }
+    }
+
+    function formatTime(dateStr) {
+      if (!dateStr) return '未更新';
+      const diff = new Date() - new Date(dateStr);
+      const mins = Math.floor(diff / 1000 / 60);
+      if (mins < 1) return 'たった今';
+      if (mins < 60) return `${mins}分前`;
+      return new Date(dateStr).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    }
+  </script>
+</body>
+</html>
