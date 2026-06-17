@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>企業ブース混雑状況</title>
+    <!-- 開発高速化のためTailwind CSSをCDN経由でロード -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- LINE LIFF SDK -->
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 p-4">
+    <h1 class="text-xl font-bold text-center mb-6">企業ブース 混雑状況</h1>
+    <div id="loading" class="text-center text-gray-500">データを読み込み中...</div>
+    <div id="booth-list" class="space-y-4 hidden"></div>
+
+    <script>
+        const LIFF_ID = 'YOUR_LIFF_ID'; 
+        const GAS_URL = 'YOUR_GAS_WEB_APP_URL';
+
+        async function initLiff() {
+            try {
+                await liff.init({ liffId: LIFF_ID });
+                if (!liff.isLoggedIn()) {
+                    liff.login();
+                    return;
+                }
+                fetchStatus();
+            } catch (error) {
+                console.error("LIFF Initialization failed", error);
+            }
+        }
+
+        async function fetchStatus() {
+            try {
+                const response = await fetch(GAS_URL);
+                const data = await response.json();
+                const listContainer = document.getElementById('booth-list');
+                listContainer.innerHTML = '';
+
+                data.forEach(booth => {
+                    let badgeColor = 'bg-green-500';
+                    if (booth.status === 'やや混雑') badgeColor = 'bg-yellow-500';
+                    if (booth.status === '混雑') badgeColor = 'bg-red-500';
+
+                    const card = `
+                        <div class="bg-white p-4 rounded-xl shadow-xs border border-gray-100 flex justify-between items-center">
+                            <div>
+                                <h2 class="font-bold text-lg">${booth.name}</h2>
+                                <p class="text-xs text-gray-400">最終更新: ${new Date(booth.time).toLocaleTimeString()}</p>
+                            </div>
+                            <span class="${badgeColor} text-white text-sm px-3 py-1 rounded-full font-bold">${booth.status}</span>
+                        </div>
+                    `;
+                    listContainer.insertAdjacentHTML('beforeend', card);
+                });
+
+                document.getElementById('loading').classList.add('hidden');
+                listContainer.classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('loading').innerText = 'データ取得に失敗しました。';
+            }
+        }
+
+        window.onload = initLiff;
+    </script>
+</body>
+</html>
