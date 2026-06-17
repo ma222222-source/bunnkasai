@@ -16,15 +16,20 @@
     </header>
 
     <main class="flex-1 p-4 space-y-6">
-      <div id="loading-view" class="flex flex-col items-center justify-center py-24">
+      
+      <div id="loading-view" class="flex flex-col items-center justify-center py-12">
         <div class="animate-spin h-12 w-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
         <p class="text-gray-500 font-bold text-sm tracking-widest">データを同期中...</p>
-        <p id="debug-error" class="text-red-500 text-xs mt-4 max-w-xs text-center font-mono break-all hidden"></p>
+        
+        <div id="debug-error" class="hidden mt-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-left font-mono text-xs space-y-2 w-full break-all">
+          <p class="font-bold border-b border-red-200 pb-1 text-center">🚨 同期失敗の詳細レポート</p>
+          <div id="error-details"></div>
+        </div>
       </div>
 
       <div id="auth-view" class="hidden py-10 text-center space-y-4">
         <h2 class="text-lg font-bold text-gray-700">管理者コントロール認証</h2>
-        <input type="password" id="admin-password" placeholder="パスワードを入力" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-center focus:outline-none">
+        <input type="password" id="admin-password" placeholder="パスワードを入力" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-center focus:outline-none focus:border-indigo-500 transition">
         <button onclick="verifyAdmin()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-md">認証</button>
         <p id="auth-error" class="text-red-500 text-xs hidden">パスワードが正しくありません</p>
       </div>
@@ -32,7 +37,9 @@
       <div id="user-view" class="hidden space-y-6">
         <div class="bg-gray-50 p-4 rounded-2xl border border-gray-200 shadow-sm">
           <h2 class="text-sm font-black text-gray-700 mb-3 flex items-center gap-1">🗺️ リアルタイム校内マップ</h2>
+          
           <div id="dynamic-map-container" class="grid grid-cols-2 gap-3 p-2 bg-gray-200 rounded-xl"></div>
+          
           <p class="text-[10px] text-gray-400 mt-2 text-center">※混雑度に応じてマップの色が自動で変わります。</p>
         </div>
 
@@ -45,6 +52,7 @@
       <div id="admin-view" class="hidden space-y-4">
         <div id="admin-booth-list" class="space-y-4"></div>
       </div>
+
     </main>
 
     <footer class="p-4 bg-gray-50 border-t border-gray-200 text-center text-xs text-gray-400 font-medium">
@@ -55,8 +63,7 @@
   <script>
     // --- 環境変数設定 ---
     const LIFF_ID = '2010429448-fUV9jRNs';
-    // ⚠️ 下記のURLが最新のGASデプロイURLと一致しているか確認すること
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbx6uGuIsZCRB6fs-1MHkMJcNT0Zdnlta_1F0AiQ4FpIUBUyQ3OEMyqrBIu0eS0MOZXF/exec';
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbysIOR7DTagNgV85uC5zX2cT1CMawtmdraE0Wx41hPwNdNlaGgzZHsls2nerMZhcqiZ/exec';
     const ADMIN_PASS = 'kuroko2026';
 
     let isAdminMode = false;
@@ -78,8 +85,6 @@
           liff.login({ redirectUri: window.location.href });
           return;
         }
-        
-        // ログイン完了を厳密に待ってから画面遷移とデータ取得を行う
         if (isAdminMode) {
           switchView('auth');
         } else {
@@ -87,7 +92,7 @@
           startAutoRefresh();
         }
       } catch (error) {
-        showDebugError('LIFF初期化失敗: ' + error.message);
+        showDebugError('LIFF初期化フェーズ', error.message);
       }
     }
 
@@ -125,17 +130,25 @@
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
         
-        // セキュリティ制限を通過させるためのCORSリクエスト設定
-        const response = await fetch(GAS_URL, { 
+        // ブラウザの強力なキャッシュを物理的に破壊するため、タイムスタンプをURL末尾に強制付与
+        const cacheBuster = GAS_URL + (GAS_URL.includes('?') ? '&' : '?') + '_=' + new Date().getTime();
+        
+        const response = await fetch(cacheBuster, { 
           method: 'GET',
           mode: 'cors',
-          headers: { 'Accept': 'application/json' },
           signal: controller.signal 
         });
         clearTimeout(timeoutId);
         
-        if (!response.ok) throw new Error('HTTPエラーステータス: ' + response.status);
+        if (!response.ok) {
+          throw new Error(`HTTPエラー発生。ステータスコード: ${response.status} (${response.statusText})`);
+        }
+        
         const data = await response.json();
+        
+        if (data.status === "error") {
+          throw new Error(`GAS内部エラー: ${data.message}`);
+        }
 
         if (isAdminMode) {
           renderAdminView(data);
@@ -143,14 +156,23 @@
           renderUserView(data);
         }
       } catch (error) {
-        if (!isBackground) showDebugError('通信エラー(load failed): ' + error.message);
+        if (!isBackground) {
+          showDebugError('Fetch通信フェーズ (API接続失敗)', error.message);
+        }
       }
     }
 
-    function showDebugError(msg) {
-      const errEl = document.getElementById('debug-error');
-      errEl.innerText = msg;
-      errEl.classList.remove('hidden');
+    function showDebugError(phase, msg) {
+      const errBox = document.getElementById('debug-error');
+      const details = document.getElementById('error-details');
+      
+      details.innerHTML = `
+        <p><b>発生箇所:</b> ${phase}</p>
+        <p><b>エラー原因:</b> ${msg}</p>
+        <p><b>現在のGAS設定URL:</b><br><span class="text-[10px] bg-white p-1 block rounded mt-1 border border-red-100">${GAS_URL}</span></p>
+        <p class="mt-2 text-gray-500 text-[10px]">※GASのデプロイ時に「アクセスできるユーザー」を「全員」にし忘れているか、GitHub Pagesの反映遅延、あるいはURL間違いの可能性が極めて高いです。</p>
+      `;
+      errBox.classList.remove('hidden');
       const spinner = document.querySelector('.animate-spin');
       if (spinner) spinner.classList.add('hidden');
     }
@@ -260,6 +282,7 @@
       }
     }
 
+    // 装飾ユーティリティ
     function getStatusBadgeClass(status) {
       switch(status) {
         case '空いています': return 'bg-green-100 text-green-800';
