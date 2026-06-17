@@ -12,18 +12,14 @@
   <div class="max-w-md mx-auto min-h-screen flex flex-col bg-white shadow-lg">
     <header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-5 text-center shadow-md">
       <h1 id="page-title" class="text-xl font-black tracking-wider">企業ブース 混雑状況</h1>
-      <p id="page-subtitle" class="text-xs opacity-75 mt-1">リアルタイム案内板</p>
+      <p id="page-subtitle" class="text-xs opacity-75 mt-1">リアルタイム案内板（15秒自動更新）</p>
     </header>
 
     <main class="flex-1 p-5">
-      <div id="loading-view" class="flex flex-col items-center justify-center py-10">
+      <div id="loading-view" class="flex flex-col items-center justify-center py-20">
         <div class="animate-spin h-10 w-10 border-4 border-blue-500 border-t-transparent rounded-full mb-4"></div>
         <p class="text-gray-500 font-medium text-sm">データを同期中...</p>
-        
-        <div id="debug-box" class="w-full mt-6 p-4 bg-red-50 border border-red-200 rounded-lg text-left hidden">
-          <p class="text-red-700 font-bold text-xs mb-1">【システムエラー検出】</p>
-          <p id="debug-error" class="text-red-600 text-xs font-mono break-all"></p>
-        </div>
+        <p id="debug-error" class="text-red-500 text-xs mt-4 max-w-xs text-center font-mono break-all hidden"></p>
       </div>
 
       <div id="auth-view" class="hidden py-10 text-center">
@@ -48,25 +44,22 @@
   </div>
 
   <script>
-    // --- 環境変数設定 ---
+    // --- 【確定版】環境変数設定 ---
     const LIFF_ID = '2010429448-fUV9jRNs';
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbwJqYnlWS7CzMdvOys9gazxyFmiWDj3ObOw3dAbU2argt30IhKvnuzHneHEj34IQmz6/exec';
     const ADMIN_PASS = 'kuroko2026';
 
     let isAdminMode = false;
+    let autoRefreshInterval = null;
 
     window.addEventListener('DOMContentLoaded', () => {
-      try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const liffState = urlParams.get('liff.state');
-        
-        if (urlParams.get('mode') === 'admin' || (liffState && liffState.includes('mode=admin'))) {
-          isAdminMode = true;
-        }
-        initLiff();
-      } catch (e) {
-        showDebugError('URL解析エラー: ' + e.message);
+      const urlParams = new URLSearchParams(window.location.search);
+      const liffState = urlParams.get('liff.state');
+      
+      if (urlParams.get('mode') === 'admin' || (liffState && liffState.includes('mode=admin'))) {
+        isAdminMode = true;
       }
+      initLiff();
     });
 
     async function initLiff() {
@@ -82,11 +75,25 @@
         if (isAdminMode) {
           switchView('auth');
         } else {
-          fetchStatus();
+          await fetchStatus();
+          startAutoRefresh(); // 一般画面のみ自動更新タイマー始動
         }
       } catch (error) {
-        showDebugError('LIFF初期化エラー: ' + error.message + ' (LIFF IDがLINE Developersの設定と一致しているか確認してください)');
+        showDebugError('LIFF初期化エラー: ' + error.message);
       }
+    }
+
+    // --- 自動更新ロジック ＆ クォータ制限超過防止策 ---
+    function startAutoRefresh() {
+      if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+      
+      // 15秒（15000ms）周期でバックグラウンドフェッチ
+      autoRefreshInterval = setInterval(() => {
+        // スマホがスリープ中、またはLINEを閉じているときはGAS叩きをスキップしてサーバーを守る
+        if (document.visibilityState === 'visible') {
+          fetchStatus(true); 
+        }
+      }, 15000);
     }
 
     function switchView(view) {
@@ -115,32 +122,24 @@
       if (input === ADMIN_PASS) {
         document.getElementById('auth-error').classList.add('hidden');
         switchView('loading');
-        fetchStatus();
+        fetchStatus().then(() => {
+          startAutoRefresh(); // 管理画面側も認証完了後に自動同期開始
+        });
       } else {
         document.getElementById('auth-error').classList.remove('hidden');
       }
     }
 
-    async function fetchStatus() {
+    async function fetchStatus(isBackground = false) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒に緩和
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-        // fetch実行前のログ明示
-        console.log('Fetching to GAS...');
-        
-        const response = await fetch(GAS_URL, { 
-          method: 'GET',
-          mode: 'cors',
-          signal: controller.signal 
-        }).catch(err => {
-          throw new Error('ネットワーク要求自体が拒否されました(CORSまたはGAS未公開): ' + err.message);
-        });
-
+        const response = await fetch(GAS_URL, { signal: controller.signal });
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-          throw new Error('GASがエラーコード ' + response.status + ' を返しました。');
+          throw new Error('GASエラー: ' + response.status);
         }
 
         const data = await response.json();
@@ -151,18 +150,17 @@
           renderUserView(data);
         }
       } catch (error) {
-        if (error.name === 'AbortError') {
-          showDebugError('通信タイムアウト: GASからの応答が15秒間ありません。GAS側の「新しいデプロイ」で「全員(Anyone)」になっているか確認してください。');
-        } else {
+        // 自動バックグラウンド更新時の軽微な通信瞬断は画面を破壊せずサイレントにスルー
+        if (!isBackground) {
           showDebugError('データ同期エラー: ' + error.message);
         }
       }
     }
 
     function showDebugError(msg) {
-      document.getElementById('debug-box').classList.remove('hidden');
       const errEl = document.getElementById('debug-error');
       errEl.innerText = msg;
+      errEl.classList.remove('hidden');
       const spinner = document.querySelector('.animate-spin');
       if (spinner) spinner.classList.add('hidden');
     }
@@ -171,61 +169,70 @@
       const container = document.getElementById('booth-list');
       container.innerHTML = '';
 
-      if (!Array.isArray(data) || data.length === 0) {
-        container.innerHTML = '<p class="text-center text-gray-400 text-sm py-10">表示できるデータ（配列）が空です。</p>';
-        switchView('user');
-        return;
+      if (!data || data.length === 0) {
+        container.innerHTML = '<p class="text-center text-gray-400 text-sm py-10">データがありません。</p>';
+      } else {
+        data.forEach(booth => {
+          const card = document.createElement('div');
+          card.className = 'p-4 bg-white rounded-xl shadow-sm border border-gray-100 flex justify-between items-center';
+          card.innerHTML = `
+            <div>
+              <h3 class="text-base font-bold text-gray-800">${booth.name}</h3>
+              <p class="text-xs text-gray-400 mt-1">最終更新: ${formatTime(booth.time)}</p>
+            </div>
+            <span class="px-3 py-1 rounded-full text-xs font-black ${getStatusClass(booth.status)}">
+              ${booth.status}
+            </span>
+          `;
+          container.appendChild(card);
+        });
       }
-
-      data.forEach(booth => {
-        const card = document.createElement('div');
-        card.className = 'p-4 bg-white rounded-xl shadow-sm border border-gray-100 flex justify-between items-center';
-        card.innerHTML = `
-          <div>
-            <h3 class="text-base font-bold text-gray-800">${booth.name}</h3>
-            <p class="text-xs text-gray-400 mt-1">最終更新: ${formatTime(booth.time)}</p>
-          </div>
-          <span class="px-3 py-1 rounded-full text-xs font-black ${getStatusClass(booth.status)}">
-            ${booth.status}
-          </span>
-        `;
-        container.appendChild(card);
-      });
-
-      switchView('user');
+      if(document.getElementById('user-view').classList.contains('hidden')) {
+        switchView('user');
+      }
     }
 
     function renderAdminView(data) {
       const container = document.getElementById('admin-booth-list');
-      container.innerHTML = '';
-
-      if (!Array.isArray(data) || data.length === 0) {
-        container.innerHTML = '<p class="text-center text-gray-400 text-sm py-10">操作できるデータが空です。</p>';
-        switchView('admin');
-        return;
+      
+      // 管理者が操作中のボタン状態をリセットしないよう、DOMの生成は初回または構造変更時のみに限定
+      if (container.children.length === 0) {
+        data.forEach(booth => {
+          const section = document.createElement('div');
+          section.className = 'p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3';
+          section.innerHTML = `
+            <div class="flex justify-between items-center border-b border-gray-200 pb-2">
+              <h3 class="text-base font-bold text-gray-800">${booth.name}</h3>
+              <span id="current-${booth.id}" class="px-2 py-0.5 rounded text-xs font-bold ${getStatusClass(booth.status)}">${booth.status}</span>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+              <button onclick="updateStatus('${booth.id}', '空いています', this)" class="bg-white hover:bg-green-50 text-green-600 border border-green-200 text-xs font-bold py-2 rounded-lg transition shadow-sm">空き</button>
+              <button onclick="updateStatus('${booth.id}', 'やや混雑', this)" class="bg-white hover:bg-yellow-50 text-yellow-600 border border-yellow-200 text-xs font-bold py-2 rounded-lg transition shadow-sm">やや混雑</button>
+              <button onclick="updateStatus('${booth.id}', '混雑しています', this)" class="bg-white hover:bg-red-50 text-red-600 border border-red-200 text-xs font-bold py-2 rounded-lg transition shadow-sm">混雑</button>
+            </div>
+          `;
+          container.appendChild(section);
+        });
+      } else {
+        // 自動バックグラウンド同期時はバッジの状態（文字と色）のみを静かに書き換える（人間工学評価：チラつき防止）
+        data.forEach(booth => {
+          const currentBadge = document.getElementById(`current-${booth.id}`);
+          if (currentBadge && !currentBadge.dataset.updating) {
+            currentBadge.innerText = booth.status;
+            currentBadge.className = `px-2 py-0.5 rounded text-xs font-bold ${getStatusClass(booth.status)}`;
+          }
+        });
       }
 
-      data.forEach(booth => {
-        const section = document.createElement('div');
-        section.className = 'p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3';
-        section.innerHTML = `
-          <div class="flex justify-between items-center border-b border-gray-200 pb-2">
-            <h3 class="text-base font-bold text-gray-800">${booth.name}</h3>
-            <span id="current-${booth.id}" class="px-2 py-0.5 rounded text-xs font-bold ${getStatusClass(booth.status)}">${booth.status}</span>
-          </div>
-          <div class="grid grid-cols-3 gap-2">
-            <button onclick="updateStatus('${booth.id}', '空いています', this)" class="bg-white hover:bg-green-50 text-green-600 border border-green-200 text-xs font-bold py-2 rounded-lg transition shadow-sm">空き</button>
-            <button onclick="updateStatus('${booth.id}', 'やや混雑', this)" class="bg-white hover:bg-yellow-50 text-yellow-600 border border-yellow-200 text-xs font-bold py-2 rounded-lg transition shadow-sm">やや混雑</button>
-            <button onclick="updateStatus('${booth.id}', '混雑しています', this)" class="bg-white hover:bg-red-50 text-red-600 border border-red-200 text-xs font-bold py-2 rounded-lg transition shadow-sm">混雑</button>
-          </div>
-        `;
-        container.appendChild(section);
-      });
-
-      switchView('admin');
+      if(document.getElementById('admin-view').classList.contains('hidden')) {
+        switchView('admin');
+      }
     }
 
     async function updateStatus(id, newStatus, btnElement) {
+      const currentBadge = document.getElementById(`current-${id}`);
+      if (currentBadge) currentBadge.dataset.updating = "true"; // 自動同期による上書きを一時ロック
+
       const buttons = btnElement.parentElement.querySelectorAll('button');
       buttons.forEach(b => b.disabled = true);
       const originalText = btnElement.innerText;
@@ -239,17 +246,19 @@
         const result = await response.json();
 
         if (result.status === 'success') {
-          const currentBadge = document.getElementById(`current-${id}`);
-          currentBadge.innerText = newStatus;
-          currentBadge.className = `px-2 py-0.5 rounded text-xs font-bold ${getStatusClass(newStatus)}`;
+          if (currentBadge) {
+            currentBadge.innerText = newStatus;
+            currentBadge.className = `px-2 py-0.5 rounded text-xs font-bold ${getStatusClass(newStatus)}`;
+          }
         } else {
           alert('更新に失敗しました: ' + result.message);
         }
       } catch (error) {
-        alert('通信エラーが発生しました: ' + error.message);
+        alert('通信エラーが発生しました。');
       } finally {
         buttons.forEach(b => b.disabled = false);
         btnElement.innerText = originalText;
+        if (currentBadge) delete currentBadge.dataset.updating; // ロック解除
       }
     }
 
