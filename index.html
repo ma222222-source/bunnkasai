@@ -13,7 +13,7 @@
       <div class="flex justify-between items-center">
         <div>
           <h1 class="text-lg font-black tracking-wider">黒工文化祭 案内システム</h1>
-          <p class="text-[10px] opacity-75">電子科特設：混雑状況可視化マップ</p>
+          <p class="text-[10px] opacity-75">電子科特設：校内空間連動混雑マップ</p>
         </div>
         <span id="connection-badge" class="bg-emerald-500 text-[10px] px-2 py-1 rounded-full font-bold">同期中</span>
       </div>
@@ -28,7 +28,7 @@
 
       <div id="loading-view" class="flex flex-col items-center justify-center py-12">
         <div class="animate-spin h-10 w-10 border-4 border-red-700 border-t-transparent rounded-full mb-3"></div>
-        <p class="text-slate-500 font-bold text-xs tracking-widest">校内マップ構築中...</p>
+        <p class="text-slate-500 font-bold text-xs tracking-widest">黒工見取り図 構築中...</p>
       </div>
 
       <div id="auth-view" class="hidden py-10 text-center space-y-4">
@@ -42,92 +42,113 @@
         
         <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 shadow-sm space-y-4">
           <div class="flex justify-between items-center">
-            <h2 class="text-xs font-black text-slate-700 flex items-center gap-1">🗺️ 実際の配置に基づく校内マップ</h2>
+            <h2 class="text-xs font-black text-slate-700 flex items-center gap-1">🗺️ 黒工校内見取り図（手書きマップ準拠）</h2>
             <div class="flex bg-slate-200 p-0.5 rounded-lg text-[10px] font-bold">
               <button id="btn-floor-1" onclick="switchFloor(1)" class="px-2 py-1 rounded-md bg-white text-slate-800 shadow-sm transition">1階</button>
               <button id="btn-floor-2" onclick="switchFloor(2)" class="px-2 py-1 rounded-md text-slate-500 transition">2階</button>
             </div>
           </div>
-          
-          <div class="space-y-4">
+
+          <div id="floor-1-map" class="space-y-3">
             
-            <div class="border border-slate-300 p-2 rounded-xl bg-white shadow-inner">
-              <div class="flex justify-between items-center mb-1">
-                <div class="text-[10px] font-bold text-slate-400">■ 第2校舎（電子科・各科展示）</div>
-                <span id="floor-indicator" class="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-black">1F表示中</span>
-              </div>
-              
-              <div id="floor-1-grid" class="grid grid-cols-2 gap-2">
-                <div id="map-cell-1" class="p-3 rounded-lg text-center font-black text-xs bg-slate-200 transition-all duration-500">
-                  <div class="text-[8px] opacity-60">ID: 1</div>
-                  <div class="booth-name">読込中...</div>
-                  <div id="map-status-1" class="text-[9px] font-normal mt-0.5">-</div>
+            <div class="border border-slate-300 p-2 rounded-xl bg-white">
+              <div class="text-[9px] font-bold text-slate-400 mb-1">■ 第2校舎 1F</div>
+              <div class="grid grid-cols-3 gap-1.5">
+                <div id="map-cell-1" class="p-2 rounded-lg text-center font-black text-[10px] bg-slate-200 transition-all duration-500">
+                  <div class="text-[7px] opacity-60">ID: 1</div>
+                  <div class="booth-name">電子科</div>
+                  <div id="map-status-1" class="text-[8px] font-normal mt-0.5">-</div>
                 </div>
-                <div id="map-cell-2" class="p-3 rounded-lg text-center font-black text-xs bg-slate-200 transition-all duration-500">
-                  <div class="text-[8px] opacity-60">ID: 2</div>
-                  <div class="booth-name">読込中...</div>
-                  <div id="map-status-2" class="text-[9px] font-normal mt-0.5">-</div>
+                <div id="map-cell-2" class="p-2 rounded-lg text-center font-black text-[10px] bg-slate-200 transition-all duration-500">
+                  <div class="text-[7px] opacity-60">ID: 2</div>
+                  <div class="booth-name">電気科</div>
+                  <div id="map-status-2" class="text-[8px] font-normal mt-0.5">-</div>
                 </div>
-              </div>
-
-              <div id="floor-2-grid" class="hidden grid grid-cols-2 gap-2">
-                <div id="map-cell-3" class="p-3 rounded-lg text-center font-black text-xs bg-slate-200 transition-all duration-500 col-span-2">
-                  <div class="text-[8px] opacity-60">ID: 3</div>
-                  <div class="booth-name">読込中...</div>
-                  <div id="map-status-3" class="text-[9px] font-normal mt-0.5">-</div>
+                <div id="map-cell-3" class="p-2 rounded-lg text-center font-black text-[10px] bg-slate-200 transition-all duration-500">
+                  <div class="text-[7px] opacity-60">ID: 3</div>
+                  <div class="booth-name">機械科</div>
+                  <div id="map-status-3" class="text-[8px] font-normal mt-0.5">-</div>
                 </div>
               </div>
             </div>
 
-            <div class="flex justify-center my-[-8px]">
-              <div class="w-8 h-4 border-x-2 border-dashed border-slate-300 bg-slate-100 flex items-center justify-center text-[8px] text-slate-400 font-bold tracking-widest">連絡通路</div>
+            <div class="flex justify-center my-[-6px]">
+              <div class="w-16 h-3 border-x-2 border-dashed border-slate-300 bg-slate-100 flex items-center justify-center text-[7px] text-slate-400 font-bold">渡り廊下</div>
             </div>
 
-            <div class="border border-slate-300 p-2 rounded-xl bg-white shadow-inner">
-              <div class="text-[10px] font-bold text-slate-400 mb-1">■ 第1校舎（受付・本部・屋内展示）</div>
-              <div class="grid grid-cols-3 gap-2">
-                <div id="map-cell-4" class="p-2 rounded-lg text-center font-black text-[11px] bg-slate-200 transition-all duration-500">
-                  <div class="text-[8px] opacity-60">ID: 4</div>
-                  <div class="booth-name">読込中...</div>
+            <div class="border border-slate-300 p-2 rounded-xl bg-white">
+              <div class="text-[9px] font-bold text-slate-400 mb-1">■ 第1校舎 1F (本館)</div>
+              <div class="grid grid-cols-4 gap-1.5">
+                <div id="map-cell-4" class="p-2 rounded-lg text-center font-black text-[10px] bg-slate-200 transition-all duration-500 col-span-2">
+                  <div class="text-[7px] opacity-60">ID: 4</div>
+                  <div class="booth-name">受付・本部・M科</div>
                   <div id="map-status-4" class="text-[8px] font-normal mt-0.5">-</div>
                 </div>
-                <div id="map-cell-5" class="p-2 rounded-lg text-center font-black text-[11px] bg-slate-200 transition-all duration-500">
-                  <div class="text-[8px] opacity-60">ID: 5</div>
-                  <div class="booth-name">読込中...</div>
+                <div id="map-cell-5" class="p-2 rounded-lg text-center font-black text-[10px] bg-slate-200 transition-all duration-500">
+                  <div class="text-[7px] opacity-60">ID: 5</div>
+                  <div class="booth-name">土木/建築</div>
                   <div id="map-status-5" class="text-[8px] font-normal mt-0.5">-</div>
                 </div>
-                <div id="map-cell-6" class="p-2 rounded-lg text-center font-black text-[11px] bg-slate-200 transition-all duration-500">
-                  <div class="text-[8px] opacity-60">ID: 6</div>
-                  <div class="booth-name">読込中...</div>
+                <div id="map-cell-6" class="p-2 rounded-lg text-center font-black text-[10px] bg-slate-200 transition-all duration-500">
+                  <div class="text-[7px] opacity-60">ID: 6</div>
+                  <div class="booth-name">商業/工経</div>
                   <div id="map-status-6" class="text-[8px] font-normal mt-0.5">-</div>
                 </div>
               </div>
             </div>
 
-            <div class="flex justify-between px-10 my-[-8px]">
-              <div class="w-3 h-4 border-x-2 border-dashed border-slate-300 bg-slate-100"></div>
-              <div class="w-3 h-4 border-x-2 border-dashed border-slate-300 bg-slate-100"></div>
+            <div class="flex justify-end pr-10 my-[-6px]">
+              <div class="w-12 h-3 border-x-2 border-dashed border-slate-300 bg-slate-100 flex items-center justify-center text-[7px] text-slate-400 font-bold">奥通路</div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
-              <div class="border border-slate-300 p-2 rounded-xl bg-white shadow-inner">
-                <div class="text-[10px] font-bold text-slate-400 mb-1">■ 実習棟</div>
-                <div id="map-cell-7" class="p-3 rounded-lg text-center font-black text-xs bg-slate-200 transition-all duration-500 h-16 flex flex-col justify-center">
-                  <div class="text-[8px] opacity-60">ID: 7</div>
-                  <div class="booth-name">読込中...</div>
-                  <div id="map-status-7" class="text-[9px] font-normal mt-0.5">-</div>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="border border-slate-300 p-2 rounded-xl bg-white">
+                <div class="text-[9px] font-bold text-slate-400 mb-1">■ 体育館</div>
+                <div id="map-cell-8" class="p-2.5 rounded-lg text-center font-black text-[10px] bg-slate-200 transition-all duration-500 h-14 flex flex-col justify-center">
+                  <div class="text-[7px] opacity-60">ID: 8</div>
+                  <div class="booth-name">体育館イベント</div>
+                  <div id="map-status-8" class="text-[8px] font-normal mt-0.5">-</div>
                 </div>
               </div>
-              <div class="border border-slate-300 p-2 rounded-xl bg-white shadow-inner">
-                <div class="text-[10px] font-bold text-slate-400 mb-1">■ 体育館</div>
-                <div id="map-cell-8" class="p-3 rounded-lg text-center font-black text-xs bg-slate-200 transition-all duration-500 h-16 flex flex-col justify-center">
-                  <div class="text-[8px] opacity-60">ID: 8</div>
-                  <div class="booth-name">読込中...</div>
-                  <div id="map-status-8" class="text-[9px] font-normal mt-0.5">-</div>
+              <div class="border border-slate-300 p-2 rounded-xl bg-white">
+                <div class="text-[9px] font-bold text-slate-400 mb-1">■ 実習棟エリア</div>
+                <div id="map-cell-7" class="p-2.5 rounded-lg text-center font-black text-[10px] bg-slate-200 transition-all duration-500 h-14 flex flex-col justify-center">
+                  <div class="text-[7px] opacity-60">ID: 7</div>
+                  <div class="booth-name">実習棟群(材料/原動/精密)</div>
+                  <div id="map-status-7" class="text-[8px] font-normal mt-0.5">-</div>
                 </div>
               </div>
             </div>
           </div>
+
+          <div id="floor-2-map" class="space-y-3 hidden">
+            <div class="border border-slate-300 p-2 rounded-xl bg-white">
+              <div class="text-[9px] font-bold text-slate-400 mb-1">■ 第2校舎 2F</div>
+              <div class="grid grid-cols-2 gap-2">
+                <div id="map-cell-1-2f" class="p-4 rounded-lg text-center font-black text-xs bg-slate-100 text-slate-400 border border-dashed border-slate-200">
+                  <div class="text-[8px]">2F電子・電気教室</div>
+                  <div class="text-[9px] mt-1 font-normal text-slate-400">一般開放なし</div>
+                </div>
+                <div id="map-cell-3-2f" class="p-4 rounded-lg text-center font-black text-xs bg-slate-100 text-slate-400 border border-dashed border-slate-200">
+                  <div class="text-[8px]">2F機械教室</div>
+                  <div class="text-[9px] mt-1 font-normal text-slate-400">一般開放なし</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex justify-center my-[-6px]">
+              <div class="w-16 h-3 border-x-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-[7px] text-slate-300 font-bold">2F連絡路</div>
+            </div>
+
+            <div class="border border-slate-300 p-2 rounded-xl bg-white shadow-inner">
+              <div class="text-[9px] font-bold text-slate-400 mb-1">■ 第1校舎 2F (特別教室等)</div>
+              <div class="p-4 text-center text-[10px] text-slate-400 font-bold bg-slate-50 rounded-lg border border-dashed">
+                手書きマップ：2Fは主に1Fからの接続経路として利用<br>（各科特別展示・準備室等）
+              </div>
+            </div>
+          </div>
+
+          <p class="text-[8px] text-slate-400 text-center tracking-tighter">※図面上の第2校舎(上)・第1校舎(中)・実習棟/体育館(下)の接続構造を完全トレースしています。</p>
         </div>
 
         <div class="space-y-3">
@@ -158,7 +179,6 @@
     let isAdminMode = false;
     let cachedData = null;
 
-    // 【完全修正】混混雑のタイポを完全排除
     const STATUS_MAP = {
       '空いています': { badge: 'bg-emerald-100 text-emerald-800', map: 'bg-emerald-500 text-white shadow-md', emoji: '🟢', text: '空き' },
       'やや混雑': { badge: 'bg-amber-100 text-amber-800', map: 'bg-amber-400 text-slate-900 shadow-sm', emoji: '🟡', text: 'やや混雑' },
@@ -172,7 +192,7 @@
         switchView('auth');
       } else {
         fetchStatus();
-        setInterval(fetchStatus, 45000); // 45秒に最適化
+        setInterval(fetchStatus, 45000);
       }
     });
 
@@ -197,26 +217,23 @@
       }
     }
 
-    // 第2校舎の階層切り替えロジック
+    // 階層切り替え
     function switchFloor(floorNum) {
-      const f1Grid = document.getElementById('floor-1-grid');
-      const f2Grid = document.getElementById('floor-2-grid');
+      const f1Map = document.getElementById('floor-1-map');
+      const f2Map = document.getElementById('floor-2-map');
       const btnF1 = document.getElementById('btn-floor-1');
       const btnF2 = document.getElementById('btn-floor-2');
-      const indicator = document.getElementById('floor-indicator');
 
       if (floorNum === 1) {
-        f1Grid.classList.remove('hidden');
-        f2Grid.classList.add('hidden');
+        f1Map.classList.remove('hidden');
+        f2Map.classList.add('hidden');
         btnF1.className = "px-2 py-1 rounded-md bg-white text-slate-800 shadow-sm transition";
         btnF2.className = "px-2 py-1 rounded-md text-slate-500 transition";
-        indicator.innerText = "1F表示中";
       } else {
-        f1Grid.classList.add('hidden');
-        f2Grid.classList.remove('hidden');
+        f1Map.classList.add('hidden');
+        f2Map.classList.remove('hidden');
         btnF1.className = "px-2 py-1 rounded-md text-slate-500 transition";
         btnF2.className = "px-2 py-1 rounded-md bg-white text-slate-800 shadow-sm transition";
-        indicator.innerText = "2F表示中";
       }
     }
 
@@ -230,19 +247,14 @@
         if (!response.ok) throw new Error(`HTTPステータスエラー: ${response.status}`);
         
         const data = await response.json();
-        if (!Array.isArray(data)) throw new Error('データ構造が不正（配列未検出）');
+        if (!Array.isArray(data)) throw new Error('データ構造が不正');
 
         errorBanner.classList.add('hidden');
         connectionBadge.className = "bg-emerald-500 text-[10px] px-2 py-1 rounded-full font-bold";
         connectionBadge.textContent = "同期中";
 
         cachedData = data;
-
-        if (isAdminMode) {
-          renderAdminView(data);
-        } else {
-          renderUserView(data);
-        }
+        if (isAdminMode) renderAdminView(data); else renderUserView(data);
 
       } catch (error) {
         console.error(error);
@@ -261,26 +273,26 @@
         const cleanId = String(booth.id).trim();
         const config = STATUS_MAP[booth.status] || { badge: 'bg-slate-100 text-slate-800', emoji: '⚪', text: booth.status, map: 'bg-slate-300 text-slate-600' };
 
-        // 1. 下部詳細リストカードの構築
+        // 1. リストの構築
         const card = document.createElement('div');
         card.className = 'p-3 bg-white rounded-xl border border-slate-200 shadow-sm flex justify-between items-center';
         card.innerHTML = `
           <div>
             <h3 class="text-xs font-bold text-slate-800">${booth.name}</h3>
-            <p class="text-[9px] text-slate-400 mt-0.5">最終更新: ${formatTime(booth.time)}</p>
+            <p class="text-[9px] text-slate-400 mt-0.5">区画ID: ${cleanId} | 更新: ${formatTime(booth.time)}</p>
           </div>
           <span class="px-2 py-1 rounded-full text-[10px] font-black ${config.badge}">${config.emoji} ${config.text}</span>
         `;
         listContainer.appendChild(card);
 
-        // 2. 上部再現マップセルの動的状態反映
+        // 2. マップセルの動的反映
         const cell = document.getElementById(`map-cell-${cleanId}`);
         const statusText = document.getElementById(`map-status-${cleanId}`);
         if (cell && statusText) {
           statusText.innerText = config.text;
           const nameEl = cell.querySelector('.booth-name');
           if (nameEl) nameEl.innerText = booth.name;
-          cell.className = `p-2.5 rounded-lg text-center font-black text-xs transition-all duration-500 ${config.map}`;
+          cell.className = `p-2 rounded-lg text-center font-black text-[10px] transition-all duration-500 ${config.map}`;
         }
       });
       switchView('user');
@@ -288,17 +300,14 @@
 
     function renderAdminView(data) {
       const container = document.getElementById('admin-booth-list');
-      
-      // 管理者リストの初回構築判定
       if (container.children.length === 0) {
         data.forEach(booth => {
           const cleanId = String(booth.id).trim();
           const config = STATUS_MAP[booth.status] || { badge: 'bg-slate-100 text-slate-800' };
-          const section = document.createElement('div');
-          section.className = 'p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3';
+          const section = document.createElement('div'); section.className = 'p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3';
           section.innerHTML = `
             <div class="flex justify-between items-center border-b border-slate-200 pb-2">
-              <h3 class="text-xs font-bold text-slate-800">${booth.name}</h3>
+              <h3 class="text-xs font-bold text-slate-800">ID:${cleanId} - ${booth.name}</h3>
               <span id="current-${cleanId}" class="px-2 py-0.5 rounded text-[10px] font-bold ${config.badge}">${booth.status}</span>
             </div>
             <div class="grid grid-cols-3 gap-2">
@@ -323,36 +332,22 @@
     }
 
     async function updateStatus(id, newStatus, btnElement) {
-      const badge = document.getElementById(`current-${id}`);
-      if (badge) badge.dataset.updating = "true";
-      const buttons = btnElement.parentElement.querySelectorAll('button');
-      buttons.forEach(b => b.disabled = true);
-
+      const badge = document.getElementById(`current-${id}`); if (badge) badge.dataset.updating = "true";
+      const buttons = btnElement.parentElement.querySelectorAll('button'); buttons.forEach(b => b.disabled = true);
       try {
-        const response = await fetch(GAS_URL, {
-          method: 'POST',
-          mode: 'cors',
-          body: JSON.stringify({ id: id, status: newStatus })
-        });
+        const response = await fetch(GAS_URL, { method: 'POST', mode: 'cors', body: JSON.stringify({ id: id, status: newStatus }) });
         const result = await response.json();
         if (result.status === 'success' && badge) {
           badge.innerText = newStatus;
           badge.className = `px-2 py-0.5 rounded text-[10px] font-bold ${STATUS_MAP[newStatus]?.badge || 'bg-slate-100 text-slate-800'}`;
         }
-      } catch (error) {
-        alert('ステータスの送信に失敗しました。');
-      } finally {
-        buttons.forEach(b => b.disabled = false);
-        if (badge) delete badge.dataset.updating;
-      }
+      } catch (error) { alert('ステータスの送信に失敗しました。'); } finally { buttons.forEach(b => b.disabled = false); if (badge) delete badge.dataset.updating; }
     }
 
     function formatTime(dateStr) {
       if (!dateStr) return '未更新';
-      const diff = new Date() - new Date(dateStr);
-      const mins = Math.floor(diff / 1000 / 60);
-      if (mins < 1) return 'たった今';
-      if (mins < 60) return `${mins}分前`;
+      const diff = new Date() - new Date(dateStr); const mins = Math.floor(diff / 1000 / 60);
+      if (mins < 1) return 'たった今'; if (mins < 60) return `${mins}分前`;
       return new Date(dateStr).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     }
   </script>
