@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>黒工電子科 ミニゲーム</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* 人間工学的画面固定（スクロールや引っ張り更新を完全ロック） */
+    html, body { overflow: hidden; position: fixed; width: 100%; height: 100%; -webkit-overflow-scrolling: touch; }
+    canvas { background: #0f172a; display: block; margin: 0 auto; }
+  </style>
+</head>
+<body class="bg-slate-900 flex flex-col items-center justify-center min-h-screen text-white select-none">
+
+  <div class="text-center space-y-2 mb-2">
+    <h1 class="text-sm font-black tracking-widest text-red-500">KUROKO ELECTRONICS RUN</h1>
+    <p class="text-[9px] text-slate-400">タップでジャンプ！障害物を避けろ</p>
+  </div>
+
+  <canvas id="gameCanvas" width="320" height="240" class="border-2 border-slate-700 rounded-lg shadow-2xl"></canvas>
+
+  <div class="mt-4">
+    <button onclick="resetGame()" class="bg-red-700 hover:bg-red-800 text-white font-black text-xs py-2 px-6 rounded-full shadow-md active:scale-95 transition">
+      リスタート
+    </button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // 画面タッチのスクロール誤動作を完全防止
+    document.addEventListener('touchmove', (e) => { if(e.touches.length > 1) { e.preventDefault(); } }, { passive: false });
+
+    let player = { x: 30, y: 180, width: 16, height: 16, vy: 0, jumped: false };
+    let obstacles = [];
+    let score = 0;
+    let isGameOver = false;
+    let frame = 0;
+
+    // タップイベント（ジャンプ動作）
+    window.addEventListener('touchstart', () => {
+      if (!player.jumped && !isGameOver) {
+        player.vy = -7;
+        player.jumped = true;
+      }
+    });
+
+    function spawnObstacle() {
+      if (frame % 90 === 0) {
+        obstacles.push({ x: 320, y: 180, width: 12, height: 16 });
+      }
+    }
+
+    function update() {
+      if (isGameOver) return;
+      frame++;
+      
+      // 重力計算
+      player.vy += 0.4;
+      player.y += player.vy;
+      if (player.y >= 180) {
+        player.y = 180;
+        player.vy = 0;
+        player.jumped = false;
+      }
+
+      spawnObstacle();
+
+      obstacles.forEach((obs, index) => {
+        obs.x -= 3; // スピード
+        
+        // 衝突判定
+        if (player.x < obs.x + obs.width && player.x + player.width > obs.x &&
+            player.y < obs.y + obs.height && player.y + player.height > obs.y) {
+          isGameOver = true;
+        }
+
+        if (obs.x + obs.width < 0) {
+          obstacles.splice(index, 1);
+          score += 10;
+        }
+      });
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 地面
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(0, 196, canvas.width, 44);
+
+      // プレイヤー（電子のイメージでライトブルー）
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(player.x, player.y, player.width, player.height);
+
+      // 障害物（赤）
+      ctx.fillStyle = '#ef4444';
+      obstacles.forEach(obs => {
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+      });
+
+      // スコア表示
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 12px monospace';
+      ctx.fillText(`SCORE: ${score}`, 10, 20);
+
+      if (isGameOver) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ef4444';
+        ctx.font = 'bold 16px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2);
+      }
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    function resetGame() {
+      player.y = 180; player.vy = 0; player.jumped = false;
+      obstacles = []; score = 0; isGameOver = false; frame = 0;
+      ctx.textAlign = 'left';
+    }
+
+    loop();
+  </script>
+</body>
+</html>
