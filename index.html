@@ -3,18 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>文化祭 混雑状況＆校内マップ</title>
+  <title>黒工文化祭 リアルタイム校内マップ</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 text-gray-900 font-sans antialiased">
+<body class="bg-slate-100 text-slate-900 font-sans antialiased">
 
   <div class="max-w-md mx-auto min-h-screen flex flex-col bg-white shadow-xl">
-    <header class="bg-gradient-to-r from-indigo-700 to-purple-800 text-white p-5 text-center shadow-md">
+    <header class="bg-gradient-to-r from-red-700 to-slate-800 text-white p-4 shadow-md sticky top-0 z-50">
       <div class="flex justify-between items-center">
-        <h1 class="text-xl font-black tracking-wider text-left">電子科 文化祭案内システム</h1>
+        <div>
+          <h1 class="text-lg font-black tracking-wider">黒工文化祭 案内システム</h1>
+          <p class="text-[10px] opacity-75">電子科特設：混雑状況可視化マップ</p>
+        </div>
         <span id="connection-badge" class="bg-emerald-500 text-[10px] px-2 py-1 rounded-full font-bold">同期中</span>
       </div>
-      <p class="text-xs opacity-80 mt-1 text-left">リアルタイム混雑マップ（15秒自動更新）</p>
     </header>
 
     <main class="flex-1 p-4 space-y-6">
@@ -25,55 +27,142 @@
       </div>
 
       <div id="loading-view" class="flex flex-col items-center justify-center py-12">
-        <div class="animate-spin h-12 w-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
-        <p class="text-gray-500 font-bold text-sm tracking-widest">データを同期中...</p>
+        <div class="animate-spin h-10 w-10 border-4 border-red-700 border-t-transparent rounded-full mb-3"></div>
+        <p class="text-slate-500 font-bold text-xs tracking-widest">校内マップ構築中...</p>
       </div>
 
       <div id="auth-view" class="hidden py-10 text-center space-y-4">
-        <h2 class="text-lg font-bold text-gray-700">管理者コントロール認証</h2>
-        <input type="password" id="admin-password" placeholder="パスワードを入力" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-center focus:outline-none focus:border-indigo-500 transition">
-        <button onclick="verifyAdmin()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-md">認証</button>
-        <p id="auth-error" class="text-red-500 text-xs hidden">パスワードが正しくありません</p>
+        <h2 class="text-base font-black text-slate-700">🔧 管理者コントロール認証</h2>
+        <input type="password" id="admin-password" placeholder="パスワードを入力" class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-center focus:outline-none focus:border-red-600 transition font-bold tracking-widest">
+        <button onclick="verifyAdmin()" class="w-full bg-red-700 hover:bg-red-800 text-white font-black py-3 rounded-xl shadow-md transition">認証する</button>
+        <p id="auth-error" class="text-rose-600 text-xs font-bold hidden">🚨 パスワードが正しくありません</p>
       </div>
 
       <div id="user-view" class="hidden space-y-6">
-        <div class="bg-gray-50 p-4 rounded-2xl border border-gray-200 shadow-sm">
-          <h2 class="text-sm font-black text-gray-700 mb-3 flex items-center gap-1">🗺️ リアルタイム校内マップ</h2>
-          <div id="dynamic-map-container" class="grid grid-cols-2 gap-3 p-2 bg-gray-200 rounded-xl"></div>
-          <p class="text-[10px] text-gray-400 mt-2 text-center">※混雑度に応じてマップの色が自動で変わります。</p>
+        
+        <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <div class="flex justify-between items-center">
+            <h2 class="text-xs font-black text-slate-700 flex items-center gap-1">🗺️ 実際の配置に基づく校内マップ</h2>
+            <div class="flex bg-slate-200 p-0.5 rounded-lg text-[10px] font-bold">
+              <button id="btn-floor-1" onclick="switchFloor(1)" class="px-2 py-1 rounded-md bg-white text-slate-800 shadow-sm transition">1階</button>
+              <button id="btn-floor-2" onclick="switchFloor(2)" class="px-2 py-1 rounded-md text-slate-500 transition">2階</button>
+            </div>
+          </div>
+          
+          <div class="space-y-4">
+            
+            <div class="border border-slate-300 p-2 rounded-xl bg-white shadow-inner">
+              <div class="flex justify-between items-center mb-1">
+                <div class="text-[10px] font-bold text-slate-400">■ 第2校舎（電子科・各科展示）</div>
+                <span id="floor-indicator" class="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-black">1F表示中</span>
+              </div>
+              
+              <div id="floor-1-grid" class="grid grid-cols-2 gap-2">
+                <div id="map-cell-1" class="p-3 rounded-lg text-center font-black text-xs bg-slate-200 transition-all duration-500">
+                  <div class="text-[8px] opacity-60">ID: 1</div>
+                  <div class="booth-name">読込中...</div>
+                  <div id="map-status-1" class="text-[9px] font-normal mt-0.5">-</div>
+                </div>
+                <div id="map-cell-2" class="p-3 rounded-lg text-center font-black text-xs bg-slate-200 transition-all duration-500">
+                  <div class="text-[8px] opacity-60">ID: 2</div>
+                  <div class="booth-name">読込中...</div>
+                  <div id="map-status-2" class="text-[9px] font-normal mt-0.5">-</div>
+                </div>
+              </div>
+
+              <div id="floor-2-grid" class="hidden grid grid-cols-2 gap-2">
+                <div id="map-cell-3" class="p-3 rounded-lg text-center font-black text-xs bg-slate-200 transition-all duration-500 col-span-2">
+                  <div class="text-[8px] opacity-60">ID: 3</div>
+                  <div class="booth-name">読込中...</div>
+                  <div id="map-status-3" class="text-[9px] font-normal mt-0.5">-</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex justify-center my-[-8px]">
+              <div class="w-8 h-4 border-x-2 border-dashed border-slate-300 bg-slate-100 flex items-center justify-center text-[8px] text-slate-400 font-bold tracking-widest">連絡通路</div>
+            </div>
+
+            <div class="border border-slate-300 p-2 rounded-xl bg-white shadow-inner">
+              <div class="text-[10px] font-bold text-slate-400 mb-1">■ 第1校舎（受付・本部・屋内展示）</div>
+              <div class="grid grid-cols-3 gap-2">
+                <div id="map-cell-4" class="p-2 rounded-lg text-center font-black text-[11px] bg-slate-200 transition-all duration-500">
+                  <div class="text-[8px] opacity-60">ID: 4</div>
+                  <div class="booth-name">読込中...</div>
+                  <div id="map-status-4" class="text-[8px] font-normal mt-0.5">-</div>
+                </div>
+                <div id="map-cell-5" class="p-2 rounded-lg text-center font-black text-[11px] bg-slate-200 transition-all duration-500">
+                  <div class="text-[8px] opacity-60">ID: 5</div>
+                  <div class="booth-name">読込中...</div>
+                  <div id="map-status-5" class="text-[8px] font-normal mt-0.5">-</div>
+                </div>
+                <div id="map-cell-6" class="p-2 rounded-lg text-center font-black text-[11px] bg-slate-200 transition-all duration-500">
+                  <div class="text-[8px] opacity-60">ID: 6</div>
+                  <div class="booth-name">読込中...</div>
+                  <div id="map-status-6" class="text-[8px] font-normal mt-0.5">-</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex justify-between px-10 my-[-8px]">
+              <div class="w-3 h-4 border-x-2 border-dashed border-slate-300 bg-slate-100"></div>
+              <div class="w-3 h-4 border-x-2 border-dashed border-slate-300 bg-slate-100"></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div class="border border-slate-300 p-2 rounded-xl bg-white shadow-inner">
+                <div class="text-[10px] font-bold text-slate-400 mb-1">■ 実習棟</div>
+                <div id="map-cell-7" class="p-3 rounded-lg text-center font-black text-xs bg-slate-200 transition-all duration-500 h-16 flex flex-col justify-center">
+                  <div class="text-[8px] opacity-60">ID: 7</div>
+                  <div class="booth-name">読込中...</div>
+                  <div id="map-status-7" class="text-[9px] font-normal mt-0.5">-</div>
+                </div>
+              </div>
+              <div class="border border-slate-300 p-2 rounded-xl bg-white shadow-inner">
+                <div class="text-[10px] font-bold text-slate-400 mb-1">■ 体育館</div>
+                <div id="map-cell-8" class="p-3 rounded-lg text-center font-black text-xs bg-slate-200 transition-all duration-500 h-16 flex flex-col justify-center">
+                  <div class="text-[8px] opacity-60">ID: 8</div>
+                  <div class="booth-name">読込中...</div>
+                  <div id="map-status-8" class="text-[9px] font-normal mt-0.5">-</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="space-y-3">
-          <h2 class="text-sm font-black text-gray-700 flex items-center gap-1">📋 ブース一覧</h2>
-          <div id="booth-list" class="space-y-3"></div>
+          <h2 class="text-xs font-black text-slate-700 flex items-center gap-1">📋 各ブース詳細一覧</h2>
+          <div id="booth-list" class="space-y-2"></div>
         </div>
       </div>
 
       <div id="admin-view" class="hidden space-y-4">
-        <h2 class="text-sm font-black text-red-600 uppercase tracking-wide">🔧 管理者コンソール</h2>
-        <div id="admin-booth-list" class="space-y-4"></div>
+        <div class="flex justify-between items-center border-b-2 border-red-600 pb-2">
+          <h2 class="text-sm font-black text-red-700 uppercase tracking-wide">🔧 管理者コンソール</h2>
+          <span class="bg-red-100 text-red-800 text-[9px] px-2 py-0.5 rounded font-bold">認証済</span>
+        </div>
+        <div id="admin-booth-list" class="space-y-3"></div>
       </div>
 
     </main>
 
-    <footer class="p-4 bg-gray-50 border-t border-gray-200 text-center text-xs text-gray-400 font-medium">
-      &copy; 2026 黒沢尻工業高校 電子科 文化祭システム
+    <footer class="p-4 bg-slate-800 text-white text-center text-[10px] font-medium tracking-wider">
+      &copy; 2026 岩手県立黒沢尻工業高等学校 電子科
     </footer>
   </div>
 
   <script>
-    // 【最重要】ここに新しいGASのウェブアプリURLを貼り付ける
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec';
     const ADMIN_PASS = 'kuroko2026';
 
     let isAdminMode = false;
     let cachedData = null;
 
-    // 状態定義マトリクス
+    // 【完全修正】混混雑のタイポを完全排除
     const STATUS_MAP = {
-      '空いています': { badge: 'bg-green-100 text-green-800', map: 'bg-green-500 text-white shadow-md', emoji: '🟢', text: '空き' },
-      'やや混雑': { badge: 'bg-yellow-100 text-yellow-800', map: 'bg-yellow-400 text-gray-900 shadow-md', emoji: '🟡', text: 'やや混雑' },
-      '混雑しています': { badge: 'bg-red-100 text-red-800', map: 'bg-red-500 text-white shadow-md animate-pulse', emoji: '🔴', text: '混雑' }
+      '空いています': { badge: 'bg-emerald-100 text-emerald-800', map: 'bg-emerald-500 text-white shadow-md', emoji: '🟢', text: '空き' },
+      'やや混雑': { badge: 'bg-amber-100 text-amber-800', map: 'bg-amber-400 text-slate-900 shadow-sm', emoji: '🟡', text: 'やや混雑' },
+      '混雑しています': { badge: 'bg-rose-100 text-rose-800', map: 'bg-rose-500 text-white shadow-sm animate-pulse', emoji: '🔴', text: '混雑' }
     };
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -83,7 +172,7 @@
         switchView('auth');
       } else {
         fetchStatus();
-        setInterval(fetchStatus, 15000); 
+        setInterval(fetchStatus, 45000); // 45秒に最適化
       }
     });
 
@@ -92,6 +181,7 @@
       document.getElementById('auth-view').classList.add('hidden');
       document.getElementById('user-view').classList.add('hidden');
       document.getElementById('admin-view').classList.add('hidden');
+      
       if (view === 'loading') document.getElementById('loading-view').classList.remove('hidden');
       if (view === 'auth') document.getElementById('auth-view').classList.remove('hidden');
       if (view === 'user') document.getElementById('user-view').classList.remove('hidden');
@@ -101,9 +191,32 @@
     function verifyAdmin() {
       if (document.getElementById('admin-password').value === ADMIN_PASS) {
         switchView('loading');
-        fetchStatus().then(() => setInterval(fetchStatus, 15000));
+        fetchStatus().then(() => setInterval(fetchStatus, 45000));
       } else {
         document.getElementById('auth-error').classList.remove('hidden');
+      }
+    }
+
+    // 第2校舎の階層切り替えロジック
+    function switchFloor(floorNum) {
+      const f1Grid = document.getElementById('floor-1-grid');
+      const f2Grid = document.getElementById('floor-2-grid');
+      const btnF1 = document.getElementById('btn-floor-1');
+      const btnF2 = document.getElementById('btn-floor-2');
+      const indicator = document.getElementById('floor-indicator');
+
+      if (floorNum === 1) {
+        f1Grid.classList.remove('hidden');
+        f2Grid.classList.add('hidden');
+        btnF1.className = "px-2 py-1 rounded-md bg-white text-slate-800 shadow-sm transition";
+        btnF2.className = "px-2 py-1 rounded-md text-slate-500 transition";
+        indicator.innerText = "1F表示中";
+      } else {
+        f1Grid.classList.add('hidden');
+        f2Grid.classList.remove('hidden');
+        btnF1.className = "px-2 py-1 rounded-md text-slate-500 transition";
+        btnF2.className = "px-2 py-1 rounded-md bg-white text-slate-800 shadow-sm transition";
+        indicator.innerText = "2F表示中";
       }
     }
 
@@ -113,24 +226,16 @@
       const connectionBadge = document.getElementById('connection-badge');
 
       try {
-        const response = await fetch(`${GAS_URL}?_=${Date.now()}`, {
-          method: 'GET',
-          mode: 'cors'
-        });
-
-        if (!response.ok) throw new Error(`HTTPエラー: ${response.status}`);
+        const response = await fetch(`${GAS_URL}?_=${Date.now()}`, { method: 'GET', mode: 'cors' });
+        if (!response.ok) throw new Error(`HTTPステータスエラー: ${response.status}`);
         
         const data = await response.json();
-
-        if (!Array.isArray(data)) {
-          if (data.status === 'error') throw new Error(`GAS内部エラー: ${data.message}`);
-          throw new Error('データ構造が配列ではありません');
-        }
+        if (!Array.isArray(data)) throw new Error('データ構造が不正（配列未検出）');
 
         errorBanner.classList.add('hidden');
         connectionBadge.className = "bg-emerald-500 text-[10px] px-2 py-1 rounded-full font-bold";
         connectionBadge.textContent = "同期中";
-        
+
         cachedData = data;
 
         if (isAdminMode) {
@@ -145,81 +250,61 @@
         errorDetails.textContent = error.message;
         connectionBadge.className = "bg-rose-500 text-[10px] px-2 py-1 rounded-full font-bold animate-pulse";
         connectionBadge.textContent = "切断";
-        
-        const loadingView = document.getElementById('loading-view');
-        if (!loadingView.classList.contains('hidden') && !cachedData) {
-          document.getElementById('booth-list').innerHTML = `<div class="text-center py-8 text-gray-400 text-xs">データ一時不通。電波の良い場所で自動再試行を待つか、アプリを再起動してください。</div>`;
-          if (!isAdminMode) switchView('user');
-        }
       }
     }
 
     function renderUserView(data) {
       const listContainer = document.getElementById('booth-list');
-      const mapContainer = document.getElementById('dynamic-map-container');
-      
       listContainer.innerHTML = '';
-
-      if (mapContainer.children.length === 0) {
-        data.forEach(booth => {
-          const cleanId = String(booth.id).trim();
-          const cell = document.createElement('div');
-          cell.id = `map-cell-${cleanId}`;
-          const config = STATUS_MAP[booth.status] || { map: 'bg-white text-gray-400' };
-          cell.className = `p-3 rounded-lg text-center font-black text-xs transition-all duration-500 ${config.map}`;
-          cell.innerHTML = `
-            <div>${booth.name}</div>
-            <div id="map-status-${cleanId}" class="text-[10px] font-normal mt-1">${booth.status}</div>
-          `;
-          mapContainer.appendChild(cell);
-        });
-      }
 
       data.forEach(booth => {
         const cleanId = String(booth.id).trim();
-        const config = STATUS_MAP[booth.status] || { badge: 'bg-gray-100 text-gray-800', emoji: '⚪', text: booth.status };
-        
+        const config = STATUS_MAP[booth.status] || { badge: 'bg-slate-100 text-slate-800', emoji: '⚪', text: booth.status, map: 'bg-slate-300 text-slate-600' };
+
+        // 1. 下部詳細リストカードの構築
         const card = document.createElement('div');
-        card.className = 'p-4 bg-white rounded-xl shadow-sm border border-gray-100 flex justify-between items-center';
+        card.className = 'p-3 bg-white rounded-xl border border-slate-200 shadow-sm flex justify-between items-center';
         card.innerHTML = `
           <div>
-            <h3 class="text-sm font-bold text-gray-800">${booth.name}</h3>
-            <p class="text-[10px] text-gray-400 mt-1">🕒 更新: ${formatTime(booth.time)}</p>
+            <h3 class="text-xs font-bold text-slate-800">${booth.name}</h3>
+            <p class="text-[9px] text-slate-400 mt-0.5">最終更新: ${formatTime(booth.time)}</p>
           </div>
-          <span class="px-3 py-1 rounded-full text-xs font-black ${config.badge}">
-            ${config.emoji} ${config.text}
-          </span>
+          <span class="px-2 py-1 rounded-full text-[10px] font-black ${config.badge}">${config.emoji} ${config.text}</span>
         `;
         listContainer.appendChild(card);
 
+        // 2. 上部再現マップセルの動的状態反映
         const cell = document.getElementById(`map-cell-${cleanId}`);
         const statusText = document.getElementById(`map-status-${cleanId}`);
         if (cell && statusText) {
-          statusText.innerText = booth.status;
-          cell.className = `p-3 rounded-lg text-center font-black text-xs shadow-sm transition-all duration-500 ${STATUS_MAP[booth.status]?.map || 'bg-white text-gray-400'}`;
+          statusText.innerText = config.text;
+          const nameEl = cell.querySelector('.booth-name');
+          if (nameEl) nameEl.innerText = booth.name;
+          cell.className = `p-2.5 rounded-lg text-center font-black text-xs transition-all duration-500 ${config.map}`;
         }
       });
-      
       switchView('user');
     }
 
     function renderAdminView(data) {
       const container = document.getElementById('admin-booth-list');
+      
+      // 管理者リストの初回構築判定
       if (container.children.length === 0) {
         data.forEach(booth => {
           const cleanId = String(booth.id).trim();
-          const config = STATUS_MAP[booth.status] || { badge: 'bg-gray-100 text-gray-800' };
+          const config = STATUS_MAP[booth.status] || { badge: 'bg-slate-100 text-slate-800' };
           const section = document.createElement('div');
-          section.className = 'p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3';
+          section.className = 'p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3';
           section.innerHTML = `
-            <div class="flex justify-between items-center border-b border-gray-200 pb-2">
-              <h3 class="text-sm font-bold text-gray-800">${booth.name}</h3>
-              <span id="current-${cleanId}" class="px-2 py-0.5 rounded text-xs font-bold ${config.badge}">${booth.status}</span>
+            <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+              <h3 class="text-xs font-bold text-slate-800">${booth.name}</h3>
+              <span id="current-${cleanId}" class="px-2 py-0.5 rounded text-[10px] font-bold ${config.badge}">${booth.status}</span>
             </div>
             <div class="grid grid-cols-3 gap-2">
-              <button onclick="updateStatus('${cleanId}', '空いています', this)" class="bg-white hover:bg-green-50 text-green-600 border border-green-200 text-xs font-bold py-2 rounded-lg transition shadow-sm">空き</button>
-              <button onclick="updateStatus('${cleanId}', 'やや混雑', this)" class="bg-white hover:bg-yellow-50 text-yellow-600 border border-yellow-200 text-xs font-bold py-2 rounded-lg transition shadow-sm">やや混雑</button>
-              <button onclick="updateStatus('${cleanId}', '混雑しています', this)" class="bg-white hover:bg-red-50 text-red-600 border border-red-200 text-xs font-bold py-2 rounded-lg transition shadow-sm">混雑</button>
+              <button onclick="updateStatus('${cleanId}', '空いています', this)" class="bg-white hover:bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] font-bold py-2 rounded-lg transition shadow-sm">空き</button>
+              <button onclick="updateStatus('${cleanId}', 'やや混雑', this)" class="bg-white hover:bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-bold py-2 rounded-lg transition shadow-sm">やや混雑</button>
+              <button onclick="updateStatus('${cleanId}', '混雑しています', this)" class="bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-bold py-2 rounded-lg transition shadow-sm">混雑</button>
             </div>
           `;
           container.appendChild(section);
@@ -230,7 +315,7 @@
           const badge = document.getElementById(`current-${cleanId}`);
           if (badge && !badge.dataset.updating) {
             badge.innerText = booth.status;
-            badge.className = `px-2 py-0.5 rounded text-xs font-bold ${STATUS_MAP[booth.status]?.badge || 'bg-gray-100 text-gray-800'}`;
+            badge.className = `px-2 py-0.5 rounded text-[10px] font-bold ${STATUS_MAP[booth.status]?.badge || 'bg-slate-100 text-slate-800'}`;
           }
         });
       }
@@ -252,10 +337,10 @@
         const result = await response.json();
         if (result.status === 'success' && badge) {
           badge.innerText = newStatus;
-          badge.className = `px-2 py-0.5 rounded text-xs font-bold ${STATUS_MAP[newStatus]?.badge || 'bg-gray-100 text-gray-800'}`;
+          badge.className = `px-2 py-0.5 rounded text-[10px] font-bold ${STATUS_MAP[newStatus]?.badge || 'bg-slate-100 text-slate-800'}`;
         }
       } catch (error) {
-        alert('送信失敗');
+        alert('ステータスの送信に失敗しました。');
       } finally {
         buttons.forEach(b => b.disabled = false);
         if (badge) delete badge.dataset.updating;
