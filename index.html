@@ -5,6 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>黒工文化祭 リアルタイム校内マップ</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* 混雑度に応じた動的SVG塗りつぶしクラス */
+    .status-free { fill: #10b981; filter: drop-shadow(0 2px 4px rgba(16,185,129,0.2)); }
+    .status-warn { fill: #fbbf24; filter: drop-shadow(0 2px 4px rgba(251,191,36,0.2)); }
+    .status-busy { fill: #ef4444; filter: drop-shadow(0 2px 4px rgba(239,68,68,0.4)); animation: pulse 2s infinite; }
+    .status-unknown { fill: #cbd5e1; }
+    
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.7; }
+      100% { opacity: 1; }
+    }
+  </style>
 </head>
 <body class="bg-slate-100 text-slate-900 font-sans antialiased">
 
@@ -13,13 +26,13 @@
       <div class="flex justify-between items-center">
         <div>
           <h1 class="text-lg font-black tracking-wider">黒工文化祭 案内システム</h1>
-          <p class="text-[10px] opacity-75">電子科特設：校内空間連動混雑マップ</p>
+          <p class="text-[10px] opacity-75">電子科特設：ビジュアル校舎マップ</p>
         </div>
         <span id="connection-badge" class="bg-emerald-500 text-[10px] px-2 py-1 rounded-full font-bold">同期中</span>
       </div>
     </header>
 
-    <main class="flex-1 p-4 space-y-6">
+    <main class="flex-1 p-4 space-y-4">
       
       <div id="error-banner" class="hidden bg-rose-50 border-l-4 border-rose-500 p-3 rounded shadow-sm">
         <p class="text-xs text-rose-700 font-bold">🚨 同期一時失敗: 自動リトライ中...</p>
@@ -28,7 +41,7 @@
 
       <div id="loading-view" class="flex flex-col items-center justify-center py-12">
         <div class="animate-spin h-10 w-10 border-4 border-red-700 border-t-transparent rounded-full mb-3"></div>
-        <p class="text-slate-500 font-bold text-xs tracking-widest">黒工見取り図 構築中...</p>
+        <p class="text-slate-500 font-bold text-xs tracking-widest">グラフィカルマップ構築中...</p>
       </div>
 
       <div id="auth-view" class="hidden py-10 text-center space-y-4">
@@ -38,120 +51,90 @@
         <p id="auth-error" class="text-rose-600 text-xs font-bold hidden">🚨 パスワードが正しくありません</p>
       </div>
 
-      <div id="user-view" class="hidden space-y-6">
+      <div id="user-view" class="hidden space-y-4">
         
-        <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 shadow-sm space-y-3">
           <div class="flex justify-between items-center">
-            <h2 class="text-xs font-black text-slate-700 flex items-center gap-1">🗺️ 黒工校内見取り図（手書きマップ準拠）</h2>
+            <h2 class="text-xs font-black text-slate-700 flex items-center gap-1">🗺️ リアルタイム校舎形状・経路マップ</h2>
             <div class="flex bg-slate-200 p-0.5 rounded-lg text-[10px] font-bold">
               <button id="btn-floor-1" onclick="switchFloor(1)" class="px-2 py-1 rounded-md bg-white text-slate-800 shadow-sm transition">1階</button>
               <button id="btn-floor-2" onclick="switchFloor(2)" class="px-2 py-1 rounded-md text-slate-500 transition">2階</button>
             </div>
           </div>
 
-          <div id="floor-1-map" class="space-y-3">
+          <div class="bg-white border border-slate-300 rounded-xl p-1 shadow-inner relative">
             
-            <div class="border border-slate-300 p-2 rounded-xl bg-white">
-              <div class="text-[9px] font-bold text-slate-400 mb-1">■ 第2校舎 1F</div>
-              <div class="grid grid-cols-3 gap-1.5">
-                <div id="map-cell-1" class="p-2 rounded-lg text-center font-black text-[10px] bg-slate-200 transition-all duration-500">
-                  <div class="text-[7px] opacity-60">ID: 1</div>
-                  <div class="booth-name">電子科</div>
-                  <div id="map-status-1" class="text-[8px] font-normal mt-0.5">-</div>
-                </div>
-                <div id="map-cell-2" class="p-2 rounded-lg text-center font-black text-[10px] bg-slate-200 transition-all duration-500">
-                  <div class="text-[7px] opacity-60">ID: 2</div>
-                  <div class="booth-name">電気科</div>
-                  <div id="map-status-2" class="text-[8px] font-normal mt-0.5">-</div>
-                </div>
-                <div id="map-cell-3" class="p-2 rounded-lg text-center font-black text-[10px] bg-slate-200 transition-all duration-500">
-                  <div class="text-[7px] opacity-60">ID: 3</div>
-                  <div class="booth-name">機械科</div>
-                  <div id="map-status-3" class="text-[8px] font-normal mt-0.5">-</div>
-                </div>
-              </div>
-            </div>
+            <svg id="svg-floor-1" viewBox="0 0 400 420" class="w-full h-auto">
+              <path d="M 50,70 L 350,70 L 350,210 L 220,210 L 220,340" fill="none" stroke="#e2e8f0" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M 50,70 L 350,70 L 350,210 L 220,210 L 220,340" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 4" stroke-linecap="round" stroke-linejoin="round"/>
+              
+              <text x="20" y="30" class="text-[10px] font-bold fill-slate-400">■ 第2校舎 (1F)</text>
+              <g id="svg-cell-1" class="transition-all duration-500">
+                <rect x="30" y="45" width="100" height="50" rx="6" class="status-unknown"/>
+                <text x="80" y="70" text-anchor="middle" class="text-[11px] font-black fill-white pointer-events-none">電子科 (ID:1)</text>
+                <text id="svg-status-text-1" x="80" y="85" text-anchor="middle" class="text-[9px] fill-white opacity-90 pointer-events-none">-</text>
+              </g>
+              <g id="svg-cell-2" class="transition-all duration-500">
+                <rect x="140" y="45" width="100" height="50" rx="6" class="status-unknown"/>
+                <text x="190" y="70" text-anchor="middle" class="text-[11px] font-black fill-white pointer-events-none">電気科 (ID:2)</text>
+                <text id="svg-status-text-2" x="190" y="85" text-anchor="middle" class="text-[9px] fill-white opacity-90 pointer-events-none">-</text>
+              </g>
+              <g id="svg-cell-3" class="transition-all duration-500">
+                <rect x="250" y="45" width="120" height="50" rx="6" class="status-unknown"/>
+                <text x="310" y="70" text-anchor="middle" class="text-[11px] font-black fill-white pointer-events-none">機械科 (ID:3)</text>
+                <text id="svg-status-text-3" x="310" y="85" text-anchor="middle" class="text-[9px] fill-white opacity-90 pointer-events-none">-</text>
+              </g>
 
-            <div class="flex justify-center my-[-6px]">
-              <div class="w-16 h-3 border-x-2 border-dashed border-slate-300 bg-slate-100 flex items-center justify-center text-[7px] text-slate-400 font-bold">渡り廊下</div>
-            </div>
+              <line x1="310" y1="95" x2="310" y2="135" stroke="#cbd5e1" stroke-width="8" stroke-dasharray="2 2"/>
+              <text x="320" y="120" class="text-[8px] font-bold fill-slate-400">渡り廊下</text>
 
-            <div class="border border-slate-300 p-2 rounded-xl bg-white">
-              <div class="text-[9px] font-bold text-slate-400 mb-1">■ 第1校舎 1F (本館)</div>
-              <div class="grid grid-cols-4 gap-1.5">
-                <div id="map-cell-4" class="p-2 rounded-lg text-center font-black text-[10px] bg-slate-200 transition-all duration-500 col-span-2">
-                  <div class="text-[7px] opacity-60">ID: 4</div>
-                  <div class="booth-name">受付・本部・M科</div>
-                  <div id="map-status-4" class="text-[8px] font-normal mt-0.5">-</div>
-                </div>
-                <div id="map-cell-5" class="p-2 rounded-lg text-center font-black text-[10px] bg-slate-200 transition-all duration-500">
-                  <div class="text-[7px] opacity-60">ID: 5</div>
-                  <div class="booth-name">土木/建築</div>
-                  <div id="map-status-5" class="text-[8px] font-normal mt-0.5">-</div>
-                </div>
-                <div id="map-cell-6" class="p-2 rounded-lg text-center font-black text-[10px] bg-slate-200 transition-all duration-500">
-                  <div class="text-[7px] opacity-60">ID: 6</div>
-                  <div class="booth-name">商業/工経</div>
-                  <div id="map-status-6" class="text-[8px] font-normal mt-0.5">-</div>
-                </div>
-              </div>
-            </div>
+              <text x="20" y="125" class="text-[10px] font-bold fill-slate-400">■ 第1校舎本館 (1F)</text>
+              <g id="svg-cell-4" class="transition-all duration-500">
+                <rect x="30" y="140" width="150" height="50" rx="6" class="status-unknown"/>
+                <text x="105" y="165" text-anchor="middle" class="text-[11px] font-black fill-white pointer-events-none">受付・本部・M科 (ID:4)</text>
+                <text id="svg-status-text-4" x="105" y="180" text-anchor="middle" class="text-[9px] fill-white opacity-90 pointer-events-none">-</text>
+              </g>
+              <g id="svg-cell-5" class="transition-all duration-500">
+                <rect x="190" y="140" width="90" height="50" rx="6" class="status-unknown"/>
+                <text x="235" y="165" text-anchor="middle" class="text-[11px] font-black fill-white pointer-events-none">土木/建築 (ID:5)</text>
+                <text id="svg-status-text-5" x="235" y="180" text-anchor="middle" class="text-[9px] fill-white opacity-90 pointer-events-none">-</text>
+              </g>
+              <g id="svg-cell-6" class="transition-all duration-500">
+                <rect x="290" y="140" width="90" height="50" rx="6" class="status-unknown"/>
+                <text x="335" y="165" text-anchor="middle" class="text-[11px] font-black fill-white pointer-events-none">商業/工経 (ID:6)</text>
+                <text id="svg-status-text-6" x="335" y="180" text-anchor="middle" class="text-[9px] fill-white opacity-90 pointer-events-none">-</text>
+              </g>
 
-            <div class="flex justify-end pr-10 my-[-6px]">
-              <div class="w-12 h-3 border-x-2 border-dashed border-slate-300 bg-slate-100 flex items-center justify-center text-[7px] text-slate-400 font-bold">奥通路</div>
-            </div>
+              <line x1="220" y1="190" x2="220" y2="250" stroke="#cbd5e1" stroke-width="8" stroke-dasharray="2 2"/>
 
-            <div class="grid grid-cols-2 gap-2">
-              <div class="border border-slate-300 p-2 rounded-xl bg-white">
-                <div class="text-[9px] font-bold text-slate-400 mb-1">■ 体育館</div>
-                <div id="map-cell-8" class="p-2.5 rounded-lg text-center font-black text-[10px] bg-slate-200 transition-all duration-500 h-14 flex flex-col justify-center">
-                  <div class="text-[7px] opacity-60">ID: 8</div>
-                  <div class="booth-name">体育館イベント</div>
-                  <div id="map-status-8" class="text-[8px] font-normal mt-0.5">-</div>
-                </div>
-              </div>
-              <div class="border border-slate-300 p-2 rounded-xl bg-white">
-                <div class="text-[9px] font-bold text-slate-400 mb-1">■ 実習棟エリア</div>
-                <div id="map-cell-7" class="p-2.5 rounded-lg text-center font-black text-[10px] bg-slate-200 transition-all duration-500 h-14 flex flex-col justify-center">
-                  <div class="text-[7px] opacity-60">ID: 7</div>
-                  <div class="booth-name">実習棟群(材料/原動/精密)</div>
-                  <div id="map-status-7" class="text-[8px] font-normal mt-0.5">-</div>
-                </div>
-              </div>
-            </div>
+              <text x="20" y="235" class="text-[10px] font-bold fill-slate-400">■ 独立棟エリア</text>
+              <g id="svg-cell-8" class="transition-all duration-500">
+                <rect x="30" y="255" width="150" height="60" rx="8" class="status-unknown"/>
+                <text x="105" y="285" text-anchor="middle" class="text-[11px] font-black fill-white pointer-events-none">体育館イベント (ID:8)</text>
+                <text id="svg-status-text-8" x="105" y="300" text-anchor="middle" class="text-[9px] fill-white opacity-90 pointer-events-none">-</text>
+              </g>
+              <g id="svg-cell-7" class="transition-all duration-500">
+                <rect x="200" y="255" width="170" height="60" rx="8" class="status-unknown"/>
+                <text x="285" y="285" text-anchor="middle" class="text-[11px] font-black fill-white pointer-events-none">実習棟(材料/精密/原動) (ID:7)</text>
+                <text id="svg-status-text-7" x="285" y="300" text-anchor="middle" class="text-[9px] fill-white opacity-90 pointer-events-none">-</text>
+              </g>
+            </svg>
+
+            <svg id="svg-floor-2" viewBox="0 0 400 420" class="w-full h-auto hidden">
+              <text x="20" y="30" class="text-[10px] font-bold fill-slate-400">■ 第2校舎 (2F)</text>
+              <rect x="30" y="45" width="340" height="50" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-dasharray="4 4"/>
+              <text x="200" y="75" text-anchor="middle" class="text-[11px] font-bold fill-slate-400">2F 各科教室（※一般立ち入り制限区画）</text>
+
+              <text x="20" y="125" class="text-[10px] font-bold fill-slate-400">■ 第1校舎本館 (2F)</text>
+              <rect x="30" y="140" width="340" height="50" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-dasharray="4 4"/>
+              <text x="200" y="170" text-anchor="middle" class="text-[11px] font-bold fill-slate-400">2F 特別教室 / 本部準備室</text>
+            </svg>
+
           </div>
-
-          <div id="floor-2-map" class="space-y-3 hidden">
-            <div class="border border-slate-300 p-2 rounded-xl bg-white">
-              <div class="text-[9px] font-bold text-slate-400 mb-1">■ 第2校舎 2F</div>
-              <div class="grid grid-cols-2 gap-2">
-                <div id="map-cell-1-2f" class="p-4 rounded-lg text-center font-black text-xs bg-slate-100 text-slate-400 border border-dashed border-slate-200">
-                  <div class="text-[8px]">2F電子・電気教室</div>
-                  <div class="text-[9px] mt-1 font-normal text-slate-400">一般開放なし</div>
-                </div>
-                <div id="map-cell-3-2f" class="p-4 rounded-lg text-center font-black text-xs bg-slate-100 text-slate-400 border border-dashed border-slate-200">
-                  <div class="text-[8px]">2F機械教室</div>
-                  <div class="text-[9px] mt-1 font-normal text-slate-400">一般開放なし</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="flex justify-center my-[-6px]">
-              <div class="w-16 h-3 border-x-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-[7px] text-slate-300 font-bold">2F連絡路</div>
-            </div>
-
-            <div class="border border-slate-300 p-2 rounded-xl bg-white shadow-inner">
-              <div class="text-[9px] font-bold text-slate-400 mb-1">■ 第1校舎 2F (特別教室等)</div>
-              <div class="p-4 text-center text-[10px] text-slate-400 font-bold bg-slate-50 rounded-lg border border-dashed">
-                手書きマップ：2Fは主に1Fからの接続経路として利用<br>（各科特別展示・準備室等）
-              </div>
-            </div>
-          </div>
-
-          <p class="text-[8px] text-slate-400 text-center tracking-tighter">※図面上の第2校舎(上)・第1校舎(中)・実習棟/体育館(下)の接続構造を完全トレースしています。</p>
+          <p class="text-[8px] text-slate-400 text-center">※手書き見取り図のL字・接続導線を正確にモデリングしています。</p>
         </div>
 
-        <div class="space-y-3">
+        <div class="space-y-2">
           <h2 class="text-xs font-black text-slate-700 flex items-center gap-1">📋 各ブース詳細一覧</h2>
           <div id="booth-list" class="space-y-2"></div>
         </div>
@@ -159,7 +142,7 @@
 
       <div id="admin-view" class="hidden space-y-4">
         <div class="flex justify-between items-center border-b-2 border-red-600 pb-2">
-          <h2 class="text-sm font-black text-red-700 uppercase tracking-wide">🔧 管理者コンソール</h2>
+          <h2 class="text-sm font-black text-red-700 tracking-wide">🔧 管理者コンソール</h2>
           <span class="bg-red-100 text-red-800 text-[9px] px-2 py-0.5 rounded font-bold">認証済</span>
         </div>
         <div id="admin-booth-list" class="space-y-3"></div>
@@ -180,9 +163,9 @@
     let cachedData = null;
 
     const STATUS_MAP = {
-      '空いています': { badge: 'bg-emerald-100 text-emerald-800', map: 'bg-emerald-500 text-white shadow-md', emoji: '🟢', text: '空き' },
-      'やや混雑': { badge: 'bg-amber-100 text-amber-800', map: 'bg-amber-400 text-slate-900 shadow-sm', emoji: '🟡', text: 'やや混雑' },
-      '混雑しています': { badge: 'bg-rose-100 text-rose-800', map: 'bg-rose-500 text-white shadow-sm animate-pulse', emoji: '🔴', text: '混雑' }
+      '空いています': { badge: 'bg-emerald-100 text-emerald-800', svgClass: 'status-free', emoji: '🟢', text: '空き' },
+      'やや混雑': { badge: 'bg-amber-100 text-amber-800', svgClass: 'status-warn', emoji: '🟡', text: 'やや混雑' },
+      '混雑しています': { badge: 'bg-rose-100 text-rose-800', svgClass: 'status-busy', emoji: '🔴', text: '混雑' }
     };
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -217,21 +200,18 @@
       }
     }
 
-    // 階層切り替え
     function switchFloor(floorNum) {
-      const f1Map = document.getElementById('floor-1-map');
-      const f2Map = document.getElementById('floor-2-map');
+      const f1 = document.getElementById('svg-floor-1');
+      const f2 = document.getElementById('svg-floor-2');
       const btnF1 = document.getElementById('btn-floor-1');
       const btnF2 = document.getElementById('btn-floor-2');
 
       if (floorNum === 1) {
-        f1Map.classList.remove('hidden');
-        f2Map.classList.add('hidden');
+        f1.classList.remove('hidden'); f2.classList.add('hidden');
         btnF1.className = "px-2 py-1 rounded-md bg-white text-slate-800 shadow-sm transition";
         btnF2.className = "px-2 py-1 rounded-md text-slate-500 transition";
       } else {
-        f1Map.classList.add('hidden');
-        f2Map.classList.remove('hidden');
+        f1.classList.add('hidden'); f2.classList.remove('hidden');
         btnF1.className = "px-2 py-1 rounded-md text-slate-500 transition";
         btnF2.className = "px-2 py-1 rounded-md bg-white text-slate-800 shadow-sm transition";
       }
@@ -244,11 +224,9 @@
 
       try {
         const response = await fetch(`${GAS_URL}?_=${Date.now()}`, { method: 'GET', mode: 'cors' });
-        if (!response.ok) throw new Error(`HTTPステータスエラー: ${response.status}`);
-        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        if (!Array.isArray(data)) throw new Error('データ構造が不正');
-
+        
         errorBanner.classList.add('hidden');
         connectionBadge.className = "bg-emerald-500 text-[10px] px-2 py-1 rounded-full font-bold";
         connectionBadge.textContent = "同期中";
@@ -271,28 +249,31 @@
 
       data.forEach(booth => {
         const cleanId = String(booth.id).trim();
-        const config = STATUS_MAP[booth.status] || { badge: 'bg-slate-100 text-slate-800', emoji: '⚪', text: booth.status, map: 'bg-slate-300 text-slate-600' };
+        const config = STATUS_MAP[booth.status] || { badge: 'bg-slate-100 text-slate-800', emoji: '⚪', text: booth.status, svgClass: 'status-unknown' };
 
-        // 1. リストの構築
+        // 1. リスト追加
         const card = document.createElement('div');
         card.className = 'p-3 bg-white rounded-xl border border-slate-200 shadow-sm flex justify-between items-center';
         card.innerHTML = `
           <div>
             <h3 class="text-xs font-bold text-slate-800">${booth.name}</h3>
-            <p class="text-[9px] text-slate-400 mt-0.5">区画ID: ${cleanId} | 更新: ${formatTime(booth.time)}</p>
+            <p class="text-[9px] text-slate-400 mt-0.5">最終更新: ${formatTime(booth.time)}</p>
           </div>
           <span class="px-2 py-1 rounded-full text-[10px] font-black ${config.badge}">${config.emoji} ${config.text}</span>
         `;
         listContainer.appendChild(card);
 
-        // 2. マップセルの動的反映
-        const cell = document.getElementById(`map-cell-${cleanId}`);
-        const statusText = document.getElementById(`map-status-${cleanId}`);
-        if (cell && statusText) {
-          statusText.innerText = config.text;
-          const nameEl = cell.querySelector('.booth-name');
-          if (nameEl) nameEl.innerText = booth.name;
-          cell.className = `p-2 rounded-lg text-center font-black text-[10px] transition-all duration-500 ${config.map}`;
+        // 2. SVGへの動的マッピング（rect要素のクラス切り替え）
+        const svgGroup = document.getElementById(`svg-cell-${cleanId}`);
+        const svgStatusText = document.getElementById(`svg-status-text-${cleanId}`);
+        if (svgGroup) {
+          const rect = svgGroup.querySelector('rect');
+          if (rect) {
+            rect.setAttribute('class', `transition-all duration-500 ${config.svgClass}`);
+          }
+        }
+        if (svgStatusText) {
+          svgStatusText.textContent = config.text;
         }
       });
       switchView('user');
@@ -304,7 +285,8 @@
         data.forEach(booth => {
           const cleanId = String(booth.id).trim();
           const config = STATUS_MAP[booth.status] || { badge: 'bg-slate-100 text-slate-800' };
-          const section = document.createElement('div'); section.className = 'p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3';
+          const section = document.createElement('div');
+          section.className = 'p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3';
           section.innerHTML = `
             <div class="flex justify-between items-center border-b border-slate-200 pb-2">
               <h3 class="text-xs font-bold text-slate-800">ID:${cleanId} - ${booth.name}</h3>
@@ -332,22 +314,36 @@
     }
 
     async function updateStatus(id, newStatus, btnElement) {
-      const badge = document.getElementById(`current-${id}`); if (badge) badge.dataset.updating = "true";
-      const buttons = btnElement.parentElement.querySelectorAll('button'); buttons.forEach(b => b.disabled = true);
+      const badge = document.getElementById(`current-${id}`);
+      if (badge) badge.dataset.updating = "true";
+      const buttons = btnElement.parentElement.querySelectorAll('button');
+      buttons.forEach(b => b.disabled = true);
+
       try {
-        const response = await fetch(GAS_URL, { method: 'POST', mode: 'cors', body: JSON.stringify({ id: id, status: newStatus }) });
+        const response = await fetch(GAS_URL, {
+          method: 'POST',
+          mode: 'cors',
+          body: JSON.stringify({ id: id, status: newStatus })
+        });
         const result = await response.json();
         if (result.status === 'success' && badge) {
           badge.innerText = newStatus;
           badge.className = `px-2 py-0.5 rounded text-[10px] font-bold ${STATUS_MAP[newStatus]?.badge || 'bg-slate-100 text-slate-800'}`;
         }
-      } catch (error) { alert('ステータスの送信に失敗しました。'); } finally { buttons.forEach(b => b.disabled = false); if (badge) delete badge.dataset.updating; }
+      } catch (error) {
+        alert('送信失敗');
+      } finally {
+        buttons.forEach(b => b.disabled = false);
+        if (badge) delete badge.dataset.updating;
+      }
     }
 
     function formatTime(dateStr) {
       if (!dateStr) return '未更新';
-      const diff = new Date() - new Date(dateStr); const mins = Math.floor(diff / 1000 / 60);
-      if (mins < 1) return 'たった今'; if (mins < 60) return `${mins}分前`;
+      const diff = new Date() - new Date(dateStr);
+      const mins = Math.floor(diff / 1000 / 60);
+      if (mins < 1) return 'たった今';
+      if (mins < 60) return `${mins}分前`;
       return new Date(dateStr).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     }
   </script>
