@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>CYBER RUNNER — 黒工文化祭</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+
+  /* ── FONT ── */
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Share+Tech+Mono&display=swap');
+
+  /* ── GAME CANVAS ── */
+  #game-canvas {
+    display: block;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 1;
+  }
+
+  /* ── HUD ── */
+  #hud {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 10;
+    pointer-events: none;
+  }
+  #hud-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 12px 16px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+  }
+  .hud-block { text-align: center; }
+  .hud-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: rgba(0,243,255,0.5);
+    display: block;
+  }
+  .hud-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 0 10px #00f3ff;
+  }
+  #skill-status {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-top: 3px;
+    transition: background 0.2s, color 0.2s;
+  }
+  #skill-status.ready {
+    background: rgba(0,243,255,0.2);
+    color: #00f3ff;
+    border: 1px solid rgba(0,243,255,0.5);
+  }
+  #skill-status.cooling {
+    background: rgba(255,100,0,0.15);
+    color: #ff6400;
+    border: 1px solid rgba(255,100,0,0.3);
+  }
+
+  /* ── SKILL BUTTON (mobile) ── */
+  #skill-btn {
+    display: none;
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    pointer-events: all;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 3px solid #00f3ff;
+    background: rgba(0,0,0,0.6);
+    color: #00f3ff;
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    box-shadow: 0 0 20px rgba(0,243,255,0.4), inset 0 0 20px rgba(0,243,255,0.1);
+    transition: box-shadow 0.1s, border-color 0.2s;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #skill-btn:active { box-shadow: 0 0 40px rgba(0,243,255,0.8), inset 0 0 30px rgba(0,243,255,0.2); }
+  #skill-btn.cooling {
+    border-color: #ff6400;
+    color: #ff6400;
+    box-shadow: 0 0 10px rgba(255,100,0,0.3);
+  }
+
+  /* ── COMBO FLASH ── */
+  #combo-flash {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(28px, 8vw, 48px);
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 0 30px #00f3ff;
+    pointer-events: none;
+    z-index: 30;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  /* ── OVERLAY BASE ── */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,8,0.92);
+    backdrop-filter: blur(6px);
+  }
+  .overlay.hidden { display: none; }
+
+  /* ── CHARACTER SELECT ── */
+  #select-screen {
+    padding: 16px;
+  }
+  .select-title {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(14px, 4vw, 22px);
+    font-weight: 900;
+    letter-spacing: 4px;
+    color: #00f3ff;
+    text-shadow: 0 0 20px #00f3ff;
+    text-align: center;
+    margin-bottom: 6px;
+  }
+  .select-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: rgba(0,243,255,0.4);
+    text-align: center;
+    margin-bottom: 14px;
+  }
+  #select-preview-canvas {
+    display: block;
+    width: 160px;
+    height: 160px;
+    margin: 0 auto 14px;
+    border-radius: 6px;
+    border: 1px solid rgba(0,243,255,0.2);
+    background: #000;
+  }
+  .char-cards {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .char-card {
+    width: clamp(88px, 26vw, 110px);
+    padding: 10px 8px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.03);
+    border: 1.5px solid rgba(255,255,255,0.08);
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    user-select: none;
+  }
+  .char-card.selected {
+    border-color: var(--card-color);
+    box-shadow: 0 0 16px var(--card-color);
+    background: rgba(255,255,255,0.06);
+  }
+  .char-card-icon {
+    font-size: 26px;
+    margin-bottom: 4px;
+  }
+  .char-card-name {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(9px, 2.5vw, 11px);
+    color: #e0e8ff;
+    margin-bottom: 3px;
+    line-height: 1.3;
+  }
+  .char-card-skill {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: var(--card-color);
+    opacity: 0.8;
+  }
+  .char-card-desc {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 8px;
+    color: rgba(200,220,255,0.45);
+    line-height: 1.4;
+    margin-top: 4px;
+    text-align: left;
+  }
+  .char-desc-panel {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: rgba(200,220,255,0.6);
+    text-align: center;
+    min-height: 32px;
+    margin-bottom: 14px;
+    line-height: 1.6;
+    max-width: 320px;
+  }
+  #start-btn {
+    padding: 14px 48px;
+    font-family: 'Orbitron', monospace;
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    color: #000;
+    background: #00f3ff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: 0 0 24px rgba(0,243,255,0.6);
+    clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+    min-height: 48px;
+    transition: box-shadow 0.15s;
+  }
+  #start-btn:active { box-shadow: 0 0 40px rgba(0,243,255,0.9); }
+
+  /* ── GAMEOVER ── */
+  #gameover-screen .go-title {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(28px, 8vw, 48px);
+    font-weight: 900;
+    color: #ff1744;
+    text-shadow: 0 0 30px #ff1744;
+    letter-spacing: 4px;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  #gameover-screen .go-score {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(18px, 5vw, 28px);
+    color: #fff;
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  #gameover-screen .go-hi {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    color: #ffd700;
+    text-align: center;
+    margin-bottom: 28px;
+    letter-spacing: 2px;
+  }
+  .go-btns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .go-btn {
+    padding: 13px 32px;
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    border-radius: 4px;
+    cursor: pointer;
+    min-height: 48px;
+    transition: box-shadow 0.15s;
+  }
+  #retry-btn {
+    background: #ff1744;
+    color: #fff;
+    border: none;
+    box-shadow: 0 0 20px rgba(255,23,68,0.5);
+    clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  }
+  #retry-btn:active { box-shadow: 0 0 36px rgba(255,23,68,0.9); }
+  #select-btn {
+    background: transparent;
+    color: rgba(200,220,255,0.7);
+    border: 1px solid rgba(200,220,255,0.25);
+  }
+  #select-btn:active { background: rgba(255,255,255,0.07); }
+
+  /* ── SCAN LINE (decoration) ── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 2px,
+      rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px
+    );
+    pointer-events: none;
+    z-index: 50;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="game-canvas"></canvas>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="hud-inner">
+    <div class="hud-block">
+      <span class="hud-label">SCORE</span>
+      <span class="hud-value" id="hud-score">0</span>
+    </div>
+    <div class="hud-block">
+      <span class="hud-label">SKILL</span>
+      <span id="skill-status" class="ready">READY</span>
+    </div>
+    <div class="hud-block">
+      <span class="hud-label">COMBO</span>
+      <span class="hud-value" id="hud-combo">x0</span>
+    </div>
+  </div>
+</div>
+
+<!-- Mobile skill button -->
+<button id="skill-btn" aria-label="スキル発動">SKILL</button>
+
+<!-- Combo flash -->
+<div id="combo-flash"></div>
+
+<!-- ══ CHARACTER SELECT SCREEN ══ -->
+<div id="select-screen" class="overlay">
+  <div class="select-title">CYBER RUNNER</div>
+  <div class="select-sub">CHARACTER SELECT</div>
+  <canvas id="select-preview-canvas" width="320" height="320"></canvas>
+  <div class="char-cards" id="char-cards"></div>
+  <div class="char-desc-panel" id="char-desc"></div>
+  <button id="start-btn">START MISSION</button>
+</div>
+
+<!-- ══ GAMEOVER SCREEN ══ -->
+<div id="gameover-screen" class="overlay hidden">
+  <div class="go-title">GAME OVER</div>
+  <div class="go-score" id="go-score-text">SCORE: 0</div>
+  <div class="go-hi" id="go-hi-text">BEST: 0</div>
+  <div class="go-btns">
+    <button class="go-btn" id="retry-btn">RETRY</button>
+    <button class="go-btn" id="select-btn">SELECT</button>
+  </div>
+</div>
+
+<!-- Three.js r128 (最終WebGLRenderer安定版、LINE内ブラウザ対応) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+
+// ══════════════════════════════════════════════════════
+//  CHARACTER PROFILES
+// ══════════════════════════════════════════════════════
+const CHARACTER_PROFILES = [
+  {
+    id: 'cyber-sphere',
+    name: 'サイバー・スフィア',
+    geometry: 'Sphere',
+    color: 0x00f3ff,
+    speed: 1.0,
+    skillType: 'MAGNET',
+    skillCooldown: 1000,
+    description: '標準型。前方のアイテムを磁気で引き寄せる。',
+    icon: '🔵'
+  },
+  {
+    id: 'high-voltage-cube',
+    name: 'エレクトロ・キューブ',
+    geometry: 'Box',
+    color: 0xffd700,
+    speed: 1.3,
+    skillType: 'BREAK',
+    skillCooldown: 2000,
+    description: '速度・破壊型。正面の障害物を1つ高電圧で消滅させる。',
+    icon: '🟡'
+  },
+  {
+    id: 'magnetic-cylinder',
+    name: 'マグネ・シリンダー',
+    geometry: 'Cylinder',
+    color: 0xbd00ff,
+    speed: 0.8,
+    skillType: 'ABSORB',
+    skillCooldown: 800,
+    description: '重磁力型。3レーンすべてのアイテムをまとめて一瞬で吸い込む。',
+    icon: '🟣'
+  }
+];
+
+// ══════════════════════════════════════════════════════
+//  CONSTANTS
+// ══════════════════════════════════════════════════════
+const LANE_X      = [-2, 0, 2];          // 左・中央・右のX座標
+const LANE_COUNT  = 3;
+const PLAYER_Z    = 4;                   // プレイヤーのZ座標（手前固定）
+const SPAWN_Z     = -60;                 // オブジェクト生成Z
+const DESPAWN_Z   = 7;                   // 画面外Z（手前）
+const OBS_COUNT   = 12;                  // 障害物プールサイズ
+const ITEM_COUNT  = 12;                  // アイテムプールサイズ
+const BASE_SPEED  = 14;                  // 奥→手前の移動速度(units/sec)
+const SPEED_INC   = 0.5;                 // 10秒ごとの速度増加量
+const LANE_SPEED  = 12;                  // レーン移動速度
+const SKILL_RANGE = 30;                  // スキル有効距離
+
+// ══════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════
+let selectedCharIdx = 0;
+let selectedChar    = CHARACTER_PROFILES[0];
+let gameState       = 'select';  // select | playing | gameover
+let score           = 0;
+let hiScore         = parseInt(localStorage.getItem('cr_hi') || '0');
+let combo           = 0;
+let elapsed         = 0;
+let currentLane     = 1;         // 0=左 1=中央 2=右
+let targetLaneX     = LANE_X[1];
+let playerX         = LANE_X[1];
+let skillLastUsed   = -Infinity;
+let skillReady      = true;
+let isMovingLane    = false;
+let lastTime        = null;
+let comboFlashTimer = null;
+let spawnTimer      = 0;
+let spawnInterval   = 1.2;       // 秒
+let gameSpeed       = BASE_SPEED;
+let animFrameId     = null;
+
+// ══════════════════════════════════════════════════════
+//  THREE.JS SETUP — MAIN RENDERER
+// ══════════════════════════════════════════════════════
+const canvas = document.getElementById('game-canvas');
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: false,   // モバイル軽量化のためfalse
+  powerPreference: 'high-performance'
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = false;  // 影なし（軽量）
+
+const scene  = new THREE.Scene();
+scene.fog    = new THREE.Fog(0x000010, 20, 80);
+scene.background = new THREE.Color(0x000010);
+
+const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 120);
+camera.position.set(0, 3.5, 8);
+camera.lookAt(0, 0, -10);
+
+function resizeRenderer() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+resizeRenderer();
+window.addEventListener('resize', resizeRenderer);
+
+// ══════════════════════════════════════════════════════
+//  LIGHTING
+// ══════════════════════════════════════════════════════
+scene.add(new THREE.AmbientLight(0x111133, 1.2));
+
+const dirLight = new THREE.DirectionalLight(0x99ddff, 1.0);
+dirLight.position.set(0, 8, 5);
+scene.add(dirLight);
+
+const backLight = new THREE.PointLight(0x00f3ff, 1.5, 40);
+backLight.position.set(0, 4, -20);
+scene.add(backLight);
+
+// ══════════════════════════════════════════════════════
+//  STAGE — TRACK
+// ══════════════════════════════════════════════════════
+// 走路床（無限ループ感を2枚のプレーンで表現）
+const trackGeo = new THREE.PlaneGeometry(7, 120);
+const trackMat = new THREE.MeshPhongMaterial({
+  color: 0x0a0a1a,
+  emissive: 0x000520,
+  specular: 0x223366
+});
+const track1 = new THREE.Mesh(trackGeo, trackMat);
+const track2 = new THREE.Mesh(trackGeo, trackMat);
+track1.rotation.x = -Math.PI / 2;
+track2.rotation.x = -Math.PI / 2;
+track1.position.set(0, -0.8, -30);
+track2.position.set(0, -0.8, 90);  // 2枚目は後方（ループ用）
+scene.add(track1);
+scene.add(track2);
+
+// レーンライン（グリッド表現）
+function makeLaneLine(xOffset) {
+  const geo = new THREE.PlaneGeometry(0.04, 120);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0x00f3ff,
+    transparent: true,
+    opacity: 0.18
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(xOffset, -0.79, -30);
+  scene.add(mesh);
+}
+makeLaneLine(-3.5);
+makeLaneLine(-1);
+makeLaneLine(1);
+makeLaneLine(3.5);
+
+// サイドウォール（ネオン光）
+function makeSideGlow(x) {
+  const geo = new THREE.PlaneGeometry(0.08, 120);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0x00f3ff,
+    transparent: true,
+    opacity: 0.35
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.rotation.z = Math.PI / 2;
+  mesh.position.set(x, -0.78, -30);
+  scene.add(mesh);
+}
+makeSideGlow(-3.6);
+makeSideGlow(3.6);
+
+// トラックのスクロールアニメーション関数
+function scrollTrack(delta) {
+  const speed = gameSpeed * delta;
+  track1.position.z += speed;
+  track2.position.z += speed;
+  if (track1.position.z > 90) track1.position.z = track2.position.z - 120;
+  if (track2.position.z > 90) track2.position.z = track1.position.z - 120;
+}
+
+// ══════════════════════════════════════════════════════
+//  PLAYER MESH
+// ══════════════════════════════════════════════════════
+let playerMesh = null;
+let playerGlow = null;
+
+function buildPlayerMesh(profile) {
+  if (playerMesh) { scene.remove(playerMesh); playerMesh.geometry.dispose(); }
+  if (playerGlow) { scene.remove(playerGlow); playerGlow.geometry.dispose(); }
+
+  let geo;
+  switch (profile.geometry) {
+    case 'Sphere':   geo = new THREE.SphereGeometry(0.5, 16, 16); break;
+    case 'Box':      geo = new THREE.BoxGeometry(0.85, 0.85, 0.85); break;
+    case 'Cylinder': geo = new THREE.CylinderGeometry(0.4, 0.4, 0.9, 16); break;
+    default:         geo = new THREE.SphereGeometry(0.5, 16, 16);
+  }
+  const mat = new THREE.MeshPhongMaterial({
+    color: profile.color,
+    emissive: profile.color,
+    emissiveIntensity: 0.6,
+    specular: 0xffffff,
+    shininess: 80
+  });
+  playerMesh = new THREE.Mesh(geo, mat);
+  playerMesh.position.set(playerX, 0, PLAYER_Z);
+  scene.add(playerMesh);
+
+  // Glow sphere（半透明）
+  const glowGeo = new THREE.SphereGeometry(0.85, 10, 10);
+  const glowMat = new THREE.MeshBasicMaterial({
+    color: profile.color,
+    transparent: true,
+    opacity: 0.12
+  });
+  playerGlow = new THREE.Mesh(glowGeo, glowMat);
+  playerGlow.position.copy(playerMesh.position);
+  scene.add(playerGlow);
+}
+
+// ══════════════════════════════════════════════════════
+//  OBJECT POOLS
+// ══════════════════════════════════════════════════════
+
+// 障害物（赤い箱）
+const obsMat = new THREE.MeshPhongMaterial({
+  color: 0xff1744,
+  emissive: 0x660000,
+  emissiveIntensity: 0.5
+});
+const obsGeo = new THREE.BoxGeometry(1.1, 1.1, 1.1);
+
+const obstacles = [];
+for (let i = 0; i < OBS_COUNT; i++) {
+  const mesh = new THREE.Mesh(obsGeo, obsMat);
+  mesh.visible = false;
+  mesh.userData.active = false;
+  mesh.userData.lane = 0;
+  scene.add(mesh);
+  obstacles.push(mesh);
+}
+
+// アイテム（緑の球）
+const itemMat = new THREE.MeshPhongMaterial({
+  color: 0x00ff88,
+  emissive: 0x004422,
+  emissiveIntensity: 0.7,
+  specular: 0xffffff,
+  shininess: 100
+});
+const itemGeo = new THREE.SphereGeometry(0.38, 12, 12);
+
+const items = [];
+for (let i = 0; i < ITEM_COUNT; i++) {
+  const mesh = new THREE.Mesh(itemGeo, itemMat);
+  mesh.visible = false;
+  mesh.userData.active = false;
+  mesh.userData.lane = 0;
+  scene.add(mesh);
+  items.push(mesh);
+}
+
+function spawnObject() {
+  const isItem = Math.random() < 0.45;
+  const lane   = Math.floor(Math.random() * LANE_COUNT);
+
+  if (isItem) {
+    const pool = items.find(m => !m.userData.active);
+    if (!pool) return;
+    pool.userData.active = true;
+    pool.userData.lane   = lane;
+    pool.position.set(LANE_X[lane], 0, SPAWN_Z);
+    pool.visible = true;
+  } else {
+    const pool = obstacles.find(m => !m.userData.active);
+    if (!pool) return;
+    pool.userData.active = true;
+    pool.userData.lane   = lane;
+    pool.position.set(LANE_X[lane], 0, SPAWN_Z);
+    pool.visible = true;
+  }
+}
+
+function resetPoolObject(mesh) {
+  mesh.userData.active = false;
+  mesh.visible = false;
+  mesh.position.set(0, 0, SPAWN_Z - 100); // 画面外に退避
+}
+
+// ══════════════════════════════════════════════════════
+//  LASER / SKILL EFFECT
+// ══════════════════════════════════════════════════════
+const laserLength = 50;
+const laserGeo    = new THREE.CylinderGeometry(0.06, 0.06, laserLength, 8);
+const laserMat    = new THREE.MeshBasicMaterial({
+  color: 0xffffff,
+  transparent: true,
+  opacity: 0
+});
+const laserMesh   = new THREE.Mesh(laserGeo, laserMat);
+laserMesh.rotation.x = Math.PI / 2;  // Z軸方向に向ける
+scene.add(laserMesh);
+
+let laserTimer = 0;
+
+function fireLaser(x) {
+  laserMesh.position.set(x, 0, PLAYER_Z - laserLength / 2);
+  laserMat.opacity = 0.9;
+  laserTimer = 0.12;  // 0.12秒表示
+}
+
+function updateLaser(delta) {
+  if (laserTimer > 0) {
+    laserTimer -= delta;
+    laserMat.opacity = Math.max(0, laserTimer / 0.12 * 0.9);
+    if (laserTimer <= 0) laserMat.opacity = 0;
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  SKILL IMPLEMENTATIONS
+// ══════════════════════════════════════════════════════
+function activateSkill() {
+  const now = performance.now();
+  if (now - skillLastUsed < selectedChar.skillCooldown) return;
+  skillLastUsed = now;
+  skillReady    = false;
+
+  fireLaser(playerX);
+
+  switch (selectedChar.skillType) {
+    case 'MAGNET':
+      // 前方のアイテムを引き寄せる（自レーンのアイテムをZ軸で引っ張り、近づけて自動取得）
+      items.forEach(m => {
+        if (!m.userData.active) return;
+        if (m.userData.lane !== currentLane) return;
+        if (m.position.z < PLAYER_Z && m.position.z > PLAYER_Z - SKILL_RANGE) {
+          m.position.z = PLAYER_Z + 0.5;  // 瞬時に手前へ
+        }
+      });
+      break;
+
+    case 'BREAK':
+      // 正面の障害物を1つ消滅させる（自レーンの最も近い障害物を除去）
+      {
+        let closest = null, closestZ = -Infinity;
+        obstacles.forEach(m => {
+          if (!m.userData.active) return;
+          if (m.userData.lane !== currentLane) return;
+          if (m.position.z < PLAYER_Z && m.position.z > closestZ) {
+            closestZ = m.position.z;
+            closest = m;
+          }
+        });
+        if (closest) {
+          spawnBreakParticles(closest.position.clone(), selectedChar.color);
+          resetPoolObject(closest);
+        }
+      }
+      break;
+
+    case 'ABSORB':
+      // 全3レーンのアイテムを吸引
+      items.forEach(m => {
+        if (!m.userData.active) return;
+        if (m.position.z < PLAYER_Z && m.position.z > PLAYER_Z - SKILL_RANGE) {
+          m.position.z = PLAYER_Z + 0.5;
+        }
+      });
+      break;
+  }
+
+  setTimeout(() => { skillReady = true; }, selectedChar.skillCooldown);
+}
+
+// ══════════════════════════════════════════════════════
+//  BREAK PARTICLES (スキル用パーティクル)
+// ══════════════════════════════════════════════════════
+const PARTICLE_COUNT = 20;
+const particleGeos   = [];
+const particleMeshes = [];
+const particleMat    = new THREE.MeshBasicMaterial({ color: 0xffd700 });
+
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  const g = new THREE.SphereGeometry(0.08, 4, 4);
+  const m = new THREE.Mesh(g, particleMat.clone());
+  m.visible = false;
+  m.userData.vel    = new THREE.Vector3();
+  m.userData.life   = 0;
+  scene.add(m);
+  particleGeos.push(g);
+  particleMeshes.push(m);
+}
+
+function spawnBreakParticles(pos, color) {
+  let spawned = 0;
+  for (let i = 0; i < particleMeshes.length && spawned < 12; i++) {
+    const m = particleMeshes[i];
+    if (m.visible) continue;
+    m.material.color.setHex(color);
+    m.position.copy(pos);
+    m.userData.vel.set(
+      (Math.random() - 0.5) * 6,
+      Math.random() * 5 + 1,
+      (Math.random() - 0.5) * 6
+    );
+    m.userData.life = 0.6;
+    m.visible = true;
+    spawned++;
+  }
+}
+
+function updateParticles(delta) {
+  particleMeshes.forEach(m => {
+    if (!m.visible) return;
+    m.userData.life -= delta;
+    if (m.userData.life <= 0) { m.visible = false; return; }
+    m.position.addScaledVector(m.userData.vel, delta);
+    m.userData.vel.y -= 9.8 * delta;
+    m.material.opacity = m.userData.life / 0.6;
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//  COLLISION DETECTION
+// ══════════════════════════════════════════════════════
+function checkCollisions() {
+  const pz = playerMesh.position.z;
+
+  // アイテム取得
+  items.forEach(m => {
+    if (!m.userData.active) return;
+    const dz = Math.abs(m.position.z - pz);
+    const dx = Math.abs(m.position.x - playerMesh.position.x);
+    if (dz < 0.8 && dx < 0.9) {
+      score += 10 * (1 + Math.floor(combo / 5));
+      combo++;
+      updateHUD();
+      showComboFlash();
+      resetPoolObject(m);
+    }
+  });
+
+  // 障害物衝突
+  obstacles.forEach(m => {
+    if (!m.userData.active) return;
+    const dz = Math.abs(m.position.z - pz);
+    const dx = Math.abs(m.position.x - playerMesh.position.x);
+    if (dz < 0.75 && dx < 0.85) {
+      triggerGameOver();
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//  HUD
+// ══════════════════════════════════════════════════════
+const hudEl       = document.getElementById('hud');
+const hudScore    = document.getElementById('hud-score');
+const hudCombo    = document.getElementById('hud-combo');
+const skillStatus = document.getElementById('skill-status');
+const skillBtn    = document.getElementById('skill-btn');
+const comboFlash  = document.getElementById('combo-flash');
+
+function updateHUD() {
+  hudScore.textContent = score;
+  hudCombo.textContent = 'x' + combo;
+}
+
+function updateSkillHUD(now) {
+  const elapsed2 = now - skillLastUsed;
+  const cd       = selectedChar.skillCooldown;
+  if (skillReady || elapsed2 >= cd) {
+    skillStatus.textContent = 'READY';
+    skillStatus.className   = 'ready';
+    skillBtn.textContent    = 'SKILL';
+    skillBtn.className      = '';
+  } else {
+    const sec = ((cd - elapsed2) / 1000).toFixed(1);
+    skillStatus.textContent = 'RELOAD ' + sec + 's';
+    skillStatus.className   = 'cooling';
+    skillBtn.textContent    = sec + 's';
+    skillBtn.className      = 'cooling';
+  }
+}
+
+function showComboFlash() {
+  if (combo < 3) return;
+  comboFlash.textContent = 'COMBO x' + combo;
+  comboFlash.style.opacity = '1';
+  clearTimeout(comboFlashTimer);
+  comboFlashTimer = setTimeout(() => { comboFlash.style.opacity = '0'; }, 800);
+}
+
+// ══════════════════════════════════════════════════════
+//  LANE MOVEMENT
+// ══════════════════════════════════════════════════════
+function moveLane(dir) {
+  if (gameState !== 'playing') return;
+  const newLane = currentLane + dir;
+  if (newLane < 0 || newLane >= LANE_COUNT) return;
+  currentLane  = newLane;
+  targetLaneX  = LANE_X[currentLane];
+}
+
+function updatePlayerPosition(delta) {
+  // イージング移動（レーン間をスムーズに）
+  const diff = targetLaneX - playerX;
+  playerX += diff * Math.min(1, LANE_SPEED * delta);
+  if (playerMesh) {
+    playerMesh.position.x = playerX;
+    playerMesh.rotation.z = -diff * 0.3;  // 傾き演出
+    // Y軸ホバー
+    playerMesh.position.y = Math.sin(elapsed * 3) * 0.06;
+    if (playerGlow) {
+      playerGlow.position.copy(playerMesh.position);
+      playerGlow.rotation.y += delta * 2;
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  MAIN GAME LOOP
+// ══════════════════════════════════════════════════════
+function gameLoop(now) {
+  animFrameId = requestAnimationFrame(gameLoop);
+
+  if (lastTime === null) { lastTime = now; }
+  let delta = (now - lastTime) / 1000;
+  lastTime  = now;
+  // デルタクランプ（タブ切り替え後の超大deltaを防ぐ）
+  if (delta > 0.1) delta = 0.1;
+
+  if (gameState !== 'playing') {
+    // 選択画面・ゲームオーバー画面ではメインシーンのみアイドルレンダリング
+    renderer.render(scene, camera);
+    return;
+  }
+
+  elapsed    += delta;
+  gameSpeed   = BASE_SPEED + Math.floor(elapsed / 10) * SPEED_INC * selectedChar.speed;
+  spawnInterval = Math.max(0.5, 1.2 - elapsed * 0.008);
+
+  // スポーン
+  spawnTimer += delta;
+  if (spawnTimer >= spawnInterval) {
+    spawnTimer = 0;
+    spawnObject();
+  }
+
+  // オブジェクト移動
+  obstacles.forEach(m => {
+    if (!m.userData.active) return;
+    m.position.z += gameSpeed * delta;
+    m.rotation.x += delta * 1.5;
+    m.rotation.y += delta;
+    if (m.position.z > DESPAWN_Z) resetPoolObject(m);
+  });
+  items.forEach(m => {
+    if (!m.userData.active) return;
+    m.position.z += gameSpeed * delta;
+    m.rotation.y += delta * 3;
+    if (m.position.z > DESPAWN_Z) { combo = 0; updateHUD(); resetPoolObject(m); }
+  });
+
+  scrollTrack(delta);
+  updatePlayerPosition(delta);
+  updateLaser(delta);
+  updateParticles(delta);
+  checkCollisions();
+  updateSkillHUD(now);
+
+  // 走行スコア
+  score += Math.floor(elapsed * 0.5);
+  if (Math.floor(elapsed) % 2 === 0) updateHUD();
+
+  renderer.render(scene, camera);
+}
+
+// ══════════════════════════════════════════════════════
+//  GAME OVER
+// ══════════════════════════════════════════════════════
+function triggerGameOver() {
+  if (gameState !== 'playing') return;
+  gameState = 'gameover';
+
+  if (score > hiScore) {
+    hiScore = score;
+    localStorage.setItem('cr_hi', hiScore);
+  }
+
+  // HUD/UI 切り替え
+  hudEl.style.display = 'none';
+  skillBtn.style.display = 'none';
+
+  document.getElementById('go-score-text').textContent = 'SCORE: ' + score;
+  document.getElementById('go-hi-text').textContent    = 'BEST: ' + hiScore;
+  document.getElementById('gameover-screen').classList.remove('hidden');
+}
+
+// ══════════════════════════════════════════════════════
+//  RESET
+// ══════════════════════════════════════════════════════
+function resetGame() {
+  score         = 0;
+  combo         = 0;
+  elapsed       = 0;
+  currentLane   = 1;
+  playerX       = LANE_X[1];
+  targetLaneX   = LANE_X[1];
+  skillLastUsed = -Infinity;
+  skillReady    = true;
+  spawnTimer    = 0;
+  gameSpeed     = BASE_SPEED;
+  lastTime      = null;
+
+  // プール全リセット
+  obstacles.forEach(m => resetPoolObject(m));
+  items.forEach(m     => resetPoolObject(m));
+  particleMeshes.forEach(m => { m.visible = false; });
+  laserMat.opacity = 0;
+  laserTimer = 0;
+
+  buildPlayerMesh(selectedChar);
+  updateHUD();
+
+  gameState = 'playing';
+  hudEl.style.display = 'block';
+  if (window.innerWidth <= 768) skillBtn.style.display = 'flex';
+}
+
+// ══════════════════════════════════════════════════════
+//  CHARACTER SELECT PREVIEW (別 Three.js シーン)
+// ══════════════════════════════════════════════════════
+const previewCanvas = document.getElementById('select-preview-canvas');
+const previewRenderer = new THREE.WebGLRenderer({
+  canvas: previewCanvas,
+  antialias: true,
+  alpha: true
+});
+previewRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+previewRenderer.setSize(320, 320);
+previewRenderer.setClearColor(0x000000, 0);
+
+const previewScene = new THREE.Scene();
+const previewCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 20);
+previewCamera.position.set(0, 0.5, 3.5);
+previewCamera.lookAt(0, 0, 0);
+
+previewScene.add(new THREE.AmbientLight(0x223355, 2));
+const pvLight = new THREE.DirectionalLight(0xffffff, 1.5);
+pvLight.position.set(1, 2, 3);
+previewScene.add(pvLight);
+
+let previewMesh = null;
+let previewAnimId = null;
+
+function buildPreviewMesh(profile) {
+  if (previewMesh) {
+    previewScene.remove(previewMesh);
+    previewMesh.geometry.dispose();
+    previewMesh.material.dispose();
+  }
+  let geo;
+  switch (profile.geometry) {
+    case 'Sphere':   geo = new THREE.SphereGeometry(0.9, 32, 32); break;
+    case 'Box':      geo = new THREE.BoxGeometry(1.4, 1.4, 1.4); break;
+    case 'Cylinder': geo = new THREE.CylinderGeometry(0.65, 0.65, 1.4, 24); break;
+    default:         geo = new THREE.SphereGeometry(0.9, 32, 32);
+  }
+  const mat = new THREE.MeshPhongMaterial({
+    color: profile.color,
+    emissive: profile.color,
+    emissiveIntensity: 0.5,
+    specular: 0xffffff,
+    shininess: 120
+  });
+  previewMesh = new THREE.Mesh(geo, mat);
+  previewScene.add(previewMesh);
+}
+
+function previewLoop() {
+  previewAnimId = requestAnimationFrame(previewLoop);
+  if (previewMesh) {
+    previewMesh.rotation.y += 0.018;
+    previewMesh.position.y = Math.sin(Date.now() * 0.002) * 0.08;
+  }
+  previewRenderer.render(previewScene, previewCamera);
+}
+previewLoop();
+
+// ══════════════════════════════════════════════════════
+//  CHARACTER SELECT UI
+// ══════════════════════════════════════════════════════
+const charCardsEl = document.getElementById('char-cards');
+const charDescEl  = document.getElementById('char-desc');
+
+function buildCharCards() {
+  charCardsEl.innerHTML = '';
+  CHARACTER_PROFILES.forEach((p, idx) => {
+    const colorHex = '#' + p.color.toString(16).padStart(6, '0');
+    const card = document.createElement('div');
+    card.className = 'char-card' + (idx === selectedCharIdx ? ' selected' : '');
+    card.style.setProperty('--card-color', colorHex);
+    card.innerHTML = `
+      <div class="char-card-icon">${p.icon}</div>
+      <div class="char-card-name">${p.name}</div>
+      <div class="char-card-skill">${p.skillType}</div>
+      <div class="char-card-desc">${p.description}</div>
+    `;
+    card.addEventListener('click', () => selectChar(idx));
+    card.addEventListener('touchend', e => { e.preventDefault(); selectChar(idx); });
+    charCardsEl.appendChild(card);
+  });
+}
+
+function selectChar(idx) {
+  selectedCharIdx = idx;
+  selectedChar    = CHARACTER_PROFILES[idx];
+  buildCharCards();
+  buildPreviewMesh(selectedChar);
+  charDescEl.textContent = selectedChar.description;
+}
+
+buildCharCards();
+selectChar(0);
+
+// ══════════════════════════════════════════════════════
+//  INPUT — キーボード (PC)
+// ══════════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (gameState === 'playing') {
+    if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+      e.preventDefault(); moveLane(-1);
+    }
+    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+      e.preventDefault(); moveLane(1);
+    }
+    if (e.key === ' ') {
+      e.preventDefault(); activateSkill();
+    }
+  }
+});
+
+// ══════════════════════════════════════════════════════
+//  INPUT — タッチ (スマホ)
+// ══════════════════════════════════════════════════════
+let touchStartX = null;
+let touchStartY = null;
+
+document.addEventListener('touchstart', e => {
+  if (gameState !== 'playing') return;
+  const touch = e.touches[0];
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+}, { passive: true });
+
+document.addEventListener('touchend', e => {
+  if (gameState !== 'playing') return;
+  if (touchStartX === null) return;
+
+  const touch = e.changedTouches[0];
+  const dx = touch.clientX - touchStartX;
+  const dy = touch.clientY - touchStartY;
+
+  // スワイプ判定（縦移動が小さく横移動が大きい時のみ）
+  if (Math.abs(dx) > 30 && Math.abs(dy) < 80) {
+    moveLane(dx > 0 ? 1 : -1);
+  } else if (Math.abs(dx) < 40 && Math.abs(dy) < 40) {
+    // タップ: 左半分=左、右半分=右
+    // ただしスキルボタン領域（下部中央）は除く
+    const skillBtnEl = document.getElementById('skill-btn');
+    const rect = skillBtnEl.getBoundingClientRect();
+    const inSkillBtn = (
+      touch.clientX >= rect.left && touch.clientX <= rect.right &&
+      touch.clientY >= rect.top  && touch.clientY <= rect.bottom
+    );
+    if (!inSkillBtn) {
+      moveLane(touch.clientX < window.innerWidth / 2 ? -1 : 1);
+    }
+  }
+  touchStartX = null;
+  touchStartY = null;
+}, { passive: true });
+
+// スキルボタン
+skillBtn.addEventListener('click', () => {
+  if (gameState === 'playing') activateSkill();
+});
+skillBtn.addEventListener('touchend', e => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (gameState === 'playing') activateSkill();
+}, { passive: false });
+
+// ══════════════════════════════════════════════════════
+//  BUTTON HANDLERS
+// ══════════════════════════════════════════════════════
+document.getElementById('start-btn').addEventListener('click', () => {
+  document.getElementById('select-screen').classList.add('hidden');
+  resetGame();
+});
+
+document.getElementById('retry-btn').addEventListener('click', () => {
+  document.getElementById('gameover-screen').classList.add('hidden');
+  resetGame();
+});
+
+document.getElementById('select-btn').addEventListener('click', () => {
+  document.getElementById('gameover-screen').classList.add('hidden');
+  gameState = 'select';
+
+  // ゲームオブジェクトをリセット（プールの視覚的クリア）
+  obstacles.forEach(m => resetPoolObject(m));
+  items.forEach(m     => resetPoolObject(m));
+  particleMeshes.forEach(m => { m.visible = false; });
+  if (playerMesh) { scene.remove(playerMesh); playerMesh = null; }
+  if (playerGlow) { scene.remove(playerGlow); playerGlow = null; }
+
+  document.getElementById('select-screen').classList.remove('hidden');
+  buildCharCards();
+  selectChar(selectedCharIdx);
+});
+
+// ══════════════════════════════════════════════════════
+//  MOBILE SKILL BUTTON VISIBILITY
+// ══════════════════════════════════════════════════════
+function updateSkillBtnVisibility() {
+  if (gameState === 'playing' && window.innerWidth <= 768) {
+    skillBtn.style.display = 'flex';
+    skillBtn.style.alignItems = 'center';
+    skillBtn.style.justifyContent = 'center';
+  } else {
+    skillBtn.style.display = 'none';
+  }
+}
+window.addEventListener('resize', updateSkillBtnVisibility);
+
+// ══════════════════════════════════════════════════════
+//  START MAIN RENDER LOOP
+// ══════════════════════════════════════════════════════
+requestAnimationFrame(gameLoop);
+
+</script>
+</body>
+</html>
