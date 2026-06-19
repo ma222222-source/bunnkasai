@@ -1,164 +1,4659 @@
-import time
-import random
-import threading
-import sys
-import RPi.GPIO as GPIO
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>ALGO ARCADE — アルゴリズム体験アーケード</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Cinzel+Decorative:wght@700&family=Rajdhani:wght@400;600;700&display=swap');
 
-# ─── 1. 物理ピンアサイン（LEDを追加） ───────────────────────────────────────
-BUZZER_PIN = 23
-LED_GREEN  = 22  # 正解時に点灯するLED
-LED_RED    = 27  # 不正解時に点灯するLED
+  /* ════════════════════════════════════════════════
+     共通トークン（ROOT MENU と各モジュールが共有）
+     既存2ゲームのテーマカラーをそのまま正としている。
+     ════════════════════════════════════════════════ */
+  :root {
+    --bg: #030812;
+    --panel: #060f1e;
+    --accent-cyan: #00e5ff;
+    --accent-orange: #ff6d00;
+    --accent-green: #39ff14;
+    --accent-red: #ff1744;
+    --accent-purple: #9d4edd;
+    --grid: rgba(0,229,255,0.04);
+    --text: #c8f0ff;
+    --combo1: #00e5ff;
+    --combo2: #ff6d00;
+    --combo3: #ffea00;
+    --combo4: #ff00e5;
+  }
 
-ROW_PINS = [5, 6, 13, 19]
-COL_PINS = [4, 12, 16, 20]
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-KEY_MAP = [
-    ['1', '2', '3', 'A'],
-    ['4', '5', '6', 'B'],
-    ['7', '8', '9', 'C'],
-    ['*', '0', 'E', 'D']
-]
+  html { height: 100%; }
 
-# ─── 2. ハードウェア初期化 ───────────────────────────────────────────────────
-GPIO.setmode(GPIO.BCM)
-GPIO.setwarnings(False)
-GPIO.setup(BUZZER_PIN, GPIO.OUT)
-GPIO.setup(LED_GREEN, GPIO.OUT)
-GPIO.setup(LED_RED, GPIO.OUT)
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Orbitron', monospace;
+    min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
+  }
 
-for pin in ROW_PINS:
-    GPIO.setup(pin, GPIO.OUT)
-    GPIO.output(pin, GPIO.HIGH)
-for pin in COL_PINS:
-    GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+  /* Animated grid background（ROOT MENU 用。常時表示） */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 40px 40px;
+    animation: rootGridScroll 8s linear infinite;
+    pointer-events: none;
+    z-index: 0;
+  }
 
-def read_keypad():
-    detected_key = None
-    for r_idx, r_pin in enumerate(ROW_PINS):
-        GPIO.output(r_pin, GPIO.LOW)
-        for c_idx, c_pin in enumerate(COL_PINS):
-            if GPIO.input(c_pin) == GPIO.LOW:
-                detected_key = KEY_MAP[r_idx][c_idx]
-                time.sleep(0.15)
-        GPIO.output(r_pin, GPIO.HIGH)
-    return detected_key
+  @keyframes rootGridScroll {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(40px); }
+  }
 
-# ─── 3. ゲームコアシステム ───────────────────────────────────────────────────
-class VisualMathGame:
-    def __init__(self):
-        self.score = 0
-        self.time_left = 60
-        self.is_running = True
-        self.current_answer = 0
-        self.user_input_str = ""
-        self.q_text = ""
+  /* Scan line overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 2px,
+      rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
 
-    def generate_question(self):
-        a = random.randint(1, 9)
-        b = random.randint(1, 9)
-        op = random.choice(['+', '-'])
-        if op == '-' and b > a:
-            a, b = b, a
-        self.current_answer = a + b if op == '+' else a - b
-        self.q_text = f"{a} {op} {b}"
+  /* ════════════════════════════════════════════════
+     ROOT MENU
+     ════════════════════════════════════════════════ */
+  #root-menu {
+    position: relative;
+    z-index: 2;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 20px 48px;
+  }
 
-    def feedback_signal(self, is_correct):
-        """別スレッドで駆動するLEDおよびブザーの物理出力の非同期同期化"""
-        try:
-            if is_correct:
-                GPIO.output(LED_GREEN, GPIO.HIGH)
-                GPIO.output(BUZZER_PIN, GPIO.HIGH)
-                time.sleep(0.1)
-                GPIO.output(BUZZER_PIN, GPIO.LOW)
-                time.sleep(0.2)
-                GPIO.output(LED_GREEN, GPIO.LOW)
-            else:
-                GPIO.output(LED_RED, GPIO.HIGH)
-                GPIO.output(BUZZER_PIN, GPIO.HIGH)
-                time.sleep(0.4)
-                GPIO.output(BUZZER_PIN, GPIO.LOW)
-                GPIO.output(LED_RED, GPIO.LOW)
-        except:
-            pass
+  .root-eyebrow {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(10px, 2.6vw, 12px);
+    letter-spacing: 8px;
+    color: rgba(0,229,255,0.55);
+    margin-bottom: 10px;
+    text-align: center;
+  }
 
-    def print_ui(self, alert_msg=""):
-        """画面出力を縦方向に展開し、フォント拡大時の視認性を最大化"""
-        # 画面をクリア（ターミナルをスッキリ見せるエスケープシーケンス）
-        sys.stdout.write("\033[2J\033[H")
-        
-        print("=========================================")
-        print(f"  TIME LEFT : {self.time_left} sec   |   SCORE : {self.score}")
-        print("=========================================")
-        print("\n")
-        print(f"    [ QUESTION ]    {self.q_text} = ?")
-        print("\n")
-        print(f"    [ YOUR INPUT ]  {self.user_input_str}")
-        print("\n")
-        if alert_msg:
-            print(f"  {alert_msg}")
-        sys.stdout.flush()
+  .root-title {
+    font-size: clamp(30px, 8vw, 52px);
+    font-weight: 900;
+    letter-spacing: 4px;
+    text-align: center;
+    color: var(--accent-cyan);
+    text-shadow: 0 0 20px var(--accent-cyan), 0 0 60px rgba(0,229,255,0.3);
+    animation: rootLogoGlow 2.4s ease-in-out infinite;
+    margin-bottom: 6px;
+  }
 
-    def timer_loop(self):
-        while self.time_left > 0 and self.is_running:
-            time.sleep(1)
-            self.time_left -= 1
-            if self.is_running:
-                self.print_ui()
-        
-        self.is_running = False
-        sys.stdout.write("\033[2J\033[H")
-        print("=========================================")
-        print("                TIME UP !!               ")
-        print("=========================================")
-        print(f"  FINAL SCORE : {self.score} PTS")
-        print("=========================================")
+  @keyframes rootLogoGlow {
+    0%, 100% { text-shadow: 0 0 20px var(--accent-cyan), 0 0 60px rgba(0,229,255,0.3); }
+    50% { text-shadow: 0 0 32px var(--accent-cyan), 0 0 90px rgba(0,229,255,0.5); }
+  }
 
-    def start(self):
-        self.generate_question()
-        threading.Thread(target=self.timer_loop, daemon=True).start()
-        self.print_ui()
+  .root-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(11px, 2.8vw, 13px);
+    color: rgba(200,240,255,0.55);
+    text-align: center;
+    letter-spacing: 1px;
+    margin-bottom: 36px;
+    max-width: 480px;
+  }
 
-        try:
-            while self.is_running:
-                key = read_keypad()
-                if not key:
-                    time.sleep(0.02)
-                    continue
-                
-                if key in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']:
-                    if len(self.user_input_str) < 3:
-                        self.user_input_str += key
-                        self.print_ui()
-                
-                elif key == '*':
-                    self.user_input_str = ""
-                    self.print_ui()
-                
-                elif key == 'E':
-                    if not self.user_input_str:
-                        continue
-                    
-                    user_val = int(self.user_input_str)
-                    if user_val == self.current_answer:
-                        self.score += 10
-                        alert = ">> OK !! 正解"
-                        threading.Thread(target=self.feedback_signal, args=(True,), daemon=True).start()
-                    else:
-                        alert = f">> MISS !! (Answer is {self.current_answer})"
-                        threading.Thread(target=self.feedback_signal, args=(False,), daemon=True).start()
-                    
-                    self.user_input_str = ""
-                    self.generate_question()
-                    self.print_ui(alert)
-                        
-        except KeyboardInterrupt:
-            pass
-        finally:
-            GPIO.output(BUZZER_PIN, GPIO.LOW)
-            GPIO.output(LED_GREEN, GPIO.LOW)
-            GPIO.output(LED_RED, GPIO.LOW)
-            GPIO.cleanup()
+  .sys-selector {
+    width: 100%;
+    max-width: 460px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
 
-if __name__ == "__main__":
-    game = VisualMathGame()
-    game.start()
+  .sys-card {
+    position: relative;
+    border-radius: 4px;
+    padding: 18px 14px 16px;
+    cursor: pointer;
+    text-align: left;
+    background: linear-gradient(145deg, rgba(6,15,30,0.9), rgba(3,8,18,0.95));
+    border: 1.5px solid rgba(0,229,255,0.22);
+    clip-path: polygon(0 8px, 8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
+    transition: transform 0.18s, border-color 0.18s, box-shadow 0.18s;
+    overflow: hidden;
+    min-height: 132px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .sys-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--card-glow, rgba(0,229,255,0.08)), transparent 60%);
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .sys-card:active { transform: scale(0.96); }
+
+  @media (hover:hover) {
+    .sys-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 28px var(--card-shadow, rgba(0,229,255,0.25));
+    }
+  }
+
+  .sys-card.c-cannon { border-color: rgba(0,229,255,0.3); --card-glow: rgba(0,229,255,0.12); --card-shadow: rgba(0,229,255,0.3); }
+  .sys-card.c-battle { border-color: rgba(157,78,221,0.32); --card-glow: rgba(157,78,221,0.12); --card-shadow: rgba(157,78,221,0.32); }
+  .sys-card.c-math   { border-color: rgba(96,165,250,0.32); --card-glow: rgba(96,165,250,0.12); --card-shadow: rgba(96,165,250,0.32); }
+  .sys-card.c-merge  { border-color: rgba(255,109,0,0.34);  --card-glow: rgba(255,109,0,0.14);  --card-shadow: rgba(255,109,0,0.34); }
+
+  .sys-card-tag {
+    position: relative;
+    z-index: 1;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    opacity: 0.6;
+    margin-bottom: 8px;
+  }
+
+  .sys-card-icon {
+    position: relative;
+    z-index: 1;
+    font-size: 26px;
+    margin-bottom: 6px;
+  }
+
+  .sys-card-name {
+    position: relative;
+    z-index: 1;
+    font-size: clamp(12px, 3.4vw, 14px);
+    font-weight: 900;
+    letter-spacing: 1px;
+    line-height: 1.25;
+    margin-bottom: 4px;
+  }
+
+  .sys-card-desc {
+    position: relative;
+    z-index: 1;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    line-height: 1.5;
+    color: rgba(200,240,255,0.5);
+    letter-spacing: 0.3px;
+  }
+
+  .c-cannon .sys-card-name { color: var(--accent-cyan); }
+  .c-battle .sys-card-name { color: #c89dff; }
+  .c-math   .sys-card-name { color: #60a5fa; }
+  .c-merge  .sys-card-name { color: var(--accent-orange); }
+
+  .root-footer {
+    margin-top: 30px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(200,240,255,0.3);
+    text-align: center;
+  }
+
+  /* ════════════════════════════════════════════════
+     モジュールコンテナの共通切り替え制御
+     ════════════════════════════════════════════════ */
+  .module-container {
+    display: none;
+  }
+  .module-container.active {
+    display: block;
+  }
+
+  /* モジュール内に共通の「メニューへ戻る」フローティングボタン */
+  .exit-to-root-btn {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 200;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 7px 12px;
+    border-radius: 6px;
+    background: rgba(3,8,18,0.75);
+    border: 1px solid rgba(0,229,255,0.3);
+    color: rgba(200,240,255,0.7);
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    min-height: 32px;
+  }
+  .exit-to-root-btn:active { transform: scale(0.95); }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════
+     ROOT MENU
+     ════════════════════════════════════════════════ -->
+<div id="root-menu">
+  <div class="root-eyebrow">▶ ALGORITHM ARCADE — SYSTEM ONLINE</div>
+  <div class="root-title">ALGO<br>ARCADE</div>
+  <div class="root-sub">アルゴリズムを「読む」んじゃなく「遊んで」体に叩き込む。4つの実験室、好きな順に潜ってOK。</div>
+
+  <div class="sys-selector">
+    <div class="sys-card c-cannon" onclick="launchSelectedModule('cannon')">
+      <div>
+        <div class="sys-card-tag">MODULE 01 — SORTING</div>
+        <div class="sys-card-icon">🎯</div>
+        <div class="sys-card-name">SPEED SORT<br>CANNON</div>
+      </div>
+      <div class="sys-card-desc">偶数と奇数を高速仕分け。<br>60秒のリアクション勝負！</div>
+    </div>
+
+    <div class="sys-card c-battle" onclick="launchSelectedModule('battle')">
+      <div>
+        <div class="sys-card-tag">MODULE 02 — SORTING</div>
+        <div class="sys-card-icon">🃏</div>
+        <div class="sys-card-name">SORT CARD<br>BATTLE</div>
+      </div>
+      <div class="sys-card-desc">最小手数でカードを並べ替え。<br>全34難易度、頭脳戦！</div>
+    </div>
+
+    <div class="sys-card c-math" onclick="launchSelectedModule('math')">
+      <div>
+        <div class="sys-card-tag">MODULE 03 — ARITHMETIC</div>
+        <div class="sys-card-icon">🧮</div>
+        <div class="sys-card-name">MENTAL<br>MATH</div>
+      </div>
+      <div class="sys-card-desc">四則演算をひたすら高速処理。<br>暗算force、鍛え直せ！</div>
+    </div>
+
+    <div class="sys-card c-merge" onclick="launchSelectedModule('merge')">
+      <div>
+        <div class="sys-card-tag">MODULE 04 — MERGE SORT</div>
+        <div class="sys-card-icon">🗼</div>
+        <div class="sys-card-name">ALGORITHM<br>MERGE TOWER</div>
+      </div>
+      <div class="sys-card-desc">2列の整列済みキューを統合。<br>マージソートを体に叩き込め！</div>
+    </div>
+  </div>
+
+  <div class="root-footer">SELECT A MODULE TO BEGIN</div>
+</div>
+
+<!-- ────────────────────────────────────────────
+     MODULE 01: SPEED SORT CANNON
+     ──────────────────────────────────────────── -->
+<div id="module-cannon" class="module-container">
+<style>
+
+  :root {
+    --bg: #030812;
+    --panel: #060f1e;
+    --accent-cyan: #00e5ff;
+    --accent-orange: #ff6d00;
+    --accent-green: #39ff14;
+    --accent-red: #ff1744;
+    --grid: rgba(0,229,255,0.04);
+    --text: #c8f0ff;
+    --combo1: #00e5ff;
+    --combo2: #ff6d00;
+    --combo3: #ffea00;
+    --combo4: #ff00e5;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Orbitron', monospace;
+    min-height: 100vh;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 40px 40px;
+    animation: gridScroll 8s linear infinite;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  @keyframes gridScroll {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(40px); }
+  }
+
+  /* Scan line overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.15) 2px,
+      rgba(0,0,0,0.15) 4px
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  #cannon-app {
+    position: relative;
+    z-index: 2;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ===== HUD BAR ===== */
+  #cannon-hud {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 24px;
+    background: linear-gradient(180deg, rgba(6,15,30,0.95) 0%, transparent 100%);
+    border-bottom: 1px solid rgba(0,229,255,0.2);
+    z-index: 10;
+  }
+
+  .cannon-hud-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .cannon-hud-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: rgba(0,229,255,0.5);
+    text-transform: uppercase;
+  }
+
+  .cannon-hud-value {
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--accent-cyan);
+    text-shadow: 0 0 20px var(--accent-cyan);
+    font-variant-numeric: tabular-nums;
+    transition: transform 0.1s, color 0.1s;
+  }
+
+  #cannon-hud-score .cannon-hud-value { color: var(--accent-orange); text-shadow: 0 0 20px var(--accent-orange); }
+
+  /* Timer bar */
+  #cannon-timer-bar-wrap {
+    flex: 1;
+    max-width: 300px;
+    margin: 0 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  #cannon-timer-bar-bg {
+    width: 100%;
+    height: 6px;
+    background: rgba(0,229,255,0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    border: 1px solid rgba(0,229,255,0.2);
+  }
+
+  #cannon-timer-bar {
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, var(--accent-cyan), #007bff);
+    border-radius: 3px;
+    transition: width 0.1s linear, background 0.5s;
+    box-shadow: 0 0 8px var(--accent-cyan);
+  }
+
+  /* ===== COMBO DISPLAY ===== */
+  #cannon-combo-display {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  #cannon-combo-display.active { opacity: 1; }
+
+  #cannon-combo-text {
+    font-size: 14px;
+    letter-spacing: 6px;
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--accent-cyan);
+  }
+
+  #cannon-combo-num {
+    font-size: 48px;
+    font-weight: 900;
+    line-height: 1;
+    transition: color 0.3s, text-shadow 0.3s;
+  }
+
+  /* ===== FACTORY CONVEYOR ===== */
+  #cannon-factory {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 800px;
+    position: relative;
+    gap: 0;
+  }
+
+  /* Conveyor belt */
+  #cannon-belt-area {
+    position: relative;
+    width: 300px;
+    height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Belt rings */
+  .belt-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(0,229,255,0.08);
+    animation: ringPulse 3s ease-in-out infinite;
+  }
+
+  .belt-ring:nth-child(1) { width: 260px; height: 260px; animation-delay: 0s; }
+  .belt-ring:nth-child(2) { width: 220px; height: 220px; animation-delay: 0.5s; }
+  .belt-ring:nth-child(3) { width: 180px; height: 180px; animation-delay: 1s; }
+
+  @keyframes ringPulse {
+    0%, 100% { border-color: rgba(0,229,255,0.08); }
+    50% { border-color: rgba(0,229,255,0.25); }
+  }
+
+  /* Number display */
+  #cannon-number-pod {
+    position: relative;
+    width: 160px;
+    height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+  }
+
+  #cannon-number-pod::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0,229,255,0.08), rgba(0,229,255,0.02));
+    border: 1px solid rgba(0,229,255,0.3);
+    clip-path: polygon(10% 0%, 90% 0%, 100% 10%, 100% 90%, 90% 100%, 10% 100%, 0% 90%, 0% 10%);
+    box-shadow: inset 0 0 40px rgba(0,229,255,0.05), 0 0 30px rgba(0,229,255,0.15);
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+
+  #cannon-number-display {
+    font-size: 96px;
+    font-weight: 900;
+    color: #fff;
+    text-shadow:
+      0 0 20px var(--accent-cyan),
+      0 0 60px rgba(0,229,255,0.4);
+    transition: color 0.3s, text-shadow 0.3s;
+    position: relative;
+    z-index: 2;
+    letter-spacing: -4px;
+  }
+
+  /* ===== BUTTONS ===== */
+  .sort-btn-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+  }
+
+  .sort-btn {
+    width: 140px;
+    height: 140px;
+    border: none;
+    cursor: pointer;
+    clip-path: polygon(15% 0%, 85% 0%, 100% 15%, 100% 85%, 85% 100%, 15% 100%, 0% 85%, 0% 15%);
+    font-family: 'Orbitron', monospace;
+    font-weight: 900;
+    font-size: 13px;
+    letter-spacing: 2px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: transform 0.1s, filter 0.1s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sort-btn:active { transform: scale(0.93); }
+
+  .sort-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.2s;
+    background: rgba(255,255,255,0.2);
+  }
+
+  .sort-btn:hover::before { opacity: 1; }
+
+  #cannon-btn-left {
+    background: linear-gradient(135deg, #0a1a3a, #0d2240);
+    border: 2px solid var(--accent-cyan);
+    color: var(--accent-cyan);
+    box-shadow: 0 0 20px rgba(0,229,255,0.3), inset 0 0 20px rgba(0,229,255,0.05);
+    clip-path: polygon(0 15%, 85% 0%, 100% 15%, 100% 85%, 85% 100%, 0 85%);
+  }
+
+  #cannon-btn-right {
+    background: linear-gradient(135deg, #1a0a0a, #2a0d0d);
+    border: 2px solid var(--accent-orange);
+    color: var(--accent-orange);
+    box-shadow: 0 0 20px rgba(255,109,0,0.3), inset 0 0 20px rgba(255,109,0,0.05);
+    clip-path: polygon(15% 0%, 100% 15%, 100% 85%, 15% 100%, 0% 85%, 0% 15%);
+  }
+
+  .btn-arrow {
+    font-size: 32px;
+    line-height: 1;
+  }
+
+  .btn-type {
+    font-size: 18px;
+    font-weight: 900;
+  }
+
+  .btn-key {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    opacity: 0.6;
+    letter-spacing: 1px;
+  }
+
+  .btn-label {
+    position: absolute;
+    bottom: -32px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    opacity: 0.6;
+    white-space: nowrap;
+  }
+
+  /* ===== FLASH OVERLAY ===== */
+  #cannon-flash {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 50;
+    opacity: 0;
+    transition: opacity 0.05s;
+  }
+
+  #cannon-flash.red { background: rgba(255,23,68,0.25); opacity: 1; }
+  #cannon-flash.green { background: rgba(57,255,20,0.1); opacity: 1; }
+  #cannon-flash.combo { background: rgba(255,234,0,0.08); opacity: 1; }
+
+  /* ===== FLYING NUMBER ANIMATION ===== */
+  .fly-number {
+    position: fixed;
+    font-family: 'Orbitron', monospace;
+    font-weight: 900;
+    font-size: 80px;
+    pointer-events: none;
+    z-index: 40;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  /* ===== PARTICLE EFFECTS ===== */
+  .particle {
+    position: fixed;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 39;
+  }
+
+  /* ===== SCREENS ===== */
+  .screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    background: rgba(3,8,18,0.95);
+    backdrop-filter: blur(10px);
+    gap: 24px;
+    transition: opacity 0.5s;
+    padding: 40px;
+  }
+
+  .screen.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .screen-title {
+    font-size: clamp(32px, 6vw, 60px);
+    font-weight: 900;
+    text-align: center;
+    letter-spacing: 4px;
+    line-height: 1.1;
+  }
+
+  .screen-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(11px, 2vw, 14px);
+    color: rgba(200,240,255,0.6);
+    text-align: center;
+    letter-spacing: 2px;
+    line-height: 1.8;
+    max-width: 500px;
+  }
+
+  .start-btn {
+    padding: 18px 56px;
+    background: transparent;
+    border: 2px solid var(--accent-cyan);
+    color: var(--accent-cyan);
+    font-family: 'Orbitron', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    cursor: pointer;
+    clip-path: polygon(8px 0%, calc(100% - 8px) 0%, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0% calc(100% - 8px), 0% 8px);
+    text-transform: uppercase;
+    box-shadow: 0 0 30px rgba(0,229,255,0.3);
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .start-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(0,229,255,0.15), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.5s;
+  }
+
+  .start-btn:hover::before { transform: translateX(100%); }
+  .start-btn:hover { background: rgba(0,229,255,0.1); box-shadow: 0 0 50px rgba(0,229,255,0.5); }
+  .start-btn:active { transform: scale(0.97); }
+
+  /* Result screen */
+  #cannon-result-score {
+    font-size: clamp(60px, 12vw, 120px);
+    font-weight: 900;
+    color: var(--accent-orange);
+    text-shadow: 0 0 40px rgba(255,109,0,0.6);
+    line-height: 1;
+  }
+
+  .result-stats {
+    display: flex;
+    gap: 32px;
+    margin: 8px 0;
+  }
+
+  .stat-block {
+    text-align: center;
+    padding: 12px 20px;
+    border: 1px solid rgba(0,229,255,0.2);
+    background: rgba(0,229,255,0.03);
+  }
+
+  .stat-val {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    text-shadow: 0 0 15px rgba(0,229,255,0.4);
+  }
+
+  .stat-lbl {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(200,240,255,0.4);
+    margin-top: 4px;
+  }
+
+  #cannon-edu-message {
+    background: linear-gradient(135deg, rgba(0,229,255,0.05), rgba(57,255,20,0.03));
+    border: 1px solid rgba(0,229,255,0.25);
+    border-left: 3px solid var(--accent-cyan);
+    padding: 20px 28px;
+    max-width: 540px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    line-height: 1.9;
+    color: rgba(200,240,255,0.85);
+    letter-spacing: 0.5px;
+    text-align: left;
+    position: relative;
+  }
+
+  #cannon-edu-message::before {
+    content: '[ SYSTEM MESSAGE ]';
+    position: absolute;
+    top: -10px;
+    left: 16px;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--accent-cyan);
+    background: var(--bg);
+    padding: 0 8px;
+  }
+
+  /* Grade display */
+  #cannon-grade {
+    font-size: 80px;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  /* Decorative corner marks */
+  .corner {
+    position: fixed;
+    width: 30px;
+    height: 30px;
+    z-index: 5;
+    opacity: 0.4;
+  }
+  .corner.tl { top: 60px; left: 12px; border-top: 2px solid var(--accent-cyan); border-left: 2px solid var(--accent-cyan); }
+  .corner.tr { top: 60px; right: 12px; border-top: 2px solid var(--accent-cyan); border-right: 2px solid var(--accent-cyan); }
+  .corner.bl { bottom: 12px; left: 12px; border-bottom: 2px solid var(--accent-cyan); border-left: 2px solid var(--accent-cyan); }
+  .corner.br { bottom: 12px; right: 12px; border-bottom: 2px solid var(--accent-cyan); border-right: 2px solid var(--accent-cyan); }
+
+  /* Combo glow aura */
+  #cannon-aura {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0;
+    transition: opacity 0.5s, background 0.5s;
+  }
+
+  /* Speed indicator */
+  #cannon-speed-bar-wrap {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    z-index: 10;
+  }
+
+  #cannon-speed-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 4px;
+    color: rgba(0,229,255,0.4);
+  }
+
+  #cannon-speed-pips {
+    display: flex;
+    gap: 4px;
+  }
+
+  .pip {
+    width: 16px;
+    height: 8px;
+    background: rgba(0,229,255,0.1);
+    border: 1px solid rgba(0,229,255,0.2);
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+
+  .pip.active {
+    background: var(--accent-cyan);
+    box-shadow: 0 0 8px var(--accent-cyan);
+  }
+
+  /* Shake animation */
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-8px) rotate(-1deg); }
+    40% { transform: translateX(8px) rotate(1deg); }
+    60% { transform: translateX(-6px); }
+    80% { transform: translateX(6px); }
+  }
+
+  .shaking { animation: shake 0.4s ease-in-out; }
+
+  /* Pulse on correct */
+  @keyframes podPulse {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.06); }
+    100% { transform: scale(1); }
+  }
+
+  .pod-pulse { animation: podPulse 0.2s ease-out; }
+
+  /* Score pop */
+  @keyframes scorePop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+
+  .score-pop { animation: scorePop 0.15s ease-out; }
+
+  @keyframes logoGlow {
+    0%, 100% { text-shadow: 0 0 20px var(--accent-cyan), 0 0 60px rgba(0,229,255,0.3); }
+    50% { text-shadow: 0 0 40px var(--accent-cyan), 0 0 100px rgba(0,229,255,0.6), 0 0 150px rgba(0,229,255,0.2); }
+  }
+
+  .logo-glow { animation: logoGlow 2s ease-in-out infinite; }
+
+  .instructions {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .instr-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: rgba(200,240,255,0.5);
+  }
+
+  .key-badge {
+    padding: 4px 8px;
+    border: 1px solid rgba(200,240,255,0.3);
+    font-size: 11px;
+    background: rgba(200,240,255,0.05);
+  }
+
+</style>
+<button class="exit-to-root-btn" onclick="exitToRoot()">← MENU</button>
+<div id="cannon-app">
+  <!-- Decorative corners -->
+  <div class="corner tl"></div>
+  <div class="corner tr"></div>
+  <div class="corner bl"></div>
+  <div class="corner br"></div>
+
+  <!-- Aura -->
+  <div id="cannon-aura"></div>
+
+  <!-- Flash overlay -->
+  <div id="cannon-flash"></div>
+
+  <!-- HUD -->
+  <div id="cannon-hud">
+    <div class="cannon-hud-block" id="cannon-hud-score">
+      <div class="cannon-hud-label">SCORE</div>
+      <div class="cannon-hud-value" id="cannon-score-display">0</div>
+    </div>
+    <div id="cannon-timer-bar-wrap">
+      <div class="cannon-hud-value" id="cannon-time-display" style="font-size:22px; color: var(--accent-cyan); text-shadow: 0 0 15px var(--accent-cyan);">60.0</div>
+      <div id="cannon-timer-bar-bg">
+        <div id="cannon-timer-bar"></div>
+      </div>
+    </div>
+    <div class="cannon-hud-block">
+      <div class="cannon-hud-label">BEST COMBO</div>
+      <div class="cannon-hud-value" id="cannon-best-combo-display">0</div>
+    </div>
+  </div>
+
+  <!-- Combo display -->
+  <div id="cannon-combo-display">
+    <div id="cannon-combo-text">COMBO</div>
+    <div id="cannon-combo-num">0</div>
+  </div>
+
+  <!-- Game area -->
+  <div id="cannon-factory">
+    <!-- Left button -->
+    <div class="sort-btn-wrap">
+      <button class="sort-btn" id="cannon-btn-left" onclick="cannonHandleInput('left')">
+        <div class="btn-arrow">◀</div>
+        <div class="btn-type">偶数</div>
+        <div class="btn-key">[ A ] / [ ← ]</div>
+      </button>
+      <div style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:3px; color:rgba(0,229,255,0.4); margin-top:8px;">EVEN</div>
+    </div>
+
+    <!-- Center belt -->
+    <div id="cannon-belt-area">
+      <div class="belt-ring"></div>
+      <div class="belt-ring"></div>
+      <div class="belt-ring"></div>
+      <div id="cannon-number-pod">
+        <div id="cannon-number-display">--</div>
+      </div>
+    </div>
+
+    <!-- Right button -->
+    <div class="sort-btn-wrap">
+      <button class="sort-btn" id="cannon-btn-right" onclick="cannonHandleInput('right')">
+        <div class="btn-arrow">▶</div>
+        <div class="btn-type">奇数</div>
+        <div class="btn-key">[ D ] / [ → ]</div>
+      </button>
+      <div style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:3px; color:rgba(255,109,0,0.4); margin-top:8px;">ODD</div>
+    </div>
+  </div>
+
+  <!-- Speed pips -->
+  <div id="cannon-speed-bar-wrap">
+    <div id="cannon-speed-label">PROCESSING SPEED</div>
+    <div id="cannon-speed-pips">
+      <div class="pip" id="cannon-pip-1"></div>
+      <div class="pip" id="cannon-pip-2"></div>
+      <div class="pip" id="cannon-pip-3"></div>
+      <div class="pip" id="cannon-pip-4"></div>
+      <div class="pip" id="cannon-pip-5"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Start Screen -->
+<div class="screen" id="cannon-start-screen">
+  <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:8px; color:var(--accent-cyan); opacity:0.7;">▶ FACTORY UNIT #7 — ONLINE</div>
+  <div class="screen-title logo-glow" style="color:var(--accent-cyan);">SPEED<br>SORT<br>CANNON</div>
+  <div class="screen-sub">数字を左右に高速仕分け！<br>偶数 → 左　／　奇数 → 右<br>60秒間でハイスコアを叩き出せ！</div>
+  <div class="instructions">
+    <div class="instr-item"><span class="key-badge">← A</span>偶数（LEFT）</div>
+    <div class="instr-item"><span class="key-badge">→ D</span>奇数（RIGHT）</div>
+  </div>
+  <button class="start-btn" onclick="cannonStartGame()">START MISSION</button>
+</div>
+
+<!-- Result Screen -->
+<div class="screen hidden" id="cannon-result-screen">
+  <div style="font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:6px; color:rgba(0,229,255,0.5);">MISSION COMPLETE</div>
+  <div id="cannon-grade" style="color:var(--accent-orange); text-shadow: 0 0 40px rgba(255,109,0,0.7);">S</div>
+  <div id="cannon-result-score">0</div>
+  <div style="font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:3px; color:rgba(0,229,255,0.4);">FINAL SCORE</div>
+  <div class="result-stats">
+    <div class="stat-block">
+      <div class="stat-val" id="cannon-res-correct">0</div>
+      <div class="stat-lbl">CORRECT</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-val" id="cannon-res-miss" style="color:var(--accent-red); text-shadow: 0 0 15px rgba(255,23,68,0.4);">0</div>
+      <div class="stat-lbl">MISS</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-val" id="cannon-res-maxcombo">0</div>
+      <div class="stat-lbl">MAX COMBO</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-val" id="cannon-res-accuracy">0%</div>
+      <div class="stat-lbl">ACCURACY</div>
+    </div>
+  </div>
+  <div id="cannon-edu-message">
+    実はコンピュータも、こうやってデータを<br>
+    「これはこっち、あれはあっち」と高速で仕分けて整理しているんだよ！<br><br>
+    これを <span style="color:var(--accent-cyan);">「ソートアルゴリズム」</span> と呼ぶ。<br>
+    クイックソートやマージソートは、あなたが今やったことを<br>
+    <span style="color:var(--accent-green);">毎秒数百万回</span> の速度で実行しているんだ！
+  </div>
+  <button class="start-btn" onclick="cannonRestartGame()">RETRY MISSION</button>
+</div>
+</div>
+
+<!-- ────────────────────────────────────────────
+     MODULE 02: SORT CARD BATTLE
+     battle_body はそのまま挿入（spark-container/canvas/gw を含む）
+     ──────────────────────────────────────────── -->
+<div id="module-battle" class="module-container">
+<style>
+
+/* ── Reset & Base ── */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html{font-size:16px;height:100%;}
+body{
+  background:#0a0a1a;
+  font-family:'Rajdhani',sans-serif;
+  color:#e0e8ff;
+  overflow-x:hidden;
+  min-height:100%;
+  /* iOS safe area */
+  padding-bottom:env(safe-area-inset-bottom);
+}
+
+/* ── Canvas BG ── */
+#battle-pc{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;}
+
+/* ── Wrapper ── */
+.gw{
+  position:relative;z-index:1;
+  max-width:700px;margin:0 auto;
+  padding:12px 10px 32px;
+  /* iOS safe areas */
+  padding-left:max(10px, env(safe-area-inset-left));
+  padding-right:max(10px, env(safe-area-inset-right));
+}
+
+/* ══ DIFFICULTY SCREEN ══ */
+.diff-title{
+  font-family:'Cinzel Decorative',serif;
+  font-size:clamp(16px,5vw,22px);
+  text-align:center;
+  background:linear-gradient(135deg,#00d4ff,#9d4edd,#ff6b6b);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  letter-spacing:2px;margin-bottom:4px;
+}
+.diff-sub{font-size:clamp(10px,3vw,12px);color:#667;letter-spacing:1px;text-align:center;margin-bottom:14px;}
+.diff-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px;}
+.diff-card{
+  border-radius:14px;padding:12px 10px 28px;cursor:pointer;
+  border:1.5px solid transparent;transition:all 0.2s;
+  text-align:center;position:relative;overflow:hidden;
+  /* 最低タップサイズ確保 */
+  min-height:110px;
+  -webkit-user-select:none;user-select:none;
+}
+/* hover はデスクトップのみ */
+@media(hover:hover){.diff-card:hover{transform:translateY(-3px);}}
+.diff-card:active{transform:scale(0.97);opacity:0.85;}
+
+.diff-card.power2{background:linear-gradient(145deg,#001a18,#003028);border-color:rgba(0,255,200,0.25);}
+@media(hover:hover){.diff-card.power2:hover{border-color:#00ffcc;box-shadow:0 8px 28px rgba(0,255,200,0.22);}}
+.diff-card.power3{background:linear-gradient(145deg,#0a1a00,#142800);border-color:rgba(136,255,68,0.25);}
+@media(hover:hover){.diff-card.power3:hover{border-color:#88ff44;box-shadow:0 8px 28px rgba(136,255,68,0.22);}}
+.diff-card.fraction{background:linear-gradient(145deg,#1a0d00,#2a1800);border-color:rgba(255,136,68,0.25);}
+@media(hover:hover){.diff-card.fraction:hover{border-color:#ff8844;box-shadow:0 8px 28px rgba(255,136,68,0.22);}}
+.diff-card.kanji{background:linear-gradient(145deg,#1a1000,#2a1c00);border-color:rgba(240,192,64,0.25);}
+@media(hover:hover){.diff-card.kanji:hover{border-color:#f0c040;box-shadow:0 8px 28px rgba(240,192,64,0.22);}}
+.diff-card.roman{background:linear-gradient(145deg,#0d0a1a,#180a30);border-color:rgba(192,160,255,0.25);}
+@media(hover:hover){.diff-card.roman:hover{border-color:#c0a0ff;box-shadow:0 8px 28px rgba(192,160,255,0.22);}}
+.diff-card.negative{background:linear-gradient(145deg,#1a0008,#2a0010);border-color:rgba(255,68,102,0.25);}
+@media(hover:hover){.diff-card.negative:hover{border-color:#ff4466;box-shadow:0 8px 28px rgba(255,68,102,0.22);}}
+.diff-card.hex{background:linear-gradient(145deg,#001a10,#00281a);border-color:rgba(68,255,170,0.25);}
+@media(hover:hover){.diff-card.hex:hover{border-color:#44ffaa;box-shadow:0 8px 28px rgba(68,255,170,0.22);}}
+.diff-card.morse{background:linear-gradient(145deg,#1a1500,#2a2000);border-color:rgba(255,204,68,0.25);}
+@media(hover:hover){.diff-card.morse:hover{border-color:#ffcc44;box-shadow:0 8px 28px rgba(255,204,68,0.22);}}
+@media(hover:hover){.diff-card.easy:hover{border-color:#00ff88;box-shadow:0 8px 28px rgba(0,255,100,0.18);}}
+.diff-card.normal{background:linear-gradient(145deg,#0d1b3e,#1a0533);border-color:rgba(100,120,255,0.25);}
+@media(hover:hover){.diff-card.normal:hover{border-color:#9d4edd;box-shadow:0 8px 28px rgba(157,78,221,0.22);}}
+.diff-card.hard{background:linear-gradient(145deg,#1a0a00,#2a1500);border-color:rgba(255,100,50,0.25);}
+@media(hover:hover){.diff-card.hard:hover{border-color:#ff6b35;box-shadow:0 8px 28px rgba(255,107,53,0.22);}}
+.diff-card.expert{background:linear-gradient(145deg,#1a0010,#2a0020);border-color:rgba(255,50,150,0.25);}
+@media(hover:hover){.diff-card.expert:hover{border-color:#ff3096;box-shadow:0 8px 28px rgba(255,48,150,0.22);}}
+.diff-card.nightmare{background:linear-gradient(145deg,#100010,#200030);border-color:rgba(180,0,255,0.25);}
+@media(hover:hover){.diff-card.nightmare:hover{border-color:#cc00ff;box-shadow:0 8px 28px rgba(180,0,255,0.28);}}
+.diff-card.god{background:linear-gradient(145deg,#1a0000,#300000);border-color:rgba(255,0,0,0.2);}
+@media(hover:hover){.diff-card.god:hover{border-color:#ff0040;box-shadow:0 8px 28px rgba(255,0,64,0.3);}}
+.diff-card.abyss{background:linear-gradient(145deg,#050010,#0a0020);border-color:rgba(80,0,255,0.2);}
+@media(hover:hover){.diff-card.abyss:hover{border-color:#5000ff;box-shadow:0 8px 28px rgba(80,0,255,0.35);}}
+.diff-card.transcendent{background:linear-gradient(145deg,#0a0a00,#050005);border-color:rgba(255,200,0,0.15);}
+@media(hover:hover){.diff-card.transcendent:hover{border-color:#ffd700;box-shadow:0 8px 28px rgba(255,215,0,0.3);}}
+.diff-card.chaos{background:linear-gradient(145deg,#0a0005,#1a0010);border-color:rgba(255,80,200,0.2);}
+@media(hover:hover){.diff-card.chaos:hover{border-color:#ff50c8;box-shadow:0 8px 32px rgba(255,80,200,0.4);}}
+.diff-card.phantom{background:linear-gradient(145deg,#000a15,#000520);border-color:rgba(0,200,255,0.15);}
+@media(hover:hover){.diff-card.phantom:hover{border-color:#00c8ff;box-shadow:0 8px 32px rgba(0,200,255,0.4);}}
+.diff-card.oblivion{background:linear-gradient(145deg,#0a0000,#1e0505);border-color:rgba(255,30,30,0.15);}
+@media(hover:hover){.diff-card.oblivion:hover{border-color:#ff1e1e;box-shadow:0 8px 32px rgba(255,30,30,0.45);}}
+.diff-card.void{background:radial-gradient(ellipse at center,#050005,#000000);border-color:rgba(255,255,255,0.05);}
+@media(hover:hover){.diff-card.void:hover{border-color:rgba(255,255,255,0.3);box-shadow:0 8px 40px rgba(255,255,255,0.15);}}
+.diff-card.singularity{background:linear-gradient(145deg,#1a0030,#0a001a);border-color:rgba(255,68,255,0.2);}
+@media(hover:hover){.diff-card.singularity:hover{border-color:#ff44ff;box-shadow:0 8px 32px rgba(255,68,255,0.35);}}
+.diff-card.singularity .diff-name{background:linear-gradient(135deg,#ff44ff,#aa44ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.diff-card.extinction{background:linear-gradient(145deg,#1e0600,#2a0a00);border-color:rgba(255,34,0,0.2);}
+@media(hover:hover){.diff-card.extinction:hover{border-color:#ff2200;box-shadow:0 8px 32px rgba(255,34,0,0.35);}}
+.diff-card.extinction .diff-name{color:#ff4422;text-shadow:0 0 10px rgba(255,34,0,0.5);}
+.diff-card.the-end{background:radial-gradient(ellipse at center,#080808,#020202);border-color:rgba(160,160,160,0.06);}
+@media(hover:hover){.diff-card.the-end:hover{border-color:rgba(200,200,200,0.2);box-shadow:0 8px 40px rgba(180,180,180,0.1);}}
+
+.diff-icon{font-size:clamp(20px,6vw,28px);margin-bottom:4px;}
+.diff-name{font-family:'Cinzel Decorative',serif;font-size:clamp(9px,2.5vw,12px);font-weight:700;margin-bottom:2px;}
+.diff-card.easy .diff-name{color:#00ff88;} .diff-card.normal .diff-name{color:#9d4edd;}
+.diff-card.hard .diff-name{color:#ff6b35;} .diff-card.expert .diff-name{color:#ff3096;}
+.diff-card.nightmare .diff-name{color:#cc00ff;} .diff-card.god .diff-name{color:#ff0040;}
+.diff-card.abyss .diff-name{color:#7744ff;}
+.diff-card.transcendent .diff-name{background:linear-gradient(135deg,#ffd700,#ff6b6b,#ff00ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.diff-card.chaos .diff-name{background:linear-gradient(135deg,#ff50c8,#ff9900,#ff50c8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:chaos-flicker 1.2s infinite alternate;}
+.diff-card.phantom .diff-name{color:#00c8ff;opacity:0.7;text-shadow:0 0 12px #00c8ff;}
+.diff-card.oblivion .diff-name{color:#ff1e1e;text-shadow:0 0 14px #ff0000;}
+.diff-card.void .diff-name{color:rgba(255,255,255,0.5);letter-spacing:4px;}
+@keyframes chaos-flicker{0%{opacity:1;}50%{opacity:0.6;}100%{opacity:1;}}
+.diff-stat{font-size:clamp(9px,2.5vw,11px);color:#8899cc;line-height:1.5;}
+.diff-badge{position:absolute;top:6px;right:6px;font-size:7px;padding:2px 4px;border-radius:20px;font-weight:700;letter-spacing:1px;}
+.badge-std{background:rgba(157,78,221,0.2);color:#c89dff;border:1px solid rgba(157,78,221,0.3);}
+.badge-hot{background:rgba(255,107,53,0.2);color:#ff9f43;border:1px solid rgba(255,107,53,0.3);}
+.badge-ex{background:rgba(255,0,64,0.2);color:#ff6699;border:1px solid rgba(255,0,64,0.3);}
+.badge-nm{background:rgba(180,0,255,0.2);color:#d070ff;border:1px solid rgba(180,0,255,0.3);}
+.best-badge{
+  position:absolute;bottom:6px;left:6px;
+  font-size:8px;padding:2px 5px;border-radius:20px;
+  background:rgba(255,215,0,0.15);color:#ffd740;border:1px solid rgba(255,215,0,0.3);font-weight:700;
+}
+.clear-guarantee{font-size:clamp(9px,2.5vw,10px);color:#00cc66;text-align:center;margin-top:6px;letter-spacing:0.5px;}
+
+/* ══ GAME SCREEN ══ */
+.game-screen{display:none;}
+
+/* バナー */
+.diff-banner{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:8px;
+  background:rgba(10,20,60,0.6);border-radius:10px;padding:7px 10px;
+  border:1px solid rgba(100,150,255,0.15);
+}
+.diff-banner-name{font-size:clamp(11px,3.5vw,14px);font-weight:700;letter-spacing:1px;}
+.diff-banner-meta{font-size:clamp(9px,2.5vw,11px);color:#667;margin-top:1px;}
+.btn-back{
+  font-size:clamp(10px,3vw,12px);
+  padding:6px 12px;border-radius:8px;
+  background:rgba(100,150,255,0.08);border:1px solid rgba(100,150,255,0.2);
+  color:#8899cc;cursor:pointer;font-family:'Rajdhani',sans-serif;
+  transition:all 0.15s;
+  /* タップ領域確保 */
+  min-height:36px;min-width:60px;
+}
+
+/* HUD */
+.hud{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:8px;}
+.hud-card{
+  background:rgba(10,20,60,0.8);border:1px solid rgba(100,150,255,0.18);
+  border-radius:10px;padding:5px 4px;text-align:center;
+}
+.hud-label{font-size:clamp(7px,2vw,9px);color:#556;letter-spacing:0.5px;text-transform:uppercase;}
+.hud-val{font-size:clamp(16px,5vw,22px);font-weight:700;font-family:'Rajdhani',sans-serif;line-height:1.1;}
+.score-val{color:#00d4ff;} .swaps-val{color:#f9a825;} .remain-val{color:#9d4edd;} .min-val{color:#00ff88;}
+.hud-sub{font-size:clamp(7px,2vw,9px);color:#445;margin-top:1px;}
+
+/* アラート */
+.alert-box{margin-bottom:6px;padding:6px 10px;border-radius:8px;font-size:clamp(10px,3vw,12px);font-weight:700;text-align:center;display:none;}
+.alert-danger{background:rgba(255,0,64,0.15);border:1px solid rgba(255,0,64,0.3);color:#ff6699;}
+.alert-warn{background:rgba(249,168,37,0.12);border:1px solid rgba(249,168,37,0.25);color:#ffd740;}
+
+/* コンボHUD */
+.combo-hud{
+  display:none;margin-bottom:6px;padding:5px 10px;border-radius:8px;
+  background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.2);
+  font-size:clamp(10px,3vw,12px);color:#ffd740;text-align:center;font-weight:700;letter-spacing:1px;
+}
+.combo-hud.active{display:block;animation:hudPulse 0.4s ease;}
+@keyframes hudPulse{0%{transform:scale(1.05)}100%{transform:scale(1)}}
+
+/* タイマー */
+.timer-wrap{
+  margin-bottom:7px;background:rgba(10,20,60,0.6);border-radius:8px;
+  padding:6px 10px;border:1px solid rgba(100,150,255,0.15);display:none;
+}
+.timer-label{font-size:clamp(9px,2.5vw,10px);color:#667;letter-spacing:1px;margin-bottom:3px;display:flex;justify-content:space-between;}
+.timer-track{width:100%;height:8px;background:rgba(100,150,255,0.08);border-radius:4px;overflow:hidden;}
+.timer-fill{height:100%;border-radius:4px;transition:width 0.25s linear;background:linear-gradient(90deg,#00ff88,#00d4ff);}
+.timer-fill.warn{background:linear-gradient(90deg,#ff6b35,#ffd740);}
+.timer-fill.danger{background:linear-gradient(90deg,#ff3096,#ff6b35);}
+
+/* ターゲット行 */
+.target-row{
+  display:flex;align-items:center;justify-content:center;gap:4px;
+  margin-bottom:8px;background:rgba(0,212,255,0.05);
+  border:1px solid rgba(0,212,255,0.15);border-radius:10px;
+  padding:6px 8px;flex-wrap:wrap;
+}
+.target-label{font-size:clamp(9px,2.5vw,10px);color:#8899cc;letter-spacing:1px;margin-right:2px;flex-shrink:0;}
+.target-chip{
+  width:clamp(22px,6vw,28px);height:clamp(22px,6vw,28px);
+  border-radius:6px;background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.3);
+  display:flex;align-items:center;justify-content:center;
+  font-size:clamp(10px,3vw,12px);font-weight:700;color:#00d4ff;transition:all 0.3s;
+}
+.target-chip.hidden-chip{background:rgba(157,78,221,0.1);border-color:rgba(157,78,221,0.25);color:#9d4edd;font-size:16px;}
+.target-chip.revealed{animation:chipReveal 0.4s cubic-bezier(.34,1.56,.64,1);}
+@keyframes chipReveal{from{transform:scale(0) rotate(-90deg);opacity:0}to{transform:scale(1) rotate(0);opacity:1}}
+
+/* インストラクション */
+.instruction{text-align:center;font-size:clamp(10px,3vw,12px);color:#667;margin-bottom:6px;min-height:16px;letter-spacing:0.3px;}
+.instruction span{color:#9d4edd;font-weight:700;}
+.instruction .warn{color:#ff6b35;}
+.instruction .ok{color:#00ff88;}
+
+/* インデックスドット */
+.index-dots{display:flex;justify-content:center;gap:0;margin-bottom:4px;overflow:hidden;}
+.idx-dot{text-align:center;font-size:clamp(7px,2vw,9px);color:rgba(100,120,255,0.35);letter-spacing:0.3px;}
+
+/* ══ カードステージ ══
+   スマホでは2行折り返し対応 */
+.cards-stage{
+  position:relative;display:flex;
+  align-items:center;justify-content:center;
+  gap:clamp(3px,1.2vw,6px);
+  margin-bottom:10px;
+  min-height:clamp(90px,25vw,130px);
+  flex-wrap:wrap;          /* 多枚数で2行へ */
+  padding:4px 0;
+}
+
+/* カード本体 */
+.card{
+  border-radius:clamp(8px,2.5vw,13px);
+  cursor:pointer;position:relative;
+  transition:transform 0.18s cubic-bezier(.34,1.56,.64,1),box-shadow 0.18s ease;
+  user-select:none;flex-shrink:0;
+  /* タップ操作感 */
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+}
+.card-inner{
+  width:100%;height:100%;border-radius:inherit;
+  background:linear-gradient(145deg,#0d1b3e,#1a0533);
+  border:1.5px solid rgba(100,120,255,0.28);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  position:relative;overflow:hidden;
+}
+.card-inner::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 20%,rgba(100,120,255,0.1) 0%,transparent 70%);border-radius:inherit;}
+.card-rune-top{position:absolute;top:3px;left:5px;font-size:clamp(6px,1.5vw,8px);color:rgba(150,120,255,0.35);font-weight:700;}
+.card-rune-bot{position:absolute;bottom:3px;right:5px;font-size:clamp(6px,1.5vw,8px);color:rgba(150,120,255,0.35);font-weight:700;transform:rotate(180deg);}
+.card-number{font-family:'Cinzel Decorative',serif;color:#c0d0ff;position:relative;z-index:1;line-height:1;}
+.card-glyph{color:rgba(120,100,255,0.45);position:relative;z-index:1;}
+/* 選択・正解・ホバー */
+.card.selected .card-inner{border-color:#ff6b6b;background:linear-gradient(145deg,#1a0a0d,#2a0520);}
+.card.selected{transform:translateY(-8px) scale(1.06) !important;}
+.card.selected .card-number{color:#ff9999;}
+.card.correct .card-inner{border-color:#00ff88;background:linear-gradient(145deg,#001a0d,#002a15);box-shadow:0 0 14px rgba(0,255,100,0.28),inset 0 0 14px rgba(0,255,100,0.07);}
+.card.correct .card-number{color:#80ffbb;}
+.card.correct{animation:correctPulse 2s infinite;}
+@keyframes correctPulse{0%,100%{box-shadow:0 0 14px rgba(0,255,100,0.28)}50%{box-shadow:0 0 24px rgba(0,255,100,0.45)}}
+@media(hover:hover){.card:hover:not(.correct):not(.selected){transform:translateY(-4px) scale(1.02);}}
+.card:active:not(.correct):not(.selected){transform:scale(0.95);}
+.card.drag-over .card-inner{border-color:#ff6b6b;box-shadow:0 0 14px rgba(255,80,80,0.22);}
+
+/* スパーク */
+#battle-spark-container{position:fixed;inset:0;pointer-events:none;z-index:999;}
+.spark{position:absolute;border-radius:50%;animation:sparkFly 0.6s ease-out forwards;}
+@keyframes sparkFly{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(0);opacity:0}}
+
+/* ══ アルゴリズムパネル ══ */
+.algo-panel{
+  background:rgba(5,10,30,0.9);border:1px solid rgba(100,150,255,0.16);
+  border-radius:12px;padding:10px;margin-bottom:10px;
+}
+.algo-title{font-size:clamp(8px,2.5vw,10px);color:#556;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px;}
+.algo-title::before{content:'';width:5px;height:5px;border-radius:50%;background:#9d4edd;box-shadow:0 0 6px #9d4edd;animation:blink 1.5s infinite;flex-shrink:0;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+.bar-section{margin-bottom:8px;}
+.bar-section-label{font-size:clamp(8px,2vw,9px);color:#445;letter-spacing:1px;margin-bottom:4px;text-transform:uppercase;}
+.bar-row{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+.bar-label{font-size:clamp(9px,2.5vw,10px);color:#8899cc;width:clamp(60px,18vw,76px);text-align:right;flex-shrink:0;}
+.bar-track{flex:1;height:8px;background:rgba(100,150,255,0.07);border-radius:4px;overflow:hidden;border:1px solid rgba(100,150,255,0.1);}
+.bar-fill{height:100%;border-radius:4px;transition:width 0.5s ease;position:relative;}
+.bar-fill::after{content:attr(data-val);position:absolute;right:3px;top:50%;transform:translateY(-50%);font-size:7px;color:rgba(255,255,255,0.8);font-weight:700;}
+
+/* ステートグリッド */
+.state-grid{display:grid;gap:3px;margin-bottom:8px;}
+.state-cell{background:rgba(10,20,60,0.6);border-radius:5px;padding:3px 2px;text-align:center;border:1px solid rgba(100,150,255,0.12);}
+.state-cell-label{font-size:clamp(7px,1.8vw,8px);color:#445;margin-bottom:1px;}
+.state-cell-val{font-size:clamp(10px,3vw,13px);font-weight:700;font-family:'Rajdhani',sans-serif;}
+.state-cell-arrow{font-size:7px;color:#445;margin:1px 0;}
+.state-cell-target{font-size:clamp(9px,2.5vw,11px);color:#00d4ff;}
+.state-cell.correct-cell{border-color:rgba(0,255,100,0.3);background:rgba(0,255,100,0.05);}
+.state-cell.wrong-cell{border-color:rgba(255,107,107,0.25);}
+.state-cell.selected-cell{border-color:rgba(255,107,107,0.5);background:rgba(255,107,107,0.08);}
+
+/* スワップ履歴 */
+.swap-history{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;min-height:20px;align-items:center;}
+.history-chip{font-size:clamp(8px,2.2vw,9px);padding:2px 5px;border-radius:20px;background:rgba(157,78,221,0.1);border:1px solid rgba(157,78,221,0.28);color:#c89dff;font-weight:600;animation:chipIn 0.3s ease;}
+.penalty-chip{font-size:clamp(8px,2.2vw,9px);padding:2px 5px;border-radius:20px;background:rgba(255,0,64,0.12);border:1px solid rgba(255,0,64,0.3);color:#ff6699;font-weight:600;animation:chipIn 0.3s ease;}
+@keyframes chipIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* ══ ボタン行 ══ */
+.btn-row{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px;
+  margin-top:10px;
+}
+/* 1番目と最後はフル幅 */
+.btn-row .btn:first-child{grid-column:1/-1;}
+.btn{
+  padding:clamp(10px,3vw,12px) clamp(8px,2.5vw,18px);
+  border-radius:12px;border:none;
+  font-family:'Rajdhani',sans-serif;
+  font-size:clamp(12px,3.5vw,14px);font-weight:700;cursor:pointer;
+  letter-spacing:1px;transition:all 0.15s;
+  /* タップ領域確保 */
+  min-height:44px;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.btn:active{transform:scale(0.96);}
+.btn-primary{background:linear-gradient(135deg,#9d4edd,#6a0dad);color:#fff;box-shadow:0 4px 14px rgba(157,78,221,0.28);}
+@media(hover:hover){.btn-primary:hover{transform:translateY(-2px);box-shadow:0 7px 22px rgba(157,78,221,0.45);}}
+.btn-secondary{background:rgba(10,20,60,0.8);color:#8899cc;border:1px solid rgba(100,150,255,0.28);}
+@media(hover:hover){.btn-secondary:hover{color:#e0e8ff;}}
+.btn-hint{background:rgba(249,168,37,0.1);color:#ffd740;border:1px solid rgba(249,168,37,0.25);}
+@media(hover:hover){.btn-hint:hover{background:rgba(249,168,37,0.18);}}
+.btn-undo{background:rgba(0,212,255,0.08);color:#00d4ff;border:1px solid rgba(0,212,255,0.25);}
+@media(hover:hover){.btn-undo:hover:not(:disabled){background:rgba(0,212,255,0.16);}}
+.btn-undo:disabled{opacity:0.3;cursor:not-allowed;}
+
+/* ══ モーダル ══
+   スマホは fixed + scroll */
+.modal-overlay{
+  position:fixed;inset:0;z-index:1000;
+  background:rgba(0,0,5,0.92);
+  display:flex;align-items:flex-start;justify-content:center;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  animation:fadeIn 0.3s ease;
+  padding:20px 12px 40px;
+}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal-box{
+  background:linear-gradient(145deg,#0d1b3e,#1a0533);
+  border:2px solid rgba(157,78,221,0.4);border-radius:20px;
+  padding:20px 16px 24px;max-width:420px;width:100%;
+  text-align:center;
+  animation:modalIn 0.4s cubic-bezier(.34,1.56,.64,1);
+  /* 最上部から少し余白 */
+  margin-top:auto;margin-bottom:auto;
+}
+@keyframes modalIn{from{transform:scale(0.85) translateY(20px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
+.modal-win-title{font-family:'Cinzel Decorative',serif;font-size:clamp(20px,6vw,28px);background:linear-gradient(135deg,#ffd700,#ff6b6b,#00d4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 2s infinite;background-size:200%;}
+@keyframes shimmer{0%{background-position:0%}100%{background-position:200%}}
+.modal-score-big{font-size:clamp(40px,12vw,56px);font-weight:700;line-height:1;color:#00d4ff;margin:4px 0;font-family:'Rajdhani',sans-serif;}
+.modal-algo-box{background:rgba(0,212,255,0.07);border:1px solid rgba(0,212,255,0.2);border-radius:12px;padding:10px 12px;margin:10px 0;text-align:left;}
+.modal-algo-tag{font-size:clamp(8px,2.2vw,9px);color:#00d4ff;letter-spacing:2px;text-transform:uppercase;}
+.modal-algo-name{font-size:clamp(11px,3.5vw,13px);font-weight:700;color:#80d8ff;margin:3px 0;font-family:'Cinzel Decorative',serif;}
+.modal-algo-desc{font-size:clamp(10px,3vw,12px);color:#8899cc;line-height:1.5;}
+.stars-row{display:flex;justify-content:center;gap:4px;margin:6px 0;font-size:clamp(18px,6vw,24px);}
+.modal-lose-title{font-family:'Cinzel Decorative',serif;font-size:clamp(16px,5vw,22px);color:#ff6b6b;margin-bottom:5px;}
+.modal-timeout-title{font-family:'Cinzel Decorative',serif;font-size:clamp(16px,5vw,22px);color:#ffd740;margin-bottom:5px;}
+
+/* ── 理論値パネル ── */
+.theory-panel{background:rgba(0,10,30,0.95);border:1px solid rgba(0,212,255,0.25);border-radius:14px;padding:12px;margin:10px 0;text-align:left;}
+.theory-title{font-size:clamp(8px,2.2vw,9px);color:#00d4ff;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.theory-title::before{content:'';width:6px;height:6px;border-radius:50%;background:#00d4ff;box-shadow:0 0 8px #00d4ff;flex-shrink:0;}
+.theory-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(100,150,255,0.08);font-size:clamp(10px,3vw,12px);}
+.theory-row:last-child{border-bottom:none;}
+.theory-key{color:#8899cc;}
+.theory-val{font-weight:700;font-family:'Rajdhani',sans-serif;}
+.theory-cycle{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
+.cycle-badge{font-size:clamp(8px,2.2vw,9px);padding:2px 7px;border-radius:20px;border:1px solid rgba(157,78,221,0.35);background:rgba(157,78,221,0.1);color:#c89dff;font-family:'Rajdhani',sans-serif;font-weight:700;}
+.theory-seq{margin-top:8px;}
+.theory-seq-label{font-size:clamp(8px,2vw,9px);color:#556;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;}
+.seq-step{display:flex;align-items:center;gap:5px;margin-bottom:4px;font-size:clamp(9px,2.8vw,11px);color:#8899cc;}
+.seq-step-num{width:18px;height:18px;border-radius:50%;background:rgba(0,212,255,0.12);border:1px solid rgba(0,212,255,0.3);color:#00d4ff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+
+/* ── コンボ・ミスフラッシュ ── */
+.combo-flash{position:fixed;top:45%;left:50%;transform:translate(-50%,-50%);font-family:'Cinzel Decorative',serif;font-size:clamp(24px,8vw,40px);font-weight:700;pointer-events:none;z-index:9999;animation:comboAnim 0.9s ease-out forwards;white-space:nowrap;}
+@keyframes comboAnim{0%{opacity:1;transform:translate(-50%,-50%) scale(0.5)}40%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}100%{opacity:0;transform:translate(-50%,-80%) scale(0.9)}}
+.waste-flash{position:fixed;inset:0;background:rgba(255,0,64,0.12);pointer-events:none;z-index:9998;animation:wasteFade 0.5s ease-out forwards;}
+@keyframes wasteFade{0%{opacity:1}100%{opacity:0}}
+
+/* ══ ゲーム中は折りたたむ要素 ══ */
+.game-collapsed{
+  display:none !important;
+}
+/* ゲーム終了後に表示するパネル */
+.reveal-on-end{
+  display:none;
+}
+.reveal-on-end.shown{
+  display:block;
+}
+/* ボタン行：ゲーム中はヒント・最善手を非表示 */
+.btn-play-only{
+  display:none;
+}
+.btn-play-only.shown{
+  display:block;
+}
+
+/* ══ スマホ専用レイアウト調整 ══ */
+@media(max-width:480px){
+  .gw{padding:8px 8px 40px;}
+  .diff-grid{gap:6px;}
+  .diff-card{padding:10px 8px 24px;min-height:100px;}
+  /* ボタン行：スマホでは全部2列グリッド */
+  .btn-row{gap:6px;}
+  .btn-row .btn:first-child{grid-column:1/-1;}
+  /* アルゴリズムパネルは折りたたみ可能に */
+  .algo-panel{padding:8px;}
+}
+
+/* ══ 横向きスマホ ══ */
+@media(max-height:500px) and (orientation:landscape){
+  .gw{padding:6px 10px 16px;}
+  .diff-title{font-size:14px;margin-bottom:2px;}
+  .diff-grid{grid-template-columns:repeat(4,1fr);gap:5px;}
+  .diff-card{min-height:80px;padding:8px 6px 20px;}
+  .hud{gap:4px;}
+  .cards-stage{min-height:70px;}
+}
+
+/* ── セクション見出し ── */
+.diff-section-label{
+  grid-column:span 2;
+  font-family:'Rajdhani',sans-serif;
+  font-size:clamp(9px,2.5vw,11px);
+  letter-spacing:3px;
+  text-transform:uppercase;
+  text-align:center;
+  padding:4px 0 2px;
+  margin-top:4px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  color:rgba(150,170,220,0.5);
+}
+.diff-section-label.special{
+  color:rgba(255,150,200,0.5);
+  border-bottom-color:rgba(255,100,200,0.1);
+}
+
+/* ── Standard追加難易度 ── */
+.diff-card.veteran{background:linear-gradient(145deg,#001828,#002840);border-color:rgba(68,221,255,0.2);}
+@media(hover:hover){.diff-card.veteran:hover{border-color:#44ddff;box-shadow:0 8px 28px rgba(68,221,255,0.25);}}
+.diff-card.veteran .diff-name{color:#44ddff;}
+.diff-card.master{background:linear-gradient(145deg,#1a1000,#2a1800);border-color:rgba(255,170,0,0.2);}
+@media(hover:hover){.diff-card.master:hover{border-color:#ffaa00;box-shadow:0 8px 28px rgba(255,170,0,0.28);}}
+.diff-card.master .diff-name{color:#ffaa00;}
+.diff-card.legend{background:linear-gradient(145deg,#1a0800,#2a1000);border-color:rgba(255,102,0,0.2);}
+@media(hover:hover){.diff-card.legend:hover{border-color:#ff6600;box-shadow:0 8px 32px rgba(255,102,0,0.32);}}
+.diff-card.legend .diff-name{color:#ff6600;}
+.diff-card.supreme{background:linear-gradient(145deg,#180010,#280018);border-color:rgba(255,68,170,0.2);}
+@media(hover:hover){.diff-card.supreme:hover{border-color:#ff44aa;box-shadow:0 8px 32px rgba(255,68,170,0.32);}}
+.diff-card.supreme .diff-name{background:linear-gradient(135deg,#ff44aa,#ff88ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+
+.diff-card.apex{background:linear-gradient(145deg,#001a12,#002a1e);border-color:rgba(0,255,204,0.2);}
+@media(hover:hover){.diff-card.apex:hover{border-color:#00ffcc;box-shadow:0 8px 28px rgba(0,255,204,0.28);}}
+.diff-card.apex .diff-name{color:#00ffcc;}
+.diff-card.elite{background:linear-gradient(145deg,#080820,#101030);border-color:rgba(136,170,255,0.2);}
+@media(hover:hover){.diff-card.elite:hover{border-color:#88aaff;box-shadow:0 8px 28px rgba(136,170,255,0.28);}}
+.diff-card.elite .diff-name{color:#88aaff;}
+.diff-card.mythic{background:linear-gradient(145deg,#1a1400,#2a2000);border-color:rgba(255,204,0,0.2);}
+@media(hover:hover){.diff-card.mythic:hover{border-color:#ffcc00;box-shadow:0 8px 32px rgba(255,204,0,0.32);}}
+.diff-card.mythic .diff-name{color:#ffcc00;}
+.diff-card.eternal{background:linear-gradient(145deg,#1a0800,#2a1200);border-color:rgba(255,136,0,0.2);}
+@media(hover:hover){.diff-card.eternal:hover{border-color:#ff8800;box-shadow:0 8px 32px rgba(255,136,0,0.35);}}
+.diff-card.eternal .diff-name{color:#ff8800;}
+.diff-card.absolute_{background:linear-gradient(145deg,#1a0010,#280010);border-color:rgba(255,68,102,0.2);}
+@media(hover:hover){.diff-card.absolute_:hover{border-color:#ff4466;box-shadow:0 8px 32px rgba(255,68,102,0.38);}}
+.diff-card.absolute_ .diff-name{color:#ff4466;}
+.diff-card.infinity{background:radial-gradient(ellipse at top,#0a0a0a,#020202);border-color:rgba(255,255,255,0.08);}
+@media(hover:hover){.diff-card.infinity:hover{border-color:rgba(255,255,255,0.4);box-shadow:0 8px 40px rgba(255,255,255,0.12);}}
+.diff-card.infinity .diff-name{background:linear-gradient(135deg,#ffffff,#aaaaff,#ffffff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:2px;}
+
+</style>
+<button class="exit-to-root-btn" onclick="exitToRoot()">← MENU</button>
+<div id="battle-spark-container"></div>
+<canvas id="battle-pc"></canvas>
+
+<div class="gw">
+  <div id="battle-diff-screen">
+    <div class="diff-title" style="margin-top:8px;">✦ Sort Card Battle ✦</div>
+    <div class="diff-sub">難易度を選んでバトル開始！</div>
+    <div class="diff-grid">
+      <!-- ═══ STANDARD ═══ -->
+      <div class="diff-section-label">⚔ Standard</div>
+
+      <div class="diff-card easy" onclick="battleStartGame('easy')" style="position:relative;">
+        <div class="diff-icon">🌱</div>
+        <div class="diff-name">Easy</div>
+        <div class="diff-stat">4枚 / 目標表示 / ∞time</div>
+        <div class="best-badge" id="battle-best-easy">—</div>
+      </div>
+      <div class="diff-card normal" onclick="battleStartGame('normal')" style="position:relative;">
+        <div class="diff-badge badge-std">STD</div>
+        <div class="diff-icon">⚔️</div>
+        <div class="diff-name">Normal</div>
+        <div class="diff-stat">5枚 / 目標表示 / ∞time</div>
+        <div class="best-badge" id="battle-best-normal">—</div>
+      </div>
+      <div class="diff-card hard" onclick="battleStartGame('hard')" style="position:relative;">
+        <div class="diff-badge badge-hot">HARD</div>
+        <div class="diff-icon">🔥</div>
+        <div class="diff-name">Hard</div>
+        <div class="diff-stat">6枚 / 目標表示 / ⏱ 60秒</div>
+        <div class="best-badge" id="battle-best-hard">—</div>
+      </div>
+      <div class="diff-card veteran" onclick="battleStartGame('veteran')" style="position:relative;">
+        <div class="diff-icon">🛡️</div>
+        <div class="diff-name">Veteran</div>
+        <div class="diff-stat">8枚 / 目標表示 / ⏱ 40秒</div>
+        <div class="best-badge" id="battle-best-veteran">—</div>
+      </div>
+      <div class="diff-card master" onclick="battleStartGame('master')" style="position:relative;">
+        <div class="diff-icon">👑</div>
+        <div class="diff-name">Master</div>
+        <div class="diff-stat">9枚 / 目標表示 / ⏱ 30秒</div>
+        <div class="best-badge" id="battle-best-master">—</div>
+      </div>
+      <div class="diff-card legend" onclick="battleStartGame('legend')" style="position:relative;">
+        <div class="diff-icon">⚡</div>
+        <div class="diff-name">Legend</div>
+        <div class="diff-stat">11枚 / 目標表示 / ⏱ 25秒</div>
+        <div class="best-badge" id="battle-best-legend">—</div>
+      </div>
+      <div class="diff-card supreme" onclick="battleStartGame('supreme')" style="position:relative;grid-column:span 2;">
+        <div class="diff-badge" style="background:rgba(255,68,170,0.12);color:#ff88cc;border:1px solid rgba(255,68,170,0.3);">TOP</div>
+        <div class="diff-icon">💎</div>
+        <div class="diff-name">Supreme</div>
+        <div class="diff-stat">13枚 / 目標表示 / ⏱ 20秒</div>
+        <div class="best-badge" id="battle-best-supreme">—</div>
+      </div>
+      <div class="diff-card apex" onclick="battleStartGame('apex')" style="position:relative;">
+        <div class="diff-icon">🔱</div>
+        <div class="diff-name">Apex</div>
+        <div class="diff-stat">15枚 / 目標表示 / ⏱ 18秒</div>
+        <div class="best-badge" id="battle-best-apex">—</div>
+      </div>
+      <div class="diff-card elite" onclick="battleStartGame('elite')" style="position:relative;">
+        <div class="diff-icon">🌠</div>
+        <div class="diff-name">Elite</div>
+        <div class="diff-stat">17枚 / 目標表示 / ⏱ 16秒</div>
+        <div class="best-badge" id="battle-best-elite">—</div>
+      </div>
+      <div class="diff-card mythic" onclick="battleStartGame('mythic')" style="position:relative;">
+        <div class="diff-icon">🔮</div>
+        <div class="diff-name">Mythic</div>
+        <div class="diff-stat">19枚 / 目標表示 / ⏱ 14秒</div>
+        <div class="best-badge" id="battle-best-mythic">—</div>
+      </div>
+      <div class="diff-card eternal" onclick="battleStartGame('eternal')" style="position:relative;">
+        <div class="diff-icon">♾️</div>
+        <div class="diff-name">Eternal</div>
+        <div class="diff-stat">21枚 / 目標表示 / ⏱ 12秒</div>
+        <div class="best-badge" id="battle-best-eternal">—</div>
+      </div>
+      <div class="diff-card absolute_" onclick="battleStartGame('absolute_')" style="position:relative;">
+        <div class="diff-icon">💠</div>
+        <div class="diff-name">Absolute</div>
+        <div class="diff-stat">23枚 / 目標表示 / ⏱ 10秒</div>
+        <div class="best-badge" id="battle-best-absolute_">—</div>
+      </div>
+      <div class="diff-card infinity" onclick="battleStartGame('infinity')" style="position:relative;grid-column:span 2;">
+        <div class="diff-badge" style="background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.12);">∞</div>
+        <div class="diff-icon">🌌</div>
+        <div class="diff-name">Infinity</div>
+        <div class="diff-stat">25枚 / 目標表示 / ⏱ 8秒</div>
+        <div class="best-badge" id="battle-best-infinity">—</div>
+      </div>
+
+      <!-- ═══ SPECIAL DISPLAY ═══ -->
+      <div class="diff-section-label" style="color:#f0c040;border-color:rgba(240,192,64,0.3);">🔣 Special Display — 数の別表現</div>
+
+      <div class="diff-card kanji" onclick="battleStartGame('kanji')" style="position:relative;">
+        <div class="diff-icon">漢</div>
+        <div class="diff-name">漢字</div>
+        <div class="diff-stat">6枚 / ∞time<br><span style="color:#f0c040">一 二 三…漢字表記</span></div>
+        <div class="best-badge" id="battle-best-kanji">—</div>
+      </div>
+      <div class="diff-card roman" onclick="battleStartGame('roman')" style="position:relative;">
+        <div class="diff-icon">Ⅻ</div>
+        <div class="diff-name">Roman</div>
+        <div class="diff-stat">7枚 / 60秒<br><span style="color:#c0a0ff">Ⅰ Ⅱ Ⅲ…ローマ数字</span></div>
+        <div class="best-badge" id="battle-best-roman">—</div>
+      </div>
+      <div class="diff-card power2" onclick="battleStartGame('power_mix')" style="position:relative;">
+        <div class="diff-icon">xⁿ</div>
+        <div class="diff-name">Power Mix</div>
+        <div class="diff-stat">7枚 / 60秒<br><span style="color:#00ffcc">2³ 3² 5²…混合累乗</span></div>
+        <div class="best-badge" id="battle-best-power_mix">—</div>
+      </div>
+      <div class="diff-card fraction" onclick="battleStartGame('fraction')" style="position:relative;">
+        <div class="diff-icon">½</div>
+        <div class="diff-name">Fraction</div>
+        <div class="diff-stat">7枚 / 60秒<br><span style="color:#ff8844">1 1/2 1/3…分数</span></div>
+        <div class="best-badge" id="battle-best-fraction">—</div>
+      </div>
+      <div class="diff-card negative" onclick="battleStartGame('negative')" style="position:relative;">
+        <div class="diff-icon">−n</div>
+        <div class="diff-name">Negative</div>
+        <div class="diff-stat">7枚 / 60秒<br><span style="color:#ff4466">−7→−6→…→−1の順</span></div>
+        <div class="best-badge" id="battle-best-negative">—</div>
+      </div>
+      <div class="diff-card hex" onclick="battleStartGame('hex')" style="position:relative;">
+        <div class="diff-icon">0x</div>
+        <div class="diff-name">Hex</div>
+        <div class="diff-stat">7枚 / 45秒<br><span style="color:#44ffaa">0x1 0x2…16進数</span></div>
+        <div class="best-badge" id="battle-best-hex">—</div>
+      </div>
+      <div class="diff-card morse" onclick="battleStartGame('morse')" style="position:relative;">
+        <div class="diff-icon">·−</div>
+        <div class="diff-name">Morse</div>
+        <div class="diff-stat">5枚 / ∞time<br><span style="color:#ffcc44">·− −···…モールス</span></div>
+        <div class="best-badge" id="battle-best-morse">—</div>
+      </div>
+      <div class="diff-card mixed" onclick="battleStartGame('mixed')" style="position:relative;">
+        <div class="diff-icon">🎲</div>
+        <div class="diff-name">Mixed</div>
+        <div class="diff-stat">6枚 / ∞time<br><span style="color:#ff88ff">漢字・分数・16進…全混合</span></div>
+        <div class="best-badge" id="battle-best-mixed">—</div>
+      </div>
+      <div class="diff-card mixed" onclick="battleStartGame('mixed_hard')" style="position:relative;border-color:rgba(255,68,204,0.5);">
+        <div class="diff-icon">🎲</div>
+        <div class="diff-name">Mixed Hard</div>
+        <div class="diff-stat">8枚 / 45秒<br><span style="color:#ff44cc">全混合+タイム制限</span></div>
+        <div class="best-badge" id="battle-best-mixed_hard">—</div>
+      </div>
+
+      <!-- ═══ SPECIAL ABILITY ═══ -->
+      <div class="diff-section-label special">✦ Special Ability</div>
+
+      <div class="diff-card expert" onclick="battleStartGame('expert')" style="position:relative;">
+        <div class="diff-icon">💀</div>
+        <div class="diff-name">Expert</div>
+        <div class="diff-stat">7枚 / 🙈 目標隠し / ⏱ 45秒</div>
+        <div class="best-badge" id="battle-best-expert">—</div>
+      </div>
+      <div class="diff-card nightmare" onclick="battleStartGame('nightmare')" style="position:relative;">
+        <div class="diff-icon">👁️</div>
+        <div class="diff-name">Nightmare</div>
+        <div class="diff-stat">8枚 / 🙈 目標隠し / ⏱ 30秒</div>
+        <div class="best-badge" id="battle-best-nightmare">—</div>
+      </div>
+      <div class="diff-card god" onclick="battleStartGame('god')" style="position:relative;">
+        <div class="diff-badge badge-ex">BOSS</div>
+        <div class="diff-icon">☠️</div>
+        <div class="diff-name">God Mode</div>
+        <div class="diff-stat">9枚 / 🙈 目標隠し / ⏱ 25秒</div>
+        <div class="best-badge" id="battle-best-god">—</div>
+      </div>
+      <div class="diff-card abyss" onclick="battleStartGame('abyss')" style="position:relative;">
+        <div class="diff-icon">🌀</div>
+        <div class="diff-name">Abyss</div>
+        <div class="diff-stat">11枚 / 🙈 目標隠し / ⏱ 20秒</div>
+        <div class="best-badge" id="battle-best-abyss">—</div>
+      </div>
+      <div class="diff-card transcendent" onclick="battleStartGame('transcendent')" style="position:relative;grid-column:span 2;">
+        <div class="diff-badge" style="background:rgba(255,215,0,0.15);color:#ffd700;border:1px solid rgba(255,215,0,0.3);">MAX</div>
+        <div class="diff-icon">👁️‍🗨️</div>
+        <div class="diff-name">Transcendent</div>
+        <div class="diff-stat">13枚 / 🙈 目標完全隠し / ⏱ 15秒</div>
+        <div class="best-badge" id="battle-best-transcendent">—</div>
+      </div>
+      <div class="diff-card chaos" onclick="battleStartGame('chaos')" style="position:relative;">
+        <div class="diff-icon">🌪️</div>
+        <div class="diff-name">Chaos</div>
+        <div class="diff-stat">10枚 / 🙈 目標隠し / ⏱ 15秒<br><span style="color:#ff50c8">残り手数が??</span></div>
+        <div class="best-badge" id="battle-best-chaos">—</div>
+      </div>
+      <div class="diff-card phantom" onclick="battleStartGame('phantom')" style="position:relative;">
+        <div class="diff-icon">👻</div>
+        <div class="diff-name">Phantom</div>
+        <div class="diff-stat">11枚 / 🙈 目標隠し / ⏱ 12秒<br><span style="color:#00c8ff">番号30〜50%が?</span></div>
+        <div class="best-badge" id="battle-best-phantom">—</div>
+      </div>
+      <div class="diff-card oblivion" onclick="battleStartGame('oblivion')" style="position:relative;">
+        <div class="diff-icon">🔀</div>
+        <div class="diff-name">Oblivion</div>
+        <div class="diff-stat">12枚 / 🙈 目標隠し / ⏱ 18秒<br><span style="color:#ff1e1e">3手毎シャッフル</span></div>
+        <div class="best-badge" id="battle-best-oblivion">—</div>
+      </div>
+      <div class="diff-card void" onclick="battleStartGame('void')" style="position:relative;grid-column:span 2;">
+        <div class="diff-badge" style="background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.5);border:1px solid rgba(255,255,255,0.1);">∞</div>
+        <div class="diff-icon" style="filter:grayscale(1) brightness(0.5)">⬛</div>
+        <div class="diff-name">Void</div>
+        <div class="diff-stat"><span style="color:rgba(255,255,255,0.4)">13枚 / 目標? / 番号30〜50%? / ⏱ 15秒 / 3手シャッフル</span></div>
+        <div class="best-badge" id="battle-best-void">—</div>
+      </div>
+      <div class="diff-card singularity" onclick="battleStartGame('singularity')" style="position:relative;">
+        <div class="diff-icon">🌌</div>
+        <div class="diff-name">Singularity</div>
+        <div class="diff-stat">15枚 / 目標? / ⏱ 12秒<br><span style="color:#cc66ff">番号40〜60%? / 2手シャッフル</span></div>
+        <div class="best-badge" id="battle-best-singularity">—</div>
+      </div>
+      <div class="diff-card extinction" onclick="battleStartGame('extinction')" style="position:relative;">
+        <div class="diff-icon">💥</div>
+        <div class="diff-name">Extinction</div>
+        <div class="diff-stat">18枚 / 目標? / ⏱ 10秒<br><span style="color:#ff4422">番号50〜70%? / 2手シャッフル</span></div>
+        <div class="best-badge" id="battle-best-extinction">—</div>
+      </div>
+      <div class="diff-card the-end" onclick="battleStartGame('the_end')" style="position:relative;grid-column:span 2;">
+        <div class="diff-badge" style="background:rgba(160,160,160,0.05);color:rgba(200,200,200,0.35);border:1px solid rgba(160,160,160,0.1);">∅</div>
+        <div class="diff-icon" style="filter:grayscale(1) brightness(0.25);">☯</div>
+        <div class="diff-name" style="color:rgba(180,180,180,0.35);letter-spacing:5px;font-size:clamp(8px,2vw,10px);">THE END</div>
+        <div class="diff-stat"><span style="color:rgba(140,140,140,0.3)">21枚 / 目標? / 番号60〜80%? / ⏱ 8秒 / 毎手シャッフル</span></div>
+        <div class="best-badge" id="battle-best-the_end">—</div>
+      </div>
+    </div>
+    <div class="clear-guarantee">✓ 全難易度：全カード不正解位置スタート・動的手数で必ずクリア可能</div>
+    <div class="clear-guarantee" style="color:#8899cc;margin-top:4px;" id="battle-kb-hint">⌨ キー: 数字1〜9 / H=ヒント / Ctrl+Z=アンドゥ &nbsp;|&nbsp; 📱 タップ選択→タップ入替 / ドラッグ直接入替 / 長押し=ヒント</div>
+  </div>
+
+  <div id="battle-game-screen" class="game-screen">
+    <div class="diff-banner">
+      <div>
+        <div class="diff-banner-name" id="battle-banner-name"></div>
+        <div class="diff-banner-meta" id="battle-banner-meta"></div>
+      </div>
+      <button class="btn-back" onclick="battleGoBack()">← 難易度選択</button>
+    </div>
+
+    <div class="hud">
+      <div class="hud-card"><div class="hud-label">Score</div><div class="hud-val score-val" id="battle-score-display">0</div></div>
+      <div class="hud-card"><div class="hud-label">Swaps</div><div class="hud-val swaps-val" id="battle-swaps-display">0/5</div></div>
+      <div class="hud-card"><div class="hud-label">Remain</div><div class="hud-val remain-val" id="battle-remain-display">5</div></div>
+      <div class="hud-card"><div class="hud-label">Min Left</div><div class="hud-val min-val" id="battle-min-display">-</div><div class="hud-sub" id="battle-min-sub"></div></div>
+    </div>
+
+    <div class="combo-hud" id="battle-combo-hud">🔥 COMBO x<span id="battle-combo-count">0</span> — ボーナス +<span id="battle-combo-bonus">0</span>pts</div>
+    <div class="alert-box" id="battle-alert-box"></div>
+
+    <div class="timer-wrap" id="battle-timer-wrap">
+      <div class="timer-label"><span>⏱ タイム</span><span id="battle-timer-text">--s</span></div>
+      <div class="timer-track"><div class="timer-fill" id="battle-timer-fill" style="width:100%"></div></div>
+    </div>
+
+    <div class="target-row">
+      <span class="target-label">TARGET ▶</span>
+      <div id="battle-target-chips" style="display:flex;gap:5px;flex-wrap:wrap;"></div>
+    </div>
+
+    <div class="instruction game-collapsed" id="battle-instruction">カードをクリックして選択 → もう1枚をクリックで入れ替え</div>
+    <div class="index-dots game-collapsed" id="battle-index-dots"></div>
+    <div class="cards-stage" id="battle-cards-stage"></div>
+
+    <div class="algo-panel reveal-on-end" id="battle-algo-panel">
+      <div class="algo-title">アルゴリズム効率 — リアルタイム解析</div>
+
+      <div class="state-grid" id="battle-state-grid"></div>
+
+      <div class="bar-section">
+        <div class="bar-section-label">手の効率比較</div>
+        <div class="bar-row">
+          <span class="bar-label">君の効率</span>
+          <div class="bar-track"><div class="bar-fill" id="battle-bar-you" data-val="—" style="width:0%;background:linear-gradient(90deg,#9d4edd,#00d4ff);"></div></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">無駄打ちなし</span>
+          <div class="bar-track"><div class="bar-fill" id="battle-bar-perfect" data-val="100%" style="width:100%;background:linear-gradient(90deg,#00ff88,#00d4ff);"></div></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">バブルソート</span>
+          <div class="bar-track"><div class="bar-fill" data-val="55%" style="width:55%;background:linear-gradient(90deg,#ff6b6b,#ff8c42);"></div></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">選択ソート</span>
+          <div class="bar-track"><div class="bar-fill" data-val="75%" style="width:75%;background:linear-gradient(90deg,#f9a825,#ffd740);"></div></div>
+        </div>
+      </div>
+
+      <div class="bar-section">
+        <div class="bar-section-label">正位置カード数 (進捗)</div>
+        <div class="bar-row">
+          <span class="bar-label">正位置</span>
+          <div class="bar-track"><div class="bar-fill" id="battle-bar-progress" data-val="0%" style="width:0%;background:linear-gradient(90deg,#00ff88,#9d4edd);"></div></div>
+        </div>
+      </div>
+
+      <div class="swap-history" id="battle-swap-history"><span style="font-size:9px;color:#334;">交換ログ ▶</span></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="battleResetCurrent()">⟳ 再挑戦</button>
+      <button class="btn btn-undo" id="battle-btn-undo" onclick="battleUndoSwap()" disabled>↩ 戻す</button>
+      <button class="btn btn-hint btn-play-only" id="battle-btn-hint" onclick="battleShowHint()">💡 ヒント</button>
+      <button class="btn btn-secondary btn-play-only" id="battle-btn-nextbest" onclick="battleShowNextBest()">🧠 最善手</button>
+    </div>
+    <!-- スマホ用フローティングアクションエリア（スクロール固定） -->
+
+    <div id="battle-modal-area"></div>
+  </div>
+</div>
+</div>
+
+<!-- ────────────────────────────────────────────
+     MODULE 03: MENTAL MATH
+     中身は MathGame.init() が動的に描画する
+     ──────────────────────────────────────────── -->
+<div id="module-math" class="module-container" style="min-height:100vh;background:#0a0c12;position:relative;z-index:2">
+  <button class="exit-to-root-btn" onclick="exitToRoot()" style="z-index:300">← MENU</button>
+</div>
+
+<!-- ────────────────────────────────────────────
+     MODULE 04: ALGORITHM MERGE TOWER
+     中身は MergeGame.init() が動的に描画する
+     ──────────────────────────────────────────── -->
+<div id="module-merge" class="module-container" style="min-height:100vh;position:relative;z-index:2">
+  <button class="exit-to-root-btn" onclick="exitToRoot()" style="z-index:300">← MENU</button>
+</div>
+
+<!-- ════════════════════════════════════════════
+     ルーティング JS
+     ════════════════════════════════════════════ -->
+<script>
+let _activeGame = null;
+let _activeModuleId = null;
+
+function launchSelectedModule(name) {
+  if (_activeGame && typeof _activeGame.destroy === 'function') {
+    _activeGame.destroy();
+  }
+  _activeGame = null;
+  document.getElementById('root-menu').style.display = 'none';
+  ['cannon','battle','math','merge'].forEach(id => {
+    const el = document.getElementById('module-' + id);
+    if (el) el.classList.remove('active');
+  });
+  const target = document.getElementById('module-' + name);
+  if (!target) return;
+  target.classList.add('active');
+  _activeModuleId = name;
+  const gameMap = { cannon: window.CannonGame, battle: window.BattleGame,
+                    math: window.MathGame, merge: window.MergeGame };
+  const game = gameMap[name];
+  if (game && typeof game.init === 'function') {
+    _activeGame = game;
+    game.init();
+  }
+}
+
+function exitToRoot() {
+  if (_activeGame && typeof _activeGame.destroy === 'function') {
+    _activeGame.destroy();
+  }
+  _activeGame = null;
+  ['cannon','battle','math','merge'].forEach(id => {
+    const el = document.getElementById('module-' + id);
+    if (el) el.classList.remove('active');
+  });
+  document.getElementById('root-menu').style.display = '';
+  _activeModuleId = null;
+}
+
+function switchCoreMode(name) { launchSelectedModule(name); }
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && _activeModuleId) {
+    if (_activeModuleId === 'battle') {
+      const gs = document.getElementById('battle-game-screen');
+      if (gs && gs.style.display !== 'none') return;
+    }
+    exitToRoot();
+  }
+});
+</script>
+
+<!-- 各ゲームモジュール JS -->
+<script>
+// ════════════════════════════════════════════════
+// MODULE 01: SPEED SORT CANNON
+// 名前空間分離: IIFEで完全にスコープを閉じ、
+// グローバルには window.CannonGame の3メソッドのみ公開する。
+// ════════════════════════════════════════════════
+window.CannonGame = (function () {
+  // ===== GAME STATE（このIIFE内に閉じる。他モジュールと一切衝突しない）=====
+  let score = 0;
+  let timeLeft = 60;
+  let combo = 0;
+  let maxCombo = 0;
+  let correct = 0;
+  let miss = 0;
+  let currentNum = 0;
+  let gameActive = false;
+  let frozen = false;
+  let timerInterval = null;
+  let flashTimeout = null;
+  let speedLevel = 1;
+
+  // DOM参照はinit()内で取得する（モジュールコンテナがdisplay:noneの間に
+  // 評価されるとレイアウト系の挙動が不安定になりやすいため、起動直前に取得する）
+  let scoreDisplay, timeDisplay, timerBar, numberDisplay, numberPod;
+  let comboDisplay, comboNum, aura, bestComboDisplay, flash;
+  let keydownHandler = null;
+
+  function bindDom() {
+    scoreDisplay = document.getElementById('cannon-score-display');
+    timeDisplay = document.getElementById('cannon-time-display');
+    timerBar = document.getElementById('cannon-timer-bar');
+    numberDisplay = document.getElementById('cannon-number-display');
+    numberPod = document.getElementById('cannon-number-pod');
+    comboDisplay = document.getElementById('cannon-combo-display');
+    comboNum = document.getElementById('cannon-combo-num');
+    aura = document.getElementById('cannon-aura');
+    bestComboDisplay = document.getElementById('cannon-best-combo-display');
+    flash = document.getElementById('cannon-flash');
+  }
+
+  function randNum() {
+    return Math.floor(Math.random() * 99) + 1;
+  }
+
+  function showNumber() {
+    currentNum = randNum();
+    numberDisplay.textContent = currentNum;
+    numberPod.style.transform = 'scale(0.6)';
+    numberPod.style.opacity = '0';
+    setTimeout(() => {
+      numberPod.style.transition = 'transform 0.15s cubic-bezier(0.34,1.56,0.64,1), opacity 0.1s';
+      numberPod.style.transform = 'scale(1)';
+      numberPod.style.opacity = '1';
+    }, 20);
+    updateComboVisuals();
+  }
+
+  function handleInput(dir) {
+    if (!gameActive || frozen) return;
+    const isEven = currentNum % 2 === 0;
+    const correct_answer = isEven ? 'left' : 'right';
+    const isCorrect = dir === correct_answer;
+    if (isCorrect) handleCorrect(dir);
+    else handleMiss(dir);
+  }
+
+  function handleCorrect(dir) {
+    combo++;
+    correct++;
+    if (combo > maxCombo) maxCombo = combo;
+    bestComboDisplay.textContent = maxCombo;
+
+    const points = 10 + Math.floor(combo / 5) * 5 + (speedLevel - 1) * 3;
+    score += points;
+
+    scoreDisplay.textContent = score;
+    scoreDisplay.classList.remove('score-pop');
+    void scoreDisplay.offsetWidth;
+    scoreDisplay.classList.add('score-pop');
+
+    speedLevel = Math.min(5, 1 + Math.floor(combo / 8));
+    updateSpeedPips();
+
+    triggerFlash('green');
+
+    numberPod.classList.remove('pod-pulse');
+    void numberPod.offsetWidth;
+    numberPod.classList.add('pod-pulse');
+
+    flyNumber(dir);
+    spawnScorePopup(points, dir);
+    showNumber();
+  }
+
+  function handleMiss(dir) {
+    miss++;
+    combo = 0;
+    speedLevel = Math.max(1, speedLevel - 1);
+    updateSpeedPips();
+
+    frozen = true;
+    triggerFlash('red');
+    document.getElementById('cannon-factory').classList.add('shaking');
+
+    setTimeout(() => {
+      const factoryEl = document.getElementById('cannon-factory');
+      if (factoryEl) factoryEl.classList.remove('shaking');
+    }, 400);
+
+    setTimeout(() => { frozen = false; }, 500);
+
+    updateComboVisuals();
+  }
+
+  function flyNumber(dir) {
+    const el = document.createElement('div');
+    el.className = 'fly-number';
+    el.textContent = currentNum;
+    el.style.left = '50%';
+    el.style.top = '50%';
+    el.style.opacity = '1';
+    el.style.transition = 'none';
+
+    const isEven = currentNum % 2 === 0;
+    const color = isEven ? 'var(--accent-cyan)' : 'var(--accent-orange)';
+    el.style.color = color;
+    el.style.textShadow = `0 0 30px ${color}`;
+
+    document.body.appendChild(el);
+
+    const targetX = dir === 'left' ? '-120vw' : '120vw';
+    const targetY = `${(Math.random() - 0.5) * 200}px`;
+    const rot = dir === 'left' ? -360 : 360;
+
+    requestAnimationFrame(() => {
+      el.style.transition = `all 0.5s cubic-bezier(0.2, 0, 0.5, 1)`;
+      el.style.transform = `translate(${targetX}, ${targetY}) rotate(${rot}deg) scale(0.3)`;
+      el.style.opacity = '0';
+    });
+
+    spawnParticles(color, dir);
+    setTimeout(() => el.remove(), 600);
+  }
+
+  function spawnParticles(color, dir) {
+    const count = combo >= 10 ? 12 : combo >= 5 ? 8 : 4;
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size = Math.random() * 8 + 3;
+      p.style.width = size + 'px';
+      p.style.height = size + 'px';
+      p.style.background = color;
+      p.style.boxShadow = `0 0 ${size * 2}px ${color}`;
+      p.style.left = '50%';
+      p.style.top = '50%';
+      p.style.opacity = '1';
+      document.body.appendChild(p);
+
+      const angle = (Math.random() * Math.PI * 2);
+      const dist = Math.random() * 200 + 80;
+      const tx = Math.cos(angle) * dist * (dir === 'left' ? -1 : 1);
+      const ty = Math.sin(angle) * dist;
+
+      requestAnimationFrame(() => {
+        p.style.transition = `all ${0.4 + Math.random() * 0.3}s ease-out`;
+        p.style.transform = `translate(${tx}px, ${ty}px) scale(0)`;
+        p.style.opacity = '0';
+      });
+
+      setTimeout(() => p.remove(), 800);
+    }
+  }
+
+  function spawnScorePopup(pts, dir) {
+    const el = document.createElement('div');
+    el.textContent = `+${pts}`;
+    el.style.cssText = `
+      position: fixed;
+      left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+      font-family: 'Orbitron', monospace;
+      font-weight: 900;
+      font-size: ${pts > 25 ? 36 : 24}px;
+      color: #fff;
+      text-shadow: 0 0 10px var(--accent-green);
+      pointer-events: none;
+      z-index: 45;
+      opacity: 1;
+      transition: all 0.6s ease-out;
+    `;
+    document.body.appendChild(el);
+    requestAnimationFrame(() => {
+      const offsetX = dir === 'left' ? -80 : 80;
+      el.style.transform = `translate(calc(-50% + ${offsetX}px), calc(-50% - 80px))`;
+      el.style.opacity = '0';
+    });
+    setTimeout(() => el.remove(), 700);
+  }
+
+  function triggerFlash(type) {
+    flash.className = '';
+    clearTimeout(flashTimeout);
+    void flash.offsetWidth;
+    flash.className = type;
+    flashTimeout = setTimeout(() => { flash.className = ''; }, type === 'red' ? 400 : 150);
+  }
+
+  function updateComboVisuals() {
+    if (combo >= 3) {
+      comboDisplay.classList.add('active');
+      comboNum.textContent = combo;
+      let color, shadow;
+      if (combo >= 20) { color = 'var(--combo4)'; shadow = '0 0 30px rgba(255,0,229,0.6)'; }
+      else if (combo >= 12) { color = 'var(--combo3)'; shadow = '0 0 30px rgba(255,234,0,0.6)'; }
+      else if (combo >= 6) { color = 'var(--combo2)'; shadow = '0 0 30px rgba(255,109,0,0.5)'; }
+      else { color = 'var(--combo1)'; shadow = '0 0 20px rgba(0,229,255,0.5)'; }
+      comboNum.style.color = color;
+      comboNum.style.textShadow = shadow;
+
+      if (combo >= 8) {
+        aura.style.opacity = Math.min(0.4, combo * 0.015) + '';
+        aura.style.background = `radial-gradient(circle at center, ${color}20 0%, transparent 70%)`;
+      }
+    } else {
+      comboDisplay.classList.remove('active');
+      aura.style.opacity = '0';
+    }
+  }
+
+  function updateSpeedPips() {
+    for (let i = 1; i <= 5; i++) {
+      const pip = document.getElementById('cannon-pip-' + i);
+      if (!pip) continue;
+      pip.classList.toggle('active', i <= speedLevel);
+      if (i <= speedLevel) {
+        const colors = ['var(--accent-cyan)', '#00bcd4', '#ff9800', '#ff5722', 'var(--accent-red)'];
+        pip.style.background = colors[i - 1];
+        pip.style.boxShadow = `0 0 8px ${colors[i - 1]}`;
+      }
+    }
+  }
+
+  function startGame() {
+    score = 0;
+    timeLeft = 60;
+    combo = 0;
+    maxCombo = 0;
+    correct = 0;
+    miss = 0;
+    speedLevel = 1;
+    frozen = false;
+    gameActive = true;
+
+    scoreDisplay.textContent = '0';
+    bestComboDisplay.textContent = '0';
+    timerBar.style.width = '100%';
+    timerBar.style.background = 'linear-gradient(90deg, var(--accent-cyan), #007bff)';
+    timerBar.style.boxShadow = '0 0 8px var(--accent-cyan)';
+    aura.style.opacity = '0';
+    comboDisplay.classList.remove('active');
+    updateSpeedPips();
+
+    document.getElementById('cannon-start-screen').classList.add('hidden');
+    document.getElementById('cannon-result-screen').classList.add('hidden');
+
+    showNumber();
+
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      timeLeft -= 0.1;
+      if (timeLeft <= 0) {
+        timeLeft = 0;
+        endGame();
+        return;
+      }
+      const pct = (timeLeft / 60) * 100;
+      timerBar.style.width = pct + '%';
+
+      if (timeLeft < 10) {
+        timerBar.style.background = 'linear-gradient(90deg, var(--accent-red), #ff5722)';
+        timerBar.style.boxShadow = '0 0 8px var(--accent-red)';
+        if (Math.floor(timeLeft * 10) % 5 === 0) {
+          triggerFlash('combo');
+        }
+      } else if (timeLeft < 20) {
+        timerBar.style.background = 'linear-gradient(90deg, #ff9800, #ff5722)';
+        timerBar.style.boxShadow = '0 0 8px #ff9800';
+      }
+
+      timeDisplay.textContent = timeLeft.toFixed(1);
+    }, 100);
+  }
+
+  function endGame() {
+    clearInterval(timerInterval);
+    gameActive = false;
+
+    timeDisplay.textContent = '0.0';
+    timerBar.style.width = '0%';
+    numberDisplay.textContent = '--';
+    comboDisplay.classList.remove('active');
+    aura.style.opacity = '0';
+
+    const total = correct + miss;
+    const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+    let grade;
+    if (score >= 2000) grade = 'S+';
+    else if (score >= 1500) grade = 'S';
+    else if (score >= 1000) grade = 'A';
+    else if (score >= 600) grade = 'B';
+    else if (score >= 300) grade = 'C';
+    else grade = 'D';
+
+    const gradeColors = { 'S+': '#ff00e5', 'S': 'var(--accent-orange)', 'A': 'var(--accent-cyan)', 'B': 'var(--accent-green)', 'C': '#ffea00', 'D': 'rgba(200,240,255,0.4)' };
+
+    document.getElementById('cannon-result-score').textContent = score;
+    document.getElementById('cannon-res-correct').textContent = correct;
+    document.getElementById('cannon-res-miss').textContent = miss;
+    document.getElementById('cannon-res-maxcombo').textContent = maxCombo;
+    document.getElementById('cannon-res-accuracy').textContent = accuracy + '%';
+    const gradeEl = document.getElementById('cannon-grade');
+    gradeEl.textContent = grade;
+    gradeEl.style.color = gradeColors[grade];
+    gradeEl.style.textShadow = `0 0 40px ${gradeColors[grade]}`;
+
+    setTimeout(() => {
+      const resultEl = document.getElementById('cannon-result-screen');
+      if (resultEl) resultEl.classList.remove('hidden');
+    }, 300);
+  }
+
+  function restartGame() {
+    document.getElementById('cannon-result-screen').classList.add('hidden');
+    startGame();
+  }
+
+  // onclick属性から呼ばれるため、html側が参照できるグローバル名を用意する
+  // （モジュール内のローカル関数をそのままwindowに漏らさないため、専用の橋渡し関数のみ公開）
+  window.cannonStartGame = startGame;
+  window.cannonRestartGame = restartGame;
+  window.cannonHandleInput = handleInput;
+
+  function attachKeydown() {
+    if (keydownHandler) return; // 二重登録防止
+    keydownHandler = (e) => {
+      // このモジュールが非表示中は何もしない（他モジュール操作中の誤反応防止）
+      const container = document.getElementById('module-cannon');
+      if (!container || !container.classList.contains('active')) return;
+
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        handleInput('left');
+        const b = document.getElementById('cannon-btn-left');
+        if (b) { b.style.transform = 'scale(0.93)'; setTimeout(() => b.style.transform = '', 100); }
+      }
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        handleInput('right');
+        const b = document.getElementById('cannon-btn-right');
+        if (b) { b.style.transform = 'scale(0.93)'; setTimeout(() => b.style.transform = '', 100); }
+      }
+      if ((e.key === 'Enter' || e.key === ' ') && !gameActive) {
+        const startEl = document.getElementById('cannon-start-screen');
+        const resultEl = document.getElementById('cannon-result-screen');
+        if (startEl && !startEl.classList.contains('hidden')) startGame();
+        else if (resultEl && !resultEl.classList.contains('hidden')) restartGame();
+      }
+    };
+    document.addEventListener('keydown', keydownHandler);
+  }
+
+  function detachKeydown() {
+    if (keydownHandler) {
+      document.removeEventListener('keydown', keydownHandler);
+      keydownHandler = null;
+    }
+  }
+
+  // ════════════════════════════════════════════════
+  // PUBLIC API
+  // ════════════════════════════════════════════════
+  return {
+    init() {
+      bindDom();
+      attachKeydown();
+      // init直後は常にスタート画面表示状態にリセットする
+      const startEl = document.getElementById('cannon-start-screen');
+      const resultEl = document.getElementById('cannon-result-screen');
+      if (startEl) startEl.classList.remove('hidden');
+      if (resultEl) resultEl.classList.add('hidden');
+      gameActive = false;
+      clearInterval(timerInterval);
+    },
+    destroy() {
+      clearInterval(timerInterval);
+      clearTimeout(flashTimeout);
+      gameActive = false;
+      detachKeydown();
+    }
+  };
+})();
+
+</script>
+<script>
+// ════════════════════════════════════════════════
+// MODULE 02: SORT CARD BATTLE
+// 名前空間分離: IIFEで完全にスコープを閉じ、
+// グローバルには window.BattleGame の2メソッドのみ公開する。
+// onclick属性から呼ばれる関数は末尾の橋渡し関数で透過公開する。
+// ════════════════════════════════════════════════
+window.BattleGame = (function () {
+
+const GLYPHS=['♦','♠','♥','♣','✦','★','◈','⬡','⬟'];
+
+// ══ カード表示変換 ══
+const KANJI_MAP={1:'一',2:'二',3:'三',4:'四',5:'五',6:'六',7:'七',8:'八',9:'九',
+  10:'十',11:'十一',12:'十二',13:'十三',14:'十四',15:'十五',
+  16:'十六',17:'十七',18:'十八',19:'十九',20:'二十',
+  21:'二十一',22:'二十二',23:'二十三',24:'二十四',25:'二十五'};
+const ROMAN_MAP={1:'Ⅰ',2:'Ⅱ',3:'Ⅲ',4:'Ⅳ',5:'Ⅴ',6:'Ⅵ',7:'Ⅶ',8:'Ⅷ',9:'Ⅸ',
+  10:'Ⅹ',11:'Ⅺ',12:'Ⅻ',13:'ⅩⅢ',14:'ⅩⅣ',15:'ⅩⅤ'};
+
+function toSup(n){
+  const sup='⁰¹²³⁴⁵⁶⁷⁸⁹';
+  return String(n).split('').map(c=>sup[+c]).join('');
+}
+
+// 混合累乗テーブル: 値1〜25を「底^指数」で表現（底2or3、見た目で判断しにくいもの）
+// 実値→{base,exp} の対応。底が混在して見た目だけでは大小判断しづらい
+const MIXED_POWER_TABLE=(()=>{
+  // 候補: 2^0=1,2^1=2,3^1=3,2^2=4,3^(3/2)はNG→整数のみ
+  // 使える整数べき乗: 2^0=1, 2^1=2, 3^1=3, 2^2=4, 3^(?)→5はNG
+  // 底は2,3,5を使い、実際の数値1〜15くらいをカバー
+  const tbl={};
+  // 優先度順に登録（重複したら先勝ち）
+  const entries=[
+    [1,2,0],[2,2,1],[3,3,1],[4,2,2],[5,5,1],[6,6,1],[7,7,1],
+    [8,2,3],[9,3,2],[10,10,1],[11,11,1],[12,12,1],[13,13,1],
+    [14,14,1],[15,15,1],[16,2,4],[17,17,1],[18,18,1],[19,19,1],
+    [20,20,1],[21,21,1],[22,22,1],[23,23,1],[24,24,1],[25,5,2]
+  ];
+  // 2^n と 3^n と 5^2 を優先してカバー
+  // 混乱させたい値: 4=2² 8=2³ 9=3² 16=2⁴ 25=5² 27=3³(範囲外)
+  entries.forEach(([v,b,e])=>{ tbl[v]={base:b,exp:e}; });
+  return tbl;
+})();
+
+// displayType: 'normal'|'power_mix'|'fraction'|'kanji'|'roman'|'negative'|'hex'|'morse'|'mixed'
+function convertCardDisplay(val, type, cardIdx, mixedMap){
+  switch(type){
+    case 'power_mix': {
+      const p=MIXED_POWER_TABLE[val];
+      if(p && p.exp>=2){
+        // 底^指数 形式（例: 2³, 3², 5²）
+        return {text:`${p.base}${toSup(p.exp)}`, scale:0.82};
+      } else {
+        // 素数など: そのままだと簡単なので別底で表現
+        // 例: 3→3¹, 5→5¹ のように表示（指数1も見せる）
+        return {text:`${val}${toSup(1)}`, scale:0.78};
+      }
+    }
+    case 'fraction':
+      return {text:val===1?'1':'1/'+val, scale:val>=10?0.6:0.82};
+    case 'kanji':
+      return {text:KANJI_MAP[val]||String(val), scale:val>=10?0.68:0.88};
+    case 'roman':
+      return {text:ROMAN_MAP[val]||String(val), scale:val>=10?0.7:0.88};
+    case 'negative':
+      return {text:'−'+val, scale:0.82};
+    case 'hex':
+      return {text:'0x'+val.toString(16).toUpperCase(), scale:0.65};
+    case 'morse':{
+      const M=['·−','−···','−·−·','−··','·','··−·','−−·','····','··','·−−−','−·−','−··','−−','−·','−−−','·−−·','−−·−','·−·','···','−','··−','···−','·−−','−··−','−·−−','−−··'];
+      return {text:M[(val-1)%M.length], scale:0.58};
+    }
+    case 'mixed': {
+      // カードごとに固定の表示形式（mixedMapで管理）
+      const t=mixedMap&&mixedMap[cardIdx!==undefined?val:val];
+      return convertCardDisplay(val, t||'normal', cardIdx, null);
+    }
+    default:
+      return {text:String(val), scale:1};
+  }
+}
+
+function getCardDisplay(val, diffKey, cardIdx){
+  const cfg=DIFF[diffKey];
+  if(!cfg||!cfg.cardDisplay||cfg.cardDisplay==='normal') return {text:String(val),scale:1};
+  if(cfg.cardDisplay==='mixed'){
+    // S.mixedMap[val] に各値の表示形式が入っている
+    const t=(typeof S!=='undefined'&&S.mixedMap)?S.mixedMap[val]:'normal';
+    return convertCardDisplay(val, t, cardIdx, S.mixedMap);
+  }
+  return convertCardDisplay(val, cfg.cardDisplay, cardIdx, null);
+}
+
+
+const DIFF={
+  // buffer=0: 理論最小手数ちょうどしか許されない（完全最適解要求）
+  easy:        {cards:4, buffer:3,timer:0,  hidden:false,color:'#00ff88',label:'🌱 EASY',        info:'4枚 / 動的手数 / ∞time'},
+  normal:      {cards:5, buffer:2,timer:0,  hidden:false,color:'#9d4edd',label:'⚔ NORMAL',       info:'5枚 / 動的手数 / ∞time'},
+  hard:        {cards:6, buffer:1,timer:60, hidden:false,color:'#ff6b35',label:'🔥 HARD',        info:'6枚 / 動的手数 / 60秒'},
+  expert:      {cards:7, buffer:1,timer:45, hidden:true, color:'#ff3096',label:'💀 EXPERT',      info:'7枚 / 動的手数 / 45秒 / 目標隠し'},
+  nightmare:   {cards:8, buffer:0,timer:30, hidden:true, color:'#cc00ff',label:'👁 NIGHTMARE',   info:'8枚 / 動的手数 / 30秒 / 目標隠し'},
+  god:         {cards:9, buffer:0,timer:25, hidden:true, color:'#ff0040',label:'☠ GOD MODE',    info:'9枚 / 動的手数 / 25秒 / 目標隠し'},
+  abyss:       {cards:11,buffer:0,timer:20, hidden:true, color:'#7744ff',label:'🌀 ABYSS',       info:'11枚 / 動的手数 / 20秒 / 目標隠し'},
+  transcendent:{cards:13,buffer:0,timer:15, hidden:true, color:'#ffd700',label:'👁 TRANSCENDENT',info:'13枚 / 動的手数 / 15秒 / 目標隠し'},
+  apex:        {cards:15,buffer:0,timer:18, hidden:false,color:'#00ffcc',label:'🔱 APEX',        info:'15枚 / 動的手数 / 18秒'},
+  elite:       {cards:17,buffer:0,timer:16, hidden:false,color:'#88aaff',label:'🌠 ELITE',       info:'17枚 / 動的手数 / 16秒'},
+  mythic:      {cards:19,buffer:0,timer:14, hidden:false,color:'#ffcc00',label:'🔮 MYTHIC',      info:'19枚 / 動的手数 / 14秒'},
+  eternal:     {cards:21,buffer:0,timer:12, hidden:false,color:'#ff8800',label:'♾ ETERNAL',      info:'21枚 / 動的手数 / 12秒'},
+  absolute_:   {cards:23,buffer:0,timer:10, hidden:false,color:'#ff4466',label:'💠 ABSOLUTE',    info:'23枚 / 動的手数 / 10秒'},
+  infinity:    {cards:25,buffer:0,timer:8,  hidden:false,color:'#ffffff',label:'∞ INFINITY',     info:'25枚 / 動的手数 / 8秒'},
+  // ── Special Display ──
+  kanji:     {cards:6, buffer:2,timer:0,  hidden:false,color:'#f0c040',label:'漢 KANJI',         info:'6枚 / 動的手数 / ∞time / 漢字表記', cardDisplay:'kanji'},
+  roman:     {cards:7, buffer:1,timer:60, hidden:false,color:'#c0a0ff',label:'Ⅻ ROMAN',          info:'7枚 / 動的手数 / 60秒 / ローマ数字', cardDisplay:'roman'},
+  power_mix: {cards:7, buffer:1,timer:60, hidden:false,color:'#00ffcc',label:'xⁿ POWER MIX',     info:'7枚 / 動的手数 / 60秒 / 混合累乗(2³,3²,5²...)', cardDisplay:'power_mix'},
+  fraction:  {cards:7, buffer:1,timer:60, hidden:false,color:'#ff8844',label:'½ FRACTION',       info:'7枚 / 動的手数 / 60秒 / 分数(1/n)', cardDisplay:'fraction'},
+  negative:  {cards:7, buffer:1,timer:60, hidden:false,color:'#ff4466',label:'− NEGATIVE',       info:'7枚 / 動的手数 / 60秒 / 負の数(−n)', cardDisplay:'negative'},
+  hex:       {cards:7, buffer:1,timer:45, hidden:false,color:'#44ffaa',label:'0x HEX',           info:'7枚 / 動的手数 / 45秒 / 16進数', cardDisplay:'hex'},
+  morse:     {cards:5, buffer:2,timer:0,  hidden:false,color:'#ffcc44',label:'·− MORSE',         info:'5枚 / 動的手数 / ∞time / モールス信号', cardDisplay:'morse'},
+  mixed:     {cards:6, buffer:2,timer:0,  hidden:false,color:'#ff88ff',label:'🎲 MIXED',         info:'6枚 / 動的手数 / ∞time / 全表示混合', cardDisplay:'mixed'},
+  mixed_hard:{cards:8, buffer:0,timer:45, hidden:false,color:'#ff44cc',label:'🎲 MIXED HARD',    info:'8枚 / 動的手数 / 45秒 / 全表示混合', cardDisplay:'mixed'},
+  master:      {cards:9, buffer:0,timer:30, hidden:false,color:'#ffaa00',label:'👑 MASTER',       info:'9枚 / 動的手数 / 30秒'},
+  legend:      {cards:11,buffer:0,timer:25, hidden:false,color:'#ff6600',label:'⚡ LEGEND',       info:'11枚 / 動的手数 / 25秒'},
+  supreme:     {cards:13,buffer:0,timer:20, hidden:false,color:'#ff44aa',label:'💎 SUPREME',      info:'13枚 / 動的手数 / 20秒'},
+  chaos:       {cards:10,buffer:0,timer:15, hidden:true, color:'#ff50c8',label:'🌪 CHAOS',       info:'10枚 / 動的手数 / 10秒 / 目標隠し / 手数??',  blindRemain:true},
+  phantom:     {cards:11,buffer:0,timer:12,  hidden:true, color:'#00c8ff',label:'👻 PHANTOM',     info:'11枚 / 動的手数 / 8秒 / 目標隠し / 番号30〜50%伏せ', blindRatio:1},
+  oblivion:    {cards:12,buffer:0,timer:18, hidden:true, color:'#ff1e1e',label:'🔀 OBLIVION',    info:'12枚 / 動的手数 / 12秒 / 目標隠し / 3手シャッフル', autoShuffle:3},
+  void:        {cards:13,buffer:0,timer:15, hidden:true, color:'#ffffff',label:'⬛ VOID',         info:'13枚 / 動的手数 / 10秒 / 全隠し / 番号30〜50%伏せ / 3手シャッフル', blindRemain:true, blindRatio:1, autoShuffle:3},
+  singularity: {cards:15,buffer:0,timer:12,  hidden:true, color:'#ff44ff',label:'🌌 SINGULARITY', info:'15枚 / 動的手数 / 8秒 / 全隠し / 番号40〜60%伏せ / 2手シャッフル', blindRemain:true, blindRatio:2, autoShuffle:2, poolSize:20},
+  extinction:  {cards:18,buffer:0,timer:10,  hidden:true, color:'#ff2200',label:'💥 EXTINCTION',  info:'18枚 / 動的手数 / 6秒 / 全隠し / 番号50〜70%伏せ / 2手シャッフル', blindRemain:true, blindRatio:3, autoShuffle:2, poolSize:25},
+  the_end:     {cards:21,buffer:0,timer:8,  hidden:true, color:'#cccccc',label:'☯ THE END',      info:'21枚 / 動的手数 / 5秒 / 全隠し / 番号60〜80%伏せ / 毎手シャッフル', blindRemain:true, blindRatio:4, autoShuffle:1, poolSize:30}
+};
+
+let S={diff:'normal',cards:[],target:[],swapsDone:0,selectedIdx:null,gameOver:false,
+        isDragging:false,dragFromIdx:null,history:[],timerSec:0,timerMax:0,
+        timerInterval:null,initMinSwaps:0,efficiencyPoints:0,
+        combo:0,comboBonus:0,wastedSwaps:0,undoStack:[]};
+
+function sample(arr,n){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a.slice(0,n);}
+
+function computeMinSwaps(cards,target){
+  const pos={};target.forEach((v,i)=>pos[v]=i);
+  const visited=new Array(cards.length).fill(false);let swaps=0;
+  for(let i=0;i<cards.length;i++){
+    if(visited[i]||pos[cards[i]]===i)continue;
+    let sz=0,j=i;
+    while(!visited[j]){visited[j]=true;j=pos[cards[j]];sz++;}
+    swaps+=sz-1;
+  }
+  return swaps;
+}
+
+// 完全デランジュメント（全カードが正解位置にない）かチェック
+function isDerangement(cards,target){
+  return cards.every((v,i)=>v!==target[i]);
+}
+
+// Fisher-Yatesシャッフル（破壊的）
+function shuffleInPlace(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+function generateSolvable(cfg){
+  const poolMax=cfg.poolSize||cfg.cards;
+  const pool=Array.from({length:poolMax},(_,i)=>i+1);
+  const baseNums=sample(pool,cfg.cards);
+  const target=[...baseNums].sort((a,b)=>a-b);
+
+  let cards,minS,attempts=0;
+  const MAX=2000;
+
+  while(attempts<MAX){
+    // targetのコピーをシャッフルしてデランジュメント候補を作る
+    cards=[...target];
+    shuffleInPlace(cards);
+    attempts++;
+
+    // 条件1: 完全デランジュメント（全位置が不正解）
+    if(!isDerangement(cards,target)) continue;
+
+    // 条件2: 最小手数が1以上（既にソート済みでない）
+    minS=computeMinSwaps(cards,target);
+    if(minS<1) continue;
+
+    // 条件3: クリア可能（最小手数 <= 実際の制限手数）
+    // 動的手数 = minS + buffer（ここで決定する）
+    const allowedSwaps=minS+cfg.buffer;
+    // allowedSwaps が現実的な範囲に収まるかもチェック（多すぎると簡単すぎ）
+    // easy/normal は最大でもminS+3まで、他はminS+buffer固定
+    // → buffer設定で制御済みなのでそのままOK
+    cfg.swaps=allowedSwaps; // 動的に制限手数を設定
+    break;
+  }
+
+  // フォールバック: Sattolo サイクルで確実にデランジュメントを生成
+  if(attempts>=MAX){
+    console.warn('generateSolvable: fallback to Sattolo');
+    // Sattolo のアルゴリズム: Fisher-Yates の変形で確実に全位置不一致の置換を生成
+    // target のインデックス配列を用意し、置換順を求める
+    const idx=Array.from({length:target.length},(_,i)=>i);
+    for(let i=idx.length-1;i>0;i--){
+      // j は [0, i) からランダム（iを含まない）→ 確実にサイクルが1つになる
+      const j=Math.floor(Math.random()*i);
+      [idx[i],idx[j]]=[idx[j],idx[i]];
+    }
+    // idx[i] = 元のi番目のカードをどこに置くか → これを使ってcardsを構築
+    cards=new Array(target.length);
+    idx.forEach((to,from)=>{ cards[to]=target[from]; });
+    // Sattolo は自身への写像がないことを保証するが、
+    // target[from] を to に置くため cards[i]===target[i] が起きないか確認
+    // 万が一残った正解位置を強制修正
+    for(let i=0;i<cards.length;i++){
+      if(cards[i]===target[i]){
+        const j=(i+1)%cards.length;
+        [cards[i],cards[j]]=[cards[j],cards[i]];
+      }
+    }
+    minS=computeMinSwaps(cards,target);
+    cfg.swaps=Math.max(1,minS)+cfg.buffer;
+  }
+
+  return{cards,target,minS};
+}
+
+function startGame(diffKey){
+  clearInterval(S.timerInterval);
+  const cfg=DIFF[diffKey];
+  const {cards,target}=generateSolvable(cfg);
+
+  // グローバル状態Sを完全にリセット（旧initGameはstateに書いていたバグを修正）
+  // blindMask: blindRatioが設定されている難易度でランダムに伏せるカード位置を決定
+  const bRatio=cfg.blindRatio||0;
+  let blindMask=new Set();
+  if(bRatio>0){
+    const n=cards.length;
+    // blindRatio段階: 1=30-50%, 2=40-60%, 3=50-70%, 4=60-80%
+    const minHide=Math.floor(n*(0.2+bRatio*0.1));
+    const maxHide=Math.floor(n*(0.4+bRatio*0.1));
+    const hideCount=minHide+Math.floor(Math.random()*(maxHide-minHide+1));
+    const idxArr=[...Array(n).keys()];
+    for(let i=idxArr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[idxArr[i],idxArr[j]]=[idxArr[j],idxArr[i]];}
+    blindMask=new Set(idxArr.slice(0,hideCount));
+  }
+
+  // Mixed表示: 各値に表示形式をランダム割り当て
+  const MIXED_TYPES=['kanji','roman','power_mix','fraction','negative','hex','morse'];
+  let mixedMap=null;
+  if(cfg.cardDisplay==='mixed'){
+    mixedMap={};
+    const allVals=[...new Set([...cards,...target])];
+    allVals.forEach((v,i)=>{
+      mixedMap[v]=MIXED_TYPES[i%MIXED_TYPES.length];
+    });
+    // シャッフルして各値にランダムに割り当て
+    const shuffledTypes=[...MIXED_TYPES];
+    for(let i=shuffledTypes.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[shuffledTypes[i],shuffledTypes[j]]=[shuffledTypes[j],shuffledTypes[i]];}
+    allVals.forEach((v,i)=>{ mixedMap[v]=shuffledTypes[i%shuffledTypes.length]; });
+  }
+
+  S={
+    diff:diffKey,
+    cards,
+    target,
+    blindMask,
+    mixedMap,
+    swapsDone:0,
+    selectedIdx:null,
+    gameOver:false,
+    isDragging:false,
+    dragFromIdx:null,
+    history:[],
+    timerSec:cfg.timer,
+    timerMax:cfg.timer,
+    timerInterval:null,
+    initMinSwaps:computeMinSwaps(cards,target),
+    initCards:[...cards],
+    efficiencyPoints:0,
+    undoStack:[],
+    combo:0,
+    comboBonus:0,
+    wastedSwaps:0
+  };
+
+  // UI切り替え
+  document.getElementById('battle-diff-screen').style.display='none';
+  document.getElementById('battle-game-screen').style.display='block';
+  document.getElementById('battle-modal-area').innerHTML='';
+  document.getElementById('battle-swap-history').innerHTML='<span style="font-size:9px;color:#334;">交換ログ ▶</span>';
+  document.getElementById('battle-alert-box').style.display='none';
+  const btnU=document.getElementById('battle-btn-undo');
+  if(btnU)btnU.disabled=true;
+
+  // ゲーム中は不要UIを折りたたむ
+  document.getElementById('battle-algo-panel').classList.add('reveal-on-end');
+  document.getElementById('battle-algo-panel').style.display='';
+  // ヒント・最善手は終了時のみ表示（リセット）
+  document.querySelectorAll('.btn-play-only').forEach(b=>b.classList.remove('shown'));
+
+
+  // バナー更新（動的手数を反映）
+  document.getElementById('battle-banner-name').textContent=cfg.label;
+  document.getElementById('battle-banner-name').style.color=cfg.color;
+  // cfg.swaps は generateSolvable() が動的にセットした値を使う
+  const dynInfo=cfg.info.replace('動的手数',cfg.swaps+'回');
+  document.getElementById('battle-banner-meta').textContent=dynInfo;
+
+  // タイマー表示制御
+  const timerWrap=document.getElementById('battle-timer-wrap');
+  if(cfg.timer>0){timerWrap.style.display='block';startTimer();}
+  else{timerWrap.style.display='none';}
+
+  renderTargetChips();
+  renderIndexDots();
+  renderCards();
+  renderHUD();
+  renderStateGrid();
+  updateBars();
+  setInstruction('カードをクリックして選択 → もう1枚をクリックで入れ替え');
+  // iframeレンダリング後にサイズが確定するため再描画を保証
+  requestAnimationFrame(()=>{renderIndexDots();renderCards();});
+}
+
+function startTimer(){
+  clearInterval(S.timerInterval);
+  const cfg=DIFF[S.diff];
+  let rem=cfg.timer;
+  const fill=document.getElementById('battle-timer-fill');
+  const txt=document.getElementById('battle-timer-text');
+  fill.className='timer-fill';fill.style.width='100%';
+  S.timerInterval=setInterval(()=>{
+    if(S.gameOver){clearInterval(S.timerInterval);return;}
+    rem--;S.timerSec=rem;
+    const pct=Math.max(0,(rem/cfg.timer)*100);
+    fill.style.width=pct+'%';
+    txt.textContent=rem+'s';
+    if(pct<=25)fill.className='timer-fill danger';
+    else if(pct<=50)fill.className='timer-fill warn';
+    if(rem<=0){clearInterval(S.timerInterval);S.gameOver=true;renderCards();if(DIFF[S.diff].hidden)revealTarget();showTimeoutModal();}
+  },1000);
+}
+
+function goBack(){clearInterval(S.timerInterval);document.getElementById('battle-game-screen').style.display='none';document.getElementById('battle-diff-screen').style.display='block';loadBestScores();}
+function resetCurrentGame(){startGame(S.diff);}
+
+function calcScore(){
+  const base=Math.round(S.cards.filter((c,i)=>c===S.target[i]).length/S.cards.length*100);
+  return base; // ベーススコアは0-100。コンボボーナスはモーダルで別表示
+}
+function calcTotalScore(){
+  const base=calcScore();
+  // 効率ボーナス：無駄手0なら+20、理論最小なら+30
+  const noWaste=S.wastedSwaps===0?20:0;
+  const optimal=S.swapsDone===S.initMinSwaps?30:0;
+  return base+noWaste+optimal+S.comboBonus;
+}
+function calcMinSwapsCurrent(){return computeMinSwaps(S.cards,S.target);}
+
+function calcEfficiency(){
+  if(S.swapsDone===0)return null;
+  const progressMade=S.initMinSwaps-calcMinSwapsCurrent();
+  const eff=Math.round((progressMade/S.swapsDone)*100);
+  return Math.max(0,Math.min(100,eff));
+}
+
+function renderTargetChips(){
+  const el=document.getElementById('battle-target-chips');el.innerHTML='';
+  const cfg=DIFF[S.diff];
+  S.target.forEach(v=>{
+    const chip=document.createElement('div');
+    chip.className=cfg.hidden?'target-chip hidden-chip':'target-chip';
+    if(cfg.hidden){
+      chip.textContent='?';
+    } else {
+      const disp=getCardDisplay(v, S.diff);
+      chip.textContent=disp.text;
+      if(disp.scale<0.9) chip.style.fontSize='clamp(8px,2.5vw,11px)';
+    }
+    el.appendChild(chip);
+  });
+}
+
+function revealTarget(){
+  const el=document.getElementById('battle-target-chips');
+  [...el.children].forEach((chip,i)=>{
+    chip.className='target-chip revealed';
+    const disp=getCardDisplay(S.target[i], S.diff);
+    chip.textContent=disp.text;
+    if(disp.scale<0.9) chip.style.fontSize='clamp(8px,2.5vw,11px)';
+  });
+}
+
+function renderIndexDots(){
+  const el=document.getElementById('battle-index-dots');el.innerHTML='';
+  const w=cardSize().w;
+  S.cards.forEach((_,i)=>{
+    const d=document.createElement('div');
+    d.className='idx-dot';d.style.width=w+'px';d.textContent=`[${i}]`;
+    el.appendChild(d);
+  });
+}
+
+function cardSize(){
+  const n=S.cards.length;
+  if(n===0)return{w:60,h:87,num:20,glyph:8};
+  const vw=Math.min(window.innerWidth,700);
+  const gap=Math.max(3,Math.round(vw*0.012));
+  const padding=Math.max(16,Math.round(vw*0.04));
+  // 行あたり枚数: 6以下1行 / 7-13は2行 / 14以上は3行
+  const perRow=n<=6?n:n<=13?Math.ceil(n/2):Math.ceil(n/3);
+  const available=vw-padding*2-gap*(perRow-1);
+  let w=Math.floor(available/perRow);
+  w=Math.max(30,Math.min(100,w));
+  const h=Math.round(w*1.45);
+  const num=Math.max(10,Math.round(w*0.34));
+  const glyph=Math.max(7,Math.round(w*0.13));
+  return{w,h,num,glyph};
+}
+
+function renderCards(){
+  const stage=document.getElementById('battle-cards-stage');stage.innerHTML='';
+  const sz=cardSize();
+  const cfg=DIFF[S.diff];
+  S.cards.forEach((val,idx)=>{
+    const isCorrect=val===S.target[idx];
+    const isSelected=S.selectedIdx===idx;
+    const card=document.createElement('div');
+    card.className='card'+(isCorrect?' correct':'')+(isSelected?' selected':'');
+    card.style.width=sz.w+'px';card.style.height=sz.h+'px';
+    const rawVal=(S.blindMask&&S.blindMask.has(idx))?null:val;
+    const disp=rawVal===null?{text:'?',scale:1}:getCardDisplay(val, S.diff);
+    card.innerHTML=`<div class="card-inner">
+      <div class="card-rune-top">${String.fromCharCode(9674+idx)}</div>
+      <div class="card-glyph" style="font-size:${sz.glyph}px">${GLYPHS[idx%GLYPHS.length]}</div>
+      <div class="card-number" style="font-size:${Math.round(sz.num*disp.scale)}px">${disp.text}</div>
+      <div class="card-rune-bot">${String.fromCharCode(9674+idx)}</div>
+    </div>`;
+    card.addEventListener('click',()=>handleCardClick(idx));
+    card.addEventListener('dragstart',(e)=>handleDragStart(e,idx));
+    card.addEventListener('dragover',(e)=>handleDragOver(e,idx));
+    card.addEventListener('dragleave',()=>handleDragLeave(idx));
+    card.addEventListener('drop',(e)=>handleDrop(e,idx));
+    card.setAttribute('draggable','true');
+    stage.appendChild(card);
+  });
+}
+
+function renderStateGrid(){
+  const grid=document.getElementById('battle-state-grid');
+  // 多枚数では2行グリッドに
+  const n=S.cards.length;
+  const cols=n<=6?n:n<=13?Math.ceil(n/2):Math.ceil(n/3);
+  grid.style.gridTemplateColumns=`repeat(${cols},1fr)`;
+  grid.innerHTML='';
+  const scfg=DIFF[S.diff];
+  S.cards.forEach((val,idx)=>{
+    const isCorrect=val===S.target[idx];
+    const isSelected=S.selectedIdx===idx;
+    const cell=document.createElement('div');
+    cell.className='state-cell'+(isCorrect?' correct-cell':' wrong-cell')+(isSelected?' selected-cell':'');
+    const diff=val-S.target[idx];
+    const diffStr=diff===0?'✓':(diff>0?'+'+diff:diff);
+    const diffColor=diff===0?'#00ff88':(Math.abs(diff)<=2?'#ffd740':'#ff6b6b');
+    const isBlind=S.blindMask&&S.blindMask.has(idx);
+    const rawDispVal=isBlind?null:val;
+    const rawDispTgt=scfg.hidden?null:S.target[idx];
+    const dispValD=rawDispVal===null?{text:'?',scale:1}:getCardDisplay(val,S.diff);
+    const dispTgtD=rawDispTgt===null?{text:'?',scale:1}:getCardDisplay(S.target[idx],S.diff);
+    const dispVal=dispValD.text;
+    const dispTgt=dispTgtD.text;
+    const dispDiff=(isBlind||scfg.hidden)?'?':diffStr;
+    const dispDiffColor=isBlind?'#556':'';
+    cell.innerHTML=`<div class="state-cell-label">[${idx}]</div>
+      <div class="state-cell-val" style="color:${isCorrect&&!isBlind?'#80ffbb':'#c0d0ff'}">${dispVal}</div>
+      <div class="state-cell-arrow">↓</div>
+      <div class="state-cell-target">${dispTgt}</div>
+      <div style="font-size:8px;color:${dispDiffColor||diffColor};font-weight:700;">${dispDiff}</div>`;
+    grid.appendChild(cell);
+  });
+}
+
+function updateBars(){
+  const eff=calcEfficiency();
+  const bar=document.getElementById('battle-bar-you');
+  if(eff===null){bar.style.width='0%';bar.dataset.val='—';}
+  else{bar.style.width=Math.max(2,eff)+'%';bar.dataset.val=eff+'%';}
+
+  const correct=S.cards.filter((c,i)=>c===S.target[i]).length;
+  const progPct=Math.round((correct/S.cards.length)*100);
+  const barP=document.getElementById('battle-bar-progress');
+  barP.style.width=progPct+'%';barP.dataset.val=correct+'/'+S.cards.length;
+
+  const minLeft=calcMinSwapsCurrent();
+  const remain=DIFF[S.diff].swaps-S.swapsDone;
+  const hasBlind=S.blindMask&&S.blindMask.size>0;
+  const bcfg=DIFF[S.diff];
+  document.getElementById('battle-min-display').textContent=hasBlind?'?':minLeft;
+  const minSub=document.getElementById('battle-min-sub');
+  if(hasBlind){minSub.textContent='???';minSub.style.color='#556';}
+  else if(minLeft===0){minSub.textContent='完成！';minSub.style.color='#00ff88';}
+  else if(minLeft===remain){minSub.textContent='ギリギリ！';minSub.style.color='#ffd740';}
+  else if(minLeft>remain){minSub.textContent='不可能';minSub.style.color='#ff0040';}
+  else{minSub.textContent=`余裕${remain-minLeft}手`;minSub.style.color='#9d4edd';}
+
+  const alertBox=document.getElementById('battle-alert-box');
+  if(!S.gameOver&&!bcfg.blindRemain&&!hasBlind&&minLeft>remain){
+    alertBox.style.display='block';
+    alertBox.className='alert-box alert-danger';
+    alertBox.textContent=`⚠ 残り${remain}回では完成不可能 (最小${minLeft}回必要) — リトライ推奨`;
+  } else if(!S.gameOver&&!bcfg.blindRemain&&!hasBlind&&minLeft===remain&&remain>0){
+    alertBox.style.display='block';
+    alertBox.className='alert-box alert-warn';
+    alertBox.textContent=`△ 残り${remain}手で残${minLeft}交換が必要 — 1手も無駄にできない`;
+  } else {
+    alertBox.style.display='none';
+  }
+}
+
+function renderHUD(){
+  const cfg=DIFF[S.diff];
+  document.getElementById('battle-score-display').textContent=calcScore();
+  document.getElementById('battle-swaps-display').textContent=`${S.swapsDone}/${cfg.swaps}`;
+  document.getElementById('battle-remain-display').textContent=cfg.blindRemain?'??':cfg.swaps-S.swapsDone;
+}
+
+function handleCardClick(idx){
+  if(S.isDragging||S.gameOver)return;
+  if(S.selectedIdx===null){
+    S.selectedIdx=idx;
+    setInstruction(`<span>[${idx}]番 (${S.cards[idx]}) 選択中</span> — もう1枚をクリック！`);
+  } else if(S.selectedIdx===idx){
+    S.selectedIdx=null;setInstruction('カードをクリックして選択 → もう1枚で入れ替え');
+  } else {doSwap(S.selectedIdx,idx);S.selectedIdx=null;}
+  renderCards();renderHUD();renderStateGrid();updateBars();
+}
+
+function handleDragStart(e,idx){S.isDragging=true;S.dragFromIdx=idx;e.dataTransfer.effectAllowed='move';}
+function handleDragOver(e,idx){if(S.gameOver)return;e.preventDefault();document.querySelectorAll('.card').forEach((c,i)=>{if(i===idx)c.classList.add('drag-over');});}
+function handleDragLeave(idx){document.querySelectorAll('.card')[idx]?.classList.remove('drag-over');}
+function handleDrop(e,idx){
+  e.preventDefault();const from=S.dragFromIdx;S.isDragging=false;
+  document.querySelectorAll('.card').forEach(c=>c.classList.remove('drag-over'));
+  if(from!==null&&from!==idx)doSwap(from,idx);
+  S.dragFromIdx=null;renderCards();renderHUD();renderStateGrid();updateBars();
+}
+document.addEventListener('dragend',()=>{S.isDragging=false;});
+
+function doSwap(i,j){
+  if(S.swapsDone>=DIFF[S.diff].swaps||S.gameOver)return;
+  const minBefore=calcMinSwapsCurrent();
+  [S.cards[i],S.cards[j]]=[S.cards[j],S.cards[i]];
+  const minAfter=computeMinSwaps(S.cards,S.target);
+  S.swapsDone++;
+  S.undoStack.push({i,j,minBefore});
+  const btnU=document.getElementById('battle-btn-undo');
+  if(btnU)btnU.disabled=false;
+
+  // ── コンボ・ミス判定 ──
+  const isGoodMove=(minAfter<minBefore);
+  if(isGoodMove){
+    S.combo++;
+    const bonus=S.combo>=3?S.combo*10:0;
+    S.comboBonus+=bonus;
+    if(S.combo>=2)showComboFlash(S.combo,bonus);
+    updateComboHUD();
+  } else {
+    // 無駄手（最小手数が減らなかった）
+    S.wastedSwaps++;
+    S.combo=0;
+    updateComboHUD();
+    showWasteFlash();
+  }
+
+  logHistory(i,j,isGoodMove);spawnSparks();
+
+  // ── autoShuffle ギミック ──
+  const cfg2=DIFF[S.diff];
+  if(cfg2.autoShuffle && S.swapsDone>0 && S.swapsDone%cfg2.autoShuffle===0 && !S.gameOver){
+    const wrongIdx=S.cards.map((_,k)=>k).filter(k=>S.cards[k]!==S.target[k]);
+    const pool=wrongIdx.length>=2?wrongIdx:S.cards.map((_,k)=>k);
+    if(pool.length>=2){
+      const a=pool[Math.floor(Math.random()*pool.length)];
+      let b,tries=0;
+      do{b=pool[Math.floor(Math.random()*pool.length)];tries++;}while(b===a&&tries<20);
+      if(b!==undefined&&b!==a){
+        [S.cards[a],S.cards[b]]=[S.cards[b],S.cards[a]];
+        showShuffleFlash(a,b);
+      }
+    }
+  }
+
+  const score=calcScore();
+  if(score===100){
+    clearInterval(S.timerInterval);
+    if(DIFF[S.diff].hidden)revealTarget();
+    setTimeout(()=>showWinModal(),380);S.gameOver=true;
+  } else if(S.swapsDone>=DIFF[S.diff].swaps){
+    clearInterval(S.timerInterval);
+    if(DIFF[S.diff].hidden)revealTarget();
+    setTimeout(()=>showLoseModal(),380);S.gameOver=true;
+  }
+  setInstruction('カードをクリックして選択 → もう1枚で入れ替え');
+}
+
+function showComboFlash(n,bonus){
+  const el=document.createElement('div');
+  el.className='combo-flash';
+  const colors=['#ffd740','#ff9f43','#ff6b35','#ff3096','#9d4edd','#00d4ff'];
+  const col=colors[Math.min(n-2,colors.length-1)];
+  el.style.color=col;
+  el.style.textShadow=`0 0 20px ${col},0 0 40px ${col}`;
+  el.textContent=n>=5?`🔥 INSANE x${n}!`:n>=3?`⚡ COMBO x${n}${bonus?` +${bonus}`:''}`:`✓ x${n}`;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),1000);
+}
+
+function showWasteFlash(){
+  const el=document.createElement('div');el.className='waste-flash';
+  document.body.appendChild(el);setTimeout(()=>el.remove(),600);
+}
+
+function showShuffleFlash(a,b){
+  const el=document.createElement('div');
+  el.className='combo-flash';
+  el.style.color='#ff1e1e';
+  el.style.textShadow='0 0 20px #ff1e1e,0 0 40px #ff0000';
+  el.textContent=`🔀 SHUFFLE! [${a}]⇔[${b}]`;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),1200);
+}
+
+function updateComboHUD(){
+  const hud=document.getElementById('battle-combo-hud');
+  if(!hud)return;
+  if(S.combo>=2){
+    hud.className='combo-hud active';
+    document.getElementById('battle-combo-count').textContent=S.combo;
+    document.getElementById('battle-combo-bonus').textContent=S.comboBonus;
+  } else {
+    hud.className='combo-hud';
+  }
+}
+
+function logHistory(i,j,isGood){
+  S.history.push({i,j,t:S.swapsDone,good:isGood});
+  const hist=document.getElementById('battle-swap-history');
+  const chip=document.createElement('div');
+  chip.className=isGood?'history-chip':'penalty-chip';
+  chip.textContent=`T${S.swapsDone}:[${i}]↔[${j}]${isGood?'':' ✗'}`;
+  hist.appendChild(chip);
+}
+
+function setInstruction(html){const el=document.getElementById('battle-instruction');if(el)el.innerHTML=html;}
+
+function spawnSparks(){
+  const c=document.getElementById('battle-spark-container');
+  const cols=['#ff6b6b','#ffd740','#00d4ff','#9d4edd','#00ff88','#ff9f43'];
+  for(let i=0;i<16;i++){
+    const s=document.createElement('div');s.className='spark';
+    const a=Math.random()*Math.PI*2,d=50+Math.random()*100;
+    s.style.cssText=`left:${20+Math.random()*60}%;top:${20+Math.random()*45}%;background:${cols[Math.floor(Math.random()*cols.length)]};--dx:${Math.cos(a)*d}px;--dy:${Math.sin(a)*d}px;width:${3+Math.random()*5}px;height:${3+Math.random()*5}px;animation-duration:${0.35+Math.random()*0.4}s;box-shadow:0 0 5px currentColor;`;
+    c.appendChild(s);setTimeout(()=>s.remove(),800);
+  }
+}
+
+function bigFireworks(){
+  for(let b=0;b<6;b++)setTimeout(()=>{
+    const c=document.getElementById('battle-spark-container');
+    const cols=['#ffd740','#ff6b6b','#00d4ff','#9d4edd','#00ff88','#ffffff'];
+    for(let i=0;i<32;i++){
+      const s=document.createElement('div');s.className='spark';
+      const a=Math.random()*Math.PI*2,d=90+Math.random()*160;
+      s.style.cssText=`left:${10+Math.random()*80}%;top:${10+Math.random()*50}%;background:${cols[b%cols.length]};--dx:${Math.cos(a)*d}px;--dy:${Math.sin(a)*d}px;width:${4+Math.random()*6}px;height:${4+Math.random()*6}px;animation-duration:${0.6+Math.random()*0.5}s;box-shadow:0 0 8px 2px currentColor;`;
+      c.appendChild(s);setTimeout(()=>s.remove(),1200);
+    }
+  },b*180);
+}
+
+function detectAlgorithm(){
+  const n=S.swapsDone,score=calcScore(),init=S.initMinSwaps;
+  if(score===100&&n===init&&n===1)return{name:'Perfect Move！',desc:`1手で完成！これは置換サイクル長2の最適解。O(1)の神速判断。`};
+  if(score===100&&n===init)return{name:'最適解 (Optimal Sort)',desc:`${n}手 = 理論最小！置換サイクル分解による完璧な戦略。計算量 O(n log n)。`};
+  if(score===100&&n<=init+1)return{name:'選択ソート (Selection Sort)',desc:`最小値を選んで正位置へ移動する戦略。交換回数が少なく効率的。${n}手でクリア！`};
+  if(score===100)return{name:'バブルソート (Bubble Sort)',desc:`隣同士を比べながら整列。O(n²)だが直感的。${n}手クリア。理論最小は${init}手だった。`};
+  return{name:'未完了...',desc:`スコア ${score}点。理論最小は${init}手だったよ。次は「最も遠いカード」を先に直してみよう。`};
+}
+
+function getStars(score,swaps){
+  const init=S.initMinSwaps;
+  if(score===100&&swaps===init)return'★★★';
+  if(score===100&&swaps<=init+1)return'★★☆';
+  if(score===100)return'★☆☆';
+  return'☆☆☆';
+}
+
+function buildModalBase(){
+  const cfg=DIFF[S.diff];
+  const timeBonus=cfg.timer>0?`&nbsp;·&nbsp;残り<span style="color:#00ff88;font-weight:700;">${Math.max(0,S.timerSec)}秒</span>`:'';
+  return {cfg,timeBonus};
+}
+
+
+// ═══ 理論値解析 ═══
+
+// 置換サイクルを分解して返す（理論値の核心）
+function decomposeCycles(cards, target){
+  const pos={};
+  target.forEach((v,i)=>pos[v]=i);
+  const visited=new Array(cards.length).fill(false);
+  const cycles=[];
+  for(let i=0;i<cards.length;i++){
+    if(visited[i]||pos[cards[i]]===i){visited[i]=true;continue;}
+    const cyc=[];let j=i;
+    while(!visited[j]){visited[j]=true;cyc.push(j);j=pos[cards[j]];}
+    if(cyc.length>1)cycles.push(cyc);
+  }
+  return cycles; // 各cycleは不正位置インデックスの配列
+}
+
+// 最適手順（置換サイクル法）を生成する
+// 各サイクル長Lに対してL-1回の交換が最適
+function buildOptimalSequence(cards, target){
+  const work=[...cards];
+  const pos={};target.forEach((v,i)=>pos[v]=i);
+  const steps=[];
+
+  const cycles=decomposeCycles(work,target);
+  for(const cyc of cycles){
+    // サイクルの先頭を基点にして残りを順に確定させる
+    for(let k=cyc.length-1;k>0;k--){
+      const from=cyc[k], to=cyc[0];
+      // work[from]をwork[to]と交換することでwork[to]を確定
+      const beforeFrom=work[from], beforeTo=work[to];
+      [work[from],work[to]]=[work[to],work[from]];
+      steps.push({from,to,
+        desc:`[${to}]=${beforeTo} ↔ [${from}]=${beforeFrom}`,
+        stateAfter:[...work]});
+    }
+  }
+  return steps;
+}
+
+// 完全な理論値パネルHTMLを生成
+function buildTheoryPanel(){
+  const initCards=[...S.initCards]; // スタート時の配列
+  const target=S.target;
+  const minSwaps=S.initMinSwaps;
+  const cycles=decomposeCycles(initCards,target);
+  const seq=buildOptimalSequence(initCards,target);
+  const goodMoves=S.history.filter(h=>h.good).length;
+  const eff=S.swapsDone>0?Math.round(((S.initMinSwaps-calcMinSwapsCurrent())/S.swapsDone)*100):0;
+
+  // サイクルバッジ
+  const cycleBadges=cycles.map(cyc=>{
+    const nums=cyc.map(i=>initCards[i]).join('→');
+    return `<div class="cycle-badge">長${cyc.length}: ${nums}</div>`;
+  }).join('');
+
+  // 最適手順ステップ
+  const seqSteps=seq.map((st,i)=>`
+    <div class="seq-step">
+      <div class="seq-step-num">${i+1}</div>
+      <span>${st.desc}</span>
+    </div>`).join('');
+
+  // 君の成績
+  const scoreClass=S.swapsDone===minSwaps?'color:#00ff88':S.swapsDone<=minSwaps+1?'color:#ffd740':'color:#ff9999';
+
+  return `<div class="theory-panel">
+    <div class="theory-title">📐 理論値・置換解析</div>
+    <div class="theory-row">
+      <span class="theory-key">理論最小手数</span>
+      <span class="theory-val" style="color:#00ff88">${minSwaps} 回</span>
+    </div>
+    <div class="theory-row">
+      <span class="theory-key">君の手数</span>
+      <span class="theory-val" style="${scoreClass}">${S.swapsDone} 回</span>
+    </div>
+    <div class="theory-row">
+      <span class="theory-key">無駄手</span>
+      <span class="theory-val" style="color:${S.wastedSwaps===0?'#00ff88':'#ff9999'}">${S.wastedSwaps} 回</span>
+    </div>
+    <div class="theory-row">
+      <span class="theory-key">コンボボーナス</span>
+      <span class="theory-val" style="color:#ffd740">+${S.comboBonus} pts</span>
+    </div>
+    <div class="theory-row">
+      <span class="theory-key">置換サイクル数</span>
+      <span class="theory-val" style="color:#9d4edd">${cycles.length} 個</span>
+    </div>
+    <div class="theory-row">
+      <span class="theory-key">手効率</span>
+      <span class="theory-val" style="color:#00d4ff">${eff}%</span>
+    </div>
+    <div style="font-size:9px;color:#556;letter-spacing:1px;text-transform:uppercase;margin:8px 0 5px;">置換サイクル分解</div>
+    <div class="theory-cycle">${cycleBadges||'<span style="color:#00ff88;font-size:10px;">完成済み（恒等置換）</span>'}</div>
+    <div class="theory-seq">
+      <div class="theory-seq-label">最適手順（理論解）</div>
+      ${seqSteps||'<div class="seq-step"><div class="seq-step-num">✓</div><span>既にソート済み</span></div>'}
+    </div>
+  </div>`;
+}
+
+function revealEndUI(){
+  // アルゴパネルを展開
+  const panel=document.getElementById('battle-algo-panel');
+  panel.classList.remove('reveal-on-end');
+  panel.style.display='block';
+  // ヒント・最善手ボタンを表示（終了後も確認用）
+  document.querySelectorAll('.btn-play-only').forEach(b=>b.classList.add('shown'));
+  // アラートは終了後は非表示のまま
+  document.getElementById('battle-alert-box').style.display='none';
+  // 更新
+  renderStateGrid();updateBars();
+}
+
+function showWinModal(){
+  revealEndUI();
+  bigFireworks();
+  const algo=detectAlgorithm(),score=calcScore(),total=calcTotalScore();
+  const stars=getStars(score,S.swapsDone);
+  const {cfg,timeBonus}=buildModalBase();
+  const theoryHTML=buildTheoryPanel();
+  saveScore(S.diff,total);
+  loadBestScores();
+  document.getElementById('battle-modal-area').innerHTML=`
+    <div class="modal-overlay" >
+    <div class="modal-box">
+      <div class="modal-win-title">✦ YOU WIN! ✦</div>
+      <div class="stars-row">${stars.split('').join(' ')}</div>
+      <div class="modal-score-big">${total}</div>
+      <div style="font-size:9px;color:#667;margin-bottom:2px;">TOTAL SCORE (base+bonus)</div>
+      <div style="font-size:10px;color:#8899cc;margin-bottom:8px;">${cfg.label} ${timeBonus}</div>
+      <div class="modal-algo-box">
+        <div class="modal-algo-tag">⚡ アルゴリズム解析</div>
+        <div class="modal-algo-name">${algo.name}</div>
+        <div class="modal-algo-desc">${algo.desc}</div>
+      </div>
+      ${theoryHTML}
+      <button class="btn btn-primary" onclick="resetCurrentGame()" style="width:100%;margin-bottom:7px;">⟳ もう一度 (${cfg.label})</button>
+      <button class="btn btn-secondary" onclick="goBack()" style="width:100%;">← 難易度を変える</button>
+    </div></div>`;
+}
+
+function showLoseModal(){
+  revealEndUI();
+  const score=calcScore();
+  const {cfg}=buildModalBase();
+  const best=findBestSwap();
+  const theoryHTML=buildTheoryPanel();
+  document.getElementById('battle-modal-area').innerHTML=`
+    <div class="modal-overlay" >
+    <div class="modal-box">
+      <div class="modal-lose-title">⚔ Game Over...</div>
+      <div style="font-size:10px;color:#667;margin:3px 0 6px;">交換回数の上限 — ${score}% 完成</div>
+      <div class="modal-algo-box" style="border-color:rgba(255,107,107,0.2);background:rgba(255,107,107,0.06);">
+        <div class="modal-algo-tag" style="color:#ff6b6b;">💡 最善手の解説</div>
+        <div class="modal-algo-name" style="color:#ff9999;">次回: ${best.label}</div>
+        <div class="modal-algo-desc">${best.desc}</div>
+      </div>
+      ${theoryHTML}
+      <button class="btn btn-primary" onclick="resetCurrentGame()" style="width:100%;margin-bottom:7px;">⟳ リトライ</button>
+      <button class="btn btn-secondary" onclick="goBack()" style="width:100%;">← 難易度変更</button>
+    </div></div>`;
+}
+
+function showTimeoutModal(){
+  revealEndUI();
+  const score=calcScore();
+  const {cfg}=buildModalBase();
+  const best=findBestSwap();
+  const theoryHTML=buildTheoryPanel();
+  document.getElementById('battle-modal-area').innerHTML=`
+    <div class="modal-overlay" >
+    <div class="modal-box">
+      <div class="modal-timeout-title">⏱ Time Out!</div>
+      <div style="font-size:10px;color:#667;margin:3px 0 6px;">制限時間オーバー — ${score}% 完成</div>
+      <div class="modal-algo-box" style="border-color:rgba(249,168,37,0.2);background:rgba(249,168,37,0.06);">
+        <div class="modal-algo-tag" style="color:#ffd740;">⚡ 推奨戦略</div>
+        <div class="modal-algo-name" style="color:#ffe082;">最初に: ${best.label}</div>
+        <div class="modal-algo-desc">${best.desc}</div>
+      </div>
+      ${theoryHTML}
+      <button class="btn btn-primary" onclick="resetCurrentGame()" style="width:100%;margin-bottom:7px;">⟳ リトライ</button>
+      <button class="btn btn-secondary" onclick="goBack()" style="width:100%;">← 難易度変更</button>
+    </div></div>`;
+}
+
+function findBestSwap(){
+  let bestI=-1,bestJ=-1,bestMin=Infinity;
+  const n=S.cards.length;
+  for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){
+    [S.cards[i],S.cards[j]]=[S.cards[j],S.cards[i]];
+    const m=computeMinSwaps(S.cards,S.target);
+    if(m<bestMin){bestMin=m;bestI=i;bestJ=j;}
+    [S.cards[i],S.cards[j]]=[S.cards[j],S.cards[i]];
+  }
+  if(bestI===-1)return{label:'完成済み',desc:'もうソート完了！'};
+  const curMin=calcMinSwapsCurrent();
+  const improve=curMin-bestMin;
+  return{
+    label:`[${bestI}]と[${bestJ}]を交換`,
+    desc:`${S.cards[bestI]}と${S.cards[bestJ]}を交換すると最小交換数が${improve}減る（${curMin}→${bestMin}）。この手を選ぶと残り${bestMin}回で完成可能。`
+  };
+}
+
+function showHint(){
+  const hcfg=DIFF[S.diff];
+  const minLeft=calcMinSwapsCurrent();
+  const remain=hcfg.swaps-S.swapsDone;
+  if(hcfg.hidden) revealTarget();
+  if(S.blindMask&&S.blindMask.size>0){
+    setInstruction(`<span style="color:#ff50c8">⚠ 一部カードが伏せ字のためヒント不可</span>`);
+    return;
+  }
+  if(minLeft>remain){
+    setInstruction(`<span class="warn">⚠ 残り${remain}手では完成不可能（最小${minLeft}手必要）— リトライを！</span>`);
+  } else {
+    const wrong=S.cards.map((c,i)=>c!==S.target[i]?`[${i}]:${c}→${S.target[i]}`:null).filter(Boolean);
+    setInstruction(`<span class="ok">あと最小${minLeft}回。修正必要:</span> ${wrong.join(' / ')}`);
+  }
+}
+
+function showNextBest(){
+  const best=findBestSwap();
+  setInstruction(`<span>最善手:</span> ${best.label} — ${best.desc.slice(0,50)}...`);
+}
+
+(function(){
+  const canvas=document.getElementById('battle-pc');
+  const ctx=canvas.getContext('2d');
+  function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
+  resize();window.addEventListener('resize',resize);
+  // 画面回転でカードを再描画
+  window.addEventListener('orientationchange',()=>{
+    setTimeout(()=>{
+      if(document.getElementById('battle-game-screen').style.display!=='none'){
+        renderIndexDots();renderCards();renderStateGrid();
+      }
+    },200);
+  });
+  window.addEventListener('resize',()=>{
+    if(document.getElementById('battle-game-screen').style.display!=='none'){
+      renderIndexDots();renderCards();renderStateGrid();
+    }
+  });
+  const isMobile=window.innerWidth<768||navigator.maxTouchPoints>0;
+  const pts=Array.from({length:isMobile?20:45},()=>({
+    x:Math.random()*window.innerWidth,y:Math.random()*window.innerHeight,
+    dx:(Math.random()-.5)*.28,dy:(Math.random()-.5)*.28,
+    r:.4+Math.random()*1.4,a:.08+Math.random()*.3,
+    color:['#4466ff','#9d4edd','#00d4ff'][Math.floor(Math.random()*3)]
+  }));
+  function tick(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    pts.forEach(p=>{
+      p.x+=p.dx;p.y+=p.dy;
+      if(p.x<0||p.x>canvas.width)p.dx*=-1;
+      if(p.y<0||p.y>canvas.height)p.dy*=-1;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=p.color;ctx.globalAlpha=p.a;ctx.fill();
+    });
+    ctx.globalAlpha=1;requestAnimationFrame(tick);
+  }
+  tick();
+})();
+
+// 初期ベストスコア読み込みは BattleGame.init() 内で行う（モジュール表示時に最新化するため）
+
+
+// ═══ ベストスコア（localStorage）═══
+function saveScore(diff,score){
+  try{
+    const key='scb_best_'+diff;
+    const prev=parseInt(localStorage.getItem(key)||'0');
+    if(score>prev)localStorage.setItem(key,score);
+  }catch(e){}
+}
+function getBest(diff){
+  try{return parseInt(localStorage.getItem('scb_best_'+diff)||'0');}catch(e){return 0;}
+}
+function loadBestScores(){
+  ['easy','normal','hard','veteran','master','legend','supreme','apex','elite','mythic','eternal','absolute_','infinity','expert','nightmare','god','abyss','transcendent','chaos','phantom','oblivion','void','singularity','extinction','the_end','kanji','roman','power_mix','fraction','negative','hex','morse','mixed','mixed_hard'].forEach(d=>{
+    const el=document.getElementById('battle-best-'+d);
+    if(!el)return;
+    const v=getBest(d);
+    el.textContent=v>0?'★'+v:'—';
+  });
+}
+
+// ========== アンドゥ機能 ==========
+function undoSwap(){
+  if(S.undoStack&&S.undoStack.length>0&&!S.gameOver){
+    const last=S.undoStack.pop();
+    [S.cards[last.i],S.cards[last.j]]=[S.cards[last.j],S.cards[last.i]];
+    S.swapsDone--;
+    const hist=document.getElementById('battle-swap-history');
+    const chips=hist.querySelectorAll('.history-chip');
+    if(chips.length)chips[chips.length-1].remove();
+    document.getElementById('battle-btn-undo').disabled=S.undoStack.length===0;
+    renderCards();renderHUD();renderStateGrid();updateBars();
+    setInstruction('<span style="color:#00d4ff">&#8617; 1手戻した</span> &#8212; 戻しはアンドゥスタックに積んだ手のみ！');
+  }
+}
+
+// ========== キーボードショートカット ==========
+document.addEventListener('keydown',e=>{
+  // このモジュールが非アクティブの間は何もしない（他モジュール操作中の誤反応防止）
+  const battleContainer=document.getElementById('module-battle');
+  if(!battleContainer||!battleContainer.classList.contains('active'))return;
+  const n=parseInt(e.key);
+  if(!isNaN(n)&&n>=1&&n<=S.cards.length&&document.getElementById('battle-game-screen').style.display!=='none'){
+    handleCardClick(n-1);return;
+  }
+  if(e.key==='Escape'&&S.selectedIdx!==null){
+    S.selectedIdx=null;renderCards();setInstruction('カードをクリックして選択 → もう1枚で入れ替え');
+  }
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();undoSwap();}
+  if(e.key.toLowerCase()==='h'&&document.getElementById('battle-game-screen').style.display!=='none')showHint();
+});
+
+// ========== タッチ操作（完全対応版）==========
+// スマホでは「タップ選択→タップ入れ替え」をメインに、
+// ドラッグで直接入れ替えもサポート
+let _touch={startX:0,startY:0,startIdx:null,moved:false,longTimer:null};
+
+function _touchGetIdx(e){
+  const stage=document.getElementById('battle-cards-stage');
+  const cards=[...stage.querySelectorAll('.card')];
+  // touchはtargetが固定なのでelementsFromPointで実際の位置を検索
+  const t=e.changedTouches?e.changedTouches[0]:e.touches[0];
+  if(!t)return null;
+  const els=document.elementsFromPoint(t.clientX,t.clientY);
+  for(const el of els){
+    const card=el.closest?el.closest('.card'):null;
+    if(card){const i=cards.indexOf(card);if(i>=0)return i;}
+  }
+  return null;
+}
+
+document.addEventListener('touchstart',e=>{
+  const battleContainer=document.getElementById('module-battle');
+  if(!battleContainer||!battleContainer.classList.contains('active'))return;
+  const idx=_touchGetIdx(e);
+  if(idx===null)return;
+  const t=e.touches[0];
+  _touch={startX:t.clientX,startY:t.clientY,startIdx:idx,moved:false,longTimer:null};
+  // ロングプレス（500ms）でヒント
+  _touch.longTimer=setTimeout(()=>{
+    if(!_touch.moved&&_touch.startIdx!==null){
+      showHint();
+      // 振動フィードバック（対応端末のみ）
+      if(navigator.vibrate)navigator.vibrate(40);
+    }
+  },500);
+},{passive:true});
+
+document.addEventListener('touchmove',e=>{
+  const battleContainer=document.getElementById('module-battle');
+  if(!battleContainer||!battleContainer.classList.contains('active'))return;
+  if(_touch.startIdx===null)return;
+  const t=e.touches[0];
+  const dx=t.clientX-_touch.startX;
+  const dy=t.clientY-_touch.startY;
+  if(Math.sqrt(dx*dx+dy*dy)>10){
+    _touch.moved=true;
+    clearTimeout(_touch.longTimer);
+  }
+},{passive:true});
+
+document.addEventListener('touchend',e=>{
+  const battleContainer=document.getElementById('module-battle');
+  if(!battleContainer||!battleContainer.classList.contains('active'))return;
+  clearTimeout(_touch.longTimer);
+  if(_touch.startIdx===null)return;
+  const endIdx=_touchGetIdx(e);
+  const dx=e.changedTouches[0].clientX-_touch.startX;
+  const dy=e.changedTouches[0].clientY-_touch.startY;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+
+  if(!_touch.moved||dist<20){
+    // タップ：クリックハンドラに委譲（click イベントが続けて発火するのでここでは何もしない）
+  } else {
+    // ドラッグ：終点のカードと入れ替え
+    if(endIdx!==null&&endIdx!==_touch.startIdx&&!S.gameOver){
+      doSwap(_touch.startIdx,endIdx);
+      if(navigator.vibrate)navigator.vibrate(20);
+      renderCards();renderHUD();renderStateGrid();updateBars();
+    }
+  }
+  _touch={startX:0,startY:0,startIdx:null,moved:false,longTimer:null};
+},{passive:true});
+  // ════════════════════════════════════════════════
+  // HTML onclick属性からの呼び出しに対応する橋渡し関数
+  // IIFE内の同名関数を隠蔽しつつ、必要なものだけ window に公開する。
+  // ════════════════════════════════════════════════
+  window.battleStartGame     = (diffKey) => startGame(diffKey);
+  window.battleGoBack        = ()        => goBack();
+  window.battleResetCurrent  = ()        => resetCurrentGame();
+  window.battleShowHint      = ()        => showHint();
+  window.battleShowNextBest  = ()        => showNextBest();
+  window.battleUndoSwap      = ()        => undoSwap();
+
+  // ════════════════════════════════════════════════
+  // PUBLIC API
+  // ════════════════════════════════════════════════
+  return {
+    init() {
+      // モジュール表示時にベストスコアを最新化する
+      loadBestScores();
+      // ゲーム状態を初期化して難易度選択画面に戻す
+      clearInterval(S.timerInterval);
+      S.gameOver = false;
+      const diffEl = document.getElementById('battle-diff-screen');
+      const gameEl = document.getElementById('battle-game-screen');
+      if (diffEl) diffEl.style.display = '';
+      if (gameEl) gameEl.style.display = 'none';
+    },
+    destroy() {
+      clearInterval(S.timerInterval);
+      S.gameOver = true;
+    }
+  };
+})();
+
+</script>
+<script>
+// ════════════════════════════════════════════════
+// MODULE 03: MENTAL MATH
+// React JSXをVanilla JS (DOM操作 + innerHTML) に完全変換。
+// useState → let変数 + redraw関数
+// useEffect → 各状態変更の直後に副作用を手動実行
+// useCallback → 通常のfunction（クロージャでlocked等を参照）
+// コンポーネント → HTMLテンプレート文字列を返す関数
+// ════════════════════════════════════════════════
+window.MathGame = (function () {
+
+  // ─── Constants ───────────────────────────────
+  const RANKS = [
+    { name: "Bronze",   min: 0,    color: "#cd7f32" },
+    { name: "Silver",   min: 300,  color: "#c0c0c0" },
+    { name: "Gold",     min: 700,  color: "#ffd700" },
+    { name: "Platinum", min: 1200, color: "#e5e4e2" },
+    { name: "Diamond",  min: 2000, color: "#b9f2ff" },
+  ];
+
+  const OPS = ["+", "−", "×", "÷"];
+
+  const DIFFICULTIES = [
+    { id: "easy",   label: "Easy",   color: "#4ade80", bg: "#1e3a2f", border: "#4ade80",
+      desc: "1桁のみ / +−",         level: 1, ops: ["+", "−"] },
+    { id: "normal", label: "Normal", color: "#60a5fa", bg: "#1e2f3f", border: "#60a5fa",
+      desc: "1〜2桁 / +−×",         level: 2, ops: ["+", "−", "×"] },
+    { id: "hard",   label: "Hard",   color: "#f59e0b", bg: "#2a1f00", border: "#f59e0b",
+      desc: "2桁 / 全演算子",        level: 3, ops: ["+", "−", "×", "÷"] },
+    { id: "expert", label: "Expert", color: "#f87171", bg: "#2a1010", border: "#f87171",
+      desc: "2〜3桁 / 全演算子",     level: 5, ops: ["+", "−", "×", "÷"] },
+  ];
+
+  function getRank(s) {
+    return [...RANKS].reverse().find(r => s >= r.min) || RANKS[0];
+  }
+
+  function genQuestion(level, ops) {
+    const op = ops[Math.floor(Math.random() * ops.length)];
+    let a, b;
+    if (level === 1) {
+      a = Math.floor(Math.random() * 9) + 1;
+      b = Math.floor(Math.random() * 9) + 1;
+    } else if (level === 2) {
+      const da = Math.random() < 0.5 ? 1 : 2;
+      const db = Math.random() < 0.5 ? 1 : 2;
+      a = da === 1 ? Math.floor(Math.random() * 9) + 1 : Math.floor(Math.random() * 90) + 10;
+      b = db === 1 ? Math.floor(Math.random() * 9) + 1 : Math.floor(Math.random() * 90) + 10;
+    } else if (level <= 4) {
+      a = Math.floor(Math.random() * 90) + 10;
+      b = Math.floor(Math.random() * 90) + 10;
+    } else if (level === 5) {
+      const da = Math.random() < 0.5 ? 2 : 3;
+      const db = Math.random() < 0.5 ? 2 : 3;
+      a = da === 2 ? Math.floor(Math.random() * 90) + 10 : Math.floor(Math.random() * 900) + 100;
+      b = db === 2 ? Math.floor(Math.random() * 90) + 10 : Math.floor(Math.random() * 900) + 100;
+    } else {
+      a = Math.floor(Math.random() * 900) + 100;
+      b = Math.floor(Math.random() * 900) + 100;
+    }
+    if (op === "−" && b > a) { const t = a; a = b; b = t; }
+    if (op === "÷") {
+      const maxDiv = level <= 2 ? 9 : level <= 4 ? 12 : 15;
+      b = Math.floor(Math.random() * maxDiv) + 1;
+      const m = level <= 2 ? Math.floor(Math.random() * 9) + 1 : Math.floor(Math.random() * 19) + 1;
+      a = b * m;
+    }
+    const answers = { "+": a + b, "−": a - b, "×": a * b, "÷": a / b };
+    return { a, b, op, answer: answers[op] };
+  }
+
+  // ─── アプリ状態（全てlet変数で管理） ──────────
+  // 画面遷移レベルの状態
+  let screen = "menu";   // menu | diff | custom | game | result
+  let mode = null;
+  let config = {};
+  let lastScore = 0, lastCorrect = 0, lastDiffId = "normal";
+
+  // ゲームセッションレベルの状態
+  let q = null, input = "", timeRaw = 600, score = 0;
+  let combo = 0, flash = null, showCorrectVal = null;
+  let streak = 0, level = 1, shaking = false, locked = false, correctCount = 0;
+  let timerInterval = null;
+  let keydownHandler = null;
+
+  // Custom Setup用
+  let customOps = ["+", "−"];
+  let customDigits = 1;
+
+  // ─── ルートコンテナ取得 ────────────────────────
+  function container() {
+    return document.getElementById('module-math');
+  }
+
+  // ─── 画面描画（innerHTML方式） ─────────────────
+  function render() {
+    const c = container();
+    if (!c || !c.classList.contains('active')) return;
+    if (screen === "menu")   { c.innerHTML = renderMenu(); }
+    if (screen === "diff")   { c.innerHTML = renderDiffPicker(); }
+    if (screen === "custom") { c.innerHTML = renderCustomSetup(); }
+    if (screen === "game")   { c.innerHTML = renderGame(); }
+    if (screen === "result") { c.innerHTML = renderResult(); }
+    attachEventHandlers();
+  }
+
+  // ─── メニュー画面 ─────────────────────────────
+  function renderMenu() {
+    const modes = [
+      { id: "time",     label: "Time Attack",    desc: "60秒で最多正解",         icon: "⚡" },
+      { id: "survival", label: "Survival",        desc: "正解で+2秒、耐久せよ",   icon: "❤️" },
+      { id: "endless",  label: "Endless",         desc: "タイマーなし・無限練習", icon: "∞" },
+      { id: "custom",   label: "Custom Practice", desc: "演算子・桁数を自由設定", icon: "⚙️" },
+    ];
+
+    const bestScores = ["time", "survival", "endless", "custom"].map(m => {
+      const scores = DIFFICULTIES.map(d => {
+        const v = parseInt(localStorage.getItem(`hi_${m}_${d.id}`) || "0");
+        return { d, v };
+      });
+      const best = scores.reduce((a, b) => a.v > b.v ? a : b);
+      const icon = m === "time" ? "⚡" : m === "survival" ? "❤️" : m === "endless" ? "∞" : "⚙️";
+      if (best.v <= 0) return '';
+      return `<div style="color:#475569;font-size:11px">
+        <span style="color:#64748b">${icon} </span>
+        <span style="color:${best.d.color};font-family:monospace;font-weight:700">${best.v}</span>
+        <span style="color:#334155;font-size:10px"> (${best.d.label})</span>
+      </div>`;
+    }).join('');
+
+    return `
+      <div style="padding:24px 20px;max-width:380px;margin:0 auto;min-height:100%">
+        <div style="text-align:center;margin-bottom:28px">
+          <div style="font-size:38px;margin-bottom:4px">🧮</div>
+          <div style="font-family:monospace;font-size:20px;font-weight:900;color:#e2e8f0;letter-spacing:2px">MENTAL MATH</div>
+          <div style="color:#334155;font-size:11px;letter-spacing:4px">TRAINING ENGINE</div>
+        </div>
+        ${modes.map(m => `
+          <button class="math-mode-btn" data-mode="${m.id}" style="
+            width:100%;display:flex;align-items:center;gap:14px;
+            padding:14px 16px;margin-bottom:9px;
+            background:#13151e;border:1px solid #2e3348;
+            border-radius:10px;cursor:pointer;text-align:left;
+            color:#e2e8f0;font-family:inherit;
+          ">
+            <span style="font-size:22px">${m.icon}</span>
+            <div>
+              <div style="font-weight:700;font-size:14px">${m.label}</div>
+              <div style="color:#64748b;font-size:12px">${m.desc}</div>
+            </div>
+          </button>
+        `).join('')}
+        ${bestScores ? `
+          <div style="margin-top:20px;padding:12px 14px;background:#0d0f14;border-radius:8px;border:1px solid #1e2028">
+            <div style="color:#334155;font-size:10px;letter-spacing:3px;margin-bottom:8px">BEST SCORES</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${bestScores}</div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  // ─── 難易度選択 ────────────────────────────────
+  function renderDiffPicker() {
+    return `
+      <div style="padding:20px 16px;max-width:380px;margin:0 auto">
+        <div style="color:#64748b;font-size:11px;letter-spacing:3px;margin-bottom:12px;text-align:center">難易度を選択</div>
+        ${DIFFICULTIES.map(d => `
+          <button class="math-diff-btn" data-diffid="${d.id}" style="
+            width:100%;display:flex;align-items:center;justify-content:space-between;
+            padding:13px 16px;margin-bottom:8px;
+            background:${d.bg};border:1px solid ${d.border};
+            border-radius:9px;cursor:pointer;color:${d.color};font-family:inherit;
+          ">
+            <span style="font-weight:800;font-size:15px;font-family:monospace">${d.label}</span>
+            <span style="color:#94a3b8;font-size:12px">${d.desc}</span>
+          </button>
+        `).join('')}
+        <button class="math-back-btn" style="
+          width:100%;padding:10px;margin-top:6px;
+          background:transparent;border:1px solid #2e3348;
+          border-radius:8px;color:#64748b;cursor:pointer;font-family:inherit;font-size:13px;
+        ">← 戻る</button>
+      </div>
+    `;
+  }
+
+  // ─── Custom Setup ──────────────────────────────
+  function renderCustomSetup() {
+    const levelMap = { 1: 1, 2: 3, 3: 6 };
+    return `
+      <div style="padding:20px 20px;max-width:380px;margin:0 auto">
+        <div style="color:#94a3b8;font-size:11px;letter-spacing:3px;margin-bottom:12px">演算子</div>
+        <div style="display:flex;gap:7px;margin-bottom:20px">
+          ${OPS.map(op => `
+            <button class="math-op-toggle" data-op="${op}" style="
+              flex:1;padding:10px 0;font-size:17px;font-weight:900;
+              background:${customOps.includes(op) ? '#1e3a5f' : '#13151e'};
+              color:${customOps.includes(op) ? '#60a5fa' : '#475569'};
+              border:1px solid ${customOps.includes(op) ? '#3b82f6' : '#2e3348'};
+              border-radius:7px;cursor:pointer;font-family:monospace;
+            ">${op}</button>
+          `).join('')}
+        </div>
+        <div style="color:#94a3b8;font-size:11px;letter-spacing:3px;margin-bottom:12px">桁数</div>
+        <div style="display:flex;gap:7px;margin-bottom:24px">
+          ${[1, 2, 3].map(d => `
+            <button class="math-digit-btn" data-d="${d}" style="
+              flex:1;padding:10px 0;font-size:14px;font-weight:700;
+              background:${customDigits === d ? '#1e2f1e' : '#13151e'};
+              color:${customDigits === d ? '#4ade80' : '#475569'};
+              border:1px solid ${customDigits === d ? '#4ade80' : '#2e3348'};
+              border-radius:7px;cursor:pointer;font-family:inherit;
+            ">${d}桁</button>
+          `).join('')}
+        </div>
+        <button id="math-custom-start" style="
+          width:100%;padding:13px 0;font-size:15px;font-weight:700;
+          background:#1e3a2f;color:#4ade80;
+          border:1px solid #4ade80;border-radius:9px;cursor:pointer;font-family:inherit;
+        ">START →</button>
+        <button class="math-back-btn" style="
+          width:100%;padding:10px;margin-top:8px;
+          background:transparent;border:1px solid #2e3348;
+          border-radius:8px;color:#64748b;cursor:pointer;font-family:inherit;font-size:13px;
+        ">← 戻る</button>
+      </div>
+    `;
+  }
+
+  // ─── ゲーム画面 ────────────────────────────────
+  function renderGame() {
+    if (!q) return '';
+    const isEndless = mode === "endless";
+    const TOTAL_TIME_TICKS = (mode === "time" ? 60 : 10) * 10;
+    const timerRatio = isEndless ? 1 : Math.max(0, timeRaw / TOTAL_TIME_TICKS);
+    const timerColor = timerRatio > 0.5 ? "#4ade80" : timerRatio > 0.25 ? "#facc15" : "#f87171";
+    const timeDisplay = (timeRaw / 10).toFixed(1);
+    const rk = getRank(score);
+    const diffCfg = DIFFICULTIES.find(d => d.id === (config.diffId || "normal")) || DIFFICULTIES[1];
+    const ddaEnabled = mode === "survival" || isEndless;
+    const modeLabel = mode === "time" ? "⚡ Time Attack" : mode === "survival" ? "❤️ Survival" : "∞ Endless";
+
+    const flashBg = flash === "correct" ? "rgba(74,222,128,0.07)"
+      : flash === "wrong" ? "rgba(248,113,113,0.10)" : "transparent";
+
+    const inputColor = flash === "wrong" ? "#f87171" : "#4ade80";
+    const inputBorder = flash === "wrong" ? "#7f1d1d" : flash === "correct" ? "#14532d" : "#1e2840";
+    const inputContent = showCorrectVal !== null
+      ? `<span style="color:#f87171">= ${showCorrectVal}</span>`
+      : (input || `<span style="color:#0f1520">0</span>`);
+
+    const keys = ["7","8","9","4","5","6","1","2","3","−","0","⌫"];
+    const numpadBtns = keys.map(k => `
+      <button class="math-key-btn" data-key="${k}" style="
+        padding:13px 0;font-size:19px;font-weight:700;
+        background:${k === "⌫" ? "#3f1f1f" : k === "−" ? "#1f2a3a" : "#1e2028"};
+        color:${k === "⌫" ? "#f87171" : k === "−" ? "#60a5fa" : "#e2e8f0"};
+        border:1px solid #2e3348;border-radius:7px;cursor:pointer;font-family:monospace;
+        -webkit-tap-highlight-color:transparent;user-select:none;min-height:44px;
+      ">${k}</button>
+    `).join('');
+
+    return `
+      <div style="
+        max-width:380px;margin:0 auto;padding:14px 18px;
+        animation:${shaking ? 'mathShake 0.4s ease' : 'none'};
+        background:${flashBg};transition:background 0.15s;border-radius:12px;
+      ">
+        <style>@keyframes mathShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}</style>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+          <div style="font-family:monospace;font-size:12px;color:${rk.color};font-weight:700">★ ${rk.name}</div>
+          <div style="font-size:11px;color:${diffCfg.color};font-weight:700;background:${diffCfg.bg};border:1px solid ${diffCfg.border};padding:2px 8px;border-radius:4px">${diffCfg.label}</div>
+          <div style="color:#475569;font-size:11px">${modeLabel}${ddaEnabled ? ' <span style="color:#334155">· DDA</span>' : ''}</div>
+        </div>
+        ${isEndless
+          ? `<div style="height:6px;margin-bottom:8px"></div>`
+          : `<div style="height:6px;background:#1e2028;border-radius:3px;overflow:hidden;margin:8px 0">
+              <div style="height:100%;width:${timerRatio*100}%;background:${timerColor};transition:width 0.1s linear,background 0.3s;border-radius:3px"></div>
+            </div>`}
+        <div style="display:flex;justify-content:space-between;margin-bottom:16px">
+          <div style="text-align:center">
+            <div style="color:#334155;font-size:9px;letter-spacing:2px">SCORE</div>
+            <div style="font-family:monospace;font-size:20px;font-weight:900;color:#e2e8f0">${score}</div>
+          </div>
+          ${isEndless
+            ? `<div style="text-align:center">
+                <div style="color:#334155;font-size:9px;letter-spacing:2px">Lv</div>
+                <div style="font-family:monospace;font-size:20px;font-weight:900;color:#a78bfa">${level}</div>
+              </div>`
+            : `<div style="text-align:center">
+                <div style="color:#334155;font-size:9px;letter-spacing:2px">TIME</div>
+                <div style="font-family:monospace;font-size:20px;font-weight:900;color:${timeRaw < 50 ? '#f87171' : timeRaw < 150 ? '#facc15' : '#e2e8f0'}">${timeDisplay}s</div>
+              </div>`}
+          <div style="text-align:center">
+            <div style="color:#334155;font-size:9px;letter-spacing:2px">COMBO</div>
+            <div style="font-family:monospace;font-size:20px;font-weight:900;color:${combo >= 5 ? '#f59e0b' : combo >= 3 ? '#60a5fa' : '#e2e8f0'}">${combo}×</div>
+          </div>
+          <div style="text-align:center">
+            <div style="color:#334155;font-size:9px;letter-spacing:2px">正解</div>
+            <div style="font-family:monospace;font-size:20px;font-weight:900;color:#94a3b8">${correctCount}</div>
+          </div>
+        </div>
+        <div style="text-align:center;font-family:monospace;font-size:44px;font-weight:900;letter-spacing:3px;color:#f1f5f9;margin-bottom:4px;user-select:none;line-height:1.1">
+          ${q.a} ${q.op} ${q.b}
+        </div>
+        <div style="text-align:center;font-size:10px;color:#1e2840;margin-bottom:10px;letter-spacing:2px">= ?</div>
+        <div style="text-align:center;font-family:monospace;font-size:34px;font-weight:700;letter-spacing:2px;color:${inputColor};background:#0d0f14;border:1px solid ${inputBorder};border-radius:8px;padding:9px 0;min-height:52px;transition:border-color 0.15s">
+          ${inputContent}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px">
+          ${numpadBtns}
+          <button class="math-key-btn" data-key="ENTER" style="
+            grid-column:1/-1;padding:12px 0;font-size:15px;font-weight:700;
+            background:#1e3a2f;color:#4ade80;
+            border:1px solid #2d6a4f;border-radius:7px;cursor:pointer;
+            letter-spacing:3px;-webkit-tap-highlight-color:transparent;user-select:none;min-height:44px;
+            font-family:inherit;
+          ">ENTER ↵</button>
+        </div>
+        ${isEndless ? `
+          <button id="math-endless-finish" style="
+            width:100%;margin-top:10px;padding:11px 0;
+            font-size:13px;font-weight:700;
+            background:#1a1520;color:#64748b;
+            border:1px solid #2e2840;border-radius:7px;cursor:pointer;
+            letter-spacing:1px;font-family:inherit;
+          ">終了して結果を見る</button>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  // ─── リザルト画面 ──────────────────────────────
+  function renderResult() {
+    const isEndless = mode === "endless";
+    const displayScore = isEndless ? lastCorrect : lastScore;
+    const rk = getRank(isEndless ? lastCorrect * 10 : lastScore);
+    const diffCfg = DIFFICULTIES.find(d => d.id === lastDiffId) || DIFFICULTIES[1];
+    const key = `hi_${mode}_${lastDiffId}`;
+    const hi = parseInt(localStorage.getItem(key) || "0");
+    const isNew = displayScore > 0 && displayScore >= hi;
+
+    return `
+      <div style="padding:28px 20px;text-align:center;max-width:380px;margin:0 auto">
+        <div style="font-size:44px;margin-bottom:6px">${isNew ? "🏆" : "📊"}</div>
+        <div style="font-family:monospace;font-size:26px;font-weight:900;color:${rk.color};margin-bottom:4px">${rk.name}</div>
+        <div style="display:inline-block;font-size:11px;color:${diffCfg.color};font-weight:700;background:${diffCfg.bg};border:1px solid ${diffCfg.border};padding:2px 10px;border-radius:4px;margin-bottom:16px">${diffCfg.label}</div>
+        <div style="font-family:monospace;font-size:54px;font-weight:900;color:#e2e8f0;line-height:1">
+          ${displayScore}${isEndless ? '<span style="font-size:20px;color:#64748b"> 問</span>' : ''}
+        </div>
+        <div style="color:#475569;font-size:12px;margin-bottom:4px">${isNew ? "🎉 New Best!" : "Best: " + hi}</div>
+        <div style="display:flex;justify-content:center;gap:28px;margin:16px 0 24px;color:#64748b;font-size:13px">
+          <div><span style="color:#4ade80;font-weight:700;font-family:monospace">${lastCorrect}</span> 正解</div>
+          <div><span style="color:#60a5fa;font-weight:700;font-family:monospace">
+            ${isEndless ? "∞ Endless" : mode === "time" ? (lastCorrect / 60).toFixed(1) + "/s" : lastCorrect + "問"}
+          </span></div>
+        </div>
+        <div style="display:flex;gap:9px">
+          <button id="math-retry-btn" style="flex:1;padding:13px 0;font-weight:700;font-size:14px;background:#1e3a2f;color:#4ade80;border:1px solid #4ade80;border-radius:8px;cursor:pointer;font-family:inherit">RETRY</button>
+          <button id="math-menu-btn" style="flex:1;padding:13px 0;font-weight:700;font-size:14px;background:#13151e;color:#94a3b8;border:1px solid #2e3348;border-radius:8px;cursor:pointer;font-family:inherit">MENU</button>
+        </div>
+      </div>
+    `;
+  }
+
+  // ─── イベントハンドラ（render後に毎回アタッチ） ─
+  function attachEventHandlers() {
+    // メニューのモード選択ボタン
+    document.querySelectorAll('.math-mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const m = btn.dataset.mode;
+        mode = m;
+        if (m === "custom") { screen = "custom"; render(); return; }
+        screen = "diff";
+        render();
+      });
+    });
+
+    // 難易度選択ボタン
+    document.querySelectorAll('.math-diff-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const d = DIFFICULTIES.find(d => d.id === btn.dataset.diffid);
+        if (!d) return;
+        config = { ops: d.ops, level: d.level, diffId: d.id };
+        startGameSession();
+      });
+    });
+
+    // 戻るボタン
+    document.querySelectorAll('.math-back-btn').forEach(btn => {
+      btn.addEventListener('click', () => { screen = "menu"; render(); });
+    });
+
+    // Custom: 演算子トグル
+    document.querySelectorAll('.math-op-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const op = btn.dataset.op;
+        if (customOps.includes(op)) {
+          if (customOps.length > 1) customOps = customOps.filter(o => o !== op);
+        } else {
+          customOps = [...customOps, op];
+        }
+        render();
+      });
+    });
+
+    // Custom: 桁数ボタン
+    document.querySelectorAll('.math-digit-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        customDigits = parseInt(btn.dataset.d);
+        render();
+      });
+    });
+
+    // Custom: スタートボタン
+    const csBtn = document.getElementById('math-custom-start');
+    if (csBtn) {
+      csBtn.addEventListener('click', () => {
+        const lMap = { 1: 1, 2: 3, 3: 6 };
+        config = { ops: customOps, level: lMap[customDigits], diffId: "custom" };
+        startGameSession();
+      });
+    }
+
+    // ゲーム画面: 数字パッドボタン
+    document.querySelectorAll('.math-key-btn').forEach(btn => {
+      btn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        handleKey(btn.dataset.key);
+      });
+    });
+
+    // Endless終了ボタン
+    const efBtn = document.getElementById('math-endless-finish');
+    if (efBtn) {
+      efBtn.addEventListener('click', handleEndlessFinish);
+    }
+
+    // リザルト: リトライ
+    const retryBtn = document.getElementById('math-retry-btn');
+    if (retryBtn) {
+      retryBtn.addEventListener('click', () => {
+        startGameSession();
+      });
+    }
+
+    // リザルト: メニュー
+    const menuBtn = document.getElementById('math-menu-btn');
+    if (menuBtn) {
+      menuBtn.addEventListener('click', () => {
+        screen = "menu";
+        render();
+      });
+    }
+  }
+
+  // ─── ゲームセッション開始 ──────────────────────
+  function startGameSession() {
+    const TOTAL_TIME = mode === "time" ? 60 : 10;
+    level = config.level || 1;
+    q = genQuestion(level, config.ops || ["+", "−"]);
+    input = "";
+    timeRaw = TOTAL_TIME * 10;
+    score = 0;
+    combo = 0;
+    flash = null;
+    showCorrectVal = null;
+    streak = 0;
+    shaking = false;
+    locked = false;
+    correctCount = 0;
+    screen = "game";
+    render();
+
+    // タイマー（Endlessはなし）
+    clearInterval(timerInterval);
+    if (mode !== "endless") {
+      timerInterval = setInterval(() => {
+        if (screen !== "game") { clearInterval(timerInterval); return; }
+        timeRaw--;
+        if (timeRaw <= 0) {
+          timeRaw = 0;
+          clearInterval(timerInterval);
+          endGame();
+          return;
+        }
+        // タイマーバーだけ直接更新（全体再描画はコスト大のため避ける）
+        const timerBar = document.querySelector('#module-math .math-timer-fill');
+        if (timerBar) {
+          const TOTAL_TICKS = (mode === "time" ? 60 : 10) * 10;
+          const ratio = Math.max(0, timeRaw / TOTAL_TICKS);
+          timerBar.style.width = (ratio * 100) + '%';
+          const color = ratio > 0.5 ? "#4ade80" : ratio > 0.25 ? "#facc15" : "#f87171";
+          timerBar.style.background = color;
+        }
+        // 秒表示更新
+        const timeEl = document.getElementById('math-time-display');
+        if (timeEl) {
+          timeEl.textContent = (timeRaw / 10).toFixed(1) + 's';
+          timeEl.style.color = timeRaw < 50 ? '#f87171' : timeRaw < 150 ? '#facc15' : '#e2e8f0';
+        }
+      }, 100);
+    }
+  }
+
+  // ─── ゲーム終了 ────────────────────────────────
+  function endGame() {
+    clearInterval(timerInterval);
+    const key = `hi_${mode}_${config.diffId || "normal"}`;
+    const hi = parseInt(localStorage.getItem(key) || "0");
+    if (score > hi) localStorage.setItem(key, score);
+    lastScore = score;
+    lastCorrect = correctCount;
+    lastDiffId = config.diffId || "normal";
+    screen = "result";
+    render();
+  }
+
+  // ─── 回答送信 ──────────────────────────────────
+  function submit() {
+    if (locked) return;
+    const raw = input.replace("−", "-");
+    const val = parseFloat(raw);
+    if (isNaN(val) || input === "" || input === "−") return;
+
+    const ddaEnabled = mode === "survival" || mode === "endless";
+
+    if (val === q.answer) {
+      const newCombo = combo + 1;
+      const newStreak = streak + 1;
+      const multiplier = 1 + Math.floor(newCombo / 3) * 0.5;
+      const pts = Math.round(10 * multiplier);
+      combo = newCombo;
+      score += pts;
+      correctCount++;
+      streak = newStreak;
+      flash = "correct";
+
+      let newLevel = level;
+      if (ddaEnabled && newStreak >= 3) {
+        newLevel = Math.min(6, level + 1);
+        streak = 0;
+      }
+      level = newLevel;
+      if (mode === "survival") timeRaw = Math.min(150, timeRaw + 20);
+
+      render();
+
+      setTimeout(() => {
+        if (screen !== "game") return;
+        flash = null;
+        q = genQuestion(level, config.ops || ["+", "−"]);
+        input = "";
+        showCorrectVal = null;
+        locked = false;
+        render();
+      }, 300);
+
+    } else {
+      combo = 0;
+      streak = 0;
+      flash = "wrong";
+      showCorrectVal = q.answer;
+      shaking = true;
+      locked = true;
+      if (ddaEnabled) level = Math.max(1, level - 1);
+
+      render();
+
+      setTimeout(() => {
+        if (screen !== "game") return;
+        shaking = false;
+        render();
+      }, 400);
+
+      setTimeout(() => {
+        if (screen !== "game") return;
+        flash = null;
+        q = genQuestion(level, config.ops || ["+", "−"]);
+        input = "";
+        showCorrectVal = null;
+        locked = false;
+        render();
+      }, 700);
+    }
+  }
+
+  // ─── キー入力 ──────────────────────────────────
+  function handleKey(k) {
+    if (locked || screen !== "game") return;
+    if (k === "ENTER") { submit(); return; }
+    if (k === "⌫") { input = input.slice(0, -1); render(); return; }
+    if (k === "−") { input = input === "" ? "−" : input; render(); return; }
+    if (input.length < 8) { input = input + k; render(); }
+  }
+
+  // ─── Endless終了 ───────────────────────────────
+  function handleEndlessFinish() {
+    clearInterval(timerInterval);
+    const key = `hi_endless_${config.diffId || "normal"}`;
+    const hi = parseInt(localStorage.getItem(key) || "0");
+    if (correctCount > hi) localStorage.setItem(key, correctCount);
+    lastScore = correctCount;
+    lastCorrect = correctCount;
+    lastDiffId = config.diffId || "normal";
+    screen = "result";
+    render();
+  }
+
+  // ─── キーボードサポート（アクティブ時のみ） ────
+  function attachKeyboard() {
+    if (keydownHandler) return;
+    keydownHandler = (e) => {
+      const c = container();
+      if (!c || !c.classList.contains('active')) return;
+      if (screen !== "game") return;
+      if (e.key === "Enter") { submit(); return; }
+      if (e.key === "Backspace") { input = input.slice(0, -1); render(); return; }
+      if (e.key === "-") { input = input === "" ? "−" : input; render(); return; }
+      if (/^\d$/.test(e.key)) { if (input.length < 8) { input += e.key; render(); } }
+    };
+    document.addEventListener("keydown", keydownHandler);
+  }
+
+  function detachKeyboard() {
+    if (keydownHandler) {
+      document.removeEventListener("keydown", keydownHandler);
+      keydownHandler = null;
+    }
+  }
+
+  // ─── PUBLIC API ────────────────────────────────
+  return {
+    init() {
+      screen = "menu";
+      mode = null;
+      config = {};
+      clearInterval(timerInterval);
+      attachKeyboard();
+      render();
+    },
+    destroy() {
+      clearInterval(timerInterval);
+      detachKeyboard();
+      screen = "menu";
+    }
+  };
+
+})();
+
+</script>
+<script>
+// ════════════════════════════════════════════════
+// MODULE 04: ALGORITHM MERGE TOWER
+// マージソートの「2つのソート済み配列を1つにマージするステップ」を
+// アーケードゲーム化した新規実装モジュール。
+// ════════════════════════════════════════════════
+window.MergeGame = (function () {
+
+  // ─── ゲーム状態 ───────────────────────────────
+  let queueA = [], queueB = [], merged = [];
+  let score = 0, combo = 0, maxCombo = 0, lives = 3;
+  let timeRaw = 0, timerInterval = null;
+  let gameActive = false, animating = false;
+  let screen = "menu";  // menu | game | result
+  let currentMode = null;  // "stabilizer" | "overload"
+  let keydownHandler = null;
+  let roundTotal = 0;  // 今ラウンドで何個マージすべきか
+
+  const MODES = {
+    stabilizer: {
+      label: "STABILIZER",
+      sub: "2×3",
+      desc: "3要素×2列をマージ。時間制限なし。",
+      icon: "🔷",
+      size: 3,
+      timer: 0,
+      color: "#00e5ff",
+    },
+    overload: {
+      label: "OVERLOAD",
+      sub: "2×5",
+      desc: "5要素×2列をマージ。制限時間あり。",
+      icon: "⚡",
+      size: 5,
+      timer: 40,
+      color: "#ff6d00",
+    },
+  };
+
+  // ─── ユーティリティ ───────────────────────────
+  function genSortedArray(size, existingValues) {
+    const vals = new Set(existingValues || []);
+    const pool = [];
+    while (pool.length < size) {
+      const n = Math.floor(Math.random() * 50) + 1;
+      if (!vals.has(n)) { vals.add(n); pool.push(n); }
+    }
+    return pool.sort((a, b) => a - b);
+  }
+
+  function container() {
+    return document.getElementById('module-merge');
+  }
+
+  // ─── 描画 ─────────────────────────────────────
+  function render() {
+    const c = container();
+    if (!c || !c.classList.contains('active')) return;
+    if (screen === "menu")   c.innerHTML = renderMenu();
+    if (screen === "game")   c.innerHTML = renderGameScreen();
+    if (screen === "result") c.innerHTML = renderResult();
+    attachHandlers();
+  }
+
+  // ─── メニュー画面 ─────────────────────────────
+  function renderMenu() {
+    const hiS = parseInt(localStorage.getItem('mgt_hi_stabilizer') || '0');
+    const hiO = parseInt(localStorage.getItem('mgt_hi_overload') || '0');
+    return `
+      <div style="max-width:380px;margin:0 auto;padding:32px 20px">
+        <div style="text-align:center;margin-bottom:32px">
+          <div style="font-size:36px;margin-bottom:6px">🗼</div>
+          <div style="font-size:clamp(18px,5vw,22px);font-weight:900;color:#ff6d00;letter-spacing:3px;text-shadow:0 0 20px rgba(255,109,0,0.5)">MERGE TOWER</div>
+          <div style="font-size:11px;color:rgba(200,240,255,0.45);letter-spacing:3px;margin-top:4px">ALGORITHM — MERGE SORT</div>
+          <div style="font-size:11px;color:rgba(200,240,255,0.4);margin-top:10px;line-height:1.6">
+            2つの整列済みキューから「より小さい先頭値」を選んで<br>マージタワーを構築せよ。
+          </div>
+        </div>
+
+        ${Object.entries(MODES).map(([id, m]) => {
+          const hi = id === "stabilizer" ? hiS : hiO;
+          return `
+          <button class="mgt-mode-btn" data-mode="${id}" style="
+            width:100%;text-align:left;padding:18px 16px;margin-bottom:12px;
+            background:linear-gradient(145deg,rgba(6,15,30,0.95),rgba(3,8,18,0.98));
+            border:1.5px solid ${m.color}44;border-radius:6px;cursor:pointer;
+            font-family:'Orbitron',monospace;
+            transition:border-color 0.18s,box-shadow 0.18s;
+            clip-path:polygon(0 6px,6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%);
+          ">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="font-size:22px">${m.icon}</span>
+                <div>
+                  <div style="color:${m.color};font-size:13px;font-weight:900;letter-spacing:2px">${m.label}</div>
+                  <div style="font-size:10px;color:rgba(200,240,255,0.45);letter-spacing:1px">${m.sub}</div>
+                </div>
+              </div>
+              ${hi > 0 ? `<div style="font-size:10px;color:#ffd700;letter-spacing:1px">★${hi}</div>` : ''}
+            </div>
+            <div style="font-size:11px;color:rgba(200,240,255,0.5)">${m.desc}</div>
+          </button>
+        `}).join('')}
+
+        <div style="margin-top:24px;padding:12px 14px;background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.1);border-radius:8px">
+          <div style="font-size:9px;color:rgba(0,229,255,0.5);letter-spacing:3px;margin-bottom:8px">MERGE SORT — アルゴリズム解説</div>
+          <div style="font-size:11px;color:rgba(200,240,255,0.5);line-height:1.7">
+            マージソートは「分割統治法」の代表例。<br>
+            ソート済み2列を常に<strong style="color:#00e5ff">先頭同士を比較して小さい方を取り出す</strong>ことで、<br>
+            O(n log n)の効率で結合できる。<br>
+            このゲームはそのマージステップを体に叩き込む。
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // ─── ゲーム画面 ────────────────────────────────
+  function renderGameScreen() {
+    const m = MODES[currentMode];
+    const aHead = queueA[0], bHead = queueB[0];
+    const bothEmpty = queueA.length === 0 && queueB.length === 0;
+    const onlyA = queueA.length > 0 && queueB.length === 0;
+    const onlyB = queueA.length === 0 && queueB.length > 0;
+
+    const timerRatio = m.timer > 0 ? Math.max(0, timeRaw / (m.timer * 10)) : 1;
+    const timerColor = timerRatio > 0.5 ? '#00e5ff' : timerRatio > 0.25 ? '#facc15' : '#f87171';
+
+    // マージタワーのセル
+    const towerCells = Array.from({ length: roundTotal }, (_, i) => {
+      const val = merged[roundTotal - 1 - i];
+      const filled = val !== undefined;
+      return `<div style="
+        width:40px;height:34px;border-radius:4px;
+        background:${filled ? 'linear-gradient(145deg,#00e5ff22,#00e5ff44)' : 'rgba(0,229,255,0.04)'};
+        border:1px solid ${filled ? 'rgba(0,229,255,0.6)' : 'rgba(0,229,255,0.12)'};
+        display:flex;align-items:center;justify-content:center;
+        font-size:${filled ? '13px' : '9px'};font-weight:700;
+        color:${filled ? '#00e5ff' : 'rgba(0,229,255,0.15)'};
+        transition:all 0.25s;
+        ${filled ? 'box-shadow:0 0 8px rgba(0,229,255,0.3);' : ''}
+      ">${filled ? val : '·'}</div>`;
+    }).join('');
+
+    // キュー表示
+    function renderQueue(arr, label, color) {
+      if (arr.length === 0) {
+        return `<div style="flex:1;text-align:center;padding:12px 8px">
+          <div style="font-size:9px;color:rgba(200,240,255,0.3);letter-spacing:2px;margin-bottom:6px">${label}</div>
+          <div style="font-size:12px;color:rgba(200,240,255,0.2)">DONE</div>
+        </div>`;
+      }
+      return `<div style="flex:1;text-align:center;padding:12px 8px">
+        <div style="font-size:9px;color:${color}88;letter-spacing:2px;margin-bottom:6px">${label}</div>
+        <div style="display:flex;gap:4px;justify-content:center;align-items:center;flex-wrap:wrap">
+          ${arr.map((v, i) => `
+            <div style="
+              width:${i === 0 ? '38px' : '30px'};height:${i === 0 ? '38px' : '30px'};
+              border-radius:${i === 0 ? '6px' : '4px'};
+              background:${i === 0 ? `linear-gradient(145deg,${color}33,${color}55)` : 'rgba(200,240,255,0.04)'};
+              border:1px solid ${i === 0 ? color + '88' : 'rgba(200,240,255,0.1)'};
+              display:flex;align-items:center;justify-content:center;
+              font-size:${i === 0 ? '15px' : '11px'};font-weight:700;
+              color:${i === 0 ? color : 'rgba(200,240,255,0.4)'};
+              ${i === 0 ? `box-shadow:0 0 10px ${color}44;` : ''}
+              transition:all 0.2s;
+            ">${v}</div>
+          `).join('')}
+        </div>
+      </div>`;
+    }
+
+    // ライフ表示
+    const livesHtml = Array.from({ length: 3 }, (_, i) =>
+      `<span style="color:${i < lives ? '#f87171' : 'rgba(255,255,255,0.1)'};font-size:16px">♥</span>`
+    ).join('');
+
+    // ボタン
+    const btnADisabled = queueA.length === 0 || animating;
+    const btnBDisabled = queueB.length === 0 || animating;
+    const showAutoBtn = (onlyA || onlyB) && !bothEmpty;
+
+    return `
+      <div style="max-width:420px;margin:0 auto;padding:12px 14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="display:flex;gap:3px">${livesHtml}</div>
+          <div style="text-align:center">
+            <div style="font-size:9px;color:rgba(200,240,255,0.4);letter-spacing:2px">SCORE</div>
+            <div style="font-size:20px;font-weight:900;color:#00e5ff">${score}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:9px;color:rgba(200,240,255,0.4);letter-spacing:2px">COMBO</div>
+            <div style="font-size:20px;font-weight:900;color:${combo >= 5 ? '#ff6d00' : combo >= 3 ? '#facc15' : '#e0e8ff'}">${combo}×</div>
+          </div>
+          <div style="font-size:9px;color:rgba(200,240,255,0.35);letter-spacing:1px">
+            ${m.label}<br><span style="color:${m.color}">${m.sub}</span>
+          </div>
+        </div>
+
+        ${m.timer > 0 ? `
+          <div style="height:5px;background:rgba(200,240,255,0.06);border-radius:3px;overflow:hidden;margin-bottom:8px">
+            <div style="height:100%;width:${timerRatio * 100}%;background:${timerColor};transition:width 0.1s linear,background 0.3s"></div>
+          </div>
+        ` : ''}
+
+        <div style="display:flex;gap:4px;justify-content:center;margin-bottom:8px">
+          ${renderQueue(queueA, 'QUEUE A', '#00e5ff')}
+          <div style="width:1px;background:rgba(200,240,255,0.08);align-self:stretch"></div>
+          ${renderQueue(queueB, 'QUEUE B', '#ff6d00')}
+        </div>
+
+        <div style="text-align:center;margin:6px 0 10px">
+          <div style="font-size:9px;color:rgba(200,240,255,0.35);letter-spacing:3px;margin-bottom:6px">
+            MERGE TOWER — ${merged.length}/${roundTotal}
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center">
+            ${towerCells}
+          </div>
+        </div>
+
+        ${bothEmpty ? `
+          <div style="text-align:center;padding:16px 0">
+            <div style="font-size:16px;color:#00e5ff;font-weight:900;letter-spacing:2px;margin-bottom:6px">✓ MERGE COMPLETE</div>
+            <button id="mgt-next-round" style="
+              padding:12px 32px;background:linear-gradient(135deg,rgba(0,229,255,0.2),rgba(0,229,255,0.12));
+              border:1px solid rgba(0,229,255,0.5);border-radius:8px;
+              color:#00e5ff;font-size:13px;font-weight:700;cursor:pointer;font-family:'Orbitron',monospace;
+              letter-spacing:2px;min-height:44px;
+            ">NEXT ROUND</button>
+          </div>
+        ` : showAutoBtn ? `
+          <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:4px">
+            <button id="mgt-auto-take" style="
+              padding:14px;background:linear-gradient(135deg,rgba(0,229,255,0.15),rgba(0,229,255,0.08));
+              border:1px solid rgba(0,229,255,0.4);border-radius:8px;
+              color:#00e5ff;font-size:13px;font-weight:700;cursor:pointer;
+              font-family:'Orbitron',monospace;letter-spacing:1px;min-height:44px;
+            ">→ 残りをすべて取り込む</button>
+          </div>
+        ` : `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px">
+            <button class="mgt-take-btn" data-src="A" ${btnADisabled ? 'disabled' : ''} style="
+              padding:16px 8px;
+              background:${!btnADisabled ? 'linear-gradient(135deg,rgba(0,229,255,0.18),rgba(0,229,255,0.09))' : 'rgba(255,255,255,0.03)'};
+              border:2px solid ${!btnADisabled ? 'rgba(0,229,255,0.55)' : 'rgba(255,255,255,0.05)'};
+              border-radius:8px;cursor:${btnADisabled ? 'not-allowed' : 'pointer'};
+              font-family:'Orbitron',monospace;
+              transition:all 0.15s;min-height:60px;
+            ">
+              <div style="font-size:9px;color:${!btnADisabled ? '#00e5ffaa' : 'rgba(200,240,255,0.2)'};letter-spacing:2px;margin-bottom:4px">QUEUE A</div>
+              <div style="font-size:${aHead !== undefined && String(aHead).length >= 3 ? '20px' : '26px'};font-weight:900;color:${!btnADisabled ? '#00e5ff' : 'rgba(200,240,255,0.1)'};${!btnADisabled ? 'text-shadow:0 0 12px rgba(0,229,255,0.5);' : ''}">${aHead !== undefined ? aHead : '—'}</div>
+            </button>
+            <button class="mgt-take-btn" data-src="B" ${btnBDisabled ? 'disabled' : ''} style="
+              padding:16px 8px;
+              background:${!btnBDisabled ? 'linear-gradient(135deg,rgba(255,109,0,0.18),rgba(255,109,0,0.09))' : 'rgba(255,255,255,0.03)'};
+              border:2px solid ${!btnBDisabled ? 'rgba(255,109,0,0.55)' : 'rgba(255,255,255,0.05)'};
+              border-radius:8px;cursor:${btnBDisabled ? 'not-allowed' : 'pointer'};
+              font-family:'Orbitron',monospace;
+              transition:all 0.15s;min-height:60px;
+            ">
+              <div style="font-size:9px;color:${!btnBDisabled ? '#ff6d00aa' : 'rgba(200,240,255,0.2)'};letter-spacing:2px;margin-bottom:4px">QUEUE B</div>
+              <div style="font-size:${bHead !== undefined && String(bHead).length >= 3 ? '20px' : '26px'};font-weight:900;color:${!btnBDisabled ? '#ff6d00' : 'rgba(200,240,255,0.1)'};${!btnBDisabled ? 'text-shadow:0 0 12px rgba(255,109,0,0.5);' : ''}">${bHead !== undefined ? bHead : '—'}</div>
+            </button>
+          </div>
+        `}
+      </div>
+    `;
+  }
+
+  // ─── リザルト画面 ──────────────────────────────
+  function renderResult() {
+    const m = MODES[currentMode];
+    const key = `mgt_hi_${currentMode}`;
+    const hi = parseInt(localStorage.getItem(key) || '0');
+    const isNew = score > 0 && score >= hi;
+    return `
+      <div style="max-width:380px;margin:0 auto;padding:36px 20px;text-align:center">
+        <div style="font-size:40px;margin-bottom:8px">${isNew ? '🏆' : '📊'}</div>
+        <div style="font-size:11px;color:${m.color};letter-spacing:3px;margin-bottom:4px">${m.label}</div>
+        <div style="font-size:52px;font-weight:900;color:#e0e8ff;line-height:1;margin-bottom:4px">${score}</div>
+        <div style="font-size:12px;color:rgba(200,240,255,0.4);margin-bottom:4px">${isNew ? '🎉 New Best!' : 'Best: ' + hi}</div>
+        <div style="font-size:11px;color:rgba(200,240,255,0.4);margin-bottom:28px">
+          MAX COMBO: <span style="color:#facc15;font-weight:700">${maxCombo}×</span>
+        </div>
+        <div style="display:flex;gap:9px;justify-content:center">
+          <button id="mgt-retry" style="
+            flex:1;padding:13px 0;font-weight:700;font-size:13px;
+            background:rgba(255,109,0,0.15);color:#ff6d00;
+            border:1px solid rgba(255,109,0,0.45);border-radius:8px;cursor:pointer;
+            font-family:'Orbitron',monospace;letter-spacing:1px;min-height:44px;
+          ">RETRY</button>
+          <button id="mgt-menu" style="
+            flex:1;padding:13px 0;font-weight:700;font-size:13px;
+            background:rgba(0,229,255,0.07);color:rgba(200,240,255,0.6);
+            border:1px solid rgba(200,240,255,0.15);border-radius:8px;cursor:pointer;
+            font-family:'Orbitron',monospace;letter-spacing:1px;min-height:44px;
+          ">MENU</button>
+        </div>
+      </div>
+    `;
+  }
+
+  // ─── イベントハンドラ ──────────────────────────
+  function attachHandlers() {
+    // メニューモード選択
+    document.querySelectorAll('.mgt-mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => { startRound(btn.dataset.mode); });
+    });
+
+    // 選択ボタン（QUEUE A / QUEUE B）
+    document.querySelectorAll('.mgt-take-btn').forEach(btn => {
+      btn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        if (animating) return;
+        handleTake(btn.dataset.src);
+      });
+    });
+
+    // 自動取り込みボタン
+    const autoBtn = document.getElementById('mgt-auto-take');
+    if (autoBtn) {
+      autoBtn.addEventListener('click', () => {
+        if (animating) return;
+        autoFlush();
+      });
+    }
+
+    // 次ラウンドボタン
+    const nextBtn = document.getElementById('mgt-next-round');
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => { startRound(currentMode); });
+    }
+
+    // リザルトボタン
+    const retryBtn = document.getElementById('mgt-retry');
+    if (retryBtn) retryBtn.addEventListener('click', () => { startRound(currentMode); });
+    const menuBtn = document.getElementById('mgt-menu');
+    if (menuBtn) menuBtn.addEventListener('click', () => {
+      screen = "menu";
+      clearInterval(timerInterval);
+      render();
+    });
+  }
+
+  // ─── ラウンド開始 ──────────────────────────────
+  function startRound(mode) {
+    currentMode = mode;
+    const m = MODES[mode];
+    screen = "game";
+    gameActive = true;
+    animating = false;
+
+    // 初回起動時のみスコア/コンボをリセット
+    if (merged.length === 0 || screen === "menu") {
+      score = 0; combo = 0; maxCombo = 0; lives = 3;
+    }
+
+    // 配列生成
+    const A = genSortedArray(m.size, []);
+    const B = genSortedArray(m.size, A);
+    queueA = A;
+    queueB = B;
+    merged = [];
+    roundTotal = A.length + B.length;
+
+    // タイマー
+    clearInterval(timerInterval);
+    if (m.timer > 0) {
+      timeRaw = m.timer * 10;
+      timerInterval = setInterval(() => {
+        if (!gameActive || screen !== "game") { clearInterval(timerInterval); return; }
+        timeRaw--;
+        if (timeRaw <= 0) {
+          clearInterval(timerInterval);
+          gameActive = false;
+          endGame();
+          return;
+        }
+        // タイマーバー直接更新
+        const fill = document.querySelector('#module-merge .mgt-timer-fill');
+        if (fill) {
+          const ratio = timeRaw / (m.timer * 10);
+          fill.style.width = (ratio * 100) + '%';
+          fill.style.background = ratio > 0.5 ? '#00e5ff' : ratio > 0.25 ? '#facc15' : '#f87171';
+        }
+      }, 100);
+    }
+
+    render();
+  }
+
+  // ─── 選択処理 ──────────────────────────────────
+  function handleTake(src) {
+    if (!gameActive || animating) return;
+    if (queueA.length === 0 && queueB.length === 0) return;
+
+    const aHead = queueA[0];
+    const bHead = queueB[0];
+
+    // 正解判定: 両方存在する場合のみ厳密判定（片方空なら強制的に残った方が正解）
+    let correct;
+    if (queueA.length === 0) {
+      correct = src === "B";
+    } else if (queueB.length === 0) {
+      correct = src === "A";
+    } else {
+      // 小さい方 (等値なら両方正解)
+      if (aHead < bHead) correct = src === "A";
+      else if (bHead < aHead) correct = src === "B";
+      else correct = true; // 等値は両方正解
+    }
+
+    if (correct) {
+      // 正解
+      const taken = src === "A" ? queueA.shift() : queueB.shift();
+      merged.push(taken);
+      combo++;
+      if (combo > maxCombo) maxCombo = combo;
+      const bonus = combo >= 5 ? 20 : combo >= 3 ? 15 : 10;
+      score += bonus;
+
+      // タワー追加アニメーション（瞬時にDOM更新）
+      animating = true;
+      render();
+      setTimeout(() => {
+        animating = false;
+        // 全部埋まったら完成
+        if (queueA.length === 0 && queueB.length === 0) {
+          clearInterval(timerInterval);
+          // ラウンドクリアボーナス
+          score += 50;
+          render();
+        }
+      }, 150);
+
+    } else {
+      // 誤選択
+      combo = 0;
+      lives--;
+      flashError();
+      if (lives <= 0) {
+        clearInterval(timerInterval);
+        gameActive = false;
+        setTimeout(() => endGame(), 400);
+        return;
+      }
+      render();
+    }
+  }
+
+  // ─── 残りを自動取り込み ────────────────────────
+  function autoFlush() {
+    // 片方のキューが空になったら残りは全て取り込む（マージアルゴリズムの残余処理）
+    const remaining = queueA.length > 0 ? queueA : queueB;
+    remaining.forEach(v => merged.push(v));
+    if (queueA.length > 0) queueA = [];
+    else queueB = [];
+    score += remaining.length * 5;
+    clearInterval(timerInterval);
+    render();
+  }
+
+  // ─── エラーフラッシュ ──────────────────────────
+  function flashError() {
+    const c = container();
+    if (!c) return;
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position:fixed;inset:0;background:rgba(255,23,68,0.18);
+      pointer-events:none;z-index:9999;
+      animation:mergeFlash 0.4s ease-out forwards;
+    `;
+    // CSS keyframesをstyleタグで挿入（重複挿入を防ぐ）
+    if (!document.getElementById('merge-flash-style')) {
+      const s = document.createElement('style');
+      s.id = 'merge-flash-style';
+      s.textContent = '@keyframes mergeFlash{0%{opacity:1}100%{opacity:0}}';
+      document.head.appendChild(s);
+    }
+    document.body.appendChild(overlay);
+    setTimeout(() => overlay.remove(), 500);
+  }
+
+  // ─── ゲーム終了 ────────────────────────────────
+  function endGame() {
+    gameActive = false;
+    clearInterval(timerInterval);
+    const key = `mgt_hi_${currentMode}`;
+    const hi = parseInt(localStorage.getItem(key) || '0');
+    if (score > hi) localStorage.setItem(key, score);
+    screen = "result";
+    render();
+  }
+
+  // ─── キーボードサポート ────────────────────────
+  function attachKeydown() {
+    if (keydownHandler) return;
+    keydownHandler = (e) => {
+      const c = container();
+      if (!c || !c.classList.contains('active')) return;
+      if (screen !== "game" || animating) return;
+      if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") handleTake("A");
+      if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") handleTake("B");
+    };
+    document.addEventListener("keydown", keydownHandler);
+  }
+
+  function detachKeydown() {
+    if (keydownHandler) {
+      document.removeEventListener("keydown", keydownHandler);
+      keydownHandler = null;
+    }
+  }
+
+  // ─── PUBLIC API ────────────────────────────────
+  return {
+    init() {
+      screen = "menu";
+      gameActive = false;
+      score = 0; combo = 0; maxCombo = 0; lives = 3;
+      queueA = []; queueB = []; merged = [];
+      clearInterval(timerInterval);
+      attachKeydown();
+      render();
+    },
+    destroy() {
+      clearInterval(timerInterval);
+      gameActive = false;
+      detachKeydown();
+    }
+  };
+
+})();
+
+</script>
+
+</body>
+</html>
