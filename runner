@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>CYBER RUNNER — 黒工電子科</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+  user-select:none;-webkit-user-select:none;}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;touch-action:none;}
+#gc{display:block;position:fixed;inset:0;width:100%;height:100%;z-index:1;}
+
+/* ══ HUD ══ */
+#hud{display:none;position:fixed;top:0;left:0;right:0;z-index:20;pointer-events:none;}
+#hud-inner{display:flex;justify-content:space-between;align-items:flex-start;
+  padding:10px 14px 0;
+  background:linear-gradient(180deg,rgba(0,0,14,.85) 0%,transparent 100%);}
+.hb{text-align:center;min-width:60px;}
+.hl{display:block;font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:3px;
+  color:rgba(0,243,255,.45);margin-bottom:1px;}
+.hv{display:block;font-family:'Orbitron',monospace;font-size:clamp(15px,4vw,21px);
+  font-weight:700;color:#fff;text-shadow:0 0 10px #00f3ff;}
+#skill-badge{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;
+  padding:2px 6px;border-radius:3px;margin-top:2px;transition:all .2s;display:block;}
+#skill-badge.r{background:rgba(0,243,255,.18);color:#00f3ff;border:1px solid rgba(0,243,255,.4);}
+#skill-badge.c{background:rgba(255,80,0,.14);color:#ff5000;border:1px solid rgba(255,80,0,.3);}
+
+/* speed bar */
+#spb-wrap{position:fixed;top:52px;left:0;right:0;height:3px;z-index:20;
+  pointer-events:none;background:rgba(255,255,255,.05);}
+#spb{height:100%;width:0%;transition:width .5s;
+  background:linear-gradient(90deg,#00f3ff,#bd00ff);}
+
+/* HYPERDRIVE badge */
+#hyper-badge{position:fixed;top:60px;left:50%;transform:translateX(-50%);
+  font-family:'Orbitron',monospace;font-size:clamp(12px,3.5vw,18px);font-weight:900;
+  letter-spacing:4px;color:#ff00cc;text-shadow:0 0 20px #ff00cc,0 0 40px #ff00cc;
+  pointer-events:none;z-index:25;opacity:0;transition:opacity .25s;}
+
+/* NEAR MISS / action flash */
+#popup{position:fixed;top:35%;left:50%;transform:translate(-50%,-50%);
+  font-family:'Orbitron',monospace;font-size:clamp(18px,5vw,28px);font-weight:900;
+  pointer-events:none;z-index:30;opacity:0;transition:opacity .2s;white-space:nowrap;}
+
+/* combo flash */
+#combo-flash{position:fixed;top:25%;left:50%;transform:translate(-50%,-50%);
+  font-family:'Orbitron',monospace;font-size:clamp(22px,6vw,40px);font-weight:900;
+  color:#fff;text-shadow:0 0 20px #00f3ff;pointer-events:none;z-index:30;
+  opacity:0;transition:opacity .25s;}
+
+/* state indicator */
+#state-ind{position:fixed;top:58px;left:50%;transform:translateX(-50%);
+  font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:3px;
+  color:rgba(255,220,0,.9);text-shadow:0 0 8px rgba(255,200,0,.6);
+  z-index:20;pointer-events:none;opacity:0;transition:opacity .15s;}
+
+/* swipe hint (表示は初回のみ) */
+#swipe-hint{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  font-family:'Share Tech Mono',monospace;font-size:clamp(9px,2.5vw,11px);
+  letter-spacing:2px;color:rgba(0,243,255,.5);text-align:center;
+  z-index:20;pointer-events:none;line-height:1.7;}
+
+/* ══ OVERLAYS ══ */
+.ov{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  background:rgba(0,0,12,.92);backdrop-filter:blur(8px);}
+.ov.hid{display:none;}
+
+/* ── SELECT ── */
+#sel{padding:16px 12px;overflow-y:auto;max-height:100vh;}
+.sel-t{font-family:'Orbitron',monospace;font-size:clamp(16px,5vw,26px);font-weight:900;
+  letter-spacing:5px;color:#00f3ff;text-shadow:0 0 18px #00f3ff;text-align:center;
+  margin-bottom:2px;}
+.sel-s{font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:4px;
+  color:rgba(0,243,255,.4);text-align:center;margin-bottom:10px;}
+#pv-c{display:block;width:140px;height:140px;margin:0 auto 10px;
+  border:1px solid rgba(0,243,255,.2);border-radius:6px;}
+.char-row{display:flex;gap:8px;justify-content:center;margin-bottom:10px;flex-wrap:wrap;}
+.cc{width:clamp(86px,26vw,106px);padding:9px 7px 7px;border-radius:6px;
+  background:rgba(255,255,255,.03);border:1.5px solid rgba(255,255,255,.08);
+  cursor:pointer;text-align:center;transition:all .18s;}
+.cc.sel2{border-color:var(--cc);box-shadow:0 0 14px var(--cc);background:rgba(255,255,255,.06);}
+.cc-ico{font-size:20px;margin-bottom:2px;}
+.cc-nm{font-family:'Share Tech Mono',monospace;font-size:clamp(8px,2vw,10px);color:#dde;
+  margin-bottom:2px;line-height:1.3;}
+.cc-sk{font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--cc);}
+.cc-ds{font-family:'Share Tech Mono',monospace;font-size:7.5px;color:rgba(180,200,220,.4);
+  margin-top:3px;line-height:1.4;text-align:left;}
+#char-desc{font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(200,220,255,.6);
+  text-align:center;min-height:28px;margin-bottom:12px;line-height:1.6;max-width:300px;}
+#go-btn{padding:13px 42px;font-family:'Orbitron',monospace;font-size:13px;font-weight:900;
+  letter-spacing:3px;color:#000;background:#00f3ff;border:none;border-radius:3px;
+  cursor:pointer;box-shadow:0 0 26px rgba(0,243,255,.65);
+  clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%);min-height:48px;}
+#go-btn:active{box-shadow:0 0 48px rgba(0,243,255,.95);}
+
+/* ── GAMEOVER / STATS ── */
+#gover{padding:20px 16px;overflow-y:auto;max-height:100vh;}
+.go-t{font-family:'Orbitron',monospace;font-size:clamp(24px,7vw,42px);font-weight:900;
+  color:#ff1744;text-shadow:0 0 28px #ff1744;letter-spacing:4px;text-align:center;
+  margin-bottom:6px;}
+.go-sc{font-family:'Orbitron',monospace;font-size:clamp(14px,4vw,24px);color:#fff;
+  text-align:center;margin-bottom:3px;}
+.go-hi{font-family:'Share Tech Mono',monospace;font-size:12px;color:#ffd700;
+  text-align:center;margin-bottom:16px;letter-spacing:2px;}
+/* stats grid */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;
+  max-width:340px;margin:0 auto 18px;}
+.stat-card{background:rgba(0,243,255,.06);border:1px solid rgba(0,243,255,.18);
+  border-radius:6px;padding:10px 8px;text-align:center;}
+.stat-val{font-family:'Orbitron',monospace;font-size:clamp(14px,4vw,19px);
+  font-weight:700;color:#00f3ff;display:block;}
+.stat-lbl{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px;
+  color:rgba(200,220,255,.45);margin-top:2px;display:block;}
+/* reflex age */
+.reflex-card{background:rgba(189,0,255,.08);border:1px solid rgba(189,0,255,.3);
+  border-radius:6px;padding:12px 10px;text-align:center;max-width:340px;
+  margin:0 auto 16px;}
+.reflex-val{font-family:'Orbitron',monospace;font-size:clamp(24px,7vw,36px);
+  font-weight:900;color:#bd00ff;text-shadow:0 0 16px #bd00ff;display:block;}
+.reflex-lbl{font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;
+  color:rgba(200,220,255,.5);margin-top:2px;display:block;}
+.go-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+.gbtn{padding:12px 28px;font-family:'Orbitron',monospace;font-size:11px;font-weight:700;
+  letter-spacing:2px;border-radius:4px;cursor:pointer;min-height:46px;}
+#btn-retry{background:#ff1744;color:#fff;border:none;box-shadow:0 0 16px rgba(255,23,68,.5);
+  clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%);}
+#btn-sel{background:transparent;color:rgba(200,220,255,.7);border:1px solid rgba(200,220,255,.22);}
+
+/* scan lines */
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:50;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,
+  rgba(0,0,0,.07) 2px,rgba(0,0,0,.07) 4px);}
+
+/* SLOWMO vignette */
+#slowmo-vignette{position:fixed;inset:0;pointer-events:none;z-index:40;opacity:0;
+  background:radial-gradient(ellipse at center,transparent 30%,rgba(255,200,0,.35) 100%);
+  transition:opacity .08s;}
+</style>
+</head>
+<body>
+<canvas id="gc"></canvas>
+
+<div id="hud">
+  <div id="hud-inner">
+    <div class="hb"><span class="hl">SCORE</span><span class="hv" id="h-score">0</span></div>
+    <div class="hb"><span class="hl">SKILL</span><span id="skill-badge" class="r">READY</span></div>
+    <div class="hb"><span class="hl">COMBO</span><span class="hv" id="h-combo">×0</span></div>
+    <div class="hb"><span class="hl">DIST</span><span class="hv" id="h-dist">0m</span></div>
+  </div>
+</div>
+<div id="spb-wrap"><div id="spb"></div></div>
+<div id="hyper-badge">⚡ HYPERDRIVE ⚡</div>
+<div id="popup"></div>
+<div id="combo-flash"></div>
+<div id="state-ind"></div>
+<div id="swipe-hint">← SWIPE →  |  ↑ JUMP  |  ↓ DUCK  |  DOUBLE TAP SKILL</div>
+<div id="slowmo-vignette"></div>
+
+<!-- SELECT -->
+<div class="ov" id="sel">
+  <div class="sel-t">CYBER RUNNER</div>
+  <div class="sel-s">黒工電子科 — CHARACTER SELECT</div>
+  <canvas id="pv-c" width="280" height="280"></canvas>
+  <div class="char-row" id="char-row"></div>
+  <div id="char-desc"></div>
+  <button id="go-btn">START MISSION</button>
+</div>
+
+<!-- GAMEOVER / STATS -->
+<div class="ov hid" id="gover">
+  <div class="go-t">GAME OVER</div>
+  <div class="go-sc" id="go-sc">SCORE: 0</div>
+  <div class="go-hi" id="go-hi">BEST: 0</div>
+  <div class="stats-grid" id="stats-grid"></div>
+  <div class="reflex-card">
+    <span class="reflex-val" id="reflex-age">--歳</span>
+    <span class="reflex-lbl">ESTIMATED REFLEX AGE</span>
+  </div>
+  <div class="go-row">
+    <button class="gbtn" id="btn-retry">RETRY</button>
+    <button class="gbtn" id="btn-sel">SELECT</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+
+// ══════════════════════════════════════════════════════════════
+//  CHARACTERS
+// ══════════════════════════════════════════════════════════════
+const CHARS=[
+  {id:'sphere',  name:'サイバー・スフィア',  geo:'Sphere',   color:0x00f3ff, speed:1.0,
+   skill:'MAGNET',       cd:1200, icon:'🔵',
+   desc:'磁気でアイテム引き寄せ。障害物は回避のみ。'},
+  {id:'cube',    name:'エレクトロ・キューブ', geo:'Box',      color:0xffd700, speed:1.3,
+   skill:'BREAK',        cd:2200, icon:'🟡',
+   desc:'超至近距離でウォールを爆破。ジャスト成功でスローモ発動！'},
+  {id:'cylinder',name:'マグネ・シリンダー',  geo:'Cylinder', color:0xbd00ff, speed:0.8,
+   skill:'SUPER_MAGNET', cd:900,  icon:'🟣',
+   desc:'全3レーンのアイテムを同時吸引。移動速度は遅い。'},
+];
+
+// ══════════════════════════════════════════════════════════════
+//  CONSTANTS
+// ══════════════════════════════════════════════════════════════
+const LANE_X        =[-2.4,0,2.4];
+const PLAYER_Z      =5;
+const SPAWN_Z       =-85;
+const DESPAWN_Z     =9;
+const FLOOR_Y       =-0.6;
+const PLAYER_R      =0.44;
+const OBS_POOL      =20;
+const ITEM_POOL     =20;
+const GRAVITY       =-23;
+const JUMP_VY       =9.8;
+const DUCK_Y        =FLOOR_Y-0.4;
+const NORMAL_Y      =FLOOR_Y;
+const BASE_SPD      =18;
+const SPD_INC_INT   =10;
+const SPD_INC_RATE  =0.10;
+const JUST_DIST     =4.8;
+const JUST_BONUS    =500;
+const NEAR_DIST_MIN =1.0;  // ニアミス判定: この距離以内
+const NEAR_DIST_MAX =2.2;  // かつこれより外
+const SKILL_RANGE   =36;
+const LANE_LERP     =14;
+const OBS_WALL='wall', OBS_BAR='bar', OBS_GATE='gate';
+const HYPER_COMBOS  =[10,20,30];  // ハイパードライブ発動コンボ数
+const SIGN_TEXTS    =[
+  '黒沢尻工業高校','電子科2年','← 右カーブ','混雑マップチェックした？',
+  'ブレーキは電子科が作った','お疲れ様でした','次のカーブに注意','電子科最高！',
+  '工業高校最強伝説','右→ 体育館','受付は1階','電子展示→こっち',
+  'KUROKO DENSHI','ERR: TOO FAST','WARNING: SPEED LIMIT',
+];
+
+// ══════════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════════
+let selIdx=0, selChar=CHARS[0], gstate='select';
+let score=0, hiScore=parseInt(localStorage.getItem('cr4_hi')||'0');
+let combo=0, dist=0, elapsed=0, lastTS=null;
+let lane=1, playerX=LANE_X[1], playerY=NORMAL_Y, playerVY=0;
+let isJump=false, isDuck=false;
+let skillCD=false, skillLast=-Infinity;
+let spawnT=0, spawnInterval=1.0, gameSpeed=BASE_SPD, speedLevel=0;
+let hyperActive=false, hyperT=0;
+let slowmoActive=false, slowmoT=0;
+let shakeT=0, camFOV=62, camRoll=0;
+let curvePhase=0;  // うねり演出用
+
+// ゲームスタッツ
+let statJumps=0, statDucks=0, statWallsBroken=0, statNearMiss=0, statMaxCombo=0;
+let statMaxSpeed=0, statItemsGot=0;
+
+// タイマーID保持（メモリ安全）
+let popupTimer=null, comboTimer=null, stateTimer=null, hyperTimer=null;
+let hintHideTimer=null;
+
+// ══════════════════════════════════════════════════════════════
+//  THREE.JS
+// ══════════════════════════════════════════════════════════════
+const canvas=document.getElementById('gc');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:false,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled=false;
+
+const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(0x000010,0.016);
+scene.background=new THREE.Color(0x000010);
+
+const camera=new THREE.PerspectiveCamera(62,1,0.1,160);
+camera.position.set(0,3.2,9.5);
+camera.lookAt(0,0.8,-12);
+
+function resize(){
+  const w=window.innerWidth,h=window.innerHeight;
+  renderer.setSize(w,h);
+  camera.aspect=w/h;
+  camera.updateProjectionMatrix();
+}
+resize();
+window.addEventListener('resize',resize);
+
+// ── LIGHTS ──
+scene.add(new THREE.AmbientLight(0x112244,1.6));
+const dirL=new THREE.DirectionalLight(0x88bbff,1.2);
+dirL.position.set(0,8,4); scene.add(dirL);
+const ptL1=new THREE.PointLight(0x00f3ff,2.2,55); ptL1.position.set(0,3,-22); scene.add(ptL1);
+const ptL2=new THREE.PointLight(0xbd00ff,1.6,45); ptL2.position.set(0,5,0);   scene.add(ptL2);
+
+// ══════════════════════════════════════════════════════════════
+//  STAGE — FLOOR & GRID
+// ══════════════════════════════════════════════════════════════
+const GRID_SIZE=120, GRID_DIV=24, GRID_CNT=3;
+const grids=[];
+for(let i=0;i<GRID_CNT;i++){
+  const g=new THREE.GridHelper(GRID_SIZE,GRID_DIV,0x00f3ff,0x001133);
+  g.material.opacity=0.35; g.material.transparent=true;
+  g.position.set(0,FLOOR_Y-0.01,-GRID_SIZE*i+PLAYER_Z-10);
+  scene.add(g); grids.push(g);
+}
+
+// 床 2枚ループ
+const floorGeo=new THREE.PlaneGeometry(7,GRID_SIZE*1.6);
+const floorMat=new THREE.MeshPhongMaterial({color:0x050515,emissive:0x000818,specular:0x001133,shininess:50});
+const fl1=new THREE.Mesh(floorGeo,floorMat);
+const fl2=new THREE.Mesh(floorGeo,floorMat);
+fl1.rotation.x=-Math.PI/2; fl1.position.set(0,FLOOR_Y-0.02,-40);
+fl2.rotation.x=-Math.PI/2; fl2.position.set(0,FLOOR_Y-0.02,-40-GRID_SIZE*1.6);
+scene.add(fl1); scene.add(fl2);
+
+// サイドネオンライン
+function makeSideLine(x,color,y,op){
+  const pts=[new THREE.Vector3(x,y,PLAYER_Z+3),new THREE.Vector3(x,y,SPAWN_Z-5)];
+  const g=new THREE.BufferGeometry().setFromPoints(pts);
+  const m=new THREE.LineBasicMaterial({color,transparent:true,opacity:op});
+  scene.add(new THREE.Line(g,m));
+}
+makeSideLine(-3.5,0x00f3ff,-0.5,0.3); makeSideLine(3.5,0x00f3ff,-0.5,0.3);
+makeSideLine(-3.5,0xbd00ff,3.0,0.15); makeSideLine(3.5,0xbd00ff,3.0,0.15);
+makeSideLine(-1.2,0x002233,FLOOR_Y+0.01,0.45); makeSideLine(1.2,0x002233,FLOOR_Y+0.01,0.45);
+
+// 床の接近警告ネオン（障害物が近いと色が変わる）
+const warningGeo=new THREE.PlaneGeometry(7,2);
+const warningMat=new THREE.MeshBasicMaterial({color:0x00f3ff,transparent:true,opacity:0,side:THREE.DoubleSide});
+const warningStrip=new THREE.Mesh(warningGeo,warningMat);
+warningStrip.rotation.x=-Math.PI/2;
+warningStrip.position.set(0,FLOOR_Y+0.005,PLAYER_Z-1.5);
+scene.add(warningStrip);
+
+function updateWarning(){
+  // 最も近い障害物との距離を計算
+  let minDist=999;
+  obsPool.forEach(g=>{
+    if(!g.userData.active) return;
+    const dz=g.position.z-PLAYER_Z;
+    if(dz<0&&dz>-20&&Math.abs(g.position.x-playerX)<2.5) minDist=Math.min(minDist,-dz);
+  });
+  if(minDist<20){
+    const t=1-minDist/20;
+    const r=Math.floor(t*255), gb=Math.floor((1-t)*255);
+    // 青→黄→赤 ネオン変化（床のみ、全画面フラッシュなし）
+    if(t<0.5){
+      warningMat.color.setHex(0x00f3ff); warningMat.opacity=t*0.35;
+    } else {
+      warningMat.color.setHex(t>0.8?0xff1744:0xffd700);
+      warningMat.opacity=(t-0.5)*0.7;
+    }
+    grids.forEach(g=>{ g.material.opacity=0.35+t*0.4; });
+  } else {
+    warningMat.opacity*=0.88;
+    grids.forEach(g=>{ g.material.opacity=0.35; });
+  }
+}
+
+function scrollWorld(delta){
+  const spd=gameSpeed*delta;
+  grids.forEach(g=>{
+    g.position.z+=spd;
+    if(g.position.z>PLAYER_Z+10) g.position.z-=GRID_SIZE*GRID_CNT;
+  });
+  fl1.position.z+=spd; fl2.position.z+=spd;
+  if(fl1.position.z>PLAYER_Z+50) fl1.position.z-=GRID_SIZE*3.2;
+  if(fl2.position.z>PLAYER_Z+50) fl2.position.z-=GRID_SIZE*3.2;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  STAR FIELD
+// ══════════════════════════════════════════════════════════════
+const STAR_N=340;
+const starBuf=new Float32Array(STAR_N*3);
+for(let i=0;i<STAR_N;i++){
+  starBuf[i*3]=(Math.random()-0.5)*26;
+  starBuf[i*3+1]=Math.random()*9-1;
+  starBuf[i*3+2]=Math.random()*-130;
+}
+const starGeo=new THREE.BufferGeometry();
+starGeo.setAttribute('position',new THREE.BufferAttribute(starBuf,3));
+const starMat=new THREE.PointsMaterial({color:0x99ddff,size:0.08,transparent:true,opacity:0.65,sizeAttenuation:true});
+scene.add(new THREE.Points(starGeo,starMat));
+
+function updateStars(delta){
+  const pos=starGeo.attributes.position;
+  const spd=gameSpeed*delta*1.5;
+  for(let i=0;i<STAR_N;i++){
+    pos.array[i*3+2]+=spd;
+    if(pos.array[i*3+2]>PLAYER_Z+5){
+      pos.array[i*3]=(Math.random()-0.5)*26;
+      pos.array[i*3+1]=Math.random()*9-1;
+      pos.array[i*3+2]=SPAWN_Z-Math.random()*20;
+    }
+  }
+  pos.needsUpdate=true;
+  starMat.opacity=0.6+Math.min(0.35,(gameSpeed-BASE_SPD)/55);
+  starMat.size=0.07+Math.min(0.14,(gameSpeed-BASE_SPD)/75);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SPEED LINES
+// ══════════════════════════════════════════════════════════════
+const SL_N=32;
+const slBuf=new Float32Array(SL_N*6);
+const slGeo=new THREE.BufferGeometry();
+slGeo.setAttribute('position',new THREE.BufferAttribute(slBuf,3));
+const slMat=new THREE.LineBasicMaterial({color:0x00f3ff,transparent:true,opacity:0});
+const slMesh=new THREE.LineSegments(slGeo,slMat);
+scene.add(slMesh);
+const slData=[];
+for(let i=0;i<SL_N;i++) slData.push({x:(Math.random()-0.5)*8,y:Math.random()*5-0.5,z:Math.random()*-90,len:4+Math.random()*8});
+
+function updateSpeedLines(delta){
+  const pos=slGeo.attributes.position;
+  const spd=gameSpeed*delta*1.2;
+  const op=Math.min(0.55,(gameSpeed-BASE_SPD*0.9)/28);
+  slMat.opacity=gstate==='playing'?op:0;
+  slData.forEach((sl,i)=>{
+    sl.z+=spd;
+    if(sl.z>PLAYER_Z+3){
+      sl.x=(Math.random()-0.5)*8; sl.y=Math.random()*5-0.5;
+      sl.z=SPAWN_Z-Math.random()*30;
+      sl.len=4+Math.random()*12*(gameSpeed/BASE_SPD);
+    }
+    pos.array[i*6]=sl.x; pos.array[i*6+1]=sl.y; pos.array[i*6+2]=sl.z;
+    pos.array[i*6+3]=sl.x; pos.array[i*6+4]=sl.y; pos.array[i*6+5]=sl.z-sl.len;
+  });
+  pos.needsUpdate=true;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  KUROKO SIGNS（黒工サイバー看板）
+// ══════════════════════════════════════════════════════════════
+const SIGN_POOL_N=6;
+const signPool=[];
+const signCanvas2d=document.createElement('canvas');
+signCanvas2d.width=512; signCanvas2d.height=128;
+const signCtx=signCanvas2d.getContext('2d');
+
+function makeSignTexture(text){
+  const c=signCanvas2d, ctx=signCtx;
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.fillStyle='rgba(0,10,30,0.85)';
+  ctx.fillRect(0,0,c.width,c.height);
+  // border
+  ctx.strokeStyle='#00f3ff'; ctx.lineWidth=3;
+  ctx.strokeRect(2,2,c.width-4,c.height-4);
+  // text
+  ctx.fillStyle='#00f3ff';
+  ctx.font='bold 52px monospace';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.shadowColor='#00f3ff'; ctx.shadowBlur=18;
+  ctx.fillText(text,c.width/2,c.height/2);
+  const tex=new THREE.CanvasTexture(c);
+  return tex;
+}
+
+const signGeo=new THREE.PlaneGeometry(4.5,1.1);
+for(let i=0;i<SIGN_POOL_N;i++){
+  const tex=makeSignTexture(SIGN_TEXTS[i%SIGN_TEXTS.length]);
+  const mat=new THREE.MeshBasicMaterial({map:tex,transparent:true,opacity:0,side:THREE.DoubleSide});
+  const mesh=new THREE.Mesh(signGeo,mat);
+  mesh.visible=false;
+  mesh.userData={active:false,textIdx:i};
+  scene.add(mesh);
+  signPool.push(mesh);
+}
+
+function activateSign(mesh){
+  const idx=Math.floor(Math.random()*SIGN_TEXTS.length);
+  const tex=makeSignTexture(SIGN_TEXTS[idx]);
+  mesh.material.map.dispose();
+  mesh.material.map=tex;
+  mesh.material.map.needsUpdate=true;
+  mesh.material.opacity=0;
+  const side=Math.random()<0.5?-1:1;
+  mesh.position.set(side*(5+Math.random()*3),1.8+Math.random()*2,SPAWN_Z-Math.random()*20);
+  mesh.rotation.y=side*(-0.25+Math.random()*0.15);
+  mesh.userData.active=true;
+  mesh.visible=true;
+}
+
+let signTimer=0;
+function updateSigns(delta){
+  signTimer+=delta;
+  if(signTimer>4.5+Math.random()*3){
+    signTimer=0;
+    const s=signPool.find(m=>!m.userData.active);
+    if(s) activateSign(s);
+  }
+  signPool.forEach(m=>{
+    if(!m.userData.active) return;
+    m.position.z+=gameSpeed*delta;
+    // フェードイン/アウト
+    const dz=m.position.z-PLAYER_Z;
+    if(dz<-5) m.material.opacity=Math.min(0.92,(m.position.z-SPAWN_Z)/30*0.92);
+    else m.material.opacity=Math.max(0,m.material.opacity-delta*3);
+    if(m.position.z>PLAYER_Z+10){ m.userData.active=false; m.visible=false; }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PLAYER
+// ══════════════════════════════════════════════════════════════
+let playerGroup=null,playerMesh=null,playerGlow=null,playerReflect=null;
+
+function buildPlayer(prof){
+  if(playerGroup) scene.remove(playerGroup);
+  playerGroup=new THREE.Group();
+  let geo;
+  switch(prof.geo){
+    case 'Sphere':   geo=new THREE.SphereGeometry(PLAYER_R,22,22); break;
+    case 'Box':      geo=new THREE.BoxGeometry(0.82,0.82,0.82); break;
+    case 'Cylinder': geo=new THREE.CylinderGeometry(0.42,0.42,0.88,18); break;
+  }
+  const mat=new THREE.MeshPhongMaterial({
+    color:prof.color,emissive:prof.color,emissiveIntensity:0.55,
+    specular:0xffffff,shininess:90
+  });
+  playerMesh=new THREE.Mesh(geo,mat);
+  playerGroup.add(playerMesh);
+
+  // glow
+  const gG=new THREE.SphereGeometry(PLAYER_R*1.9,10,10);
+  const gM=new THREE.MeshBasicMaterial({color:prof.color,transparent:true,opacity:0.1});
+  playerGlow=new THREE.Mesh(gG,gM); playerGroup.add(playerGlow);
+
+  // 床への擬似リフレクション（プレイヤーの影・反射）
+  const rGeo=new THREE.PlaneGeometry(1.2,1.2);
+  const rMat=new THREE.MeshBasicMaterial({color:prof.color,transparent:true,opacity:0.18,side:THREE.DoubleSide});
+  playerReflect=new THREE.Mesh(rGeo,rMat);
+  playerReflect.rotation.x=-Math.PI/2;
+  playerReflect.position.y=FLOOR_Y-NORMAL_Y+0.01;
+  playerGroup.add(playerReflect);
+
+  playerGroup.position.set(playerX,playerY,PLAYER_Z);
+  scene.add(playerGroup);
+}
+
+// コンボによるオーラ強化
+function updatePlayerAura(){
+  if(!playerGlow) return;
+  const aura=Math.min(0.35,combo*0.015);
+  playerGlow.material.opacity=0.08+aura;
+  const scale=1+aura*0.6;
+  playerGlow.scale.set(scale,scale,scale);
+  // ハイパードライブ中はオーラ爆発
+  if(hyperActive){ playerGlow.material.opacity=0.5; playerGlow.scale.set(2.2,2.2,2.2); }
+}
+
+function updatePlayer(delta){
+  // gravity
+  if(isJump){
+    playerVY+=GRAVITY*delta;
+    playerY+=playerVY*delta;
+    if(playerY<=NORMAL_Y){ playerY=NORMAL_Y; playerVY=0; isJump=false; showState(''); }
+  }
+  if(isDuck&&!isJump) playerY=DUCK_Y;
+  else if(!isJump) playerY=NORMAL_Y;
+
+  // lane lerp
+  const dxL=LANE_X[lane]-playerX;
+  playerX+=dxL*Math.min(1,LANE_LERP*delta);
+
+  playerGroup.position.set(playerX,playerY,PLAYER_Z);
+  playerGroup.rotation.z=-dxL*0.22;
+  playerGlow.rotation.y+=delta*2.2;
+
+  // duck scale
+  const ty=isDuck?0.55:1.0, cy=playerGroup.scale.y;
+  playerGroup.scale.y+=(ty-cy)*Math.min(1,18*delta);
+
+  // reflect opacity (高いほど暗くなる)
+  if(playerReflect){
+    playerReflect.material.opacity=0.18*Math.max(0,1-(playerY-FLOOR_Y)/2.5);
+  }
+
+  updatePlayerAura();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  OBSTACLE PREVIEW MARKERS（予告マーカー：床の影）
+// ══════════════════════════════════════════════════════════════
+const markerGeo=new THREE.PlaneGeometry(1.8,0.3);
+const markerMats={
+  [OBS_WALL]:new THREE.MeshBasicMaterial({color:0xff1744,transparent:true,opacity:0,side:THREE.DoubleSide}),
+  [OBS_BAR]: new THREE.MeshBasicMaterial({color:0xffd700,transparent:true,opacity:0,side:THREE.DoubleSide}),
+  [OBS_GATE]:new THREE.MeshBasicMaterial({color:0xbd00ff,transparent:true,opacity:0,side:THREE.DoubleSide}),
+};
+const obsMarkers=[];
+const markerMeshMap=new Map(); // obsGroup → markerMesh
+
+function getOrCreateMarker(obsGroup){
+  if(markerMeshMap.has(obsGroup)) return markerMeshMap.get(obsGroup);
+  const type=obsGroup.userData.type;
+  const m=new THREE.Mesh(markerGeo,markerMats[type].clone());
+  m.rotation.x=-Math.PI/2;
+  scene.add(m);
+  markerMeshMap.set(obsGroup,m);
+  return m;
+}
+
+function updateMarkers(){
+  obsPool.forEach(g=>{
+    if(!g.userData.active){ 
+      if(markerMeshMap.has(g)) markerMeshMap.get(g).material.opacity=0;
+      return;
+    }
+    const dz=g.position.z-PLAYER_Z;
+    if(dz>-35&&dz<0){
+      const m=getOrCreateMarker(g);
+      m.position.set(g.position.x,FLOOR_Y+0.008,g.position.z);
+      const op=Math.min(0.6,(1+dz/35)*0.6);
+      m.material.opacity=op;
+      // 点滅（近いほど速く）
+      if(dz>-12){
+        const pulse=Math.sin(Date.now()*(-dz/12*20)*0.001)*0.5+0.5;
+        m.material.opacity=op*pulse;
+      }
+    } else if(markerMeshMap.has(g)){
+      markerMeshMap.get(g).material.opacity=0;
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  OBSTACLE POOL
+// ══════════════════════════════════════════════════════════════
+const OBS_GEOS={
+  [OBS_WALL]:new THREE.BoxGeometry(2.2,2.4,0.6),
+  [OBS_BAR]: new THREE.CylinderGeometry(0.22,0.22,2.5,12),
+  [OBS_GATE]:new THREE.TorusGeometry(1.15,0.22,10,24),
+};
+const OBS_MATS={
+  [OBS_WALL]:new THREE.MeshPhongMaterial({color:0xff1744,emissive:0x440008,emissiveIntensity:0.65,specular:0xff4466,shininess:60}),
+  [OBS_BAR]: new THREE.MeshPhongMaterial({color:0xffd700,emissive:0x331a00,emissiveIntensity:0.55,specular:0xffee88,shininess:70}),
+  [OBS_GATE]:new THREE.MeshPhongMaterial({color:0xbd00ff,emissive:0x220044,emissiveIntensity:0.65,specular:0xcc66ff,shininess:80}),
+};
+const obsPool=[];
+for(let i=0;i<OBS_POOL;i++){
+  const g=new THREE.Group();
+  const type=[OBS_WALL,OBS_BAR,OBS_GATE][i%3];
+  const m=new THREE.Mesh(OBS_GEOS[type],OBS_MATS[type]);
+  if(type===OBS_BAR) m.rotation.z=Math.PI/2;
+  g.add(m);
+  g.userData={active:false,type,lane:0,mesh:m,passed:false};
+  g.visible=false; scene.add(g); obsPool.push(g);
+}
+function getObsY(t){return t===OBS_BAR?FLOOR_Y+0.22:t===OBS_GATE?1.8:0.6;}
+function activateObs(g,type,li){
+  const old=g.userData.mesh; g.remove(old);
+  const m=new THREE.Mesh(OBS_GEOS[type],OBS_MATS[type]);
+  if(type===OBS_BAR) m.rotation.z=Math.PI/2;
+  g.add(m); g.userData.mesh=m; g.userData.type=type;
+  g.userData.lane=li; g.userData.active=true; g.userData.passed=false;
+  g.position.set(LANE_X[li],getObsY(type),SPAWN_Z); g.visible=true;
+}
+function deactivateObs(g){
+  g.userData.active=false; g.visible=false;
+  g.position.z=SPAWN_Z-300;
+  if(markerMeshMap.has(g)) markerMeshMap.get(g).material.opacity=0;
+}
+function randomObsType(){
+  const r=Math.random();
+  return r<0.45?OBS_WALL:r<0.75?OBS_BAR:OBS_GATE;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ITEM POOL
+// ══════════════════════════════════════════════════════════════
+const iGeo=new THREE.SphereGeometry(0.36,10,10);
+const iMat=new THREE.MeshPhongMaterial({color:0x00ff88,emissive:0x003311,emissiveIntensity:0.85,specular:0xffffff,shininess:100});
+const itemPool=[];
+for(let i=0;i<ITEM_POOL;i++){
+  const m=new THREE.Mesh(iGeo,iMat.clone());
+  m.visible=false; m.userData={active:false,lane:0};
+  scene.add(m); itemPool.push(m);
+}
+function activateItem(m,li,z){ m.userData.active=true; m.userData.lane=li; m.position.set(LANE_X[li],FLOOR_Y+0.55,z); m.visible=true; }
+function deactivateItem(m){ m.userData.active=false; m.visible=false; m.position.z=SPAWN_Z-300; }
+
+// ══════════════════════════════════════════════════════════════
+//  SPAWN
+// ══════════════════════════════════════════════════════════════
+function spawnNext(){
+  const isItem=Math.random()<0.43;
+  const li=Math.floor(Math.random()*3);
+  if(isItem){
+    const cnt=Math.random()<0.38?2:1;
+    let n=0;
+    for(let i=0;i<itemPool.length&&n<cnt;i++){
+      if(!itemPool[i].userData.active){ activateItem(itemPool[i],li,SPAWN_Z-n*4.5); n++; }
+    }
+  } else {
+    const type=randomObsType();
+    const p=obsPool.find(g=>!g.userData.active);
+    if(p) activateObs(p,type,li);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  LASER & MAGNET BEAM
+// ══════════════════════════════════════════════════════════════
+const laserGeo=new THREE.CylinderGeometry(0.055,0.055,65,8);
+const laserMat=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0});
+const laserMesh=new THREE.Mesh(laserGeo,laserMat);
+laserMesh.rotation.x=Math.PI/2; scene.add(laserMesh);
+let laserT=0;
+function fireLaser(x){ laserMesh.position.set(x,playerY,PLAYER_Z-32); laserMat.opacity=1; laserT=0.16; }
+function updateLaser(delta){ if(laserT>0){ laserT-=delta; laserMat.opacity=Math.max(0,laserT/0.16); } }
+
+// 磁力ビーム（MAGNETスキル視覚化）
+const beamLines=[];
+for(let i=0;i<8;i++){
+  const bg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);
+  const bm=new THREE.LineBasicMaterial({color:0x00f3ff,transparent:true,opacity:0});
+  beamLines.push({mesh:new THREE.Line(bg,bm),timer:0});
+  scene.add(beamLines[i].mesh);
+}
+function showMagnetBeam(fromPos,toPos){
+  const bl=beamLines.find(b=>b.timer<=0);
+  if(!bl) return;
+  const pts=bl.mesh.geometry.attributes.position;
+  if(!pts){ // rebuild
+    bl.mesh.geometry=new THREE.BufferGeometry().setFromPoints([fromPos.clone(),toPos.clone()]);
+  } else {
+    fromPos.toArray(pts.array,0); toPos.toArray(pts.array,3); pts.needsUpdate=true;
+  }
+  bl.mesh.material.opacity=0.75; bl.timer=0.2;
+}
+function updateBeams(delta){
+  beamLines.forEach(bl=>{
+    if(bl.timer>0){ bl.timer-=delta; bl.mesh.material.opacity=Math.max(0,bl.timer/0.2*0.75); }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PARTICLES
+// ══════════════════════════════════════════════════════════════
+const PART_N=36;
+const pMeshes=[];
+for(let i=0;i<PART_N;i++){
+  const m=new THREE.Mesh(
+    new THREE.SphereGeometry(0.07,4,4),
+    new THREE.MeshBasicMaterial({color:0xffd700,transparent:true})
+  );
+  m.visible=false; m.userData={vel:new THREE.Vector3(),life:0,maxLife:0};
+  scene.add(m); pMeshes.push(m);
+}
+function spawnParticles(pos,color,count=14){
+  let n=0;
+  for(let i=0;i<pMeshes.length&&n<count;i++){
+    const m=pMeshes[i]; if(m.visible) continue;
+    m.material.color.setHex(color); m.position.copy(pos);
+    const spd=4+Math.random()*10, ang=Math.random()*Math.PI*2;
+    m.userData.vel.set(Math.cos(ang)*spd*(Math.random()-0.5)*2,Math.random()*7+2,(Math.random()-0.5)*spd);
+    m.userData.life=0.7+Math.random()*0.35; m.userData.maxLife=m.userData.life;
+    m.visible=true; n++;
+  }
+}
+function updateParticles(delta){
+  pMeshes.forEach(m=>{
+    if(!m.visible) return;
+    m.userData.life-=delta;
+    if(m.userData.life<=0){m.visible=false;return;}
+    m.position.addScaledVector(m.userData.vel,delta);
+    m.userData.vel.y+=GRAVITY*delta*0.45;
+    m.material.opacity=m.userData.life/m.userData.maxLife;
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  HYPERDRIVE
+// ══════════════════════════════════════════════════════════════
+const hyperBadge=document.getElementById('hyper-badge');
+function triggerHyper(){
+  if(hyperActive) return;
+  hyperActive=true; hyperT=3.5;
+  hyperBadge.style.opacity='1';
+  // 背景色をビビッドピンクへ
+  scene.background=new THREE.Color(0x1a0025);
+  scene.fog=new THREE.FogExp2(0x1a0025,0.018);
+  grids.forEach(g=>{ g.material.color.setHex(0xff00cc); });
+  playSfx('hyper');
+  clearTimeout(hyperTimer);
+  hyperTimer=setTimeout(()=>{
+    hyperActive=false;
+    hyperBadge.style.opacity='0';
+    scene.background=new THREE.Color(0x000010);
+    scene.fog=new THREE.FogExp2(0x000010,0.016);
+    grids.forEach(g=>{ g.material.color.setHex(0x00f3ff); });
+  },3500);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SLOW MOTION（ジャスト演出）
+// ══════════════════════════════════════════════════════════════
+let timeScale=1; // 1=通常, 0.08=スロー
+const slowVig=document.getElementById('slowmo-vignette');
+function triggerSlowmo(){
+  if(slowmoActive) return;
+  slowmoActive=true; timeScale=0.08;
+  slowVig.style.opacity='1';
+  setTimeout(()=>{
+    slowmoActive=false; timeScale=1;
+    slowVig.style.opacity='0';
+  },180);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SKILL
+// ══════════════════════════════════════════════════════════════
+function activateSkill(){
+  if(gstate!=='playing') return;
+  initAudio();
+  const now=performance.now();
+  if(now-skillLast<selChar.cd) return;
+  skillLast=now; skillCD=true;
+  fireLaser(playerX);
+
+  switch(selChar.skill){
+    case 'MAGNET':
+      itemPool.forEach(m=>{
+        if(!m.userData.active) return;
+        if(m.userData.lane!==lane) return;
+        if(m.position.z<PLAYER_Z&&m.position.z>PLAYER_Z-SKILL_RANGE){
+          showMagnetBeam(m.position,playerGroup.position);
+          m.position.z=PLAYER_Z+0.4;
+        }
+      });
+      break;
+
+    case 'BREAK':{
+      let closest=null, closestZ=-Infinity;
+      obsPool.forEach(g=>{
+        if(!g.userData.active) return;
+        if(g.userData.type!==OBS_WALL) return;
+        if(g.userData.lane!==lane) return;
+        if(g.position.z<PLAYER_Z&&g.position.z>closestZ){ closestZ=g.position.z; closest=g; }
+      });
+      if(closest){
+        const isJust=closestZ>PLAYER_Z-JUST_DIST;
+        if(isJust){ triggerSlowmo(); score+=JUST_BONUS; showPopup(`⚡ JUST! +${JUST_BONUS}`,'#ffd700'); }
+        spawnParticles(closest.position.clone(),isJust?0xffd700:0xff6600,isJust?24:14);
+        deactivateObs(closest);
+        statWallsBroken++;
+        playSfx('break');
+      }
+      break;
+    }
+
+    case 'SUPER_MAGNET':
+      itemPool.forEach(m=>{
+        if(!m.userData.active) return;
+        if(m.position.z<PLAYER_Z&&m.position.z>PLAYER_Z-SKILL_RANGE){
+          showMagnetBeam(m.position,playerGroup.position);
+          m.position.z=PLAYER_Z+0.4;
+        }
+      });
+      break;
+  }
+  setTimeout(()=>{skillCD=false;},selChar.cd);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  NEAR MISS
+// ══════════════════════════════════════════════════════════════
+function checkNearMiss(g){
+  if(g.userData.passed) return;
+  const dz=g.position.z-PLAYER_Z;
+  if(dz>0&&dz<0.8){
+    g.userData.passed=true;
+    const dx=Math.abs(g.position.x-playerX);
+    if(dx>=NEAR_DIST_MIN&&dx<=NEAR_DIST_MAX){
+      score+=50; statNearMiss++;
+      showPopup('NEAR MISS! +50','#00ff88');
+      playSfx('nearmiss');
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  COLLISION
+// ══════════════════════════════════════════════════════════════
+function checkCollisions(){
+  const pz=PLAYER_Z, py=playerY, px=playerX;
+  // 速度比例型 Z判定補正（速いほど当たり判定を少し手前に縮小してフェア感を保つ）
+  const zComp=Math.min(0.25,(gameSpeed-BASE_SPD)/120);
+
+  itemPool.forEach(m=>{
+    if(!m.userData.active) return;
+    if(Math.abs(m.position.z-pz)<0.75&&Math.abs(m.position.x-px)<0.88){
+      score+=10*(1+Math.floor(combo/5)); combo++;
+      if(combo>statMaxCombo) statMaxCombo=combo;
+      statItemsGot++;
+      updateHUD(); showCombo();
+      // コンボ10/20/30でハイパードライブ
+      if(HYPER_COMBOS.includes(combo)) triggerHyper();
+      playSfx('item'); deactivateItem(m);
+    }
+  });
+
+  obsPool.forEach(g=>{
+    if(!g.userData.active) return;
+    checkNearMiss(g);
+    const dz=Math.abs(g.position.z-pz);
+    const dx=Math.abs(g.position.x-px);
+    if(dz>2.2||dx>1.5) return;
+
+    const type=g.userData.type;
+    let hit=false;
+    const zTh=0.85-zComp;
+
+    if(type===OBS_WALL){
+      if(dz<zTh&&dx<1.05) hit=true;
+    } else if(type===OBS_BAR){
+      if(dz<0.65&&dx<1.15&&(!isJump||(py<FLOOR_Y+0.85))) hit=true;
+    } else if(type===OBS_GATE){
+      if(dz<0.65&&dx<1.2&&!isDuck) hit=true;
+    }
+    if(hit) triggerGameOver();
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  HUD
+// ══════════════════════════════════════════════════════════════
+const hScore=document.getElementById('h-score');
+const hCombo=document.getElementById('h-combo');
+const hDist=document.getElementById('h-dist');
+const skillBadge=document.getElementById('skill-badge');
+const spb=document.getElementById('spb');
+const stateInd=document.getElementById('state-ind');
+const comboFlashEl=document.getElementById('combo-flash');
+const popupEl=document.getElementById('popup');
+
+function updateHUD(){
+  hScore.textContent=score;
+  hCombo.textContent='×'+combo;
+  hDist.textContent=Math.floor(dist)+'m';
+}
+function updateSkillHUD(now){
+  const rem=selChar.cd-(now-skillLast);
+  if(!skillCD||rem<=0){
+    skillBadge.textContent='READY'; skillBadge.className='r';
+  } else {
+    skillBadge.textContent=(rem/1000).toFixed(1)+'s'; skillBadge.className='c';
+  }
+}
+function showCombo(){
+  if(combo<3) return;
+  comboFlashEl.textContent='COMBO ×'+combo;
+  comboFlashEl.style.color=combo>=20?'#ff00cc':combo>=10?'#ffd700':'#fff';
+  comboFlashEl.style.textShadow=combo>=20?'0 0 24px #ff00cc':'0 0 20px #00f3ff';
+  comboFlashEl.style.opacity='1';
+  clearTimeout(comboTimer);
+  comboTimer=setTimeout(()=>{comboFlashEl.style.opacity='0';},750);
+}
+function showPopup(txt,color='#00f3ff'){
+  popupEl.textContent=txt; popupEl.style.color=color;
+  popupEl.style.textShadow=`0 0 18px ${color}`;
+  popupEl.style.opacity='1';
+  clearTimeout(popupTimer);
+  popupTimer=setTimeout(()=>{popupEl.style.opacity='0';},900);
+}
+function showState(txt){
+  clearTimeout(stateTimer);
+  if(!txt){stateInd.style.opacity='0';return;}
+  stateInd.textContent=txt; stateInd.style.opacity='1';
+  stateTimer=setTimeout(()=>{stateInd.style.opacity='0';},900);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CAMERA
+// ══════════════════════════════════════════════════════════════
+let camShakeT=0;
+function triggerCamShake(dur=0.35){ camShakeT=dur; }
+function updateCamera(delta){
+  // shake
+  if(camShakeT>0){
+    camShakeT-=delta;
+    camera.position.x=Math.sin(camShakeT*90)*0.14*(camShakeT/0.35);
+  } else {
+    camera.position.x=0;
+  }
+
+  // dynamic FOV
+  let targetFOV=62+Math.min(24,(gameSpeed-BASE_SPD*0.9)/3.2);
+  if(hyperActive) targetFOV+=6;
+  camFOV+=(targetFOV-camFOV)*Math.min(1,3*delta);
+  camera.fov=camFOV;
+
+  // camera roll on lane change
+  const dxL=LANE_X[lane]-playerX;
+  const targetRoll=-dxL*0.044;
+  camRoll+=(targetRoll-camRoll)*Math.min(1,8*delta);
+  camera.rotation.z=camRoll;
+
+  // jump bob
+  const jBob=isJump?-0.28*(playerY-NORMAL_Y)/3.5:0;
+  camera.position.y+=(3.2+jBob-camera.position.y)*Math.min(1,6*delta);
+
+  // curve（コースのうねり演出）
+  curvePhase+=delta*0.18;
+  const curveDrift=Math.sin(curvePhase)*0.55;
+  camera.position.x+=curveDrift*delta*2;
+
+  camera.updateProjectionMatrix();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  AUDIO
+// ══════════════════════════════════════════════════════════════
+let audioCtx=null, engOsc=null, engGain=null, audioReady=false;
+function initAudio(){
+  if(audioReady) return;
+  try{
+    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    engOsc=audioCtx.createOscillator();
+    engGain=audioCtx.createGain();
+    const filt=audioCtx.createBiquadFilter();
+    filt.type='lowpass'; filt.frequency.value=420;
+    engOsc.type='sawtooth'; engOsc.frequency.value=55;
+    engOsc.connect(filt); filt.connect(engGain); engGain.connect(audioCtx.destination);
+    engGain.gain.value=0; engOsc.start(); audioReady=true;
+  } catch(e){}
+}
+function updateEngineAudio(){
+  if(!audioReady||!engOsc) return;
+  const ratio=(gameSpeed-BASE_SPD*0.9)/60;
+  engOsc.frequency.setTargetAtTime(55+Math.min(110,ratio*115),audioCtx.currentTime,0.1);
+  const vol=gstate==='playing'?0.04+Math.min(0.07,ratio*0.08):0;
+  engGain.gain.setTargetAtTime(vol,audioCtx.currentTime,0.15);
+}
+function playSfx(type){
+  if(!audioReady) return;
+  const ctx=audioCtx, g=ctx.createGain(), o=ctx.createOscillator();
+  g.connect(ctx.destination); o.connect(g);
+  const t=ctx.currentTime;
+  switch(type){
+    case 'item':   o.type='sine'; o.frequency.setValueAtTime(880,t); o.frequency.exponentialRampToValueAtTime(1320,t+0.08); g.gain.setValueAtTime(0.12,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.18); o.start(); o.stop(t+0.18); break;
+    case 'break':  o.type='square'; o.frequency.setValueAtTime(220,t); o.frequency.exponentialRampToValueAtTime(44,t+0.28); g.gain.setValueAtTime(0.22,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.32); o.start(); o.stop(t+0.32); break;
+    case 'jump':   o.type='sine'; o.frequency.setValueAtTime(440,t); o.frequency.exponentialRampToValueAtTime(680,t+0.12); g.gain.setValueAtTime(0.08,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.2); o.start(); o.stop(t+0.2); break;
+    case 'hit':    o.type='square'; o.frequency.setValueAtTime(110,t); o.frequency.exponentialRampToValueAtTime(35,t+0.45); g.gain.setValueAtTime(0.28,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.5); o.start(); o.stop(t+0.5); break;
+    case 'lane':   o.type='triangle'; o.frequency.setValueAtTime(660,t); o.frequency.exponentialRampToValueAtTime(880,t+0.07); g.gain.setValueAtTime(0.07,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.12); o.start(); o.stop(t+0.12); break;
+    case 'hyper':  o.type='sawtooth'; o.frequency.setValueAtTime(110,t); o.frequency.exponentialRampToValueAtTime(440,t+0.3); g.gain.setValueAtTime(0.18,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.5); o.start(); o.stop(t+0.5); break;
+    case 'nearmiss':o.type='sine'; o.frequency.setValueAtTime(660,t); o.frequency.exponentialRampToValueAtTime(330,t+0.15); g.gain.setValueAtTime(0.1,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.22); o.start(); o.stop(t+0.22); break;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  GAME OVER & STATS
+// ══════════════════════════════════════════════════════════════
+function triggerGameOver(){
+  if(gstate!=='playing') return;
+  gstate='gameover';
+  triggerCamShake(0.5); playSfx('hit');
+  if(engGain) engGain.gain.setTargetAtTime(0,audioCtx.currentTime,0.2);
+  if(score>hiScore){hiScore=score;localStorage.setItem('cr4_hi',hiScore);}
+
+  // 反射神経年齢（コンボ・距離・ニアミスで算出）
+  const base=45;
+  const score1=Math.max(0,statMaxCombo*1.5+dist*0.04+statNearMiss*2+statWallsBroken*3);
+  const age=Math.max(12,Math.round(base-score1*0.18));
+  document.getElementById('reflex-age').textContent=age+'歳';
+
+  // スタッツ
+  const maxSpeedKmh=Math.round(gameSpeed*12);
+  const grid=document.getElementById('stats-grid');
+  grid.innerHTML=[
+    {v:maxSpeedKmh+'km/h', l:'最高速度'},
+    {v:statJumps+'回',     l:'ジャンプ'},
+    {v:statWallsBroken+'枚',l:'破壊した壁'},
+    {v:statNearMiss+'回',  l:'ニアミス'},
+    {v:statMaxCombo+'×',   l:'最大コンボ'},
+    {v:statItemsGot+'個',  l:'取得アイテム'},
+  ].map(s=>`<div class="stat-card"><span class="stat-val">${s.v}</span><span class="stat-lbl">${s.l}</span></div>`).join('');
+
+  document.getElementById('go-sc').textContent='SCORE: '+score;
+  document.getElementById('go-hi').textContent='BEST: '+hiScore;
+  document.getElementById('gover').classList.remove('hid');
+  document.getElementById('hud').style.display='none';
+}
+
+// ══════════════════════════════════════════════════════════════
+//  RESET
+// ══════════════════════════════════════════════════════════════
+function resetGame(){
+  score=0; combo=0; dist=0; elapsed=0; speedLevel=0;
+  lane=1; playerX=LANE_X[1]; playerY=NORMAL_Y; playerVY=0;
+  isJump=false; isDuck=false; skillCD=false; skillLast=-Infinity;
+  spawnT=0; gameSpeed=BASE_SPD; lastTS=null; timeScale=1;
+  hyperActive=false; slowmoActive=false;
+  statJumps=0; statDucks=0; statWallsBroken=0; statNearMiss=0;
+  statMaxCombo=0; statMaxSpeed=0; statItemsGot=0; curvePhase=0;
+  obsPool.forEach(g=>deactivateObs(g));
+  itemPool.forEach(m=>deactivateItem(m));
+  pMeshes.forEach(m=>{m.visible=false;});
+  laserMat.opacity=0; laserT=0;
+  hyperBadge.style.opacity='0';
+  scene.background=new THREE.Color(0x000010);
+  scene.fog=new THREE.FogExp2(0x000010,0.016);
+  grids.forEach(g=>{g.material.color.setHex(0x00f3ff); g.material.opacity=0.35;});
+  slowVig.style.opacity='0';
+  signPool.forEach(m=>{m.userData.active=false; m.visible=false;});
+  signTimer=0;
+  buildPlayer(selChar); updateHUD(); gstate='playing';
+  document.getElementById('hud').style.display='block';
+  // スワイプヒントを3秒後に消す
+  const hint=document.getElementById('swipe-hint');
+  hint.style.opacity='1';
+  clearTimeout(hintHideTimer);
+  hintHideTimer=setTimeout(()=>{hint.style.opacity='0';},3500);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  MAIN LOOP
+// ══════════════════════════════════════════════════════════════
+function loop(now){
+  requestAnimationFrame(loop);
+  if(lastTS===null) lastTS=now;
+  let rawDelta=(now-lastTS)/1000; lastTS=now;
+  if(rawDelta>0.1) rawDelta=0.1;
+  const delta=rawDelta*timeScale;
+
+  if(gstate!=='playing'){
+    updateCamera(rawDelta);
+    renderer.render(scene,camera);
+    return;
+  }
+
+  elapsed+=delta; dist+=gameSpeed*delta*0.1;
+
+  // auto speed-up
+  const nLv=Math.floor(elapsed/SPD_INC_INT);
+  if(nLv>speedLevel){
+    speedLevel=nLv;
+    gameSpeed=BASE_SPD*selChar.speed*Math.pow(1+SPD_INC_RATE,speedLevel);
+    statMaxSpeed=Math.max(statMaxSpeed,gameSpeed);
+    spb.style.width=Math.min(100,(speedLevel/8)*100)+'%';
+    // スピードアップフラッシュ（グリッドのみ、全画面ではない）
+    grids.forEach(g=>{g.material.opacity=0.9;});
+    setTimeout(()=>{grids.forEach(g=>{g.material.opacity=0.35;});},180);
+  }
+
+  spawnInterval=Math.max(0.35,0.95-elapsed*0.006);
+  spawnT+=delta;
+  if(spawnT>=spawnInterval){spawnT=0;spawnNext();}
+
+  // move obstacles
+  obsPool.forEach(g=>{
+    if(!g.userData.active) return;
+    g.position.z+=gameSpeed*delta;
+    if(g.userData.type===OBS_WALL) g.rotation.y+=delta*0.5;
+    if(g.userData.type===OBS_GATE) g.rotation.z+=delta*2.4;
+    if(g.position.z>DESPAWN_Z) deactivateObs(g);
+  });
+
+  // move items
+  itemPool.forEach(m=>{
+    if(!m.userData.active) return;
+    m.position.z+=gameSpeed*delta;
+    m.rotation.y+=delta*3.5;
+    if(m.position.z>DESPAWN_Z){combo=0;updateHUD();deactivateItem(m);}
+  });
+
+  scrollWorld(delta);
+  updatePlayer(delta);
+  updateLaser(delta);
+  updateBeams(delta);
+  updateParticles(delta);
+  updateStars(delta);
+  updateSpeedLines(delta);
+  updateSigns(delta);
+  updateMarkers();
+  updateWarning();
+  checkCollisions();
+  updateSkillHUD(now);
+  updateCamera(rawDelta);
+  updateEngineAudio();
+
+  // hyperdrive: グリッドがさらに速く流れる演出は scrollWorld 内の gameSpeed で自動対応済み
+  // 追加でラインを明滅
+  if(hyperActive) ptL2.intensity=2.5+Math.sin(elapsed*18)*1.5;
+  else ptL2.intensity=1.4+Math.sin(elapsed*1.7+1.2)*0.4;
+  ptL1.intensity=1.8+Math.sin(elapsed*2.3)*0.5;
+
+  score+=Math.floor(gameSpeed*delta*0.5); updateHUD();
+  renderer.render(scene,camera);
+}
+requestAnimationFrame(loop);
+
+// ══════════════════════════════════════════════════════════════
+//  SWIPE / TOUCH（ボタン廃止・スワイプ操作のみ）
+// ══════════════════════════════════════════════════════════════
+let touchX=null,touchY=null,touchT=null,lastTapT=0;
+const SWIPE_THRESHOLD=30, SWIPE_ANGLE=40;
+
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const t=e.touches[0];
+  touchX=t.clientX; touchY=t.clientY; touchT=performance.now();
+}, {passive:false});
+
+canvas.addEventListener('touchend',e=>{
+  e.preventDefault();
+  if(touchX===null) return;
+  initAudio();
+  const t=e.changedTouches[0];
+  const dx=t.clientX-touchX, dy=t.clientY-touchY;
+  const dist2=Math.sqrt(dx*dx+dy*dy);
+  const now2=performance.now();
+
+  if(dist2<22){
+    // タップ
+    const dt=now2-lastTapT; lastTapT=now2;
+    if(dt<280) activateSkill(); // ダブルタップでスキル
+  } else if(dist2>SWIPE_THRESHOLD){
+    const angle=Math.abs(Math.atan2(dy,dx)*180/Math.PI);
+    if(angle<SWIPE_ANGLE){      // 右スワイプ
+      moveLane(1);
+    } else if(angle>180-SWIPE_ANGLE){ // 左スワイプ
+      moveLane(-1);
+    } else if(dy<0){            // 上スワイプ = JUMP
+      doJump();
+    } else {                    // 下スワイプ = DUCK
+      startDuck();
+      setTimeout(stopDuck,400);
+    }
+  }
+  touchX=null; touchY=null; touchT=null;
+},{passive:false});
+
+// しゃがみ保持（長押し）
+canvas.addEventListener('touchcancel',e=>{touchX=null;touchY=null;stopDuck();},{passive:false});
+
+// ══════════════════════════════════════════════════════════════
+//  KEYBOARD
+// ══════════════════════════════════════════════════════════════
+const keysDown=new Set();
+document.addEventListener('keydown',e=>{
+  if(keysDown.has(e.key)) return; keysDown.add(e.key);
+  if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A'){e.preventDefault();moveLane(-1);}
+  if(e.key==='ArrowRight'||e.key==='d'||e.key==='D'){e.preventDefault();moveLane(1);}
+  if(e.key==='ArrowUp'||e.key==='w'||e.key==='W'){e.preventDefault();doJump();}
+  if(e.key==='ArrowDown'||e.key==='s'||e.key==='S'){e.preventDefault();startDuck();}
+  if(e.key===' '){e.preventDefault();initAudio();activateSkill();}
+});
+document.addEventListener('keyup',e=>{
+  keysDown.delete(e.key);
+  if(e.key==='ArrowDown'||e.key==='s'||e.key==='S') stopDuck();
+});
+
+// ══════════════════════════════════════════════════════════════
+//  ACTIONS
+// ══════════════════════════════════════════════════════════════
+function doJump(){
+  if(isJump||gstate!=='playing') return;
+  isJump=true; isDuck=false; playerVY=JUMP_VY;
+  statJumps++; showState('↑ JUMP'); playSfx('jump');
+}
+function startDuck(){
+  if(isJump||gstate!=='playing') return;
+  isDuck=true; statDucks++; showState('↓ DUCK');
+}
+function stopDuck(){ isDuck=false; showState(''); }
+function moveLane(dir){
+  if(gstate!=='playing') return;
+  const nl=lane+dir; if(nl<0||nl>=3) return;
+  lane=nl; playSfx('lane');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CHARACTER SELECT PREVIEW
+// ══════════════════════════════════════════════════════════════
+const pvC=document.getElementById('pv-c');
+const pvR=new THREE.WebGLRenderer({canvas:pvC,antialias:true,alpha:true});
+pvR.setPixelRatio(Math.min(window.devicePixelRatio,2));
+pvR.setSize(280,280); pvR.setClearColor(0,0);
+const pvSc=new THREE.Scene();
+const pvCam=new THREE.PerspectiveCamera(42,1,0.1,20);
+pvCam.position.set(0,0.5,3.8); pvCam.lookAt(0,0,0);
+pvSc.add(new THREE.AmbientLight(0x334488,2));
+const pvL=new THREE.DirectionalLight(0xffffff,1.8); pvL.position.set(1,2,3); pvSc.add(pvL);
+const pvPt=new THREE.PointLight(0x00f3ff,2,10); pvPt.position.set(-1,1,2); pvSc.add(pvPt);
+let pvMesh=null,pvGlow=null;
+function buildPvMesh(p){
+  if(pvMesh){pvSc.remove(pvMesh);pvMesh.geometry.dispose();pvMesh.material.dispose();}
+  if(pvGlow){pvSc.remove(pvGlow);pvGlow.geometry.dispose();pvGlow.material.dispose();}
+  let g; switch(p.geo){
+    case 'Sphere':   g=new THREE.SphereGeometry(0.95,36,36); break;
+    case 'Box':      g=new THREE.BoxGeometry(1.45,1.45,1.45); break;
+    case 'Cylinder': g=new THREE.CylinderGeometry(0.65,0.65,1.4,24); break;
+  }
+  pvMesh=new THREE.Mesh(g,new THREE.MeshPhongMaterial({color:p.color,emissive:p.color,emissiveIntensity:0.5,specular:0xffffff,shininess:120}));
+  pvSc.add(pvMesh);
+  pvGlow=new THREE.Mesh(new THREE.SphereGeometry(1.3,10,10),new THREE.MeshBasicMaterial({color:p.color,transparent:true,opacity:0.09}));
+  pvSc.add(pvGlow);
+}
+(function pvLoop(){ requestAnimationFrame(pvLoop);
+  if(pvMesh){pvMesh.rotation.y+=0.016;pvMesh.position.y=Math.sin(Date.now()*.0018)*.07;}
+  if(pvGlow) pvGlow.rotation.y-=0.01;
+  pvR.render(pvSc,pvCam);
+})();
+
+// ══════════════════════════════════════════════════════════════
+//  CHARACTER SELECT UI
+// ══════════════════════════════════════════════════════════════
+function buildCharUI(){
+  const row=document.getElementById('char-row'); row.innerHTML='';
+  CHARS.forEach((c,i)=>{
+    const hex='#'+c.color.toString(16).padStart(6,'0');
+    const el=document.createElement('div');
+    el.className='cc'+(i===selIdx?' sel2':'');
+    el.style.setProperty('--cc',hex);
+    el.innerHTML=`<div class="cc-ico">${c.icon}</div><div class="cc-nm">${c.name}</div><div class="cc-sk">${c.skill}</div><div class="cc-ds">${c.desc}</div>`;
+    el.addEventListener('click',()=>selectChar(i));
+    el.addEventListener('touchend',e=>{e.preventDefault();selectChar(i);});
+    row.appendChild(el);
+  });
+}
+function selectChar(i){
+  selIdx=i; selChar=CHARS[i]; buildCharUI();
+  buildPvMesh(selChar);
+  document.getElementById('char-desc').textContent=selChar.desc;
+}
+buildCharUI(); selectChar(0);
+
+// ══════════════════════════════════════════════════════════════
+//  BUTTONS
+// ══════════════════════════════════════════════════════════════
+document.getElementById('go-btn').addEventListener('click',()=>{
+  initAudio(); document.getElementById('sel').classList.add('hid'); resetGame();
+});
+document.getElementById('btn-retry').addEventListener('click',()=>{
+  initAudio(); document.getElementById('gover').classList.add('hid'); resetGame();
+});
+document.getElementById('btn-sel').addEventListener('click',()=>{
+  document.getElementById('gover').classList.add('hid');
+  gstate='select';
+  obsPool.forEach(g=>deactivateObs(g)); itemPool.forEach(m=>deactivateItem(m));
+  if(playerGroup){scene.remove(playerGroup);playerGroup=null;}
+  document.getElementById('sel').classList.remove('hid');
+  buildCharUI(); selectChar(selIdx);
+});
+
+</script>
+</body>
+</html>
