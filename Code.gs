@@ -36,7 +36,7 @@ var STATUS_LEVEL = {
  * 引数は使わず、下の PASSWORD を書き換えてから実行 → 実行後は行を消してよい。
  */
 function setup() {
-  var PASSWORD = 'ここに係員用パスワードを入れて一度だけ実行';
+  var PASSWORD = '0623';
   PropertiesService.getScriptProperties().setProperty('ADMIN_PASS', PASSWORD);
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
