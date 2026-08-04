@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>黒工文化祭 校内マップ｜リアルタイム混雑案内</title>
+<meta name="description" content="岩手県立黒沢尻工業高等学校 文化祭の校内マップとリアルタイム混雑状況。">
+<meta name="theme-color" content="#b91c1c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+
+<!--
+  ===========================================================================
+  黒工文化祭 統合マップ v2
+  ---------------------------------------------------------------------------
+  【調整が必要な箇所】
+   1) CONFIG.GAS_URL ......... GASを再デプロイしたら新しい /exec URL に差し替え
+   2) CONFIG.INFO ............ タイムテーブル・案内文言を実際の内容に
+   3) FLOOR_PLAN ............. 校舎の実際の配置に合わせて座標を調整
+   4) 管理者パスワードはこのファイルには存在しません（GAS側で保持）
+  ===========================================================================
+-->
+
+<style>
+/* ========================= デザイントークン ========================= */
+:root{
+  --bg:#eef1f6; --surface:#ffffff; --surface-2:#f8fafc; --surface-3:#eef2f7;
+  --border:#dfe5ee; --border-strong:#c8d2e0;
+  --text:#101828; --text-dim:#5b6779; --text-mute:#8b97a8;
+  --accent:#b91c1c; --accent-2:#7f1d1d; --on-accent:#ffffff;
+  --free:#15803d; --warn:#b45309; --busy:#dc2626; --unknown:#94a3b8; --closed:#64748b;
+  --free-soft:#dcfce7; --warn-soft:#fef3c7; --busy-soft:#fee2e2;
+  --corridor:#e4e9f1; --outdoor:#e8f0e4; --room-label:#ffffff; --label-stroke:rgba(0,0,0,.5);
+  --shadow:0 1px 2px rgba(16,24,40,.06), 0 8px 24px -12px rgba(16,24,40,.24);
+  --shadow-lg:0 12px 40px -12px rgba(16,24,40,.35);
+  --r-sm:8px; --r:14px; --r-lg:20px;
+  --glow:none;
+  --safe-b:env(safe-area-inset-bottom, 0px);
+}
+[data-theme="cyber"]{
+  --bg:#05070d; --surface:#0d1320; --surface-2:#111a2b; --surface-3:#16223a;
+  --border:#1f2d47; --border-strong:#2c3f61;
+  --text:#dbe7f7; --text-dim:#8ea3c0; --text-mute:#6b7f9c;
+  --accent:#00e5ff; --accent-2:#00b8d4; --on-accent:#04141a;
+  --free:#22e39a; --warn:#ffc857; --busy:#ff4d6d; --unknown:#3d4d6b; --closed:#41506b;
+  --free-soft:#08301f; --warn-soft:#33270a; --busy-soft:#3a0f1a;
+  --corridor:#111c30; --outdoor:#0b1a16; --room-label:#04121c; --label-stroke:rgba(255,255,255,.5);
+  --shadow:0 0 0 1px rgba(0,229,255,.06), 0 8px 30px -14px rgba(0,229,255,.35);
+  --shadow-lg:0 0 40px -10px rgba(0,229,255,.35);
+  --glow:drop-shadow(0 0 6px currentColor);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.55;
+  overscroll-behavior-y:none;
+}
+button{font:inherit;color:inherit;cursor:pointer;border:none;background:none}
+input{font:inherit}
+h1,h2,h3{margin:0;line-height:1.3}
+p{margin:0}
+
+/* ========================= レイアウト ========================= */
+.app{max-width:520px;margin:0 auto;min-height:100dvh;background:var(--bg);
+     display:flex;flex-direction:column;position:relative;
+     box-shadow:0 0 0 1px var(--border)}
+.head{
+  position:sticky;top:0;z-index:40;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  color:var(--on-accent);padding:10px 14px;
+  padding-top:calc(10px + env(safe-area-inset-top,0px));
+}
+[data-theme="cyber"] .head{background:linear-gradient(135deg,#08131f,#0d2033);
+  color:var(--text);border-bottom:1px solid var(--accent);box-shadow:0 0 24px -8px var(--accent)}
+.head-row{display:flex;align-items:center;gap:10px}
+.head h1{font-size:15px;font-weight:800;letter-spacing:.02em}
+.head .sub{font-size:10px;opacity:.75;letter-spacing:.08em}
+.head-actions{margin-left:auto;display:flex;align-items:center;gap:6px}
+.icon-btn{
+  width:38px;height:38px;border-radius:11px;display:grid;place-items:center;
+  background:rgba(255,255,255,.16);font-size:15px;transition:.15s;
+}
+[data-theme="cyber"] .icon-btn{background:var(--surface-2);border:1px solid var(--border)}
+.icon-btn:active{transform:scale(.92)}
+
+.sync{
+  display:flex;align-items:center;gap:6px;margin-top:8px;
+  font-size:10.5px;font-weight:700;letter-spacing:.03em;
+  background:rgba(0,0,0,.16);border-radius:999px;padding:4px 10px;width:fit-content;
+}
+[data-theme="cyber"] .sync{background:var(--surface-2);border:1px solid var(--border)}
+.dot{width:7px;height:7px;border-radius:50%;background:#4ade80;flex:none}
+.dot.stale{background:#fbbf24}
+.dot.down{background:#f87171;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:.25}}
+
+main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direction:column;gap:12px}
+.view{display:none;flex-direction:column;gap:12px}
+.view.on{display:flex;animation:fade .22s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+      box-shadow:var(--shadow);padding:12px}
+.card-t{font-size:11.5px;font-weight:800;color:var(--text-dim);letter-spacing:.06em;
+        display:flex;align-items:center;gap:6px;margin-bottom:8px}
+
+/* ========================= バナー ========================= */
+.banner{border-radius:var(--r);padding:10px 12px;font-size:12px;font-weight:700;
+        display:flex;gap:8px;align-items:flex-start;line-height:1.45}
+.banner.alert{background:var(--busy-soft);color:var(--busy);border:1px solid var(--busy)}
+.banner.info{background:var(--surface-3);color:var(--text-dim);border:1px solid var(--border)}
+.hide{display:none !important}
+
+/* ========================= おすすめ ========================= */
+.reco-list{display:flex;flex-direction:column;gap:6px}
+.reco{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r-sm);
+      background:var(--surface-2);border:1px solid var(--border);text-align:left;width:100%}
+.reco:active{transform:scale(.985)}
+.reco .rank{width:22px;height:22px;border-radius:7px;background:var(--accent);color:var(--on-accent);
+            font-size:11px;font-weight:900;display:grid;place-items:center;flex:none}
+.reco .nm{font-size:12.5px;font-weight:800;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.reco .why{font-size:10px;color:var(--text-mute);font-weight:600}
+
+/* ========================= マップ ========================= */
+.map-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.seg{display:flex;background:var(--surface-3);border-radius:10px;padding:3px;gap:2px}
+.seg button{font-size:11px;font-weight:800;padding:5px 11px;border-radius:8px;color:var(--text-dim)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+[data-theme="cyber"] .seg button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
+
+.map-wrap{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r);
+          overflow:hidden;position:relative}
+svg.plan{display:block;width:100%;height:auto;touch-action:manipulation}
+.plan text{font-family:inherit}
+.struct{fill:var(--corridor)}
+.outdoor{fill:var(--outdoor)}
+.wall{fill:none;stroke:var(--border-strong);stroke-width:1.5}
+.zone-label{font-size:8.5px;font-weight:800;fill:var(--text-mute);letter-spacing:.08em}
+.util{font-size:7.5px;font-weight:700;fill:var(--text-dim)}
+.util-box{fill:var(--surface-3);stroke:var(--border);stroke-width:1}
+
+.room{cursor:pointer}
+.room .fill{fill:var(--unknown);stroke:rgba(0,0,0,.10);stroke-width:1;transition:fill .4s}
+/* パターン塗りの上でも文字が読めるよう、文字に縁取りを付ける（可読性の要） */
+.room .nm,.room .st{fill:var(--room-label);pointer-events:none;
+  paint-order:stroke fill;stroke:var(--label-stroke);stroke-width:2.6px;stroke-linejoin:round}
+.room .nm{font-size:9.5px;font-weight:800}
+.room .st{font-size:8px;font-weight:700;stroke-width:2.2px}
+.room[data-lv="0"] .fill{fill:var(--free)}
+.room[data-lv="1"] .fill{fill:url(#pat-warn)}
+.room[data-lv="2"] .fill{fill:url(#pat-busy)}
+.room[data-lv="3"] .fill{fill:var(--closed)}
+.room[data-lv="2"] .fill{animation:breathe 2.4s ease-in-out infinite}
+@keyframes breathe{50%{opacity:.72}}
+.room:active .fill{stroke:var(--accent);stroke-width:3}
+.room.flash .fill{stroke:var(--accent);stroke-width:3.5}
+.stamp-mark{fill:#fff;stroke:var(--free);stroke-width:2}
+.stamp-check{font-size:9px;font-weight:900;fill:var(--free)}
+.route-badge circle{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.route-badge text{font-size:9px;font-weight:900;fill:var(--on-accent)}
+.dimmed{opacity:.32}
+
+.legend{display:flex;flex-wrap:wrap;gap:8px;padding:9px 10px;border-top:1px solid var(--border);
+        background:var(--surface);font-size:10px;font-weight:700;color:var(--text-dim)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;
+          vertical-align:-2px}
+.lg-free{background:var(--free)}
+.lg-warn{background:repeating-linear-gradient(45deg,var(--warn) 0 3px,rgba(255,255,255,.55) 3px 5px)}
+.lg-busy{background:var(--busy);background-image:radial-gradient(rgba(255,255,255,.7) 1px,transparent 1.2px);background-size:4px 4px}
+.lg-unk{background:var(--unknown)}
+
+/* ========================= 検索・フィルタ ========================= */
+.search{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);
+        border-radius:var(--r);padding:0 12px;box-shadow:var(--shadow)}
+.search input{border:none;outline:none;background:none;color:var(--text);
+              padding:12px 0;width:100%;font-size:13px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;font-size:11px;font-weight:800;padding:7px 13px;border-radius:999px;
+      background:var(--surface);border:1px solid var(--border);color:var(--text-dim);white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+
+/* ========================= ブースカード ========================= */
+.booth{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+       box-shadow:var(--shadow);overflow:hidden}
+.booth.flash{outline:3px solid var(--accent);outline-offset:-1px}
+.booth-top{display:flex;gap:10px;padding:11px 12px;align-items:flex-start}
+.booth-bar{width:5px;border-radius:3px;align-self:stretch;flex:none;background:var(--unknown)}
+.booth[data-lv="0"] .booth-bar{background:var(--free)}
+.booth[data-lv="1"] .booth-bar{background:var(--warn)}
+.booth[data-lv="2"] .booth-bar{background:var(--busy)}
+.booth-main{flex:1;min-width:0}
+.booth-nm{font-size:13.5px;font-weight:800;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tag{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:6px;
+     background:var(--surface-3);color:var(--text-dim)}
+.booth-meta{font-size:10.5px;color:var(--text-mute);font-weight:600;margin-top:2px}
+.booth-note{font-size:11px;color:var(--text-dim);margin-top:5px;font-weight:600}
+.pill{font-size:11px;font-weight:900;padding:5px 10px;border-radius:999px;white-space:nowrap;
+      display:flex;align-items:center;gap:5px;flex:none}
+.pill[data-lv="0"]{background:var(--free-soft);color:var(--free)}
+.pill[data-lv="1"]{background:var(--warn-soft);color:var(--warn)}
+.pill[data-lv="2"]{background:var(--busy-soft);color:var(--busy)}
+.pill[data-lv="-1"],.pill[data-lv="3"]{background:var(--surface-3);color:var(--text-mute)}
+.booth-foot{display:flex;align-items:center;gap:8px;padding:8px 12px;
+            border-top:1px dashed var(--border);background:var(--surface-2)}
+.spark{display:flex;align-items:flex-end;gap:2px;height:18px}
+.spark i{width:4px;border-radius:1.5px;display:block;background:var(--unknown)}
+.spark i[data-lv="0"]{background:var(--free);height:5px}
+.spark i[data-lv="1"]{background:var(--warn);height:11px}
+.spark i[data-lv="2"]{background:var(--busy);height:17px}
+.trend{font-size:10px;font-weight:800;color:var(--text-mute)}
+.mini-btn{margin-left:auto;font-size:10.5px;font-weight:800;padding:6px 11px;border-radius:9px;
+          border:1px solid var(--border);background:var(--surface);color:var(--text-dim)}
+.mini-btn[aria-pressed="true"]{background:var(--free);border-color:var(--free);color:#fff}
+
+/* ========================= スタンプ ========================= */
+.stamp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.stamp{aspect-ratio:1;border-radius:var(--r);border:2px dashed var(--border-strong);
+       background:var(--surface-2);display:flex;flex-direction:column;align-items:center;
+       justify-content:center;gap:4px;padding:6px;text-align:center}
+.stamp.got{border-style:solid;border-color:var(--free);background:var(--free-soft)}
+.stamp .mk{font-size:22px;filter:grayscale(1);opacity:.35}
+.stamp.got .mk{filter:none;opacity:1}
+.stamp .lb{font-size:9.5px;font-weight:800;color:var(--text-dim);line-height:1.25}
+.stamp.got .lb{color:var(--free)}
+.progress{height:9px;border-radius:999px;background:var(--surface-3);overflow:hidden;margin-top:8px}
+.progress > i{display:block;height:100%;background:linear-gradient(90deg,var(--free),var(--warn));
+              transition:width .5s ease}
+
+/* ========================= インフォ ========================= */
+.tt{width:100%;border-collapse:collapse;font-size:11.5px}
+.tt th,.tt td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--border)}
+.tt th{font-size:10px;color:var(--text-mute);font-weight:800;letter-spacing:.05em}
+.tt td:first-child{font-weight:800;white-space:nowrap;color:var(--accent)}
+.help{display:flex;gap:9px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px}
+.help:last-child{border-bottom:none}
+.help b{display:block;font-size:12px}
+.help span{font-size:11px;color:var(--text-dim)}
+
+/* ========================= 管理者 ========================= */
+.adm-booth{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+           padding:11px 12px;box-shadow:var(--shadow)}
+.adm-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.adm-nm{font-size:13px;font-weight:800;flex:1;min-width:0}
+.adm-btns{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.adm-btns button{padding:14px 4px;border-radius:11px;font-size:12px;font-weight:900;
+                 border:1.5px solid var(--border);background:var(--surface-2);color:var(--text-dim)}
+.adm-btns button[data-sel="1"][data-lv="0"]{background:var(--free);border-color:var(--free);color:#fff}
+.adm-btns button[data-sel="1"][data-lv="1"]{background:var(--warn);border-color:var(--warn);color:#fff}
+.adm-btns button[data-sel="1"][data-lv="2"]{background:var(--busy);border-color:var(--busy);color:#fff}
+.adm-btns button:disabled{opacity:.5}
+.field{width:100%;padding:13px 14px;border-radius:var(--r);border:1.5px solid var(--border);
+       background:var(--surface);color:var(--text);outline:none;text-align:center;font-weight:800;letter-spacing:.15em}
+.field:focus{border-color:var(--accent)}
+.btn{width:100%;padding:14px;border-radius:var(--r);background:var(--accent);color:var(--on-accent);
+     font-weight:900;font-size:13px;box-shadow:var(--shadow)}
+.btn.ghost{background:var(--surface);color:var(--text-dim);border:1px solid var(--border);box-shadow:none}
+.btn:active{transform:scale(.985)}
+.stale-warn{font-size:10px;font-weight:800;color:var(--busy)}
+
+/* ========================= ボトムナビ ========================= */
+.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;z-index:50;
+     background:color-mix(in srgb,var(--surface) 88%,transparent);
+     backdrop-filter:saturate(180%) blur(14px);
+     border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(4,1fr);
+     padding-bottom:var(--safe-b)}
+.nav button{padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:2px;
+            font-size:9.5px;font-weight:800;color:var(--text-mute)}
+.nav button em{font-style:normal;font-size:19px;line-height:1}
+.nav button[aria-pressed="true"]{color:var(--accent)}
+[data-theme="cyber"] .nav button[aria-pressed="true"]{filter:var(--glow)}
+
+/* ========================= トースト ========================= */
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(78px + var(--safe-b));
+       background:var(--text);color:var(--bg);padding:11px 18px;border-radius:999px;
+       font-size:12px;font-weight:800;z-index:80;box-shadow:var(--shadow-lg);
+       opacity:0;pointer-events:none;transition:.25s}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(-4px)}
+
+.skel{background:linear-gradient(90deg,var(--surface-3) 25%,var(--surface-2) 37%,var(--surface-3) 63%);
+      background-size:400% 100%;animation:sk 1.3s linear infinite;border-radius:var(--r);height:78px}
+@keyframes sk{0%{background-position:100% 0}100%{background-position:0 0}}
+
+.empty{text-align:center;padding:34px 12px;color:var(--text-mute);font-size:12px;font-weight:700}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="head">
+    <div class="head-row">
+      <div style="min-width:0">
+        <h1>黒工文化祭 校内マップ</h1>
+        <p class="sub">KUROKO FESTIVAL · LIVE CONGESTION</p>
+      </div>
+      <div class="head-actions">
+        <button class="icon-btn" id="btn-theme" aria-label="テーマ切替" title="テーマ切替">◐</button>
+        <button class="icon-btn" id="btn-reload" aria-label="今すぐ更新" title="今すぐ更新">⟳</button>
+      </div>
+    </div>
+    <div class="sync"><span class="dot" id="sync-dot"></span><span id="sync-text">読み込み中…</span></div>
+  </header>
+
+  <main>
+    <div class="banner alert hide" id="banner-alert" role="status" aria-live="polite"><span>⚠️</span><span id="banner-alert-text"></span></div>
+    <div class="banner info hide" id="banner-offline"><span>📡</span><span>通信できません。最後に取得した情報を表示しています。</span></div>
+
+    <!-- ============ マップ ============ -->
+    <section class="view on" id="v-map">
+      <div class="card" id="reco-card">
+        <div class="card-t">🎯 いま行くならここ</div>
+        <div class="reco-list" id="reco-list"></div>
+      </div>
+
+      <div class="card" style="padding:12px 12px 0">
+        <div class="map-head">
+          <div class="card-t" style="margin:0">🗺️ 校内マップ</div>
+          <div class="seg" role="group" aria-label="フロア切替">
+            <button id="fl-1" aria-pressed="true">1F</button>
+            <button id="fl-2" aria-pressed="false">2F</button>
+          </div>
+        </div>
+        <div class="map-wrap">
+          <svg class="plan" id="plan-1" viewBox="0 0 400 500" role="img" aria-label="1階の校内マップ"></svg>
+          <svg class="plan hide" id="plan-2" viewBox="0 0 400 500" role="img" aria-label="2階の校内マップ"></svg>
+          <div class="legend">
+            <span><i class="lg-free"></i>空いている</span>
+            <span><i class="lg-warn"></i>やや混雑</span>
+            <span><i class="lg-busy"></i>混雑</span>
+            <span><i class="lg-unk"></i>情報なし</span>
+          </div>
+        </div>
+        <div class="chips" style="padding:10px 0 12px">
+          <button class="chip" data-route="denshi" aria-pressed="false">🤖 電子科満喫コース</button>
+          <button class="chip" data-route="all" aria-pressed="false">🏫 全棟制覇コース</button>
+          <button class="chip" data-route="food" aria-pressed="false">🍜 食べ歩きコース</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 一覧 ============ -->
+    <section class="view" id="v-list">
+      <div class="search">
+        <span>🔍</span>
+        <input id="q" type="search" placeholder="ブース名で検索" aria-label="ブース検索" autocomplete="off">
+      </div>
+      <div class="chips" id="cat-chips"></div>
+      <div class="chips">
+        <button class="chip" id="sort-free" aria-pressed="true">空いている順</button>
+        <button class="chip" id="sort-name" aria-pressed="false">場所順</button>
+      </div>
+      <div id="booth-list" style="display:flex;flex-direction:column;gap:9px">
+        <div class="skel"></div><div class="skel"></div><div class="skel"></div>
+      </div>
+    </section>
+
+    <!-- ============ スタンプ ============ -->
+    <section class="view" id="v-stamp">
+      <div class="card">
+        <div class="card-t">🏅 スタンプラリー</div>
+        <p style="font-size:12px;color:var(--text-dim);font-weight:600">
+          回ったブースを記録できます。一覧の「訪問済み」ボタン、またはマップのブースをタップして記録してください。
+        </p>
+        <div style="display:flex;align-items:baseline;gap:6px;margin-top:10px">
+          <span style="font-size:26px;font-weight:900" id="stamp-n">0</span>
+          <span style="font-size:12px;font-weight:800;color:var(--text-mute)">/ <span id="stamp-total">0</span> ブース</span>
+          <span style="margin-left:auto;font-size:11px;font-weight:800;color:var(--free)" id="stamp-msg"></span>
+        </div>
+        <div class="progress"><i id="stamp-bar" style="width:0%"></i></div>
+      </div>
+      <div class="stamp-grid" id="stamp-grid"></div>
+      <button class="btn ghost" id="stamp-reset">記録をリセット</button>
+    </section>
+
+    <!-- ============ インフォ ============ -->
+    <section class="view" id="v-info">
+      <div class="card">
+        <div class="card-t">🕒 タイムテーブル</div>
+        <table class="tt"><tbody id="tt-body"></tbody></table>
+      </div>
+      <div class="card">
+        <div class="card-t">🆘 困ったときは</div>
+        <div id="help-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-t">ℹ️ この地図について</div>
+        <p style="font-size:11.5px;color:var(--text-dim);font-weight:600;line-height:1.7">
+          混雑状況は各ブースの係員が手動で更新しています。表示は目安であり、実際の状況と異なる場合があります。<br>
+          データは約20秒ごとに自動更新されます。通信できないときは、最後に取得した内容を表示します。
+        </p>
+      </div>
+    </section>
+
+    <!-- ============ 管理者 ============ -->
+    <section class="view" id="v-auth">
+      <div class="card" style="text-align:center;display:flex;flex-direction:column;gap:12px">
+        <div>
+          <h2 style="font-size:15px;font-weight:900">🔧 係員ログイン</h2>
+          <p style="font-size:11px;color:var(--text-mute);font-weight:700;margin-top:4px">パスワードは係員に配布されたものを入力</p>
+        </div>
+        <input class="field" type="password" id="pw" placeholder="パスワード" autocomplete="current-password" inputmode="text">
+        <button class="btn" id="btn-login">ログイン</button>
+        <p class="stale-warn hide" id="auth-err">パスワードが違います</p>
+      </div>
+    </section>
+
+    <section class="view" id="v-admin">
+      <div class="card">
+        <div class="card-t">🔧 係員コンソール</div>
+        <div class="chips" id="assign-chips"></div>
+        <p style="font-size:10.5px;color:var(--text-mute);font-weight:700;margin-top:8px">
+          担当ブースを選ぶと、その分だけが表示されます（誤操作防止）。
+        </p>
+      </div>
+      <div id="admin-list" style="display:flex;flex-direction:column;gap:9px"></div>
+      <button class="btn ghost" id="btn-bulk">全ブースを「空いています」に戻す</button>
+      <button class="btn ghost" id="btn-logout">ログアウト</button>
+    </section>
+  </main>
+
+  <nav class="nav" id="nav">
+    <button data-view="map" aria-pressed="true"><em>🗺️</em>マップ</button>
+    <button data-view="list" aria-pressed="false"><em>📋</em>一覧</button>
+    <button data-view="stamp" aria-pressed="false"><em>🏅</em>スタンプ</button>
+    <button data-view="info" aria-pressed="false"><em>ℹ️</em>インフォ</button>
+  </nav>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* =====================================================================
+   CONFIG — 運用時に触るのはここだけ
+   ===================================================================== */
+const CONFIG = {
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
+  LIFF_ID: '',             // LIFF化するときだけ '1234567890-abcdEFGH' の形式で設定（空なら通常のWebとして動作）
+  POLL_MS: 20000,          // 通常のポーリング間隔
+  POLL_MS_HIDDEN: 0,       // バックグラウンド時は停止（0）
+  STALE_MS: 90000,         // これを超えたら「情報が古い」表示
+  ADMIN_STALE_MS: 1800000, // 係員向け：30分未更新で警告
+  TIMEOUT_MS: 12000,
+  ROUTES: {
+    denshi: ['4','1','7'],
+    all:    ['4','1','2','3','5','6','7','8'],
+    food:   ['8','7','4']
+  },
+  INFO: {
+    timetable: [
+      ['09:30', '開場・受付開始（正門）'],
+      ['10:00', 'オープニング（体育館）'],
+      ['11:00', '電子科 ロボット実演（第2校舎1F）'],
+      ['12:00', '各科ステージ発表（体育館）'],
+      ['13:30', '有志発表（体育館）'],
+      ['15:00', '閉会・完全撤収']
+    ],
+    help: [
+      ['🏥','救護室','第1校舎1F 保健室。体調が悪くなったら近くの係員へ'],
+      ['🚻','トイレ','第2校舎1F／第1校舎1F・2F／体育館入口'],
+      ['🎒','落とし物','受付・本部（第1校舎1F）で預かっています'],
+      ['📢','迷子・呼び出し','受付・本部までお越しください'],
+      ['🚭','喫煙・飲酒','校内は全面禁止です']
+    ]
+  }
+};
+
+/* =====================================================================
+   ステータス定義（色だけに頼らない多重符号化）
+   ===================================================================== */
+const LEVELS = [
+  { key:'空いています',   lv:0, short:'空き',   icon:'●',   wait:'待ち時間ほぼなし' },
+  { key:'やや混雑',       lv:1, short:'やや混雑', icon:'◐',   wait:'5〜15分待ち' },
+  { key:'混雑しています', lv:2, short:'混雑',    icon:'▲',   wait:'15分以上待ち' },
+  { key:'準備中',         lv:3, short:'準備中',  icon:'■',   wait:'現在受付していません' }
+];
+const byKey = Object.fromEntries(LEVELS.map(l => [l.key, l]));
+const UNKNOWN = { lv:-1, short:'情報なし', icon:'?', wait:'状況が届いていません' };
+function lvOf(status){ return byKey[String(status || '').trim()] || UNKNOWN; }
+
+/* =====================================================================
+   フロアプラン定義
+   座標は viewBox 0 0 400 500。実際の校舎配置に合わせて調整すること。
+   ===================================================================== */
+const FLOOR_PLAN = {
+  1: {
+    zones: [
+      { label:'■ 第2校舎 1F',   x:14, y:32 },
+      { label:'■ 第1校舎本館 1F', x:14, y:186 },
+      { label:'■ 独立棟エリア',   x:14, y:300 }
+    ],
+    struct: [
+      { type:'corridor', x:14,  y:100, w:372, h:22, label:'渡り廊下' },
+      { type:'outdoor',  x:14,  y:130, w:372, h:44, label:'中庭・屋台エリア' },
+      { type:'corridor', x:14,  y:252, w:372, h:22, label:'廊下' },
+      { type:'outdoor',  x:14,  y:392, w:372, h:34, label:'グラウンド' }
+    ],
+    utils: [
+      { x:18,  y:102, w:34, h:18, t:'階段' },
+      { x:348, y:102, w:34, h:18, t:'階段' },
+      { x:18,  y:254, w:34, h:18, t:'WC'  },
+      { x:120, y:254, w:44, h:18, t:'救護室' },
+      { x:348, y:254, w:34, h:18, t:'階段' },
+      { x:150, y:440, w:100, h:26, t:'▼ 正門・受付' }
+    ],
+    rooms: [
+      { id:'1', x:14,  y:44,  w:118, h:52 },
+      { id:'2', x:140, y:44,  w:108, h:52 },
+      { id:'3', x:256, y:44,  w:130, h:52 },
+      { id:'4', x:14,  y:196, w:154, h:52 },
+      { id:'5', x:176, y:196, w:100, h:52 },
+      { id:'6', x:284, y:196, w:102, h:52 },
+      { id:'8', x:14,  y:312, w:172, h:72 },
+      { id:'7', x:194, y:312, w:192, h:72 }
+    ]
+  },
+  2: {
+    zones: [
+      { label:'■ 第2校舎 2F',   x:14, y:32 },
+      { label:'■ 第1校舎本館 2F', x:14, y:186 }
+    ],
+    struct: [
+      { type:'corridor', x:14, y:100, w:372, h:22, label:'渡り廊下' },
+      { type:'corridor', x:14, y:252, w:372, h:22, label:'廊下' }
+    ],
+    utils: [
+      { x:18,  y:102, w:34, h:18, t:'階段' },
+      { x:348, y:102, w:34, h:18, t:'階段' },
+      { x:18,  y:254, w:34, h:18, t:'WC'  },
+      { x:348, y:254, w:34, h:18, t:'階段' },
+      { x:14,  y:44,  w:372, h:52, t:'各科教室（一般立入制限）' },
+      { x:14,  y:196, w:372, h:52, t:'普通教室・進路資料室' }
+    ],
+    rooms: []   // floor:2 のブースがシートに入ると自動で配置される
+  }
+};
+// floor=2 のブースが来た場合に割り当てる予備スロット
+const FLOOR2_SLOTS = [
+  { x:14, y:44, w:118, h:52 }, { x:140, y:44, w:108, h:52 }, { x:256, y:44, w:130, h:52 },
+  { x:14, y:196, w:118, h:52 }, { x:140, y:196, w:108, h:52 }, { x:256, y:196, w:130, h:52 }
+];
+
+/* =====================================================================
+   状態
+   ===================================================================== */
+const S = {
+  booths: [],
+  updatedAt: null,
+  fetchedAt: 0,
+  online: true,
+  failures: 0,
+  floor: 1,
+  view: 'map',
+  route: null,
+  cat: 'all',
+  sort: 'free',
+  q: '',
+  stamps: new Set(),
+  assigned: new Set(),
+  isAdmin: false,
+  timer: null
+};
+
+const $  = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 2200);
+}
+function store(k, v){ try{ v===undefined ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+function load(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } }
+
+/* =====================================================================
+   通信層：タイムアウト＋指数バックオフ＋キャッシュ復元
+   ===================================================================== */
+async function api(opts){
+  const ctl = new AbortController();
+  const to = setTimeout(() => ctl.abort(), CONFIG.TIMEOUT_MS);
+  try{
+    const init = { signal: ctl.signal, mode:'cors', redirect:'follow' };
+    let url = CONFIG.GAS_URL;
+    if (opts && opts.body){
+      init.method = 'POST';
+      // Content-Type を指定しない = プリフライトを避ける（GAS制約）
+      init.body = JSON.stringify(opts.body);
+    } else {
+      url += (url.includes('?') ? '&' : '?') + '_=' + Date.now();
+    }
+    const res = await fetch(url, init);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    if (json && json.ok === false) throw new Error(json.error || 'API error');
+    return json;
+  } finally { clearTimeout(to); }
+}
+
+function normalize(raw){
+  // 旧API（配列のみ）にも新API（{ok,booths}）にも対応
+  const arr = Array.isArray(raw) ? raw : (raw && raw.booths) || [];
+  return arr.filter(b => b && b.id != null).map(b => ({
+    id: String(b.id).trim(),
+    name: String(b.name ?? '名称未設定').trim(),
+    status: String(b.status ?? '').trim(),
+    time: b.time || null,
+    category: String(b.category || 'その他').trim(),
+    floor: Number(b.floor) === 2 ? 2 : 1,
+    note: String(b.note || '').trim(),
+    history: Array.isArray(b.history) ? b.history.slice(-12) : []
+  }));
+}
+
+async function sync(manual){
+  try{
+    const raw = await api();
+    const booths = normalize(raw);
+    if (!booths.length) throw new Error('データが空です');
+    S.booths = booths;
+    S.updatedAt = (raw && raw.updatedAt) || new Date().toISOString();
+    S.fetchedAt = Date.now();
+    S.online = true; S.failures = 0;
+    store('kuroko_cache_v2', { booths, updatedAt: S.updatedAt, fetchedAt: S.fetchedAt });
+    renderAll();
+    if (manual) toast('最新の状況に更新しました');
+  }catch(err){
+    S.online = false; S.failures++;
+    console.warn('[sync]', err.message);
+    if (manual) toast('更新に失敗しました');
+    renderSyncState();
+  }finally{
+    schedule();
+  }
+}
+
+function schedule(){
+  clearTimeout(S.timer);
+  if (document.hidden && CONFIG.POLL_MS_HIDDEN === 0) return;
+  const backoff = Math.min(CONFIG.POLL_MS * Math.pow(2, Math.min(S.failures, 4)), 5 * 60000);
+  S.timer = setTimeout(() => sync(false), S.failures ? backoff : CONFIG.POLL_MS);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden){ sync(false); } else { clearTimeout(S.timer); }
+});
+
+/* =====================================================================
+   同期ステータス表示
+   ===================================================================== */
+function ago(ts){
+  if (!ts) return '未取得';
+  const m = Math.floor((Date.now() - new Date(ts).getTime()) / 60000);
+  if (m < 1) return 'たった今';
+  if (m < 60) return m + '分前';
+  return Math.floor(m / 60) + '時間前';
+}
+function renderSyncState(){
+  const dot = $('#sync-dot'), txt = $('#sync-text');
+  const age = Date.now() - S.fetchedAt;
+  $('#banner-offline').classList.toggle('hide', S.online || !S.booths.length);
+  if (!S.online){
+    dot.className = 'dot down';
+    txt.textContent = S.booths.length ? `オフライン・${ago(S.updatedAt)}の情報` : '接続できません';
+  } else if (S.fetchedAt && age > CONFIG.STALE_MS){
+    dot.className = 'dot stale';
+    txt.textContent = `情報がやや古い（${ago(S.updatedAt)}）`;
+  } else {
+    dot.className = 'dot';
+    txt.textContent = `リアルタイム更新中・${ago(S.updatedAt)}`;
+  }
+}
+setInterval(renderSyncState, 15000);
+
+/* =====================================================================
+   マップ描画
+   ===================================================================== */
+function svgEl(tag, attrs){
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+function defs(){
+  return `<defs>
+    <pattern id="pat-warn" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="7" height="7" fill="var(--warn)"/>
+      <rect width="3" height="7" fill="rgba(255,255,255,.55)"/>
+    </pattern>
+    <pattern id="pat-busy" width="6" height="6" patternUnits="userSpaceOnUse">
+      <rect width="6" height="6" fill="var(--busy)"/>
+      <circle cx="3" cy="3" r="1.3" fill="rgba(255,255,255,.75)"/>
+    </pattern>
+  </defs>`;
+}
+function wrapLabel(text, width){
+  // 幅に応じて全角換算でざっくり折り返し（2行まで）
+  const max = Math.max(4, Math.floor(width / 10));
+  if (text.length <= max) return [text];
+  return [text.slice(0, max), text.slice(max, max * 2)];
+}
+
+function drawFloor(floorNum){
+  const plan = FLOOR_PLAN[floorNum];
+  const svg = $('#plan-' + floorNum);
+  const boothsHere = S.booths.filter(b => b.floor === floorNum);
+  let html = defs();
+
+  plan.struct.forEach(s => {
+    html += `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="5"
+             class="${s.type === 'outdoor' ? 'outdoor' : 'struct'}"/>`;
+    if (s.label) html += `<text x="${s.x + s.w / 2}" y="${s.y + s.h / 2 + 3}" text-anchor="middle" class="util">${esc(s.label)}</text>`;
+  });
+  plan.zones.forEach(z => {
+    html += `<text x="${z.x}" y="${z.y}" class="zone-label">${esc(z.label)}</text>`;
+  });
+  plan.utils.forEach(u => {
+    html += `<rect x="${u.x}" y="${u.y}" width="${u.w}" height="${u.h}" rx="4" class="util-box"/>
+             <text x="${u.x + u.w / 2}" y="${u.y + u.h / 2 + 2.8}" text-anchor="middle" class="util">${esc(u.t)}</text>`;
+  });
+
+  // ブース配置：定義済みスロット → 無ければ2F予備スロット
+  const slots = plan.rooms.length ? plan.rooms : [];
+  const placed = [];
+  boothsHere.forEach((b, i) => {
+    const slot = slots.find(s => s.id === b.id) || FLOOR2_SLOTS[i];
+    if (slot) placed.push({ b, s: slot });
+  });
+
+  const routeIds = S.route ? CONFIG.ROUTES[S.route] : null;
+
+  placed.forEach(({ b, s }) => {
+    const L = lvOf(b.status);
+    const dim = routeIds && !routeIds.includes(b.id) ? ' dimmed' : '';
+    const lines = wrapLabel(b.name, s.w);
+    const cx = s.x + s.w / 2;
+    const baseY = s.y + s.h / 2 - (lines.length > 1 ? 6 : 1);
+    let t = '';
+    lines.forEach((ln, i) => {
+      t += `<text x="${cx}" y="${baseY + i * 11}" text-anchor="middle" class="nm">${esc(ln)}</text>`;
+    });
+    t += `<text x="${cx}" y="${s.y + s.h - 9}" text-anchor="middle" class="st">${L.icon} ${esc(L.short)}</text>`;
+
+    let extra = '';
+    if (S.stamps.has(b.id)){
+      extra += `<circle class="stamp-mark" cx="${s.x + s.w - 11}" cy="${s.y + 11}" r="8"/>
+                <text class="stamp-check" x="${s.x + s.w - 11}" y="${s.y + 14.5}" text-anchor="middle">✓</text>`;
+    }
+    if (routeIds && routeIds.includes(b.id)){
+      const n = routeIds.indexOf(b.id) + 1;
+      extra += `<g class="route-badge"><circle cx="${s.x + 12}" cy="${s.y + 12}" r="9"/>
+                <text x="${s.x + 12}" y="${s.y + 15.5}" text-anchor="middle">${n}</text></g>`;
+    }
+
+    html += `<g class="room${dim}" data-lv="${L.lv}" data-id="${esc(b.id)}" role="button" tabindex="0"
+              aria-label="${esc(b.name)} ${esc(L.short)}">
+        <rect class="fill" x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="7"/>
+        ${t}${extra}
+      </g>`;
+  });
+
+  if (!placed.length){
+    html += `<text x="200" y="250" text-anchor="middle" class="util">このフロアに公開ブースはありません</text>`;
+  }
+  svg.innerHTML = html;
+
+  $$('.room', svg).forEach(g => {
+    const id = g.dataset.id;
+    g.addEventListener('click', () => openBooth(id));
+    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openBooth(id); } });
+  });
+}
+
+function openBooth(id){
+  switchView('list');
+  S.q = ''; $('#q').value = ''; S.cat = 'all';
+  renderCats(); renderList();
+  requestAnimationFrame(() => {
+    const el = document.getElementById('booth-' + id);
+    if (!el) return;
+    el.scrollIntoView({ behavior:'smooth', block:'center' });
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 1600);
+  });
+}
+
+/* =====================================================================
+   おすすめ（混雑度 × 未訪問 で実データからスコアリング）
+   ===================================================================== */
+function recommend(){
+  const scored = S.booths
+    .map(b => {
+      const L = lvOf(b.status);
+      if (L.lv < 0 || L.lv === 3) return null;
+      let sc = (2 - L.lv) * 10;
+      if (!S.stamps.has(b.id)) sc += 6;
+      return { b, L, sc };
+    })
+    .filter(Boolean)
+    .sort((x, y) => y.sc - x.sc)
+    .slice(0, 3);
+
+  const box = $('#reco-list');
+  if (!scored.length){
+    box.innerHTML = `<p class="empty" style="padding:12px">状況を取得中です</p>`;
+    return;
+  }
+  box.innerHTML = scored.map((r, i) => `
+    <button class="reco" data-id="${esc(r.b.id)}">
+      <span class="rank">${i + 1}</span>
+      <span class="nm">${esc(r.b.name)}</span>
+      <span class="why">${esc(r.L.short)}${S.stamps.has(r.b.id) ? '' : '・未訪問'}</span>
+    </button>`).join('');
+  $$('.reco', box).forEach(el => el.addEventListener('click', () => openBooth(el.dataset.id)));
+}
+
+/* =====================================================================
+   一覧
+   ===================================================================== */
+function renderCats(){
+  const cats = ['all', ...Array.from(new Set(S.booths.map(b => b.category))).filter(Boolean)];
+  $('#cat-chips').innerHTML = cats.map(c =>
+    `<button class="chip" data-cat="${esc(c)}" aria-pressed="${S.cat === c}">${c === 'all' ? 'すべて' : esc(c)}</button>`
+  ).join('');
+  $$('#cat-chips .chip').forEach(el => el.addEventListener('click', () => {
+    S.cat = el.dataset.cat; renderCats(); renderList();
+  }));
+}
+
+function sparkline(hist){
+  if (!hist || hist.length < 2){
+    return `<span class="trend">混雑の推移：データ蓄積中</span>`;
+  }
+  const bars = hist.map(h => `<i data-lv="${Number(h.lv)}" title="${esc(h.t || '')}"></i>`).join('');
+  // 直近2点の平均と、その前3点の平均を比較（1点だけのブレで矢印が反転しないように）
+  const lv = hist.map(h => Number(h.lv));
+  const avg = a => a.reduce((s, v) => s + v, 0) / a.length;
+  const recent = avg(lv.slice(-2));
+  const before = avg(lv.slice(-5, -2).length ? lv.slice(-5, -2) : lv.slice(0, -2));
+  const d = recent - before;
+  const tr = d > 0.3 ? '↗ 混み始め' : d < -0.3 ? '↘ 緩和中' : '→ 横ばい';
+  return `<span class="spark">${bars}</span><span class="trend">${tr}</span>`;
+}
+
+function renderList(){
+  const box = $('#booth-list');
+  let items = S.booths.slice();
+  if (S.cat !== 'all') items = items.filter(b => b.category === S.cat);
+  if (S.q){
+    const q = S.q.toLowerCase();
+    items = items.filter(b => (b.name + b.category + b.note).toLowerCase().includes(q));
+  }
+  items.sort((a, b) => S.sort === 'free'
+    ? (lvOf(a.status).lv - lvOf(b.status).lv) || a.id.localeCompare(b.id, 'ja', { numeric:true })
+    : a.id.localeCompare(b.id, 'ja', { numeric:true }));
+
+  if (!items.length){ box.innerHTML = `<p class="empty">該当するブースがありません</p>`; return; }
+
+  box.innerHTML = items.map(b => {
+    const L = lvOf(b.status);
+    const got = S.stamps.has(b.id);
+    return `
+    <article class="booth" id="booth-${esc(b.id)}" data-lv="${L.lv}">
+      <div class="booth-top">
+        <span class="booth-bar"></span>
+        <div class="booth-main">
+          <h3 class="booth-nm">${esc(b.name)} <span class="tag">${esc(b.category)}</span><span class="tag">${b.floor}F</span></h3>
+          <p class="booth-meta">${esc(L.wait)}・更新 ${esc(ago(b.time))}</p>
+          ${b.note ? `<p class="booth-note">📌 ${esc(b.note)}</p>` : ''}
+        </div>
+        <span class="pill" data-lv="${L.lv}">${L.icon} ${esc(L.short)}</span>
+      </div>
+      <div class="booth-foot">
+        ${sparkline(b.history)}
+        <button class="mini-btn" data-stamp="${esc(b.id)}" aria-pressed="${got}">${got ? '✓ 訪問済み' : '訪問済みにする'}</button>
+      </div>
+    </article>`;
+  }).join('');
+
+  $$('[data-stamp]', box).forEach(el => el.addEventListener('click', () => toggleStamp(el.dataset.stamp)));
+}
+
+/* =====================================================================
+   スタンプラリー
+   ===================================================================== */
+function toggleStamp(id){
+  S.stamps.has(id) ? S.stamps.delete(id) : S.stamps.add(id);
+  store('kuroko_stamps_v2', Array.from(S.stamps));
+  renderList(); renderStamps(); recommend(); drawFloor(S.floor);
+  toast(S.stamps.has(id) ? 'スタンプを獲得しました' : '記録を取り消しました');
+}
+function renderStamps(){
+  const total = S.booths.length;
+  const got = S.booths.filter(b => S.stamps.has(b.id)).length;
+  $('#stamp-n').textContent = got;
+  $('#stamp-total').textContent = total;
+  $('#stamp-bar').style.width = total ? (got / total * 100) + '%' : '0%';
+  $('#stamp-msg').textContent = total && got === total ? '🎉 全制覇おめでとう！' : '';
+  $('#stamp-grid').innerHTML = S.booths.map(b => {
+    const g = S.stamps.has(b.id);
+    return `<div class="stamp ${g ? 'got' : ''}"><span class="mk">${g ? '🏅' : '⬜'}</span>
+            <span class="lb">${esc(b.name)}</span></div>`;
+  }).join('');
+}
+
+/* =====================================================================
+   インフォ
+   ===================================================================== */
+function renderInfo(){
+  // 「今どのコマか」を強調する（現在時刻を過ぎた直近の行）
+  const now = new Date();
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const toMin = s => { const m = /^(\d{1,2}):(\d{2})/.exec(s); return m ? +m[1] * 60 + +m[2] : -1; };
+  let cur = -1;
+  CONFIG.INFO.timetable.forEach(([t], i) => { if (toMin(t) <= mins) cur = i; });
+
+  $('#tt-body').innerHTML = CONFIG.INFO.timetable
+    .map(([t, v], i) => {
+      const on = i === cur;
+      return `<tr${on ? ' style="background:var(--surface-3)"' : ''}>
+        <td>${esc(t)}</td>
+        <td>${on ? '<b>▶ ' + esc(v) + '</b>' : esc(v)}</td></tr>`;
+    }).join('');
+  $('#help-list').innerHTML = CONFIG.INFO.help
+    .map(([i, t, d]) => `<div class="help"><span style="font-size:18px">${i}</span>
+      <span><b>${esc(t)}</b><span>${esc(d)}</span></span></div>`).join('');
+}
+
+/* =====================================================================
+   アラートバナー
+   ===================================================================== */
+function renderAlert(){
+  const busy = S.booths.filter(b => lvOf(b.status).lv === 2);
+  const free = S.booths.filter(b => lvOf(b.status).lv === 0);
+  const el = $('#banner-alert');
+  const staff = (S.view === 'auth' || S.view === 'admin');
+  if (!busy.length || staff){ el.classList.add('hide'); if (!busy.length) $('#banner-alert-text').textContent = ''; return; }
+  el.classList.remove('hide');
+  const names = busy.slice(0, 2).map(b => b.name).join('・') + (busy.length > 2 ? ` ほか${busy.length - 2}件` : '');
+  const alt = free.length ? `いまは「${free[0].name}」が空いています。` : '';
+  $('#banner-alert-text').textContent = `${names} が混雑中です。${alt}`;
+}
+
+/* =====================================================================
+   まとめて再描画
+   ===================================================================== */
+function renderAll(){
+  renderSyncState();
+  renderAlert();
+  recommend();
+  drawFloor(S.floor);
+  renderCats();
+  renderList();
+  renderStamps();
+  if (S.isAdmin) renderAdmin();
+}
+
+/* =====================================================================
+   ビュー切替
+   ===================================================================== */
+function switchView(v){
+  S.view = v;
+  ['map','list','stamp','info','auth','admin'].forEach(k =>
+    $('#v-' + k).classList.toggle('on', k === v));
+  $$('#nav button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
+  const staff = (v === 'auth' || v === 'admin');
+  $('#nav').classList.toggle('hide', staff);
+  // 来場者向けの混雑アラートは係員画面では出さない（ノイズになる）
+  $('#banner-alert').classList.toggle('hide', staff || !$('#banner-alert-text').textContent);
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+/* =====================================================================
+   係員モード（パスワードはクライアントに保持しない／毎回GASで照合）
+   ===================================================================== */
+function pw(){ try{ return sessionStorage.getItem('kuroko_pw') || ''; }catch(e){ return ''; } }
+
+async function login(){
+  const v = $('#pw').value.trim();
+  if (!v) return;
+  $('#btn-login').disabled = true;
+  try{
+    const r = await api({ body:{ action:'verify', pass:v } });
+    if (r && r.ok){
+      sessionStorage.setItem('kuroko_pw', v);
+      S.isAdmin = true;
+      $('#auth-err').classList.add('hide');
+      renderAssign(); renderAdmin(); switchView('admin');
+    } else throw new Error('bad');
+  }catch(e){
+    $('#auth-err').classList.remove('hide');
+    $('#auth-err').textContent = e.message === 'bad' ? 'パスワードが違います' : '通信に失敗しました';
+  }finally{ $('#btn-login').disabled = false; }
+}
+
+function renderAssign(){
+  $('#assign-chips').innerHTML =
+    `<button class="chip" data-as="__all" aria-pressed="${S.assigned.size === 0}">すべて表示</button>` +
+    S.booths.map(b => `<button class="chip" data-as="${esc(b.id)}" aria-pressed="${S.assigned.has(b.id)}">${esc(b.name)}</button>`).join('');
+  $$('#assign-chips .chip').forEach(el => el.addEventListener('click', () => {
+    const v = el.dataset.as;
+    if (v === '__all') S.assigned.clear();
+    else S.assigned.has(v) ? S.assigned.delete(v) : S.assigned.add(v);
+    store('kuroko_assigned_v2', Array.from(S.assigned));
+    renderAssign(); renderAdmin();
+  }));
+}
+
+function renderAdmin(){
+  const list = S.assigned.size ? S.booths.filter(b => S.assigned.has(b.id)) : S.booths;
+  $('#admin-list').innerHTML = list.map(b => {
+    const L = lvOf(b.status);
+    const stale = b.time && (Date.now() - new Date(b.time).getTime() > CONFIG.ADMIN_STALE_MS);
+    return `
+    <div class="adm-booth" data-id="${esc(b.id)}">
+      <div class="adm-head">
+        <span class="adm-nm">${esc(b.name)}</span>
+        ${stale ? '<span class="stale-warn">⚠ 30分以上未更新</span>' : ''}
+        <span class="pill" data-lv="${L.lv}">${L.icon} ${esc(L.short)}</span>
+      </div>
+      <div class="adm-btns">
+        ${LEVELS.slice(0, 3).map(l =>
+          `<button data-lv="${l.lv}" data-sel="${L.lv === l.lv ? 1 : 0}" data-key="${esc(l.key)}">${esc(l.short)}</button>`
+        ).join('')}
+      </div>
+    </div>`;
+  }).join('');
+
+  $$('#admin-list .adm-btns button').forEach(btn => btn.addEventListener('click', () => {
+    const id = btn.closest('.adm-booth').dataset.id;
+    update(id, btn.dataset.key, btn);
+  }));
+}
+
+async function update(id, status, btn){
+  const b = S.booths.find(x => x.id === id);
+  if (!b) return;
+  if (navigator.onLine === false){ toast('圏外です。電波の届く場所で操作してください'); return; }
+  const prev = b.status;
+  b.status = status; b.time = new Date().toISOString();   // 楽観的更新
+  renderAdmin();
+  const btns = $$(`.adm-booth[data-id="${CSS.escape(id)}"] button`);
+  btns.forEach(x => x.disabled = true);
+  try{
+    await api({ body:{ action:'update', id, status, pass: pw() } });
+    toast(`${b.name} → ${lvOf(status).short}`);
+  }catch(e){
+    b.status = prev;                                       // ロールバック
+    renderAdmin();
+    toast('更新失敗：もう一度お試しください');
+  }finally{
+    btns.forEach(x => x.disabled = false);
+  }
+}
+
+async function bulkReset(){
+  if (navigator.onLine === false){ toast('圏外です。電波の届く場所で操作してください'); return; }
+  if (!confirm('全ブースを「空いています」に戻します。よろしいですか？')) return;
+  const btn = $('#btn-bulk'); btn.disabled = true; btn.textContent = '送信中…';
+  try{
+    await api({ body:{ action:'bulk', status:'空いています', pass: pw() } });
+    await sync(false); toast('全ブースをリセットしました');
+  }catch(e){ toast('リセットに失敗しました'); }
+  finally{ btn.disabled = false; btn.textContent = '全ブースを「空いています」に戻す'; }
+}
+
+/* =====================================================================
+   初期化
+   ===================================================================== */
+function initTheme(){
+  const saved = load('kuroko_theme', null);
+  const t = saved || 'light';
+  document.documentElement.setAttribute('data-theme', t);
+  $('#btn-theme').addEventListener('click', () => {
+    const now = document.documentElement.getAttribute('data-theme') === 'cyber' ? 'light' : 'cyber';
+    document.documentElement.setAttribute('data-theme', now);
+    store('kuroko_theme', now);
+    toast(now === 'cyber' ? 'サイバーテーマ' : 'ライトテーマ');
+  });
+}
+
+function init(){
+  initTheme();
+  S.stamps   = new Set(load('kuroko_stamps_v2', []));
+  S.assigned = new Set(load('kuroko_assigned_v2', []));
+
+  const cache = load('kuroko_cache_v2', null);
+  if (cache && cache.booths){
+    S.booths = cache.booths; S.updatedAt = cache.updatedAt; S.fetchedAt = cache.fetchedAt || 0;
+    renderAll();
+  }
+  renderInfo();
+
+  $$('#nav button').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
+  $('#btn-reload').addEventListener('click', () => sync(true));
+  $('#fl-1').addEventListener('click', () => setFloor(1));
+  $('#fl-2').addEventListener('click', () => setFloor(2));
+  $$('.chip[data-route]').forEach(el => el.addEventListener('click', () => {
+    S.route = S.route === el.dataset.route ? null : el.dataset.route;
+    $$('.chip[data-route]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.route === S.route)));
+    drawFloor(S.floor);
+  }));
+  $('#q').addEventListener('input', e => { S.q = e.target.value.trim(); renderList(); });
+  $('#sort-free').addEventListener('click', () => setSort('free'));
+  $('#sort-name').addEventListener('click', () => setSort('name'));
+  $('#stamp-reset').addEventListener('click', () => {
+    if (!confirm('スタンプの記録を消しますか？')) return;
+    S.stamps.clear(); store('kuroko_stamps_v2', []); renderAll(); toast('記録をリセットしました');
+  });
+  $('#btn-login').addEventListener('click', login);
+  $('#pw').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+  $('#btn-bulk').addEventListener('click', bulkReset);
+  $('#btn-logout').addEventListener('click', () => {
+    sessionStorage.removeItem('kuroko_pw'); S.isAdmin = false; switchView('map'); toast('ログアウトしました');
+  });
+
+  // ---- ディープリンク（LINEリッチメニューから直接タブを開くため）
+  //   ?tab=list  … 一覧タブ
+  //   ?booth=3   … ブースID 3 を開いてハイライト
+  //   ?mode=admin… 係員モード
+  const params = new URLSearchParams(location.search);
+  if (params.get('mode') === 'admin'){
+    if (pw()){ S.isAdmin = true; renderAssign(); renderAdmin(); switchView('admin'); }
+    else switchView('auth');
+  } else {
+    const tab = params.get('tab');
+    if (['map','list','stamp','info'].indexOf(tab) >= 0) switchView(tab);
+  }
+
+  sync(false).then(() => {
+    const b = params.get('booth');
+    if (b && S.booths.some(x => x.id === b)) openBooth(b);
+  });
+
+  initLiff();
+
+  if ('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+}
+
+/* LIFF（LINEミニアプリ）対応：CONFIG.LIFF_ID が空なら何もしない。
+   通常のブラウザでも動作を変えないよう、失敗しても握りつぶす。 */
+function initLiff(){
+  if (!CONFIG.LIFF_ID) return;
+  const s = document.createElement('script');
+  s.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
+  s.onload = () => {
+    if (!window.liff) return;
+    liff.init({ liffId: CONFIG.LIFF_ID })
+      .then(() => { document.documentElement.dataset.liff = '1'; })
+      .catch(() => {});
+  };
+  s.onerror = () => {};
+  document.head.appendChild(s);
+}
+
+function setFloor(n){
+  S.floor = n;
+  $('#fl-1').setAttribute('aria-pressed', String(n === 1));
+  $('#fl-2').setAttribute('aria-pressed', String(n === 2));
+  $('#plan-1').classList.toggle('hide', n !== 1);
+  $('#plan-2').classList.toggle('hide', n !== 2);
+  drawFloor(n);
+}
+function setSort(s){
+  S.sort = s;
+  $('#sort-free').setAttribute('aria-pressed', String(s === 'free'));
+  $('#sort-name').setAttribute('aria-pressed', String(s === 'name'));
+  renderList();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
