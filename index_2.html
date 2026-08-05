@@ -1,0 +1,2729 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>黒工文化祭 校内マップ｜リアルタイム混雑案内</title>
+<meta name="description" content="岩手県立黒沢尻工業高等学校 文化祭の校内マップとリアルタイム混雑状況。">
+<!-- LINEやSNSで共有したときのプレビュー -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="黒工文化祭 校内マップ">
+<meta property="og:description" content="どのブースが空いているか、いま何人待ちかをリアルタイムで確認できます。スタンプラリーも。">
+<meta property="og:site_name" content="黒工文化祭 案内システム">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:url" content="https://ma222222-source.github.io/bunnkasai/">
+<meta property="og:image" content="https://ma222222-source.github.io/bunnkasai/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#b91c1c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23b91c1c'/%3E%3Ctext x='32' y='45' font-size='38' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'%3E黒%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%23b91c1c'/%3E%3Ctext x='90' y='125' font-size='104' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'%3E黒%3C/text%3E%3C/svg%3E">
+
+<!--
+  ===========================================================================
+  黒工文化祭 校内マップ v3
+  ---------------------------------------------------------------------------
+  このファイル1枚で、来場者・係員・印刷物・振り返りのすべてをまかなう。
+  外部ライブラリもCDNも使っていない（QRコードも自前で生成している）。
+  校内Wi-Fiが不安定でも、まず画面が開くことを最優先にしている。
+
+  【画面（?mode= と ?tab= で切り替え）】
+   来場者   … マップ / 一覧 / スタンプ / インフォ
+   ?mode=admin  … 係員コンソール（パスワードはGAS側で照合）
+   ?mode=qr     … ブース入口に貼るQRの印刷シート＋係員手順カード
+   ?mode=print  … 配布用の紙マップ（A4縦1枚）
+   ?mode=report … 当日の混雑を振り返るレポート
+
+  【触るのはここだけ】
+   1) CONFIG.GAS_URL ... GASを再デプロイしたら /exec URL を差し替え
+   2) CONFIG.BUILD ..... 更新したら日付を変える（画面下部に出るので反映確認に使う）
+   3) CONFIG.INFO ...... タイムテーブルと案内文言を実際の内容に
+   4) CONFIG.ROUTES .... おすすめ周回コースの巡回順（ブースid）
+   5) FLOOR_PLAN ....... 校舎の実際の配置に合わせて座標を調整
+   6) CONFIG.LIFF_ID ... LIFF化するときだけ。空なら通常のWebとして動く
+
+  【設計上の約束】
+   ・パスワードはこのファイルに存在しない（GASのスクリプトプロパティが持つ）
+   ・混雑度は 色＋模様＋記号＋人数 の4通りで示す（色だけに頼らない）
+   ・20秒ごとの自動同期で、入力途中の値や並び順を壊さない
+   ・45分更新がないブースはサーバー側で「情報なし」になる（古い情報を出さない）
+   詳しい手順は SETUP.md を参照。
+  ===========================================================================
+-->
+
+<style>
+/* ========================= デザイントークン ========================= */
+:root{
+  --bg:#eef1f6; --surface:#ffffff; --surface-2:#f8fafc; --surface-3:#eef2f7;
+  --border:#dfe5ee; --border-strong:#c8d2e0;
+  /* --text-mute は白背景でコントラスト4.8:1（WCAG AA）を満たす値にしてある */
+  --text:#101828; --text-dim:#5b6779; --text-mute:#5f6b7a;
+  --accent:#b91c1c; --accent-2:#7f1d1d; --on-accent:#ffffff;
+  --free:#15803d; --warn:#b45309; --busy:#dc2626; --unknown:#94a3b8; --closed:#64748b;
+  --free-soft:#dcfce7; --warn-soft:#fef3c7; --busy-soft:#fee2e2;
+  /* 淡い背景の上に載せる文字色。--busy そのままだと 4:1 を切るため別に持つ */
+  --busy-ink:#b91c1c;
+  --on-status:#ffffff;   /* 混雑度の色を背景にしたときの文字色 */
+  --corridor:#e4e9f1; --outdoor:#e8f0e4; --room-label:#ffffff; --label-stroke:rgba(0,0,0,.5);
+  --shadow:0 1px 2px rgba(16,24,40,.06), 0 8px 24px -12px rgba(16,24,40,.24);
+  --shadow-lg:0 12px 40px -12px rgba(16,24,40,.35);
+  --r-sm:8px; --r:14px; --r-lg:20px;
+  --glow:none;
+  --safe-b:env(safe-area-inset-bottom, 0px);
+}
+[data-theme="cyber"]{
+  --bg:#05070d; --surface:#0d1320; --surface-2:#111a2b; --surface-3:#16223a;
+  --border:#1f2d47; --border-strong:#2c3f61;
+  --text:#dbe7f7; --text-dim:#8ea3c0; --text-mute:#7f97b6;
+  --accent:#00e5ff; --accent-2:#00b8d4; --on-accent:#04141a;
+  --free:#22e39a; --warn:#ffc857; --busy:#ff4d6d; --unknown:#3d4d6b; --closed:#41506b;
+  --free-soft:#08301f; --warn-soft:#33270a; --busy-soft:#3a0f1a;
+  --busy-ink:#ff8095;
+  --on-status:#04121c;   /* サイバーテーマは色が明るいので文字は暗くする */
+  --corridor:#111c30; --outdoor:#0b1a16; --room-label:#04121c; --label-stroke:rgba(255,255,255,.5);
+  --shadow:0 0 0 1px rgba(0,229,255,.06), 0 8px 30px -14px rgba(0,229,255,.35);
+  --shadow-lg:0 0 40px -10px rgba(0,229,255,.35);
+  --glow:drop-shadow(0 0 6px currentColor);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.55;
+  overscroll-behavior-y:none;
+}
+button{font:inherit;color:inherit;cursor:pointer;border:none;background:none}
+input{font:inherit}
+/* キーボード操作時だけ枠を出す（タップでは出さない） */
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+.room:focus-visible .fill{stroke:var(--accent);stroke-width:3}
+h1,h2,h3{margin:0;line-height:1.3}
+p{margin:0}
+
+/* ========================= レイアウト ========================= */
+.app{max-width:520px;margin:0 auto;min-height:100dvh;background:var(--bg);
+     display:flex;flex-direction:column;position:relative;
+     box-shadow:0 0 0 1px var(--border)}
+.head{
+  position:sticky;top:0;z-index:40;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  color:var(--on-accent);padding:10px 14px;
+  padding-top:calc(10px + env(safe-area-inset-top,0px));
+}
+[data-theme="cyber"] .head{background:linear-gradient(135deg,#08131f,#0d2033);
+  color:var(--text);border-bottom:1px solid var(--accent);box-shadow:0 0 24px -8px var(--accent)}
+.head-row{display:flex;align-items:center;gap:10px}
+.head h1{font-size:15px;font-weight:800;letter-spacing:.02em}
+.head .sub{font-size:10px;opacity:.75;letter-spacing:.08em}
+.head-actions{margin-left:auto;display:flex;align-items:center;gap:6px}
+.icon-btn{
+  width:38px;height:38px;border-radius:11px;display:grid;place-items:center;
+  background:rgba(255,255,255,.16);font-size:15px;transition:.15s;
+}
+[data-theme="cyber"] .icon-btn{background:var(--surface-2);border:1px solid var(--border)}
+.icon-btn:active{transform:scale(.92)}
+
+.sync{
+  display:flex;align-items:center;gap:6px;margin-top:8px;
+  font-size:10.5px;font-weight:700;letter-spacing:.03em;
+  background:rgba(0,0,0,.16);border-radius:999px;padding:4px 10px;width:fit-content;
+}
+[data-theme="cyber"] .sync{background:var(--surface-2);border:1px solid var(--border)}
+.dot{width:7px;height:7px;border-radius:50%;background:#4ade80;flex:none}
+.dot.stale{background:#fbbf24}
+.dot.down{background:#f87171;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:.25}}
+
+main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direction:column;gap:12px}
+.view{display:none;flex-direction:column;gap:12px}
+.view.on{display:flex;animation:fade .22s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+      box-shadow:var(--shadow);padding:12px}
+.card-t{font-size:11.5px;font-weight:800;color:var(--text-dim);letter-spacing:.06em;
+        display:flex;align-items:center;gap:6px;margin-bottom:8px}
+
+/* ========================= バナー ========================= */
+.banner{border-radius:var(--r);padding:10px 12px;font-size:12px;font-weight:700;
+        display:flex;gap:8px;align-items:flex-start;line-height:1.45}
+.banner.alert{background:var(--busy-soft);color:var(--busy-ink);border:1px solid var(--busy)}
+.banner.info{background:var(--surface-3);color:var(--text-dim);border:1px solid var(--border)}
+.retry{margin-left:auto;flex:none;font-size:11px;font-weight:900;padding:6px 12px;border-radius:8px;
+       background:var(--surface);border:1px solid var(--border-strong);color:var(--text)}
+.banner.notice{background:var(--accent);color:var(--on-accent);border:1px solid var(--accent)}
+.banner.notice[data-level="alert"]{background:var(--busy);border-color:var(--busy);color:#fff}
+[data-theme="cyber"] .banner.notice{box-shadow:0 0 20px -6px var(--accent)}
+.hide{display:none !important}
+
+/* ========================= 全体サマリ ========================= */
+.summary{display:flex;gap:6px}
+.sum{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);
+     padding:8px 4px;text-align:center;box-shadow:var(--shadow)}
+.sum b{display:block;font-size:19px;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
+.sum span{display:block;font-size:9.5px;font-weight:800;color:var(--text-mute);margin-top:2px}
+.sum[data-lv="0"] b{color:var(--free)}
+.sum[data-lv="1"] b{color:var(--warn)}
+.sum[data-lv="2"] b{color:var(--busy)}
+.sum[data-lv="x"] b{color:var(--text-mute)}
+
+/* ========================= 次のイベント ========================= */
+.next-ev{width:100%;text-align:left;display:flex;align-items:center;gap:10px;
+         background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--accent);
+         border-radius:var(--r);box-shadow:var(--shadow);padding:10px 12px}
+.next-ev .tm{font-size:15px;font-weight:900;color:var(--accent);flex:none;
+             font-variant-numeric:tabular-nums}
+.next-ev .tx{font-size:12px;font-weight:800;flex:1;min-width:0;
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.next-ev .left{font-size:10.5px;font-weight:800;color:var(--text-mute);flex:none}
+
+/* ========================= はじめての方へ ========================= */
+.tips{position:relative;border-left:4px solid var(--accent)}
+.tips ul{margin:0;padding-left:18px;font-size:11.5px;color:var(--text-dim);
+         font-weight:600;line-height:1.8}
+.tips b{color:var(--text)}
+.tips-x{position:absolute;top:4px;right:4px;width:36px;height:36px;border-radius:10px;
+        font-size:18px;color:var(--text-mute);display:grid;place-items:center}
+
+/* ========================= おすすめ ========================= */
+.reco-list{display:flex;flex-direction:column;gap:6px}
+.reco{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r-sm);
+      background:var(--surface-2);border:1px solid var(--border);text-align:left;width:100%}
+.reco:active{transform:scale(.985)}
+.reco .rank{width:22px;height:22px;border-radius:7px;background:var(--accent);color:var(--on-accent);
+            font-size:11px;font-weight:900;display:grid;place-items:center;flex:none}
+.reco .nm{font-size:12.5px;font-weight:800;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.reco .why{font-size:10px;color:var(--text-mute);font-weight:600}
+
+/* ========================= マップ ========================= */
+.map-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.seg{display:flex;background:var(--surface-3);border-radius:10px;padding:3px;gap:2px}
+.seg button{font-size:11px;font-weight:800;padding:5px 11px;border-radius:8px;color:var(--text-dim)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+[data-theme="cyber"] .seg button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
+
+.map-wrap{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r);
+          overflow:hidden;position:relative}
+svg.plan{display:block;width:100%;height:auto;touch-action:manipulation}
+.plan text{font-family:inherit}
+.struct{fill:var(--corridor)}
+.outdoor{fill:var(--outdoor)}
+.wall{fill:none;stroke:var(--border-strong);stroke-width:1.5}
+.zone-label{font-size:8.5px;font-weight:800;fill:var(--text-mute);letter-spacing:.08em}
+.util{font-size:7.5px;font-weight:700;fill:var(--text-dim)}
+.util-box{fill:var(--surface-3);stroke:var(--border);stroke-width:1}
+.util-tap{cursor:pointer}
+.util-tap .util-box{stroke:var(--accent);stroke-dasharray:2 2}
+.util-tap:active .util-box{fill:var(--accent);fill-opacity:.15}
+
+.room{cursor:pointer}
+.room .fill{fill:var(--unknown);stroke:rgba(0,0,0,.10);stroke-width:1;transition:fill .4s}
+/* パターン塗りの上でも文字が読めるよう、文字に縁取りを付ける（可読性の要） */
+.room .nm,.room .st{fill:var(--room-label);pointer-events:none;
+  paint-order:stroke fill;stroke:var(--label-stroke);stroke-width:2.6px;stroke-linejoin:round}
+.room .nm{font-size:9.5px;font-weight:800}
+.room .st{font-size:8px;font-weight:700;stroke-width:2.2px}
+.room[data-lv="0"] .fill{fill:var(--free)}
+.room[data-lv="1"] .fill{fill:url(#pat-warn)}
+.room[data-lv="2"] .fill{fill:url(#pat-busy)}
+.room[data-lv="3"] .fill{fill:var(--closed)}
+.room[data-lv="2"] .fill{animation:breathe 2.4s ease-in-out infinite}
+@keyframes breathe{50%{opacity:.72}}
+.room:active .fill{stroke:var(--accent);stroke-width:3}
+.room.flash .fill{stroke:var(--accent);stroke-width:3.5}
+.stamp-mark{fill:#fff;stroke:var(--free);stroke-width:2}
+.stamp-check{font-size:9px;font-weight:900;fill:var(--free)}
+.route-badge circle{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.route-badge text{font-size:9px;font-weight:900;fill:var(--on-accent)}
+.room-no circle{fill:var(--surface);stroke:var(--border-strong);stroke-width:1.2}
+.room-no text{font-size:9px;font-weight:900;fill:var(--text)}
+.dimmed{opacity:.32}
+
+.unplaced{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;
+          border-top:1px solid var(--border);background:var(--warn-soft);
+          font-size:10px;font-weight:800;color:var(--warn)}
+.unplaced button{background:var(--surface);border:1px solid var(--warn);color:var(--warn);
+                 border-radius:7px;padding:5px 10px;font-size:10.5px;font-weight:800}
+.legend{display:flex;flex-wrap:wrap;gap:8px;padding:9px 10px;border-top:1px solid var(--border);
+        background:var(--surface);font-size:10px;font-weight:700;color:var(--text-dim)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;
+          vertical-align:-2px}
+.lg-free{background:var(--free)}
+.lg-warn{background:repeating-linear-gradient(45deg,var(--warn) 0 3px,rgba(255,255,255,.55) 3px 5px)}
+.lg-busy{background:var(--busy);background-image:radial-gradient(rgba(255,255,255,.7) 1px,transparent 1.2px);background-size:4px 4px}
+.lg-unk{background:var(--unknown)}
+
+/* ========================= 検索・フィルタ ========================= */
+.search{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);
+        border-radius:var(--r);padding:0 12px;box-shadow:var(--shadow)}
+.search input{border:none;outline:none;background:none;color:var(--text);
+              padding:12px 0;width:100%;font-size:13px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+/* 指で押しやすいよう、タップ領域は40px以上を確保する */
+.chip{flex:none;font-size:11.5px;font-weight:800;padding:0 14px;min-height:40px;border-radius:999px;
+      display:inline-flex;align-items:center;
+      background:var(--surface);border:1px solid var(--border);color:var(--text-dim);white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+
+/* ========================= ブースカード ========================= */
+.booth{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+       box-shadow:var(--shadow);overflow:hidden}
+.booth.flash{outline:3px solid var(--accent);outline-offset:-1px}
+.booth-top{display:flex;gap:10px;padding:11px 12px;align-items:flex-start}
+.booth-bar{width:5px;border-radius:3px;align-self:stretch;flex:none;background:var(--unknown)}
+.booth[data-lv="0"] .booth-bar{background:var(--free)}
+.booth[data-lv="1"] .booth-bar{background:var(--warn)}
+.booth[data-lv="2"] .booth-bar{background:var(--busy)}
+.booth-main{flex:1;min-width:0}
+.booth-nm{font-size:13.5px;font-weight:800;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.booth-nm .no{flex:none;width:20px;height:20px;border-radius:6px;background:var(--surface-3);
+              color:var(--text-dim);font-size:11px;font-weight:900;display:grid;place-items:center}
+.tag{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:6px;
+     background:var(--surface-3);color:var(--text-dim)}
+.booth-meta{font-size:10.5px;color:var(--text-mute);font-weight:600;margin-top:2px}
+.booth-note{font-size:11px;color:var(--text-dim);margin-top:5px;font-weight:600}
+.pill{font-size:11px;font-weight:900;padding:5px 10px;border-radius:999px;white-space:nowrap;
+      display:flex;align-items:center;gap:5px;flex:none}
+.pill[data-lv="0"]{background:var(--free-soft);color:var(--free)}
+.pill[data-lv="1"]{background:var(--warn-soft);color:var(--warn)}
+.pill[data-lv="2"]{background:var(--busy-soft);color:var(--busy-ink)}
+.pill[data-lv="-1"],.pill[data-lv="3"]{background:var(--surface-3);color:var(--text-mute)}
+.booth-foot{display:flex;align-items:center;gap:8px;padding:8px 12px;
+            border-top:1px dashed var(--border);background:var(--surface-2)}
+.spark{display:flex;align-items:flex-end;gap:2px;height:18px}
+.spark i{width:4px;border-radius:1.5px;display:block;background:var(--unknown)}
+.spark i[data-lv="0"]{background:var(--free);height:5px}
+.spark i[data-lv="1"]{background:var(--warn);height:11px}
+.spark i[data-lv="2"]{background:var(--busy);height:17px}
+.trend{font-size:10px;font-weight:800;color:var(--text-mute)}
+.mini-btn{margin-left:auto;font-size:11px;font-weight:800;padding:0 13px;min-height:38px;
+          border-radius:10px;display:inline-flex;align-items:center;
+          border:1px solid var(--border);background:var(--surface);color:var(--text-dim)}
+.mini-btn[aria-pressed="true"]{background:var(--free);border-color:var(--free);color:var(--on-status)}
+.mini-btn.watch{margin-left:auto}
+.mini-btn.watch[aria-pressed="true"]{background:var(--warn);border-color:var(--warn);color:var(--on-status)}
+.mini-btn.watch + .mini-btn{margin-left:6px}
+
+/* ========================= スタンプ ========================= */
+.stamp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.stamp{aspect-ratio:1;border-radius:var(--r);border:2px dashed var(--border-strong);
+       background:var(--surface-2);display:flex;flex-direction:column;align-items:center;
+       justify-content:center;gap:4px;padding:6px;text-align:center}
+.stamp.got{border-style:solid;border-color:var(--free);background:var(--free-soft)}
+.stamp .mk{font-size:22px;filter:grayscale(1);opacity:.35}
+.stamp.got .mk{filter:none;opacity:1}
+.stamp .lb{font-size:9.5px;font-weight:800;color:var(--text-dim);line-height:1.25}
+.stamp.got .lb{color:var(--free)}
+.progress{height:9px;border-radius:999px;background:var(--surface-3);overflow:hidden;margin-top:8px}
+.progress > i{display:block;height:100%;background:linear-gradient(90deg,var(--free),var(--warn));
+              transition:width .5s ease}
+.cert{text-align:center;border:2px solid var(--accent);background:
+      linear-gradient(180deg,color-mix(in srgb,var(--accent) 8%,var(--surface)),var(--surface))}
+.cert-badge{font-size:44px;line-height:1}
+.cert h3{font-size:17px;font-weight:900;margin-top:4px;letter-spacing:.06em}
+.cert p{font-size:11.5px;color:var(--text-dim);font-weight:700;margin-top:4px}
+.cert .cert-date{font-size:10px;color:var(--text-mute);margin-top:6px;
+                 font-variant-numeric:tabular-nums}
+
+/* ========================= インフォ ========================= */
+.tt{width:100%;border-collapse:collapse;font-size:11.5px}
+.tt th,.tt td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--border)}
+.tt th{font-size:10px;color:var(--text-mute);font-weight:800;letter-spacing:.05em}
+.tt td:first-child{font-weight:800;white-space:nowrap;color:var(--accent)}
+.help{display:flex;gap:9px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px}
+.help:last-child{border-bottom:none}
+.help b{display:block;font-size:12px}
+.help span{font-size:11px;color:var(--text-dim)}
+
+/* ========================= 管理者 ========================= */
+.adm-booth{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+           padding:11px 12px;box-shadow:var(--shadow)}
+.adm-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.adm-nm{font-size:13px;font-weight:800;flex:1;min-width:0}
+.adm-btns{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.adm-btns button{padding:14px 4px;border-radius:11px;font-size:12px;font-weight:900;
+                 border:1.5px solid var(--border);background:var(--surface-2);color:var(--text-dim)}
+.adm-btns button[data-sel="1"][data-lv="0"]{background:var(--free);border-color:var(--free);color:var(--on-status)}
+.adm-btns button[data-sel="1"][data-lv="1"]{background:var(--warn);border-color:var(--warn);color:var(--on-status)}
+.adm-btns button[data-sel="1"][data-lv="2"]{background:var(--busy);border-color:var(--busy);color:var(--on-status)}
+.adm-btns button:disabled{opacity:.5}
+.adm-booth[data-fresh="warn"]{border-color:var(--warn);box-shadow:inset 3px 0 0 var(--warn),var(--shadow)}
+.adm-booth[data-fresh="danger"]{border-color:var(--busy);box-shadow:inset 3px 0 0 var(--busy),var(--shadow)}
+.adm-elapsed{font-size:11px;font-weight:900;padding:3px 8px;border-radius:7px;
+             background:var(--surface-3);color:var(--text-mute);white-space:nowrap}
+.adm-elapsed[data-fresh="warn"]{background:var(--warn-soft);color:var(--warn)}
+.adm-elapsed[data-fresh="danger"]{background:var(--busy-soft);color:var(--busy)}
+.adm-wait{display:flex;align-items:center;gap:5px;margin-bottom:6px;flex-wrap:wrap}
+.adm-wait-lb{font-size:10.5px;font-weight:800;color:var(--text-mute);flex:none;width:100%}
+.adm-wait .step{width:44px;height:44px;border-radius:11px;border:1.5px solid var(--border);
+                background:var(--surface-2);font-size:12.5px;font-weight:900;flex:none}
+.adm-wait .step:active{transform:scale(.94)}
+.adm-wait-n{flex:1;min-width:52px;text-align:center;font-size:20px;font-weight:900;
+            font-variant-numeric:tabular-nums;border-radius:8px}
+.adm-wait-n.dirty{background:var(--warn-soft);color:var(--warn);
+                  outline:2px dashed var(--warn);outline-offset:-2px}
+.adm-wait .send{height:44px;padding:0 16px;border-radius:11px;background:var(--accent);
+                color:var(--on-accent);font-size:12.5px;font-weight:900;flex:none}
+.adm-hint{font-size:9.5px;color:var(--text-mute);font-weight:600;margin-bottom:9px;line-height:1.5}
+.field{width:100%;padding:13px 14px;border-radius:var(--r);border:1.5px solid var(--border);
+       background:var(--surface);color:var(--text);outline:none;text-align:center;font-weight:800;letter-spacing:.15em}
+.field:focus{border-color:var(--accent)}
+.btn{width:100%;padding:14px;border-radius:var(--r);background:var(--accent);color:var(--on-accent);
+     font-weight:900;font-size:13px;box-shadow:var(--shadow)}
+.btn.ghost{background:var(--surface);color:var(--text-dim);border:1px solid var(--border);box-shadow:none}
+.btn:active{transform:scale(.985)}
+.stale-warn{font-size:10px;font-weight:800;color:var(--busy-ink)}
+
+/* ========================= ボトムナビ ========================= */
+.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;z-index:50;
+     background:color-mix(in srgb,var(--surface) 88%,transparent);
+     backdrop-filter:saturate(180%) blur(14px);
+     border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(4,1fr);
+     padding-bottom:var(--safe-b)}
+.nav button{padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:2px;
+            font-size:9.5px;font-weight:800;color:var(--text-mute)}
+.nav button em{font-style:normal;font-size:19px;line-height:1}
+.nav button[aria-pressed="true"]{color:var(--accent)}
+[data-theme="cyber"] .nav button[aria-pressed="true"]{filter:var(--glow)}
+
+/* ========================= トースト ========================= */
+.toast-act{margin-left:12px;padding:4px 10px;border-radius:8px;font-size:11px;font-weight:900;
+           background:var(--bg);color:var(--text);border:1px solid var(--text-mute)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(78px + var(--safe-b));
+       background:var(--text);color:var(--bg);padding:11px 18px;border-radius:999px;
+       font-size:12px;font-weight:800;z-index:80;box-shadow:var(--shadow-lg);
+       opacity:0;pointer-events:none;transition:.25s}
+.toast.on{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(-4px)}
+
+.skel{background:linear-gradient(90deg,var(--surface-3) 25%,var(--surface-2) 37%,var(--surface-3) 63%);
+      background-size:400% 100%;animation:sk 1.3s linear infinite;border-radius:var(--r);height:78px}
+@keyframes sk{0%{background-position:100% 0}100%{background-position:0 0}}
+
+.empty{text-align:center;padding:34px 12px;color:var(--text-mute);font-size:12px;font-weight:700}
+
+.foot{text-align:center;padding:14px 12px 4px;color:var(--text-mute);font-size:10px;font-weight:600}
+.foot-sub{margin-top:2px;font-variant-numeric:tabular-nums}
+.foot-btn{margin-top:8px;font-size:10px;font-weight:800;color:var(--text-dim);
+          text-decoration:underline;text-underline-offset:3px;padding:8px 4px}
+
+/* ========================= 配置エディタ ========================= */
+.lay-tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
+.lay-sel{margin-top:8px;font-size:11px;font-weight:800;color:var(--text-dim);
+         font-variant-numeric:tabular-nums}
+.lay-svg{width:100%;height:auto;background:var(--surface-2);border-radius:var(--r-sm);
+         touch-action:none;user-select:none}
+.lay-svg .box{cursor:move}
+.lay-svg .box rect{stroke:var(--border-strong);stroke-width:1.2}
+.lay-svg .box[data-kind="room"] rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6}
+.lay-svg .box[data-kind="struct"] rect{fill:var(--corridor)}
+.lay-svg .box[data-kind="util"] rect{fill:var(--surface-3)}
+.lay-svg .box.on rect{stroke:var(--accent);stroke-width:3}
+.lay-svg .box text{font-size:8.5px;font-weight:800;fill:var(--text);pointer-events:none}
+.lay-svg .hnd{fill:var(--accent);cursor:nwse-resize}
+.lay-code{width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px;
+          line-height:1.5;border:1px solid var(--border);border-radius:var(--r-sm);
+          background:var(--surface-2);color:var(--text);padding:8px;resize:vertical}
+
+/* ========================= QR印刷シート ========================= */
+.qr-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.qr-card{margin:0;background:#fff;border:1px solid var(--border);border-radius:var(--r);
+         padding:10px;text-align:center;color:#000;break-inside:avoid}
+.qr-img svg{width:100%;height:auto;max-width:220px}
+.qr-card figcaption{margin-top:6px}
+.qr-card b{display:block;font-size:12.5px;font-weight:900;line-height:1.3}
+.qr-card span{display:block;font-size:9px;color:#555;margin-top:2px}
+.qr-card code{display:block;font-size:7px;color:#666;word-break:break-all;margin-top:4px}
+
+/* ========================= 紙の校内マップ ========================= */
+.sheet{background:#fff;color:#111;border:1px solid var(--border);border-radius:var(--r);padding:14px}
+.sheet-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;
+            border-bottom:3px solid #b91c1c;padding-bottom:10px}
+.sheet-head h1{font-size:21px;font-weight:900;letter-spacing:.02em}
+.sheet-head p{font-size:10.5px;color:#555;margin-top:3px;font-weight:700}
+.sheet-qr{text-align:center;flex:none;width:96px}
+.sheet-qr svg{width:96px;height:96px}
+.sheet-qr span{display:block;font-size:7.5px;color:#444;font-weight:700;margin-top:2px;line-height:1.35}
+.sheet-body{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
+.sheet h2{font-size:12px;font-weight:900;margin-bottom:5px;color:#b91c1c}
+.sheet-plan{width:100%;height:auto;border:1px solid #ddd;border-radius:8px;background:#fff}
+.sheet-table{width:100%;border-collapse:collapse;font-size:10px}
+.sheet-table td{border-bottom:1px solid #e5e5e5;padding:4px 5px;vertical-align:top}
+.sheet-table td.no{width:20px;text-align:center;font-weight:900;color:#fff;background:#b91c1c;
+                   border-radius:4px;padding:2px}
+.sheet-note{margin-top:8px;font-size:9px;color:#444;line-height:1.7;
+            border-left:3px solid #b91c1c;padding-left:8px}
+.sheet-table td.tm{width:44px;font-weight:900;color:#b91c1c;white-space:nowrap}
+.sheet-table td.ic{width:20px;text-align:center;font-size:12px}
+.sheet-info{border-top:2px solid #b91c1c;padding-top:10px}
+
+.rep-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.rep-grid > div{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+                padding:9px 10px}
+.rep-grid b{display:block;font-size:15px;font-weight:900;line-height:1.25;
+            overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rep-grid span{display:block;font-size:9.5px;color:var(--text-mute);font-weight:800;margin-top:2px}
+.rep-chart{width:100%;height:auto}
+.hm{display:flex;flex-direction:column;gap:3px}
+.hm-row{display:flex;align-items:center;gap:6px}
+.hm-nm{width:84px;flex:none;font-size:10px;font-weight:800;overflow:hidden;
+       text-overflow:ellipsis;white-space:nowrap}
+.hm-cells{flex:1;display:flex;gap:1px;min-width:0}
+.hm-cells i{flex:1;height:16px;border-radius:2px;background:var(--unknown)}
+.hm-cells i[data-lv="0"]{background:var(--free)}
+.hm-cells i[data-lv="1"]{background:var(--warn)}
+.hm-cells i[data-lv="2"]{background:var(--busy)}
+.hm-cells i[data-lv="3"]{background:var(--closed)}
+.hm-cells i[data-lv="x"]{background:var(--surface-3)}
+.hm-max{width:34px;flex:none;text-align:right;font-size:9.5px;font-weight:800;color:var(--text-mute)}
+
+.staff-card{background:#fff;color:#000;border:2px solid #b91c1c;border-radius:var(--r);
+            padding:14px;margin-top:12px}
+.staff-head{display:flex;gap:12px;align-items:flex-start;border-bottom:1px solid #ddd;padding-bottom:10px}
+.staff-head b{display:block;font-size:15px;font-weight:900}
+.staff-head span{display:block;font-size:10px;color:#b91c1c;font-weight:800;margin-top:3px}
+.staff-qr{flex:none;width:110px}
+.staff-qr svg{width:110px;height:110px}
+.staff-steps{margin:10px 0 0;padding-left:20px;font-size:11.5px;line-height:1.85;font-weight:600}
+.staff-steps b{font-weight:900}
+.staff-note{display:block;font-size:10px;color:#444;font-weight:600}
+.staff-warn{margin-top:10px;padding:8px 10px;background:#fef2f2;border-left:4px solid #b91c1c;
+            font-size:10.5px;font-weight:700;line-height:1.6}
+.staff-url{margin-top:8px;font-size:8px;color:#666;word-break:break-all}
+
+@media print{
+  @page{margin:10mm}
+  #qr-staff{break-before:page;page-break-before:always}
+  body{background:#fff}
+  .app{max-width:none;box-shadow:none;background:#fff}
+  .card{box-shadow:none}
+  .head,.nav,.no-print,#banner-notice,#banner-alert,#banner-offline,.toast{display:none !important}
+  main{padding:0}
+  .qr-grid{grid-template-columns:repeat(2,1fr);gap:6mm}
+  .qr-card{border:1px dashed #999;page-break-inside:avoid}
+  .qr-card code{font-size:6pt}
+  /* 紙のマップはA4縦1枚に収まる。1階の地図は縦長なので縦向きが最適 */
+  @page{size:A4 portrait}
+  .sheet{border:none;padding:0}
+  .sheet-body{grid-template-columns:1fr 1fr;gap:5mm;align-items:start}
+  .sheet-maps{grid-column:1 / -1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+              gap:4mm;align-items:start}
+  .sheet-maps > div:only-child{grid-column:span 2}
+  .sheet-maps > div:only-child .sheet-plan{max-width:95mm;margin:0 auto;display:block}
+  .sheet-info{border-top:none;padding-top:0}
+  .sheet-plan{width:100%;height:auto;break-inside:avoid}
+  .sheet-table{font-size:8pt}
+  .sheet-table td{padding:2.5px 4px}
+  .sheet-note{font-size:7.5pt}
+}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="head">
+    <div class="head-row">
+      <div style="min-width:0">
+        <h1>黒工文化祭 校内マップ</h1>
+        <p class="sub">KUROKO FESTIVAL · LIVE CONGESTION</p>
+      </div>
+      <div class="head-actions">
+        <button class="icon-btn" id="btn-theme" aria-label="テーマ切替" title="テーマ切替">◐</button>
+        <button class="icon-btn" id="btn-reload" aria-label="今すぐ更新" title="今すぐ更新">⟳</button>
+      </div>
+    </div>
+    <div class="sync"><span class="dot" id="sync-dot"></span><span id="sync-text">読み込み中…</span></div>
+  </header>
+
+  <main>
+    <div class="banner notice hide" id="banner-notice" role="status" aria-live="polite"><span id="banner-notice-icon">📣</span><span id="banner-notice-text"></span></div>
+    <div class="banner alert hide" id="banner-alert" role="status" aria-live="polite"><span>⚠️</span><span id="banner-alert-text"></span></div>
+    <div class="banner info hide" id="banner-offline"><span id="banner-offline-icon">📡</span><span id="banner-offline-text">通信できません。最後に取得した情報を表示しています。</span><button id="banner-retry" class="retry">再試行</button></div>
+
+    <!-- ============ マップ ============ -->
+    <section class="view on" id="v-map">
+      <div class="summary" id="summary" aria-live="polite"></div>
+
+      <button class="next-ev hide" id="next-ev"></button>
+
+      <div class="card tips hide" id="tips">
+        <button class="tips-x" id="tips-close" aria-label="このヒントを閉じる">×</button>
+        <div class="card-t">はじめての方へ</div>
+        <ul>
+          <li><b>色と模様</b>が混雑の目安です（緑＝空き／縞＝やや混雑／水玉＝混雑）</li>
+          <li>地図の<b>ブースをタップ</b>すると、待ち人数や実演の時間が見られます</li>
+          <li>各ブースの入口にある<b>QRを読む</b>と、スタンプが自動でたまります</li>
+        </ul>
+      </div>
+
+      <div class="card" id="reco-card">
+        <div class="card-t">🎯 いま行くならここ</div>
+        <div class="reco-list" id="reco-list"></div>
+      </div>
+
+      <div class="card" style="padding:12px 12px 0">
+        <div class="map-head">
+          <div class="card-t" style="margin:0">🗺️ 校内マップ</div>
+          <div class="seg" role="group" aria-label="フロア切替">
+            <button id="fl-1" aria-pressed="true">1F</button>
+            <button id="fl-2" aria-pressed="false">2F</button>
+          </div>
+        </div>
+        <div class="map-wrap">
+          <svg class="plan" id="plan-1" viewBox="0 0 400 500" role="group" aria-label="1階の校内マップ"></svg>
+          <svg class="plan hide" id="plan-2" viewBox="0 0 400 500" role="group" aria-label="2階の校内マップ"></svg>
+          <div class="unplaced hide" id="map-unplaced"></div>
+          <div class="legend">
+            <span><i class="lg-free"></i>空いている</span>
+            <span><i class="lg-warn"></i>やや混雑</span>
+            <span><i class="lg-busy"></i>混雑</span>
+            <span><i class="lg-unk"></i>情報なし</span>
+          </div>
+        </div>
+        <div class="chips" style="padding:10px 0 12px">
+          <button class="chip" data-route="denshi" aria-pressed="false">🤖 電子科満喫コース</button>
+          <button class="chip" data-route="all" aria-pressed="false">🏫 全棟制覇コース</button>
+          <button class="chip" data-route="food" aria-pressed="false">🍜 食べ歩きコース</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 一覧 ============ -->
+    <section class="view" id="v-list">
+      <div class="search">
+        <span>🔍</span>
+        <input id="q" type="search" placeholder="ブース名で検索" aria-label="ブース検索" autocomplete="off">
+      </div>
+      <div class="chips" id="cat-chips"></div>
+      <div class="chips">
+        <button class="chip" id="sort-free" aria-pressed="true">空いている順</button>
+        <button class="chip" id="sort-name" aria-pressed="false">番号順</button>
+      </div>
+      <div id="booth-list" style="display:flex;flex-direction:column;gap:9px">
+        <div class="skel"></div><div class="skel"></div><div class="skel"></div>
+      </div>
+    </section>
+
+    <!-- ============ スタンプ ============ -->
+    <section class="view" id="v-stamp">
+      <div class="card">
+        <div class="card-t">🏅 スタンプラリー</div>
+        <p style="font-size:12px;color:var(--text-dim);font-weight:600">
+          回ったブースを記録できます。一覧の「訪問済み」ボタン、またはマップのブースをタップして記録してください。
+        </p>
+        <div style="display:flex;align-items:baseline;gap:6px;margin-top:10px">
+          <span style="font-size:26px;font-weight:900" id="stamp-n">0</span>
+          <span style="font-size:12px;font-weight:800;color:var(--text-mute)">/ <span id="stamp-total">0</span> ブース</span>
+          <span style="margin-left:auto;font-size:11px;font-weight:800;color:var(--free)" id="stamp-msg"></span>
+        </div>
+        <div class="progress"><i id="stamp-bar" style="width:0%"></i></div>
+      </div>
+
+      <div class="card cert hide" id="stamp-cert">
+        <div class="cert-badge">🏆</div>
+        <h3>全ブース制覇</h3>
+        <p id="cert-sub"></p>
+        <p class="cert-date" id="cert-date"></p>
+      </div>
+
+      <div class="stamp-grid" id="stamp-grid"></div>
+      <button class="btn ghost hide" id="stamp-share">この記録を共有する</button>
+      <button class="btn ghost" id="stamp-reset">記録をリセット</button>
+    </section>
+
+    <!-- ============ インフォ ============ -->
+    <section class="view" id="v-info">
+      <div class="card">
+        <div class="card-t">🕒 タイムテーブル</div>
+        <table class="tt"><tbody id="tt-body"></tbody></table>
+      </div>
+      <div class="card">
+        <div class="card-t">🆘 困ったときは</div>
+        <div id="help-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-t">ℹ️ この地図について</div>
+        <p style="font-size:11.5px;color:var(--text-dim);font-weight:600;line-height:1.7">
+          混雑状況は各ブースの係員が手動で更新しています。表示は目安であり、実際の状況と異なる場合があります。<br>
+          データは約20秒ごとに自動更新されます。通信できないときは、最後に取得した内容を表示します。
+        </p>
+      </div>
+    </section>
+
+    <!-- ============ 管理者 ============ -->
+    <section class="view" id="v-auth">
+      <div class="card" style="text-align:center;display:flex;flex-direction:column;gap:12px">
+        <div>
+          <h2 style="font-size:15px;font-weight:900">🔧 係員ログイン</h2>
+          <p style="font-size:11px;color:var(--text-mute);font-weight:700;margin-top:4px">パスワードは係員に配布されたものを入力</p>
+        </div>
+        <input class="field" type="password" id="pw" placeholder="パスワード" autocomplete="current-password" inputmode="text">
+        <button class="btn" id="btn-login">ログイン</button>
+        <p class="stale-warn hide" id="auth-err">パスワードが違います</p>
+      </div>
+    </section>
+
+    <section class="view" id="v-admin">
+      <div class="card">
+        <div class="card-t">🔧 係員コンソール</div>
+        <div class="chips" id="assign-chips"></div>
+        <p style="font-size:10.5px;color:var(--text-mute);font-weight:700;margin-top:8px">
+          担当ブースを選ぶと、その分だけが表示されます（誤操作防止）。
+        </p>
+        <div id="adm-summary" style="margin-top:9px;padding-top:9px;border-top:1px solid var(--border)"></div>
+      </div>
+      <div id="admin-list" style="display:flex;flex-direction:column;gap:9px"></div>
+      <button class="btn ghost" id="btn-bulk">全ブースを「空いています」に戻す</button>
+      <a class="btn ghost" href="?mode=qr" style="display:block;text-align:center;text-decoration:none">🖨️ QRコード印刷シートを開く</a>
+      <a class="btn ghost" href="?mode=print" style="display:block;text-align:center;text-decoration:none">🗺️ 配布用の紙マップを開く</a>
+      <a class="btn ghost" href="?mode=report" style="display:block;text-align:center;text-decoration:none">📊 混雑の振り返りを見る</a>
+      <a class="btn ghost" href="?mode=layout" style="display:block;text-align:center;text-decoration:none">📐 校舎配置を調整する</a>
+      <button class="btn ghost" id="btn-logout">ログアウト</button>
+    </section>
+
+    <!-- ============ QR印刷 ============ -->
+    <section class="view" id="v-qr">
+      <div class="card no-print">
+        <div class="card-t">🖨️ QRコード印刷シート</div>
+        <p style="font-size:11.5px;color:var(--text-dim);font-weight:600;line-height:1.7">
+          各ブースの入口に貼るQRです。読み取ると そのブースの詳細が開き、スタンプが自動で入ります。<br>
+          A4に貼れるサイズで出力されます（<span id="qr-count">0</span>枚）。
+        </p>
+        <button class="btn" id="btn-print" style="margin-top:10px">印刷する</button>
+      </div>
+      <div id="qr-grid" class="qr-grid"></div>
+      <div id="qr-staff"></div>
+    </section>
+
+    <!-- ============ 紙のマップ印刷 ============ -->
+    <section class="view" id="v-print">
+      <div class="card no-print">
+        <div class="card-t">🗺️ 紙の校内マップ（配布用）</div>
+        <p style="font-size:11.5px;color:var(--text-dim);font-weight:600;line-height:1.7">
+          スマホを持たない来場者や電池切れに備えた配布用マップです。A4横1枚に収まります。
+        </p>
+        <button class="btn" id="btn-print2" style="margin-top:10px">印刷する</button>
+      </div>
+      <div id="print-sheet" class="sheet"></div>
+    </section>
+
+    <!-- ============ 振り返りレポート ============ -->
+    <section class="view" id="v-report">
+      <div class="card no-print">
+        <div class="card-t">📊 混雑の振り返り</div>
+        <p style="font-size:11.5px;color:var(--text-dim);font-weight:600;line-height:1.7">
+          記録された履歴から、その日の混雑の移り変わりをまとめます。来年の運営や報告資料に使えます。
+        </p>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn" id="btn-report-print" style="flex:1">印刷する</button>
+          <button class="btn ghost" id="btn-report-reload" style="flex:1">再取得</button>
+        </div>
+      </div>
+      <div id="report-body"></div>
+    </section>
+
+    <!-- ============ 配置エディタ ============ -->
+    <section class="view" id="v-layout">
+      <div class="card">
+        <div class="card-t">📐 校舎配置エディタ</div>
+        <p style="font-size:11.5px;color:var(--text-dim);font-weight:600;line-height:1.7">
+          枠をドラッグで移動、右下の角をドラッグで大きさ変更ができます。<br>
+          調整が終わったら「コードを出す」を押して、出てきた内容を index.html の
+          <code>FLOOR_PLAN</code> と差し替えてください。
+        </p>
+        <div class="lay-tools">
+          <div class="seg" role="group" aria-label="フロア切替">
+            <button id="lay-f1" aria-pressed="true">1F</button>
+            <button id="lay-f2" aria-pressed="false">2F</button>
+          </div>
+          <button class="chip" id="lay-grid" aria-pressed="true">方眼</button>
+          <button class="chip" id="lay-reset">元に戻す</button>
+          <button class="chip" id="lay-out" aria-pressed="false">コードを出す</button>
+        </div>
+        <p class="lay-sel" id="lay-sel">枠を選ぶと、ここに数値が出ます</p>
+      </div>
+      <div class="card" style="padding:8px">
+        <svg id="lay-svg" class="lay-svg" viewBox="0 0 400 500"></svg>
+      </div>
+      <div class="card hide" id="lay-code-box">
+        <div class="card-t">貼り替えるコード</div>
+        <textarea id="lay-code" class="lay-code" readonly rows="14"></textarea>
+        <button class="btn" id="lay-copy" style="margin-top:8px">コピーする</button>
+      </div>
+    </section>
+    <footer class="foot no-print">
+      <p>&copy; 2026 岩手県立黒沢尻工業高等学校 電子科</p>
+      <p class="foot-sub">表示バージョン <span id="build-id">-</span></p>
+      <button class="foot-btn" id="btn-hardreload">表示が古いときはここをタップ（保存済みデータを消して読み直す）</button>
+    </footer>
+  </main>
+
+  <nav class="nav" id="nav">
+    <button data-view="map" aria-pressed="true"><em>🗺️</em>マップ</button>
+    <button data-view="list" aria-pressed="false"><em>📋</em>一覧</button>
+    <button data-view="stamp" aria-pressed="false"><em>🏅</em>スタンプ</button>
+    <button data-view="info" aria-pressed="false"><em>ℹ️</em>インフォ</button>
+  </nav>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* =====================================================================
+   CONFIG — 運用時に触るのはここだけ
+   ===================================================================== */
+const CONFIG = {
+  BUILD: '2026-08-05d',    // ファイルを更新したらここも変える。画面下部に表示され、
+                           // 「新しいのが反映されていない」の切り分けに使える
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
+  LIFF_ID: '',             // LIFF化するときだけ '1234567890-abcdEFGH' の形式で設定（空なら通常のWebとして動作）
+  POLL_MS: 20000,          // 通常のポーリング間隔
+  POLL_MS_HIDDEN: 0,       // バックグラウンド時は停止（0）
+  STALE_MS: 90000,         // これを超えたら「情報が古い」表示
+  ADMIN_WARN_MIN: 15,      // 係員向け：15分未更新で注意
+  ADMIN_DANGER_MIN: 30,    // 係員向け：30分未更新で警告（サーバー側45分で自動的に情報なしへ）
+  ADMIN_HOLD_MS: 20000,    // 係員が操作した直後は並べ替えを止める時間
+  CACHE_MAX_AGE_MS: 6 * 3600000,  // これより古い保存データは使わない（前日の状況を見せない）
+  TIMEOUT_MS: 12000,
+  ROUTES: {
+    denshi: ['4','1','7'],
+    all:    ['4','1','2','3','5','6','7','8'],
+    food:   ['8','7','4']
+  },
+  INFO: {
+    timetable: [
+      ['09:30', '開場・受付開始（正門）'],
+      ['10:00', 'オープニング（体育館）'],
+      ['11:00', '電子科 ロボット実演（第2校舎1F）'],
+      ['12:00', '各科ステージ発表（体育館）'],
+      ['13:30', '有志発表（体育館）'],
+      ['15:00', '閉会・完全撤収']
+    ],
+    help: [
+      ['🏥','救護室','第1校舎1F 保健室。体調が悪くなったら近くの係員へ'],
+      ['🚻','トイレ','第2校舎1F／第1校舎1F・2F／体育館入口'],
+      ['🎒','落とし物','受付・本部（第1校舎1F）で預かっています'],
+      ['📢','迷子・呼び出し','受付・本部までお越しください'],
+      ['🚭','喫煙・飲酒','校内は全面禁止です']
+    ]
+  }
+};
+
+/* =====================================================================
+   ステータス定義（色だけに頼らない多重符号化）
+   ===================================================================== */
+const LEVELS = [
+  { key:'空いています',   lv:0, short:'空き',   icon:'●',   wait:'待ち時間ほぼなし' },
+  { key:'やや混雑',       lv:1, short:'やや混雑', icon:'◐',   wait:'5〜15分待ち' },
+  { key:'混雑しています', lv:2, short:'混雑',    icon:'▲',   wait:'15分以上待ち' },
+  { key:'準備中',         lv:3, short:'準備中',  icon:'■',   wait:'現在受付していません' }
+];
+const byKey = Object.fromEntries(LEVELS.map(l => [l.key, l]));
+const UNKNOWN = { lv:-1, short:'情報なし', icon:'?', wait:'状況が届いていません' };
+const STALE   = { lv:-1, short:'更新待ち', icon:'…', wait:'しばらく更新されていません' };
+function lvOf(b){
+  if (b && typeof b === 'object'){
+    if (!b.status) return b.stale ? STALE : UNKNOWN;
+    return byKey[String(b.status).trim()] || UNKNOWN;
+  }
+  return byKey[String(b || '').trim()] || UNKNOWN;
+}
+/** 待ち人数の表示文字列。人数が無ければ段階に応じた目安を返す */
+function waitText(b){
+  const L = lvOf(b);
+  if (b && b.wait != null && L.lv >= 0 && L.lv < 3){
+    return b.wait === 0 ? '待ちなし' : `${b.wait}人待ち`;
+  }
+  return L.wait;
+}
+
+/* =====================================================================
+   フロアプラン定義
+   座標は viewBox 0 0 400 500。実際の校舎配置に合わせて調整すること。
+   ===================================================================== */
+const FLOOR_PLAN = {
+  1: {
+    zones: [
+      { label:'■ 第2校舎 1F',   x:14, y:32 },
+      { label:'■ 第1校舎本館 1F', x:14, y:186 },
+      { label:'■ 独立棟エリア',   x:14, y:300 }
+    ],
+    struct: [
+      { type:'corridor', x:14,  y:100, w:372, h:22, label:'渡り廊下' },
+      { type:'outdoor',  x:14,  y:130, w:372, h:44, label:'中庭・屋台エリア' },
+      { type:'corridor', x:14,  y:252, w:372, h:22, label:'廊下' },
+      { type:'outdoor',  x:14,  y:392, w:372, h:34, label:'グラウンド' }
+    ],
+    utils: [
+      { x:18,  y:102, w:34, h:18, t:'階段' },
+      { x:348, y:102, w:34, h:18, t:'階段' },
+      { x:18,  y:254, w:34, h:18, t:'WC'  },
+      { x:120, y:254, w:44, h:18, t:'救護室' },
+      { x:348, y:254, w:34, h:18, t:'階段' },
+      { x:150, y:440, w:100, h:26, t:'▼ 正門・受付' }
+    ],
+    rooms: [
+      { id:'1', x:14,  y:44,  w:118, h:52 },
+      { id:'2', x:140, y:44,  w:108, h:52 },
+      { id:'3', x:256, y:44,  w:130, h:52 },
+      { id:'4', x:14,  y:196, w:154, h:52 },
+      { id:'5', x:176, y:196, w:100, h:52 },
+      { id:'6', x:284, y:196, w:102, h:52 },
+      { id:'8', x:14,  y:312, w:172, h:72 },
+      { id:'7', x:194, y:312, w:192, h:72 }
+    ]
+  },
+  2: {
+    zones: [
+      { label:'■ 第2校舎 2F',   x:14, y:32 },
+      { label:'■ 第1校舎本館 2F', x:14, y:186 }
+    ],
+    struct: [
+      { type:'corridor', x:14, y:100, w:372, h:22, label:'渡り廊下' },
+      { type:'corridor', x:14, y:252, w:372, h:22, label:'廊下' }
+    ],
+    utils: [
+      { x:18,  y:102, w:34, h:18, t:'階段' },
+      { x:348, y:102, w:34, h:18, t:'階段' },
+      { x:18,  y:254, w:34, h:18, t:'WC'  },
+      { x:348, y:254, w:34, h:18, t:'階段' },
+      { x:14,  y:44,  w:372, h:52, t:'各科教室（一般立入制限）' },
+      { x:14,  y:196, w:372, h:52, t:'普通教室・進路資料室' }
+    ],
+    rooms: []   // floor:2 のブースがシートに入ると自動で配置される
+  }
+};
+// floor=2 のブースが来た場合に割り当てる予備スロット
+const FLOOR2_SLOTS = [
+  { x:14, y:44, w:118, h:52 }, { x:140, y:44, w:108, h:52 }, { x:256, y:44, w:130, h:52 },
+  { x:14, y:196, w:118, h:52 }, { x:140, y:196, w:108, h:52 }, { x:256, y:196, w:130, h:52 }
+];
+
+/* =====================================================================
+   状態
+   ===================================================================== */
+const S = {
+  booths: [],
+  numbers: new Map(),
+  notice: null,
+  waitTh: { warn:6, busy:16 },
+  updatedAt: null,
+  fetchedAt: 0,
+  online: true,
+  failures: 0,
+  floor: 1,
+  view: 'map',
+  route: null,
+  cat: 'all',
+  sort: 'free',
+  q: '',
+  stamps: new Set(),
+  watch: new Set(),       // 空いたら知らせてほしいブース
+  assigned: new Set(),
+  isAdmin: false,
+  draftWait: {},        // 送信前の待ち人数（自動同期で消さないため）
+  adminOrder: [],       // 操作中に並べ替えないための現在の並び
+  lastAdminTouch: 0,
+  timer: null
+};
+
+const $  = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/**
+ * 画面下部の通知。action を渡すと押せるボタンが付く（取り消し用）。
+ * @param {{label:string, fn:Function}=} action
+ */
+function toast(msg, action){
+  const t = $('#toast');
+  t.textContent = msg;
+  let ms = 2200;
+  if (action){
+    const btn = document.createElement('button');
+    btn.className = 'toast-act';
+    btn.textContent = action.label;
+    btn.addEventListener('click', () => { t.classList.remove('on'); action.fn(); });
+    t.appendChild(btn);
+    ms = 6000;                     // 押す時間を確保する
+  }
+  t.classList.add('on');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove('on'), ms);
+}
+function store(k, v){ try{ v===undefined ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+function load(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } }
+
+/* =====================================================================
+   通信層：タイムアウト＋指数バックオフ＋キャッシュ復元
+   ===================================================================== */
+async function api(opts){
+  const ctl = new AbortController();
+  const to = setTimeout(() => ctl.abort(), CONFIG.TIMEOUT_MS);
+  try{
+    const init = { signal: ctl.signal, mode:'cors', redirect:'follow' };
+    let url = CONFIG.GAS_URL;
+    if (opts && opts.body){
+      init.method = 'POST';
+      // Content-Type を指定しない = プリフライトを避ける（GAS制約）
+      init.body = JSON.stringify(opts.body);
+    } else {
+      url += (url.includes('?') ? '&' : '?') + '_=' + Date.now();
+    }
+    const res = await fetch(url, init);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    if (json && json.ok === false) throw new Error(json.error || 'API error');
+    return json;
+  } finally { clearTimeout(to); }
+}
+
+function normalize(raw){
+  // 旧API（配列のみ）にも新API（{ok,booths}）にも対応
+  const arr = Array.isArray(raw) ? raw : (raw && raw.booths) || [];
+  const seen = new Set();
+  return arr.filter(b => {
+    if (!b || b.id == null) return false;
+    const id = String(b.id).trim();
+    if (!id || seen.has(id)) return false;   // idの重複でマップが壊れるのを防ぐ
+    seen.add(id); return true;
+  }).map(b => ({
+    id: String(b.id).trim(),
+    name: String(b.name ?? '名称未設定').trim(),
+    status: String(b.status ?? '').trim(),
+    stale: b.stale === true,
+    wait: (b.wait === null || b.wait === undefined || b.wait === '') ? null : Number(b.wait),
+    time: b.time || null,
+    category: String(b.category || 'その他').trim(),
+    floor: Number(b.floor) === 2 ? 2 : 1,
+    note: String(b.note || '').trim(),
+    history: Array.isArray(b.history) ? b.history.slice(-12) : []
+  })).sort((a, x) => a.id.localeCompare(x.id, 'ja', { numeric:true }));
+}
+
+async function sync(manual){
+  // 手動更新と自動更新が重ならないようにする
+  if (sync._busy){ if (manual) toast('更新中です'); return; }
+  sync._busy = true;
+  try{
+    const raw = await api();
+    const booths = normalize(raw);
+    if (!booths.length) throw new Error('データが空です');
+    S.booths = booths;
+    S.numbers = new Map(booths.map((b, i) => [b.id, i + 1]));   // 紙のマップと共通の通し番号
+    S.notice = (raw && raw.notice) || null;
+    if (raw && raw.waitThresholds) S.waitTh = raw.waitThresholds;
+    S.updatedAt = (raw && raw.updatedAt) || new Date().toISOString();
+    S.fetchedAt = Date.now();
+    S.online = true; S.failures = 0;
+    store('kuroko_cache_v2', { booths, notice: S.notice, updatedAt: S.updatedAt, fetchedAt: S.fetchedAt });
+    checkWatch();
+    renderAll();
+    if (manual) toast('最新の状況に更新しました');
+  }catch(err){
+    S.online = false; S.failures++;
+    // 通信断とサーバー側の異常を区別する（対処が違うため）
+    const msg = String(err && err.message || err);
+    S.errKind = /Failed to fetch|NetworkError|aborted|The user aborted/i.test(msg) ? 'net'
+              : /^HTTP/.test(msg) ? 'net' : 'server';
+    console.warn('[sync]', S.errKind, msg);
+    if (manual) toast(S.errKind === 'net' ? '通信できませんでした' : 'サーバーが応答しません');
+    renderSyncState();
+  }finally{
+    sync._busy = false;
+    schedule();
+  }
+}
+
+function schedule(){
+  clearTimeout(S.timer);
+  if (document.hidden && CONFIG.POLL_MS_HIDDEN === 0) return;
+  const backoff = Math.min(CONFIG.POLL_MS * Math.pow(2, Math.min(S.failures, 4)), 5 * 60000);
+  S.timer = setTimeout(() => sync(false), S.failures ? backoff : CONFIG.POLL_MS);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden){ sync(false); } else { clearTimeout(S.timer); }
+});
+
+/* =====================================================================
+   同期ステータス表示
+   ===================================================================== */
+function ago(ts){
+  if (!ts) return '未取得';
+  const m = Math.floor((Date.now() - new Date(ts).getTime()) / 60000);
+  if (m < 1) return 'たった今';
+  if (m < 60) return m + '分前';
+  return Math.floor(m / 60) + '時間前';
+}
+function renderSyncState(){
+  const dot = $('#sync-dot'), txt = $('#sync-text');
+  const age = Date.now() - S.fetchedAt;
+  $('#banner-offline').classList.toggle('hide', S.online || !S.booths.length);
+  if (!S.online){
+    const net = S.errKind !== 'server';
+    $('#banner-offline-icon').textContent = net ? '📡' : '🛠️';
+    $('#banner-offline-text').textContent = net
+      ? '通信できません。電波の良い場所へ移動してください。最後に取得した情報を表示しています。'
+      : '案内システムが一時的に応答していません。最後に取得した情報を表示しています。';
+    dot.className = 'dot down';
+    txt.textContent = S.booths.length ? `オフライン・${ago(S.updatedAt)}の情報` : '接続できません';
+  } else if (S.fetchedAt && age > CONFIG.STALE_MS){
+    dot.className = 'dot stale';
+    txt.textContent = `情報がやや古い（${ago(S.updatedAt)}）`;
+  } else {
+    dot.className = 'dot';
+    txt.textContent = `リアルタイム更新中・${ago(S.updatedAt)}`;
+  }
+}
+setInterval(() => {
+  renderSyncState();
+  renderNextEvent();
+  if (S.view === 'list') renderList();
+}, 15000);
+
+/* =====================================================================
+   マップ描画
+   ===================================================================== */
+function defs(){
+  return `<defs>
+    <pattern id="pat-warn" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="7" height="7" fill="var(--warn)"/>
+      <rect width="3" height="7" fill="rgba(255,255,255,.55)"/>
+    </pattern>
+    <pattern id="pat-busy" width="6" height="6" patternUnits="userSpaceOnUse">
+      <rect width="6" height="6" fill="var(--busy)"/>
+      <circle cx="3" cy="3" r="1.3" fill="rgba(255,255,255,.75)"/>
+    </pattern>
+  </defs>`;
+}
+function wrapLabel(text, width){
+  // 幅に応じて全角換算でざっくり折り返し（2行まで）。溢れる分は … で示す
+  const max = Math.max(4, Math.floor(width / 10));
+  if (text.length <= max) return [text];
+  const second = text.slice(max, max * 2);
+  return [text.slice(0, max), text.length > max * 2 ? second.slice(0, -1) + '…' : second];
+}
+
+/**
+ * 表示内容の指紋。20秒ごとの自動同期で中身が変わっていないのに
+ * DOMを作り直すと、スクロール位置・アニメーション・押下状態が飛ぶため、
+ * 変化がないときは再描画そのものを省く。
+ */
+function fingerprint(extra){
+  return extra + '|' + S.booths.map(b =>
+    [b.id, b.status, b.wait, b.name, b.note, b.category, b.floor, b.time, b.stale].join('~')
+  ).join(';') + '|' + Array.from(S.stamps).sort().join(',')
+    + '|' + Array.from(S.watch).sort().join(',');
+}
+
+/**
+ * そのフロアに実際に描かれるものだけを囲む viewBox を求める。
+ * 2Fのように要素が少ないフロアで、無駄な余白が出るのを防ぐ。
+ */
+function planViewBox(floorNum){
+  const plan = FLOOR_PLAN[floorNum];
+  const boxes = []
+    .concat(plan.struct.map(s => [s.x, s.y, s.w, s.h]))
+    .concat(plan.utils.map(u => [u.x, u.y, u.w, u.h]))
+    .concat(plan.zones.map(z => [z.x, z.y - 9, 120, 10]));
+  const slots = plan.rooms.length ? plan.rooms : FLOOR2_SLOTS;
+  const ids = new Set(S.booths.filter(b => b.floor === floorNum).map(b => b.id));
+  slots.forEach((s, i) => {
+    const used = plan.rooms.length ? ids.has(s.id) : i < ids.size;
+    if (used) boxes.push([s.x, s.y, s.w, s.h]);
+  });
+  if (!boxes.length) return '0 0 400 500';
+  const pad = 8;
+  const x0 = Math.min(...boxes.map(b => b[0])) - pad;
+  const y0 = Math.min(...boxes.map(b => b[1])) - pad;
+  const x1 = Math.max(...boxes.map(b => b[0] + b[2])) + pad;
+  const y1 = Math.max(...boxes.map(b => b[1] + b[3])) + pad;
+  return `${x0} ${y0} ${x1 - x0} ${y1 - y0}`;
+}
+
+function drawFloor(floorNum){
+  const fp = fingerprint(`map:${floorNum}:${S.route}`);
+  if (drawFloor._fp === fp) return;
+  drawFloor._fp = fp;
+
+  const plan = FLOOR_PLAN[floorNum];
+  const svg = $('#plan-' + floorNum);
+  const boothsHere = S.booths.filter(b => b.floor === floorNum);
+  let html = defs();
+
+  plan.struct.forEach(s => {
+    html += `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="5"
+             class="${s.type === 'outdoor' ? 'outdoor' : 'struct'}"/>`;
+    if (s.label) html += `<text x="${s.x + s.w / 2}" y="${s.y + s.h / 2 + 3}" text-anchor="middle" class="util">${esc(s.label)}</text>`;
+  });
+  plan.zones.forEach(z => {
+    html += `<text x="${z.x}" y="${z.y}" class="zone-label">${esc(z.label)}</text>`;
+  });
+  plan.utils.forEach(u => {
+    // トイレ・救護室は場所を知りたい人が多いので、タップでインフォへ飛べるようにする
+    const jump = /救護|WC|トイレ/.test(u.t);
+    html += `<g class="${jump ? 'util-tap' : ''}" ${jump ? 'data-info="1" role="button" tabindex="0"' : ''}
+              ${jump ? `aria-label="${esc(u.t)}の案内を見る"` : ''}>
+             <rect x="${u.x}" y="${u.y}" width="${u.w}" height="${u.h}" rx="4" class="util-box"/>
+             <text x="${u.x + u.w / 2}" y="${u.y + u.h / 2 + 2.8}" text-anchor="middle" class="util">${esc(u.t)}</text>
+             </g>`;
+  });
+
+  // ブース配置。図面に枠が定義されているフロアは、その枠に載るものだけを描く。
+  // 定義が無いフロア（2Fなど）だけ、来た順に予備枠へ割り当てる。
+  // ここで予備枠に逃がすと、既存の枠と重なって表示が壊れる
+  const placed = [];
+  boothsHere.forEach((b, i) => {
+    const slot = plan.rooms.length
+      ? plan.rooms.find(s => s.id === b.id)
+      : FLOOR2_SLOTS[i];
+    if (slot) placed.push({ b, s: slot });
+  });
+
+  const routeIds = S.route ? CONFIG.ROUTES[S.route] : null;
+
+  placed.forEach(({ b, s }) => {
+    const L = lvOf(b);
+    const dim = routeIds && !routeIds.includes(b.id) ? ' dimmed' : '';
+    const lines = wrapLabel(b.name, s.w);
+    const cx = s.x + s.w / 2;
+    const baseY = s.y + s.h / 2 - (lines.length > 1 ? 6 : 1);
+    let t = '';
+    lines.forEach((ln, i) => {
+      t += `<text x="${cx}" y="${baseY + i * 11}" text-anchor="middle" class="nm">${esc(ln)}</text>`;
+    });
+    const stLabel = (b.wait != null && L.lv >= 0 && L.lv < 3)
+      ? (b.wait === 0 ? '待ちなし' : b.wait + '人待ち')
+      : L.short;
+    t += `<text x="${cx}" y="${s.y + s.h - 9}" text-anchor="middle" class="st">${L.icon} ${esc(stLabel)}</text>`;
+
+    let extra = '';
+    // 紙のマップと同じ番号を出す（配布物と画面で見比べられるように）
+    const no = S.numbers.get(b.id);
+    // バッジは部屋の角に重ねて置く。中央のブース名と重ならない位置にする
+    const bx = s.x + 3, by = s.y + 3, sx = s.x + s.w - 3;
+    if (no && !(routeIds && routeIds.includes(b.id))){
+      extra += `<g class="room-no"><circle cx="${bx}" cy="${by}" r="8"/>
+                <text x="${bx}" y="${by + 3.2}" text-anchor="middle">${no}</text></g>`;
+    }
+    if (S.stamps.has(b.id)){
+      extra += `<circle class="stamp-mark" cx="${sx}" cy="${by}" r="8"/>
+                <text class="stamp-check" x="${sx}" y="${by + 3.2}" text-anchor="middle">✓</text>`;
+    }
+    if (routeIds && routeIds.includes(b.id)){
+      const n = routeIds.indexOf(b.id) + 1;
+      extra += `<g class="route-badge"><circle cx="${bx}" cy="${by}" r="8.5"/>
+                <text x="${bx}" y="${by + 3.2}" text-anchor="middle">${n}</text></g>`;
+    }
+
+    html += `<g class="room${dim}" data-lv="${L.lv}" data-id="${esc(b.id)}" role="button" tabindex="0"
+              aria-label="${esc(b.name)} ${esc(L.short)}">
+        <rect class="fill" x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="7"/>
+        ${t}${extra}
+      </g>`;
+  });
+
+  if (!placed.length){
+    const vb = planViewBox(floorNum).split(' ').map(Number);
+    html += `<text x="${vb[0] + vb[2] / 2}" y="${vb[1] + vb[3] / 2}" text-anchor="middle"
+              class="util">このフロアに公開ブースはありません</text>`;
+  }
+  svg.setAttribute('viewBox', planViewBox(floorNum));
+  svg.innerHTML = html;
+
+  // 図面に置き場所が無いブースを取りこぼさない。
+  // （シートにブースを増やしたのに FLOOR_PLAN を更新していないと起きる）
+  const unplaced = boothsHere.filter(b => !placed.some(p => p.b.id === b.id));
+  const note = $('#map-unplaced');
+  note.classList.toggle('hide', !unplaced.length);
+  if (unplaced.length){
+    note.innerHTML = '図面に未配置：' + unplaced.map(b =>
+      `<button data-id="${esc(b.id)}">${esc(b.name)}</button>`).join('');
+    $$('button', note).forEach(el => el.addEventListener('click', () => openBooth(el.dataset.id)));
+  }
+
+  $$('[data-info]', svg).forEach(g => {
+    const go = () => { switchView('info'); toast('施設の案内はこちらです'); };
+    g.addEventListener('click', go);
+    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } });
+  });
+
+  $$('.room', svg).forEach(g => {
+    const id = g.dataset.id;
+    g.addEventListener('click', () => openBooth(id));
+    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openBooth(id); } });
+  });
+}
+
+function openBooth(id){
+  switchView('list');
+  S.q = ''; $('#q').value = ''; S.cat = 'all';
+  renderCats(); renderList();
+  requestAnimationFrame(() => {
+    const el = document.getElementById('booth-' + id);
+    if (!el) return;
+    el.scrollIntoView({ behavior:'smooth', block:'center' });
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 1600);
+  });
+}
+
+/* =====================================================================
+   おすすめ（混雑度 × 未訪問 で実データからスコアリング）
+   ===================================================================== */
+function recommend(){
+  const scored = S.booths
+    .map(b => {
+      const L = lvOf(b);
+      if (L.lv < 0 || L.lv === 3) return null;
+      let sc = (2 - L.lv) * 10;
+      if (!S.stamps.has(b.id)) sc += 6;
+      return { b, L, sc };
+    })
+    .filter(Boolean)
+    .sort((x, y) => y.sc - x.sc)
+    .slice(0, 3);
+
+  const box = $('#reco-list');
+  if (!scored.length){
+    box.innerHTML = `<p class="empty" style="padding:12px">状況を取得中です</p>`;
+    return;
+  }
+  box.innerHTML = scored.map((r, i) => `
+    <button class="reco" data-id="${esc(r.b.id)}">
+      <span class="rank">${i + 1}</span>
+      <span class="nm">${esc(r.b.name)}</span>
+      <span class="why">${esc(r.L.short)}${S.stamps.has(r.b.id) ? '' : '・未訪問'}</span>
+    </button>`).join('');
+  $$('.reco', box).forEach(el => el.addEventListener('click', () => openBooth(el.dataset.id)));
+}
+
+/* =====================================================================
+   一覧
+   ===================================================================== */
+/**
+ * 検索用の正規化。ひらがな→カタカナ、全角英数→半角、小文字化。
+ * 「でんし」でも「デンシ」でも「ｄｅｎｓｈｉ」でも当たるようにする。
+ */
+function normalizeQ(s){
+  return String(s)
+    .replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60))
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/\s+/g, '')
+    .toLowerCase();
+}
+
+function renderCats(){
+  const cats = ['all', ...Array.from(new Set(S.booths.map(b => b.category))).filter(Boolean)];
+  const fp = cats.join('|') + '#' + S.cat;
+  if (renderCats._fp === fp) return;    // 自動同期のたびに作り直さない
+  renderCats._fp = fp;
+  $('#cat-chips').innerHTML = cats.map(c =>
+    `<button class="chip" data-cat="${esc(c)}" aria-pressed="${S.cat === c}">${c === 'all' ? 'すべて' : esc(c)}</button>`
+  ).join('');
+  $$('#cat-chips .chip').forEach(el => el.addEventListener('click', () => {
+    S.cat = el.dataset.cat; renderCats(); renderList();
+  }));
+}
+
+function sparkline(hist){
+  if (!hist || hist.length < 2){
+    return `<span class="trend">混雑の推移：データ蓄積中</span>`;
+  }
+  const bars = hist.map(h => {
+    const w = (h.w === 0 || h.w) ? `・${h.w}人` : '';
+    return `<i data-lv="${Number(h.lv)}" title="${esc((h.t || '') + w)}"></i>`;
+  }).join('');
+  // 直近2点の平均と、その前3点の平均を比較（1点だけのブレで矢印が反転しないように）
+  const lv = hist.map(h => Number(h.lv));
+  const avg = a => a.reduce((s, v) => s + v, 0) / a.length;
+  const recent = avg(lv.slice(-2));
+  const before = avg(lv.slice(-5, -2).length ? lv.slice(-5, -2) : lv.slice(0, -2));
+  const d = recent - before;
+  const tr = d > 0.3 ? '↗ 混み始め' : d < -0.3 ? '↘ 緩和中' : '→ 横ばい';
+  return `<span class="spark">${bars}</span><span class="trend">${tr}</span>`;
+}
+
+function renderList(){
+  // 「◯分前」の表示を進めるため、1分ごとには描き直す
+  const fp = fingerprint(`list:${S.cat}:${S.sort}:${S.q}:${Math.floor(Date.now() / 60000)}`);
+  if (renderList._fp === fp) return;
+  renderList._fp = fp;
+
+  const box = $('#booth-list');
+  let items = S.booths.slice();
+  if (S.cat !== 'all') items = items.filter(b => b.category === S.cat);
+  if (S.q){
+    const q = normalizeQ(S.q);
+    items = items.filter(b => normalizeQ(b.name + b.category + b.note).includes(q));
+  }
+  // 「空いている順」：空き→やや混雑→混雑→情報なし→準備中。
+  // 状況が分からないものを先頭に出さない（内部値の -1 をそのまま使わない）
+  const rank = b => { const lv = lvOf(b).lv; return lv === 3 ? 4 : lv < 0 ? 3 : lv; };
+  items.sort((a, b) => S.sort === 'free'
+    ? (rank(a) - rank(b)) || a.id.localeCompare(b.id, 'ja', { numeric:true })
+    : a.id.localeCompare(b.id, 'ja', { numeric:true }));
+
+  if (!items.length){ box.innerHTML = `<p class="empty">該当するブースがありません</p>`; return; }
+
+  box.innerHTML = items.map(b => {
+    const L = lvOf(b);
+    const got = S.stamps.has(b.id);
+    return `
+    <article class="booth" id="booth-${esc(b.id)}" data-lv="${L.lv}">
+      <div class="booth-top">
+        <span class="booth-bar"></span>
+        <div class="booth-main">
+          <h3 class="booth-nm"><span class="no">${S.numbers.get(b.id) || '-'}</span>${esc(b.name)}
+            <span class="tag">${esc(b.category)}</span><span class="tag">${b.floor}F</span></h3>
+          <p class="booth-meta">${esc(waitText(b))}・更新 ${esc(ago(b.time))}</p>
+          ${b.note ? `<p class="booth-note">📌 ${esc(b.note)}</p>` : ''}
+        </div>
+        <span class="pill" data-lv="${L.lv}">${L.icon} ${esc(L.short)}${
+          b.wait > 0 && L.lv >= 0 && L.lv < 3 ? ` <b>${b.wait}</b>人` : ''}</span>
+      </div>
+      <div class="booth-foot">
+        ${sparkline(b.history)}
+        ${L.lv > 0 && L.lv < 3
+          ? `<button class="mini-btn watch" data-watch="${esc(b.id)}" aria-pressed="${S.watch.has(b.id)}"
+              >${S.watch.has(b.id) ? '🔔 通知オン' : '🔔 空いたら知らせる'}</button>`
+          : ''}
+        <button class="mini-btn" data-stamp="${esc(b.id)}" aria-pressed="${got}">${got ? '✓ 訪問済み' : '訪問済みにする'}</button>
+      </div>
+    </article>`;
+  }).join('');
+
+  $$('[data-stamp]', box).forEach(el => el.addEventListener('click', () => toggleStamp(el.dataset.stamp)));
+  $$('[data-watch]', box).forEach(el => el.addEventListener('click', () => toggleWatch(el.dataset.watch)));
+}
+
+/* =====================================================================
+   スタンプラリー
+   ===================================================================== */
+/**
+ * 「空いたら知らせる」。混んでいるブースを登録しておくと、
+ * 空いた時点で画面に知らせる（アプリを開いている間だけ動く簡易版）。
+ */
+function toggleWatch(id){
+  S.watch.has(id) ? S.watch.delete(id) : S.watch.add(id);
+  store('kuroko_watch_v1', Array.from(S.watch));
+  renderList();
+  const b = S.booths.find(x => x.id === id);
+  toast(S.watch.has(id)
+    ? `「${b ? b.name : ''}」が空いたらお知らせします`
+    : 'お知らせを解除しました');
+}
+
+/** 同期のたびに、見張り中のブースが空いていないか確かめる */
+function checkWatch(){
+  if (!S.watch.size) return;
+  const freed = S.booths.filter(b => S.watch.has(b.id) && lvOf(b).lv === 0);
+  if (!freed.length) return;
+  freed.forEach(b => S.watch.delete(b.id));
+  store('kuroko_watch_v1', Array.from(S.watch));
+  const names = freed.map(b => b.name).join('・');
+  toast(`🔔 「${names}」が空きました`);
+  try{ navigator.vibrate && navigator.vibrate([120, 60, 120]); }catch(e){}
+}
+
+function toggleStamp(id){
+  S.stamps.has(id) ? S.stamps.delete(id) : S.stamps.add(id);
+  store('kuroko_stamps_v2', Array.from(S.stamps));
+  renderList(); renderStamps(); recommend(); drawFloor(S.floor);
+  toast(S.stamps.has(id) ? 'スタンプを獲得しました' : '記録を取り消しました');
+}
+function renderStamps(){
+  const total = S.booths.length;
+  const got = S.booths.filter(b => S.stamps.has(b.id)).length;
+  const done = total > 0 && got === total;
+
+  $('#stamp-n').textContent = got;
+  $('#stamp-total').textContent = total;
+  $('#stamp-bar').style.width = total ? (got / total * 100) + '%' : '0%';
+  $('#stamp-msg').textContent = done ? '🎉 全制覇！'
+    : got === 0 ? ''
+    : got >= total - 1 ? 'あと1つ！'
+    : `あと${total - got}つ`;
+
+  $('#stamp-grid').innerHTML = S.booths.map(b => {
+    const g = S.stamps.has(b.id);
+    return `<div class="stamp ${g ? 'got' : ''}"><span class="mk">${g ? '🏅' : '⬜'}</span>
+            <span class="lb">${esc(b.name)}</span></div>`;
+  }).join('');
+
+  // 完走記録。達成した瞬間の時刻を保存し、以後は同じ時刻を表示する
+  $('#stamp-cert').classList.toggle('hide', !done);
+  if (done){
+    let at = load('kuroko_cert_at', null);
+    if (!at){ at = new Date().toISOString(); store('kuroko_cert_at', at); }
+    $('#cert-sub').textContent = `${total}ブースすべてを回りました`;
+    $('#cert-date').textContent = new Date(at).toLocaleString('ja-JP',
+      { year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  } else {
+    store('kuroko_cert_at', undefined);
+  }
+  $('#stamp-share').classList.toggle('hide', got === 0 || !navigator.share);
+}
+
+async function shareStamps(){
+  const total = S.booths.length;
+  const got = S.booths.filter(b => S.stamps.has(b.id)).length;
+  const text = got === total
+    ? `黒工文化祭のスタンプラリー、${total}ブース全制覇しました！`
+    : `黒工文化祭のスタンプラリー、${total}ブース中${got}ブース回りました。`;
+  try{
+    await navigator.share({ title:'黒工文化祭 校内マップ', text, url: location.origin + location.pathname });
+  }catch(e){ /* 共有をやめただけなので何もしない */ }
+}
+
+/* =====================================================================
+   インフォ
+   ===================================================================== */
+function renderInfo(){
+  // 「今どのコマか」を強調する（現在時刻を過ぎた直近の行）
+  const now = new Date();
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const toMin = s => { const m = /^(\d{1,2}):(\d{2})/.exec(s); return m ? +m[1] * 60 + +m[2] : -1; };
+  let cur = -1;
+  CONFIG.INFO.timetable.forEach(([t], i) => { if (toMin(t) <= mins) cur = i; });
+
+  $('#tt-body').innerHTML = CONFIG.INFO.timetable
+    .map(([t, v], i) => {
+      const on = i === cur;
+      return `<tr${on ? ' style="background:var(--surface-3)"' : ''}>
+        <td>${esc(t)}</td>
+        <td>${on ? '<b>▶ ' + esc(v) + '</b>' : esc(v)}</td></tr>`;
+    }).join('');
+  $('#help-list').innerHTML = CONFIG.INFO.help
+    .map(([i, t, d]) => `<div class="help"><span style="font-size:18px">${i}</span>
+      <span><b>${esc(t)}</b><span>${esc(d)}</span></span></div>`).join('');
+}
+
+/* =====================================================================
+   アラートバナー
+   ===================================================================== */
+/** 全体の混雑状況を一目で分かるようにする */
+function renderSummary(){
+  const c = [0, 0, 0, 0];   // 空き / やや / 混雑 / それ以外
+  S.booths.forEach(b => {
+    const lv = lvOf(b).lv;
+    if (lv === 0) c[0]++; else if (lv === 1) c[1]++; else if (lv === 2) c[2]++; else c[3]++;
+  });
+  const cells = [
+    { lv:'0', n:c[0], t:'空いている' },
+    { lv:'1', n:c[1], t:'やや混雑' },
+    { lv:'2', n:c[2], t:'混雑' },
+    { lv:'x', n:c[3], t:'準備中・情報なし' }
+  ];
+  $('#summary').innerHTML = cells.map(x =>
+    `<div class="sum" data-lv="${x.lv}"><b>${x.n}</b><span>${x.t}</span></div>`).join('');
+}
+
+/**
+ * タイムテーブルから「次に始まるもの」を出す。
+ * 見逃しを減らすのが目的なので、開始15分前からは残り時間も出す。
+ */
+function renderNextEvent(){
+  const el = $('#next-ev');
+  const now = new Date();
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const toMin = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t); return m ? +m[1] * 60 + +m[2] : -1; };
+  const next = CONFIG.INFO.timetable.find(([t]) => toMin(t) > mins);
+  if (!next){ el.classList.add('hide'); return; }
+  const left = toMin(next[0]) - mins;
+  el.classList.remove('hide');
+  el.innerHTML = `<span class="tm">${esc(next[0])}</span>
+                  <span class="tx">${esc(next[1])}</span>
+                  <span class="left">${left <= 60 ? 'あと' + left + '分' : ''}</span>`;
+  el.onclick = () => switchView('info');
+}
+
+/** 本部からのお知らせ（シート駆動） */
+function renderNotice(){
+  const el = $('#banner-notice');
+  const n = S.notice;
+  if (!n || !n.text || S.view === 'qr'){ el.classList.add('hide'); return; }
+  el.classList.remove('hide');
+  el.dataset.level = n.level === 'alert' ? 'alert' : 'info';
+  $('#banner-notice-icon').textContent = n.level === 'alert' ? '⚠️' : '📣';
+  $('#banner-notice-text').textContent = n.text;
+}
+
+function renderAlert(){
+  const busy = S.booths.filter(b => lvOf(b).lv === 2);
+  const free = S.booths.filter(b => lvOf(b).lv === 0);
+  const el = $('#banner-alert');
+  const staff = (S.view === 'auth' || S.view === 'admin');
+  if (!busy.length || staff){ el.classList.add('hide'); if (!busy.length) $('#banner-alert-text').textContent = ''; return; }
+  el.classList.remove('hide');
+  const names = busy.slice(0, 2).map(b => b.name).join('・') + (busy.length > 2 ? ` ほか${busy.length - 2}件` : '');
+  const alt = free.length ? `いまは「${free[0].name}」が空いています。` : '';
+  $('#banner-alert-text').textContent = `${names} が混雑中です。${alt}`;
+}
+
+/* =====================================================================
+   まとめて再描画
+   ===================================================================== */
+function renderAll(){
+  renderSyncState();
+  renderNotice();
+  renderAlert();
+  renderSummary();
+  renderNextEvent();
+  recommend();
+  drawFloor(S.floor);
+  renderCats();
+  renderList();
+  renderStamps();
+  if (S.isAdmin) renderAdmin();
+}
+
+/* =====================================================================
+   ビュー切替
+   ===================================================================== */
+function switchView(v){
+  S.view = v;
+  ['map','list','stamp','info','auth','admin','qr','print','report','layout'].forEach(k =>
+    $('#v-' + k).classList.toggle('on', k === v));
+  $$('#nav button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
+  const staff = ['auth','admin','qr','print','report','layout'].indexOf(v) >= 0;
+  $('#nav').classList.toggle('hide', staff);
+  // 来場者向けの混雑アラートは係員画面では出さない（ノイズになる）
+  $('#banner-alert').classList.toggle('hide', staff || !$('#banner-alert-text').textContent);
+  if (v === 'qr') $('#banner-notice').classList.add('hide'); else renderNotice();
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+/* =====================================================================
+   係員モード（パスワードはクライアントに保持しない／毎回GASで照合）
+   ===================================================================== */
+function pw(){ try{ return sessionStorage.getItem('kuroko_pw') || ''; }catch(e){ return ''; } }
+
+async function login(){
+  const v = $('#pw').value.trim();
+  if (!v) return;
+  $('#btn-login').disabled = true;
+  try{
+    const r = await api({ body:{ action:'verify', pass:v } });
+    if (r && r.ok){
+      sessionStorage.setItem('kuroko_pw', v);
+      S.isAdmin = true;
+      $('#auth-err').classList.add('hide');
+      renderAssign(); renderAdmin(); switchView('admin');
+    } else throw new Error('bad');
+  }catch(e){
+    $('#auth-err').classList.remove('hide');
+    $('#auth-err').textContent = e.message === 'bad' ? 'パスワードが違います' : '通信に失敗しました';
+  }finally{ $('#btn-login').disabled = false; }
+}
+
+function renderAssign(){
+  $('#assign-chips').innerHTML =
+    `<button class="chip" data-as="__all" aria-pressed="${S.assigned.size === 0}">すべて表示</button>` +
+    S.booths.map(b => `<button class="chip" data-as="${esc(b.id)}" aria-pressed="${S.assigned.has(b.id)}">${esc(b.name)}</button>`).join('');
+  $$('#assign-chips .chip').forEach(el => el.addEventListener('click', () => {
+    const v = el.dataset.as;
+    if (v === '__all') S.assigned.clear();
+    else S.assigned.has(v) ? S.assigned.delete(v) : S.assigned.add(v);
+    store('kuroko_assigned_v2', Array.from(S.assigned));
+    renderAssign(); renderAdmin();
+  }));
+}
+
+/** 最終更新からの経過分数。未更新は十分大きな数（Infinity同士の引き算でNaNにしない） */
+const NEVER = 1e9;
+function elapsedMin(b){
+  if (!b.time) return NEVER;
+  const t = new Date(b.time).getTime();
+  return isNaN(t) ? NEVER : Math.floor((Date.now() - t) / 60000);
+}
+
+/**
+ * 係員コンソールの描画。
+ * 20秒ごとの自動同期で呼ばれるため、次の2点を必ず守る：
+ *   - 入力途中の待ち人数（下書き）を消さない
+ *   - 操作中はカードを並べ替えない（押そうとしたボタンが動くのを防ぐ）
+ */
+function renderAdmin(){
+  const container = $('#admin-list');
+  let list = S.assigned.size ? S.booths.filter(b => S.assigned.has(b.id)) : S.booths;
+
+  const busy = Object.keys(S.draftWait).length > 0 ||
+               (Date.now() - S.lastAdminTouch < CONFIG.ADMIN_HOLD_MS);
+  if (!busy){
+    // 更新が古い順。放置されているブースが必ず一番上に来る
+    list = list.slice().sort((a, c) => elapsedMin(c) - elapsedMin(a));
+    S.adminOrder = list.map(b => b.id);
+  } else if (S.adminOrder.length){
+    const rank = new Map(S.adminOrder.map((id, i) => [id, i]));
+    list = list.slice().sort((a, c) => (rank.has(a.id) ? rank.get(a.id) : 999) -
+                                       (rank.has(c.id) ? rank.get(c.id) : 999));
+  }
+
+  const overdue = list.filter(b => elapsedMin(b) >= CONFIG.ADMIN_WARN_MIN).length;
+  $('#adm-summary').innerHTML = overdue
+    ? `<span class="stale-warn">⚠ ${overdue}件が${CONFIG.ADMIN_WARN_MIN}分以上未更新です。上から順に確認してください</span>`
+    : `<span style="color:var(--free);font-weight:800;font-size:11px">✓ すべて${CONFIG.ADMIN_WARN_MIN}分以内に更新されています</span>`;
+
+  const hint = `送信すると人数からステータスを自動判定します（0〜${S.waitTh.warn - 1}人=空き / ` +
+               `${S.waitTh.warn}〜${S.waitTh.busy - 1}人=やや混雑 / ${S.waitTh.busy}人〜=混雑）`;
+
+  list.forEach(b => {
+    let card = container.querySelector(`.adm-booth[data-id="${CSS.escape(b.id)}"]`);
+    if (!card){
+      card = document.createElement('div');
+      card.className = 'adm-booth';
+      card.dataset.id = b.id;
+      card.innerHTML = `
+        <div class="adm-head">
+          <span class="adm-nm"></span>
+          <span class="adm-elapsed"></span>
+          <span class="pill"></span>
+        </div>
+        <div class="adm-wait">
+          <span class="adm-wait-lb">待ち人数</span>
+          <button class="step" data-step="-5" aria-label="5人減らす">−5</button>
+          <button class="step" data-step="-1" aria-label="1人減らす">−1</button>
+          <output class="adm-wait-n" data-n="0" aria-live="polite">0</output>
+          <button class="step" data-step="1" aria-label="1人増やす">＋1</button>
+          <button class="step" data-step="5" aria-label="5人増やす">＋5</button>
+          <button class="send">送信</button>
+        </div>
+        <p class="adm-hint"></p>
+        <div class="adm-btns">
+          ${LEVELS.slice(0, 3).map(l =>
+            `<button data-lv="${l.lv}" data-key="${esc(l.key)}">${esc(l.short)}</button>`).join('')}
+        </div>`;
+      bindAdminCard(card);
+      container.appendChild(card);
+    }
+
+    const L = lvOf(b);
+    const m = elapsedMin(b);
+    const cls = m >= CONFIG.ADMIN_DANGER_MIN ? 'danger' : m >= CONFIG.ADMIN_WARN_MIN ? 'warn' : 'ok';
+    const el = m >= NEVER ? '未更新' : m < 1 ? 'たった今' : m + '分前';
+
+    card.dataset.fresh = cls;
+    card.querySelector('.adm-nm').textContent = b.name;
+    const elp = card.querySelector('.adm-elapsed');
+    elp.textContent = el; elp.dataset.fresh = cls;
+    const pill = card.querySelector('.pill');
+    pill.dataset.lv = L.lv; pill.textContent = `${L.icon} ${L.short}`;
+    card.querySelector('.adm-hint').textContent = hint;
+
+    // 入力途中の値は自動同期で上書きしない
+    const out = card.querySelector('.adm-wait-n');
+    if (b.id in S.draftWait){
+      const d = S.draftWait[b.id];
+      out.dataset.n = d; out.textContent = d; out.classList.add('dirty');
+    } else {
+      const w = b.wait == null ? 0 : b.wait;
+      out.dataset.n = w; out.textContent = w; out.classList.remove('dirty');
+    }
+    card.querySelectorAll('.adm-btns button').forEach(btn => {
+      btn.dataset.sel = String(L.lv) === btn.dataset.lv ? '1' : '0';
+    });
+  });
+
+  // 表示対象外になったカードを取り除く
+  const keep = new Set(list.map(b => b.id));
+  Array.from(container.children).forEach(c => { if (!keep.has(c.dataset.id)) c.remove(); });
+  // 並び順を反映（DOMを作り直さないのでフォーカスや押下状態は保たれる）
+  list.forEach(b => {
+    const c = container.querySelector(`.adm-booth[data-id="${CSS.escape(b.id)}"]`);
+    if (c) container.appendChild(c);
+  });
+}
+
+function bindAdminCard(card){
+  const id = card.dataset.id;
+  const out = card.querySelector('.adm-wait-n');
+  card.querySelectorAll('.step').forEach(btn => btn.addEventListener('click', () => {
+    const v = Math.max(0, Math.min(999, Number(out.dataset.n) + Number(btn.dataset.step)));
+    out.dataset.n = v; out.textContent = v; out.classList.add('dirty');
+    S.draftWait[id] = v;
+    S.lastAdminTouch = Date.now();
+  }));
+  card.querySelector('.send').addEventListener('click', () => {
+    S.lastAdminTouch = Date.now();
+    update(id, null, Number(out.dataset.n));
+  });
+  card.querySelectorAll('.adm-btns button').forEach(btn => btn.addEventListener('click', () => {
+    S.lastAdminTouch = Date.now();
+    update(id, btn.dataset.key, null);
+  }));
+}
+
+/**
+ * ステータスと待ち人数を更新する。
+ * status を null にすると人数から自動判定（サーバー側で決定）。
+ */
+async function update(id, status, wait){
+  const b = S.booths.find(x => x.id === id);
+  if (!b) return;
+  if (navigator.onLine === false){ toast('圏外です。電波の届く場所で操作してください'); return; }
+
+  const prev = { status: b.status, wait: b.wait, time: b.time, stale: b.stale };
+  // 楽観的更新：サーバーと同じ規則でこちらでも判定しておく
+  if (status == null && wait != null){
+    status = wait >= S.waitTh.busy ? '混雑しています' : wait >= S.waitTh.warn ? 'やや混雑' : '空いています';
+  }
+  b.status = status;
+  b.wait = wait;              // 3段階ボタンで更新したときは人数を消す（null）
+  b.stale = false;
+  b.time = new Date().toISOString();
+  renderAdmin();
+
+  const btns = $$(`.adm-booth[data-id="${CSS.escape(id)}"] button`);
+  btns.forEach(x => x.disabled = true);
+  try{
+    // wait は常に送る。null なら人数を消す指示になる
+    await api({ body:{ action:'update', id, status, wait, pass: pw() } });
+    delete S.draftWait[id];                                // 送信できたので下書きを確定
+    renderAdmin();
+    // 押し間違いをすぐ戻せるようにする
+    const canUndo = prev.status && LEVELS.some(l => l.key === prev.status) &&
+                    !(prev.status === status && prev.wait === wait);
+    toast(`${b.name} → ${lvOf(status).short}${wait != null ? `（${wait}人）` : ''}`,
+      canUndo ? { label:'元に戻す', fn: () => update(id, prev.status, prev.wait ?? null) } : null);
+  }catch(e){
+    Object.assign(b, prev);                                // ロールバック
+    if (wait != null) S.draftWait[id] = wait;              // 入力値は消さずに残す
+    renderAdmin();
+    if (!authFailed(e)) toast('更新失敗：もう一度お試しください');
+  }finally{
+    $$(`.adm-booth[data-id="${CSS.escape(id)}"] button`).forEach(x => x.disabled = false);
+  }
+}
+
+async function bulkReset(){
+  if (navigator.onLine === false){ toast('圏外です。電波の届く場所で操作してください'); return; }
+  if (!confirm('全ブースを「空いています」に戻します。よろしいですか？')) return;
+  const btn = $('#btn-bulk'); btn.disabled = true; btn.textContent = '送信中…';
+  try{
+    await api({ body:{ action:'bulk', status:'空いています', pass: pw() } });
+    await sync(false); toast('全ブースをリセットしました');
+  }catch(e){ if (!authFailed(e)) toast('リセットに失敗しました'); }
+  finally{ btn.disabled = false; btn.textContent = '全ブースを「空いています」に戻す'; }
+}
+
+/**
+ * パスワードが通らなくなった場合（当日に変更した等）は、
+ * 何度押しても直らないのでログイン画面に戻す。
+ * @return {boolean} 認証エラーとして処理したか
+ */
+function authFailed(e){
+  if (!/unauthorized/i.test(String(e && e.message || e))) return false;
+  try{ sessionStorage.removeItem('kuroko_pw'); }catch(_){}
+  S.isAdmin = false;
+  switchView('auth');
+  $('#auth-err').classList.remove('hide');
+  $('#auth-err').textContent = 'パスワードが変わっています。もう一度入力してください';
+  toast('もう一度ログインしてください');
+  return true;
+}
+
+/* =====================================================================
+   QRコード生成（外部ライブラリ非依存）
+   バイトモード・誤り訂正レベルM・バージョン1〜10（最大213文字）。
+   印刷したQRが読めないと全ポスターが無駄になるため、生成結果は
+   実際にデコードして検証済み。
+   ===================================================================== */
+const QR = (() => {
+  // [ECコードワード数/ブロック, [[ブロック数, データコードワード数/ブロック], ...]]
+  const ECC_M = {
+    1:[10,[[1,16]]], 2:[16,[[1,28]]], 3:[26,[[1,44]]], 4:[18,[[2,32]]],
+    5:[24,[[2,43]]], 6:[16,[[4,27]]], 7:[18,[[4,31]]], 8:[22,[[2,38],[2,39]]],
+    9:[22,[[3,36],[2,37]]], 10:[26,[[4,43],[1,44]]]
+  };
+  const ALIGN = {1:[],2:[6,18],3:[6,22],4:[6,26],5:[6,30],
+                 6:[6,34],7:[6,22,38],8:[6,24,42],9:[6,26,46],10:[6,28,50]};
+  const VERINFO = {7:0x07C94, 8:0x085BC, 9:0x09A99, 10:0x0A4D3};
+
+  // GF(256) 指数・対数表
+  const EXP = new Uint8Array(512), LOG = new Uint8Array(256);
+  (() => { let x = 1;
+    for (let i = 0; i < 255; i++){ EXP[i] = x; LOG[x] = i; x <<= 1; if (x & 0x100) x ^= 0x11D; }
+    for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
+  })();
+  const mul = (a, b) => (a === 0 || b === 0) ? 0 : EXP[LOG[a] + LOG[b]];
+
+  function rsGen(n){
+    let g = [1];
+    for (let i = 0; i < n; i++){
+      const ng = new Array(g.length + 1).fill(0);
+      for (let j = 0; j < g.length; j++){ ng[j] ^= g[j]; ng[j + 1] ^= mul(g[j], EXP[i]); }
+      g = ng;
+    }
+    return g;
+  }
+  function rsEnc(data, n){
+    const g = rsGen(n), res = new Array(n).fill(0);
+    for (let k = 0; k < data.length; k++){
+      const f = data[k] ^ res[0];
+      res.shift(); res.push(0);
+      if (f !== 0) for (let i = 0; i < n; i++) res[i] ^= mul(g[i + 1], f);
+    }
+    return res;
+  }
+
+  function utf8(str){
+    const out = [];
+    for (const ch of unescape(encodeURIComponent(str))) out.push(ch.charCodeAt(0));
+    return out;
+  }
+
+  function pickVersion(len){
+    for (let v = 1; v <= 10; v++){
+      const [ec, groups] = ECC_M[v];
+      const total = groups.reduce((s, [n, d]) => s + n * d, 0);
+      const header = 2 + (v >= 10 ? 1 : 0);   // モード4bit+文字数(8 or 16bit)
+      if (len + header <= total) return v;
+    }
+    throw new Error('QR: データが長すぎます');
+  }
+
+  function buildCodewords(bytes, v){
+    const [ecLen, groups] = ECC_M[v];
+    const totalData = groups.reduce((s, [n, d]) => s + n * d, 0);
+    const bits = [];
+    const push = (val, n) => { for (let i = n - 1; i >= 0; i--) bits.push((val >> i) & 1); };
+
+    push(0b0100, 4);                       // バイトモード
+    push(bytes.length, v >= 10 ? 16 : 8);  // 文字数
+    bytes.forEach(b => push(b, 8));
+    for (let i = 0; i < 4 && bits.length < totalData * 8; i++) bits.push(0);  // 終端
+    while (bits.length % 8) bits.push(0);
+
+    const data = [];
+    for (let i = 0; i < bits.length; i += 8){
+      let b = 0; for (let j = 0; j < 8; j++) b = (b << 1) | bits[i + j];
+      data.push(b);
+    }
+    const PAD = [0xEC, 0x11];
+    for (let i = 0; data.length < totalData; i++) data.push(PAD[i % 2]);
+
+    // ブロック分割 → ECC計算
+    const dBlocks = [], eBlocks = [];
+    let p = 0;
+    groups.forEach(([n, d]) => {
+      for (let i = 0; i < n; i++){
+        const blk = data.slice(p, p + d); p += d;
+        dBlocks.push(blk); eBlocks.push(rsEnc(blk, ecLen));
+      }
+    });
+
+    // インターリーブ
+    const out = [];
+    const maxD = Math.max(...dBlocks.map(b => b.length));
+    for (let i = 0; i < maxD; i++) dBlocks.forEach(b => { if (i < b.length) out.push(b[i]); });
+    for (let i = 0; i < ecLen; i++) eBlocks.forEach(b => out.push(b[i]));
+    return out;
+  }
+
+  const MASKS = [
+    (r, c) => (r + c) % 2 === 0,
+    (r, c) => r % 2 === 0,
+    (r, c) => c % 3 === 0,
+    (r, c) => (r + c) % 3 === 0,
+    (r, c) => (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0,
+    (r, c) => ((r * c) % 2) + ((r * c) % 3) === 0,
+    (r, c) => ((((r * c) % 2) + ((r * c) % 3)) % 2) === 0,
+    (r, c) => ((((r + c) % 2) + ((r * c) % 3)) % 2) === 0
+  ];
+
+  function fmtBits(mask){
+    const data = (0b00 << 3) | mask;      // ECCレベルM = 00
+    let d = data << 10;
+    for (let i = 4; i >= 0; i--) if (d & (1 << (i + 10))) d ^= 0x537 << i;
+    return (((data << 10) | d) ^ 0x5412);
+  }
+
+  function newMatrix(v){
+    const size = 17 + 4 * v;
+    const m = Array.from({ length:size }, () => new Array(size).fill(null));
+    const fn = Array.from({ length:size }, () => new Array(size).fill(false));
+    const set = (r, c, val) => { m[r][c] = val; fn[r][c] = true; };
+
+    // ファインダ＋分離パターン
+    [[0,0],[size-7,0],[0,size-7]].forEach(([R,C]) => {
+      for (let r = -1; r <= 7; r++) for (let c = -1; c <= 7; c++){
+        const rr = R + r, cc = C + c;
+        if (rr < 0 || cc < 0 || rr >= size || cc >= size) continue;
+        const on = (r >= 0 && r <= 6 && (c === 0 || c === 6)) ||
+                   (c >= 0 && c <= 6 && (r === 0 || r === 6)) ||
+                   (r >= 2 && r <= 4 && c >= 2 && c <= 4);
+        set(rr, cc, on ? 1 : 0);
+      }
+    });
+    // タイミングパターン
+    for (let i = 8; i < size - 8; i++){ set(6, i, i % 2 === 0 ? 1 : 0); set(i, 6, i % 2 === 0 ? 1 : 0); }
+    // 位置合わせパターン
+    const ac = ALIGN[v];
+    ac.forEach(R => ac.forEach(C => {
+      if ((R <= 8 && C <= 8) || (R <= 8 && C >= size - 9) || (R >= size - 9 && C <= 8)) return;
+      for (let r = -2; r <= 2; r++) for (let c = -2; c <= 2; c++)
+        set(R + r, C + c, (Math.max(Math.abs(r), Math.abs(c)) !== 1) ? 1 : 0);
+    }));
+    // 固定の暗モジュール＋フォーマット情報領域の確保
+    set(size - 8, 8, 1);
+    for (let i = 0; i <= 8; i++){ if (!fn[8][i]) set(8, i, 0); if (!fn[i][8]) set(i, 8, 0); }
+    for (let i = size - 8; i < size; i++){ if (!fn[8][i]) set(8, i, 0); if (!fn[i][8]) set(i, 8, 0); }
+    // バージョン情報領域（v7以上）
+    if (v >= 7){
+      for (let i = 0; i < 18; i++){
+        const r = Math.floor(i / 3), c = i % 3;
+        set(size - 11 + c, r, 0); set(r, size - 11 + c, 0);
+      }
+    }
+    return { m, fn, size };
+  }
+
+  function placeData(mx, cw){
+    const { m, fn, size } = mx;
+    let bit = 0;
+    const next = () => {
+      const b = (bit < cw.length * 8) ? (cw[bit >> 3] >> (7 - (bit & 7))) & 1 : 0;
+      bit++; return b;
+    };
+    let up = true;
+    for (let c = size - 1; c > 0; c -= 2){
+      if (c === 6) c--;                                  // タイミング列は飛ばす
+      for (let i = 0; i < size; i++){
+        const r = up ? size - 1 - i : i;
+        for (const cc of [c, c - 1]) if (!fn[r][cc]) m[r][cc] = next();
+      }
+      up = !up;
+    }
+  }
+
+  function penalty(m, size){
+    let p = 0;
+    // 規則1：同色の連続
+    for (let i = 0; i < size; i++){
+      for (const line of [m[i], m.map(r => r[i])]){
+        let run = 1;
+        for (let j = 1; j < size; j++){
+          if (line[j] === line[j - 1]) run++;
+          else { if (run >= 5) p += 3 + (run - 5); run = 1; }
+        }
+        if (run >= 5) p += 3 + (run - 5);
+      }
+    }
+    // 規則2：2x2の同色ブロック
+    for (let r = 0; r < size - 1; r++) for (let c = 0; c < size - 1; c++){
+      const v = m[r][c];
+      if (v === m[r][c+1] && v === m[r+1][c] && v === m[r+1][c+1]) p += 3;
+    }
+    // 規則3：ファインダ類似パターン
+    const P1 = [1,0,1,1,1,0,1,0,0,0,0], P2 = [0,0,0,0,1,0,1,1,1,0,1];
+    const match = (line, i, pat) => pat.every((v, k) => line[i + k] === v);
+    for (let i = 0; i < size; i++){
+      for (const line of [m[i], m.map(r => r[i])]){
+        for (let j = 0; j + 11 <= size; j++) if (match(line, j, P1) || match(line, j, P2)) p += 40;
+      }
+    }
+    // 規則4：暗モジュールの偏り
+    let dark = 0;
+    for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) dark += m[r][c];
+    const ratio = dark * 100 / (size * size);
+    p += Math.floor(Math.abs(ratio - 50) / 5) * 10;
+    return p;
+  }
+
+  function applyFormat(m, size, mask, v){
+    const f = fmtBits(mask);
+    // 15ビットを MSB から順に、下の座標列へ流し込む（2箇所に複製）
+    const P = [[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[7,8],
+               [5,8],[4,8],[3,8],[2,8],[1,8],[0,8]];
+    const Q = [];
+    for (let i = 0; i < 7; i++) Q.push([size - 1 - i, 8]);      // 下側7モジュール
+    for (let i = 7; i < 15; i++) Q.push([8, size - 15 + i]);    // 右側8モジュール
+    for (let k = 0; k < 15; k++){
+      const b = (f >> (14 - k)) & 1;
+      m[P[k][0]][P[k][1]] = b;
+      m[Q[k][0]][Q[k][1]] = b;
+    }
+    m[size - 8][8] = 1;   // 固定の暗モジュール
+    if (v >= 7){
+      const vi = VERINFO[v];
+      for (let i = 0; i < 18; i++){
+        const b = (vi >> i) & 1, r = Math.floor(i / 3), c = i % 3;
+        m[size - 11 + c][r] = b; m[r][size - 11 + c] = b;
+      }
+    }
+  }
+
+  /** @return {{size:number, get:(r,c)=>number}} */
+  function encode(text){
+    const bytes = utf8(text);
+    const v = pickVersion(bytes.length);
+    const cw = buildCodewords(bytes, v);
+
+    let best = null;
+    for (let mask = 0; mask < 8; mask++){
+      const mx = newMatrix(v);
+      placeData(mx, cw);
+      const m = mx.m.map(row => row.slice());
+      for (let r = 0; r < mx.size; r++) for (let c = 0; c < mx.size; c++)
+        if (!mx.fn[r][c] && MASKS[mask](r, c)) m[r][c] ^= 1;
+      applyFormat(m, mx.size, mask, v);
+      const p = penalty(m, mx.size);
+      if (!best || p < best.p) best = { p, m, size: mx.size };
+    }
+    return { size: best.size, get: (r, c) => best.m[r][c] };
+  }
+
+  /** 印刷に強いSVG文字列を返す（quiet zone 4モジュール込み） */
+  function svg(text, px){
+    const q = 4, { size, get } = encode(text), total = size + q * 2;
+    let d = '';
+    for (let r = 0; r < size; r++) for (let c = 0; c < size; c++)
+      if (get(r, c)) d += `M${c + q} ${r + q}h1v1h-1z`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${total}" ` +
+           `width="${px}" height="${px}" shape-rendering="crispEdges">` +
+           `<rect width="${total}" height="${total}" fill="#fff"/>` +
+           `<path d="${d}" fill="#000"/></svg>`;
+  }
+
+  /** 長すぎる等で作れない場合でもページ全体を巻き込まないようにする */
+  function svgSafe(text, px){
+    try { return svg(text, px); }
+    catch (e) {
+      return `<div style="width:${px}px;height:${px}px;display:grid;place-items:center;
+              border:2px dashed #b91c1c;color:#b91c1c;font-size:11px;font-weight:800;
+              text-align:center;padding:8px">QRを作れませんでした<br>（URLが長すぎます）</div>`;
+    }
+  }
+
+  return { encode, svg, svgSafe };
+})();
+
+/* =====================================================================
+   QR印刷ページ（?mode=qr）
+   ===================================================================== */
+function renderQrSheet(){
+  const base = location.origin + location.pathname.replace(/[^/]*$/, '');
+  const items = [
+    { name:'総合案内（校門・ポスター用）', url: base, note:'校内マップ全体を開きます' },
+    ...S.booths.map(b => ({
+      name: b.name,
+      url: `${base}?booth=${encodeURIComponent(b.id)}&qr=1`,
+      note: 'このブースが開き、スタンプが入ります'
+    }))
+  ];
+  $('#qr-grid').innerHTML = items.map(it => `
+    <figure class="qr-card">
+      <div class="qr-img">${QR.svgSafe(it.url, 200)}</div>
+      <figcaption>
+        <b>${esc(it.name)}</b>
+        <span>${esc(it.note)}</span>
+        <code>${esc(it.url)}</code>
+      </figcaption>
+    </figure>`).join('');
+  $('#qr-count').textContent = items.length;
+
+  // 係員に配る手順カード。掲示物ではないので必ず別ページに送る
+  const adminUrl = base + '?mode=admin';
+  $('#qr-staff').innerHTML = `
+    <div class="staff-card">
+      <div class="staff-head">
+        <div>
+          <b>係員のみなさんへ</b>
+          <span>混雑状況の更新手順　※このカードは掲示しないでください</span>
+        </div>
+        <div class="staff-qr">${QR.svgSafe(adminUrl, 150)}</div>
+      </div>
+      <ol class="staff-steps">
+        <li>左のQRを読み取り、開いたページをホーム画面に追加する</li>
+        <li>配布されたパスワードを入力してログインする</li>
+        <li>初回だけ「担当ブース」から自分の持ち場をタップする</li>
+        <li>待ち列を数えて <b>＋1 / ＋5</b> で人数を合わせ、<b>送信</b> を押す<br>
+            <span class="staff-note">人数から混雑度が自動で決まります：
+            0〜${S.waitTh.warn - 1}人＝空き ／ ${S.waitTh.warn}〜${S.waitTh.busy - 1}人＝やや混雑 ／ ${S.waitTh.busy}人〜＝混雑</span></li>
+        <li>数えられないときは下の3つのボタンでもよい</li>
+      </ol>
+      <p class="staff-warn">
+        15分に1回は更新してください。30分で警告表示、45分を過ぎると来場者側では「情報なし」になります
+        （古い情報を見せないための仕組みです）。
+      </p>
+      <p class="staff-url">${esc(adminUrl)}</p>
+    </div>`;
+}
+
+/* =====================================================================
+   紙の校内マップ（?mode=print）
+   混雑状況は載せず、番号と場所だけの静的な地図にする。
+   最新の状況はQRから見てもらう。
+   ===================================================================== */
+function renderPrintSheet(){
+  const base = location.origin + location.pathname.replace(/[^/]*$/, '');
+
+  const planSvg = (floorNum) => {
+    const plan = FLOOR_PLAN[floorNum];
+    const here = S.booths.filter(b => b.floor === floorNum);
+    let h = '';
+    plan.struct.forEach(s => {
+      h += `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="5" fill="#f1f1f1" stroke="#bbb"/>`;
+      if (s.label) h += `<text x="${s.x + s.w/2}" y="${s.y + s.h/2 + 3}" text-anchor="middle"
+                          font-size="7.5" fill="#555">${esc(s.label)}</text>`;
+    });
+    plan.zones.forEach(z => { h += `<text x="${z.x}" y="${z.y}" font-size="8.5" font-weight="bold" fill="#777">${esc(z.label)}</text>`; });
+    plan.utils.forEach(u => {
+      h += `<rect x="${u.x}" y="${u.y}" width="${u.w}" height="${u.h}" rx="4" fill="#fff" stroke="#bbb"/>
+            <text x="${u.x + u.w/2}" y="${u.y + u.h/2 + 2.8}" text-anchor="middle" font-size="7.5" fill="#444">${esc(u.t)}</text>`;
+    });
+    here.forEach((b, i) => {
+      const s = plan.rooms.length ? plan.rooms.find(x => x.id === b.id) : FLOOR2_SLOTS[i];
+      if (!s) return;
+      const cx = s.x + s.w / 2;
+      const lines = wrapLabel(b.name, s.w);
+      h += `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="7" fill="#fff" stroke="#333" stroke-width="1.6"/>`;
+      h += `<circle cx="${s.x + 4}" cy="${s.y + 4}" r="8.5" fill="#b91c1c"/>
+            <text x="${s.x + 4}" y="${s.y + 7.4}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#fff">${S.numbers.get(b.id)}</text>`;
+      lines.forEach((ln, k) => {
+        h += `<text x="${cx}" y="${s.y + s.h/2 + 4 + k*11 - (lines.length>1?5:0)}" text-anchor="middle"
+                font-size="9.5" font-weight="bold" fill="#111">${esc(ln)}</text>`;
+      });
+    });
+    return `<svg viewBox="${planViewBox(floorNum)}" class="sheet-plan">${h}</svg>`;
+  };
+
+  const rows = S.booths.map(b => `
+    <tr>
+      <td class="no">${S.numbers.get(b.id)}</td>
+      <td><b>${esc(b.name)}</b></td>
+      <td>${esc(b.category)}</td>
+      <td>${b.floor}F</td>
+      <td>${esc(b.note || '')}</td>
+    </tr>`).join('');
+
+  $('#print-sheet').innerHTML = `
+    <div class="sheet-head">
+      <div>
+        <h1>黒工文化祭 校内マップ</h1>
+        <p>岩手県立黒沢尻工業高等学校</p>
+      </div>
+      <div class="sheet-qr">
+        ${QR.svgSafe(base, 110)}
+        <span>最新の混雑状況・待ち人数はこちら</span>
+      </div>
+    </div>
+    <div class="sheet-body">
+      <div class="sheet-maps sheet-col">
+        <div><h2>1階</h2>${planSvg(1)}</div>
+        ${S.booths.some(b => b.floor === 2) ? `<div><h2>2階</h2>${planSvg(2)}</div>` : ''}
+      </div>
+      <div class="sheet-list sheet-col">
+        <h2>ブース一覧</h2>
+        <table class="sheet-table"><tbody>${rows}</tbody></table>
+        <p class="sheet-note">
+          混雑状況はスマートフォンからご覧いただけます。各ブースの入口にもQRコードを掲示しています。
+        </p>
+      </div>
+
+      <div class="sheet-info sheet-col">
+        <h2>タイムテーブル</h2>
+        <table class="sheet-table"><tbody>${
+          CONFIG.INFO.timetable.map(([t, v]) =>
+            `<tr><td class="tm">${esc(t)}</td><td>${esc(v)}</td></tr>`).join('')
+        }</tbody></table>
+        <h2 style="margin-top:10px">困ったときは</h2>
+        <table class="sheet-table"><tbody>${
+          CONFIG.INFO.help.map(([i, t, d]) =>
+            `<tr><td class="ic">${i}</td><td><b>${esc(t)}</b><br>${esc(d)}</td></tr>`).join('')
+        }</tbody></table>
+      </div>
+    </div>`;
+}
+
+/* =====================================================================
+   振り返りレポート（?mode=report）
+   当日の履歴から混雑の推移をまとめる。運営の記録・報告に使う。
+   ===================================================================== */
+async function renderReport(){
+  const box = $('#report-body');
+  box.innerHTML = `<div class="skel"></div><div class="skel"></div>`;
+  let r;
+  try{
+    const url = CONFIG.GAS_URL + (CONFIG.GAS_URL.includes('?') ? '&' : '?') + 'report=1&_=' + Date.now();
+    const res = await fetch(url, { mode:'cors' });
+    r = await res.json();
+    if (!r || r.ok === false) throw new Error(r && r.error || '取得に失敗しました');
+  }catch(e){
+    box.innerHTML = `<div class="banner alert"><span>⚠️</span><span>
+      レポートを取得できませんでした（${esc(String(e.message || e))}）。<br>
+      GASを最新版に差し替えているか確認してください。</span></div>`;
+    return;
+  }
+
+  if (!r.buckets || !r.buckets.length){
+    box.innerHTML = `<p class="empty">まだ記録がありません。係員が混雑状況を更新すると、ここに推移が出ます。</p>`;
+    return;
+  }
+
+  const n = r.buckets.length;
+  const total = r.booths.length;
+  const W = Math.max(320, n * 18), H = 130, pad = 22;
+  const colW = (W - pad) / n;
+
+  // 全体の推移（積み上げ棒）
+  let bars = '';
+  r.overall.forEach((o, i) => {
+    const x = pad + i * colW;
+    const stack = [[o.busy, 'var(--busy)'], [o.warn, 'var(--warn)'], [o.free, 'var(--free)']];
+    let y = H - 18;
+    stack.forEach(([c, col]) => {
+      const h = total ? (c / total) * (H - 30) : 0;
+      if (h > 0){ y -= h; bars += `<rect x="${x + 1}" y="${y}" width="${colW - 2}" height="${h}" fill="${col}"/>`; }
+    });
+  });
+  let axis = '';
+  r.buckets.forEach((t, i) => {
+    if (i % Math.ceil(n / 6) !== 0 && i !== n - 1) return;
+    const last = i === n - 1;
+    axis += `<text x="${pad + i * colW + (last ? colW : colW / 2)}" y="${H - 5}"
+             text-anchor="${last ? 'end' : 'middle'}"
+             font-size="8" fill="var(--text-mute)">${esc(t)}</text>`;
+  });
+
+  // ブース別ヒートマップ
+  const heat = r.booths.map(b => `
+    <div class="hm-row">
+      <span class="hm-nm">${esc(b.name)}</span>
+      <div class="hm-cells">${b.series.map((lv, i) =>
+        `<i data-lv="${lv === null ? 'x' : lv}" title="${esc(r.buckets[i])}"></i>`).join('')}</div>
+      <span class="hm-max">${b.maxWait == null ? '' : b.maxWait + '人'}</span>
+    </div>`).join('');
+
+  const s = r.summary || {};
+  box.innerHTML = `
+    <div class="card">
+      <div class="card-t">${esc(r.date || '')} の記録</div>
+      <div class="rep-grid">
+        <div><b>${esc(s.openLabel || '-')}</b><span>記録された時間帯</span></div>
+        <div><b>${esc(s.peakTime || '-')}</b><span>最も混んだ時間</span></div>
+        <div><b>${esc(s.busiestBooth || '-')}</b><span>最も混雑したブース</span></div>
+        <div><b>${s.busiestMinutes || 0}分</b><span>そのブースの混雑時間</span></div>
+        <div><b>${s.totalUpdates || 0}回</b><span>係員の更新回数</span></div>
+        <div><b>${total}</b><span>記録があったブース数</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-t">全体の混雑の移り変わり</div>
+      <svg viewBox="0 0 ${W} ${H}" class="rep-chart" role="img" aria-label="全体の混雑推移">
+        ${bars}${axis}
+        <line x1="${pad}" y1="${H - 18}" x2="${W}" y2="${H - 18}" stroke="var(--border)"/>
+        <text x="0" y="16" font-size="8" fill="var(--text-mute)">全${total}</text>
+        <text x="0" y="${H - 22}" font-size="8" fill="var(--text-mute)">0</text>
+      </svg>
+      <div class="legend" style="border:none;padding:6px 0 0">
+        <span><i class="lg-free"></i>空いている</span>
+        <span><i class="lg-warn"></i>やや混雑</span>
+        <span><i class="lg-busy"></i>混雑</span>
+      </div>
+      <p style="font-size:9.5px;color:var(--text-mute);font-weight:600;margin-top:4px">
+        棒の高さは、その時刻に状況が分かっていたブースの内訳です。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-t">ブース別の推移（${r.bucketMinutes}分ごと）</div>
+      <div class="hm">${heat}</div>
+      <p style="font-size:9.5px;color:var(--text-mute);font-weight:600;margin-top:8px">
+        右端の数字はその日の最大待ち人数です。
+        <span style="display:inline-block;width:9px;height:9px;border-radius:2px;
+              background:var(--closed);vertical-align:-1px"></span> は準備中、
+        <span style="display:inline-block;width:9px;height:9px;border-radius:2px;
+              background:var(--surface-3);border:1px solid var(--border);vertical-align:-1px"></span>
+        は記録がない時間帯です。
+      </p>
+    </div>`;
+}
+
+/* =====================================================================
+   校舎配置エディタ（?mode=layout）
+   実際の校舎に合わせて座標を直す作業を、数値の手打ちからドラッグに変える。
+   結果は FLOOR_PLAN にそのまま貼れる形で出力する。
+   ===================================================================== */
+const LAY = { plan: null, floor: 1, sel: null, grid: true, drag: null };
+
+function layClone(){
+  return JSON.parse(JSON.stringify({ 1: FLOOR_PLAN[1], 2: FLOOR_PLAN[2] }));
+}
+
+function layDraw(){
+  const svg = $('#lay-svg');
+  const plan = LAY.plan[LAY.floor];
+  const names = new Map(S.booths.map(b => [b.id, b.name]));
+  const vb = [0, 0, 400, 500];
+  svg.setAttribute('viewBox', vb.join(' '));
+
+  let g = '';
+  if (LAY.grid){
+    for (let x = 0; x <= 400; x += 20)
+      g += `<line x1="${x}" y1="0" x2="${x}" y2="500" stroke="var(--border)" stroke-width="${x % 100 ? .4 : .9}"/>`;
+    for (let y = 0; y <= 500; y += 20)
+      g += `<line x1="0" y1="${y}" x2="400" y2="${y}" stroke="var(--border)" stroke-width="${y % 100 ? .4 : .9}"/>`;
+  }
+
+  const box = (kind, i, o, label) => {
+    const on = LAY.sel && LAY.sel.kind === kind && LAY.sel.i === i ? ' on' : '';
+    return `<g class="box${on}" data-kind="${kind}" data-i="${i}">
+      <rect x="${o.x}" y="${o.y}" width="${o.w}" height="${o.h}" rx="4"/>
+      <text x="${o.x + o.w / 2}" y="${o.y + o.h / 2 + 3}" text-anchor="middle">${esc(label)}</text>
+      <rect class="hnd" x="${o.x + o.w - 7}" y="${o.y + o.h - 7}" width="9" height="9" rx="2"
+            data-handle="1"/></g>`;
+  };
+
+  plan.struct.forEach((s, i) => { g += box('struct', i, s, s.label || '通路'); });
+  plan.utils.forEach((u, i) => { g += box('util', i, u, u.t); });
+  const slots = plan.rooms.length ? plan.rooms : [];
+  slots.forEach((r, i) => { g += box('room', i, r, names.get(r.id) || ('id:' + r.id)); });
+  plan.zones.forEach((z, i) => {
+    g += `<g class="box" data-kind="zone" data-i="${i}">
+      <rect x="${z.x}" y="${z.y - 9}" width="110" height="11" rx="2" fill="transparent" stroke="var(--border)" stroke-dasharray="2 2"/>
+      <text x="${z.x + 3}" y="${z.y}" text-anchor="start">${esc(z.label)}</text></g>`;
+  });
+
+  svg.innerHTML = g;
+  $$('.box', svg).forEach(el => el.addEventListener('pointerdown', layDown));
+}
+
+function layPoint(e){
+  const svg = $('#lay-svg');
+  const r = svg.getBoundingClientRect();
+  const vb = svg.getAttribute('viewBox').split(' ').map(Number);
+  return { x: vb[0] + (e.clientX - r.left) / r.width * vb[2],
+           y: vb[1] + (e.clientY - r.top) / r.height * vb[3] };
+}
+
+function layTarget(kind, i){
+  const plan = LAY.plan[LAY.floor];
+  if (kind === 'room') return plan.rooms[i];
+  if (kind === 'struct') return plan.struct[i];
+  if (kind === 'util') return plan.utils[i];
+  return plan.zones[i];
+}
+
+/*
+ * 移動・大きさ変更の受け口。
+ * 描き直すとSVGの中身を作り直すので、動きの追跡は window 側で受ける
+ * （要素に付けると、最初の描き直しで listener ごと消えてしまう）。
+ */
+function layDown(e){
+  e.preventDefault();
+  const g = e.currentTarget;
+  const kind = g.dataset.kind, i = Number(g.dataset.i);
+  const o = layTarget(kind, i);
+  const p = layPoint(e);
+  LAY.sel = { kind, i };
+  LAY.drag = {
+    o, mode: e.target.dataset.handle ? 'size' : 'move',
+    dx: p.x - o.x, dy: p.y - o.y, w: o.w || 0, h: o.h || 0, px: p.x, py: p.y
+  };
+  window.addEventListener('pointermove', layMove);
+  window.addEventListener('pointerup', layUp);
+  window.addEventListener('pointercancel', layUp);
+  layDraw(); laySel();
+}
+
+function layMove(e){
+  if (!LAY.drag) return;
+  e.preventDefault();
+  const p = layPoint(e);
+  const d = LAY.drag, o = d.o;
+  const snap = v => LAY.grid ? Math.round(v / 2) * 2 : Math.round(v);
+  if (d.mode === 'move'){
+    o.x = snap(Math.max(0, Math.min(400 - (o.w || 20), p.x - d.dx)));
+    o.y = snap(Math.max(0, Math.min(500 - (o.h || 10), p.y - d.dy)));
+  } else if (o.w !== undefined){
+    o.w = snap(Math.max(16, Math.min(400 - o.x, d.w + (p.x - d.px))));
+    o.h = snap(Math.max(12, Math.min(500 - o.y, d.h + (p.y - d.py))));
+  }
+  layDraw(); laySel();
+}
+
+function layUp(){
+  LAY.drag = null;
+  window.removeEventListener('pointermove', layMove);
+  window.removeEventListener('pointerup', layUp);
+  window.removeEventListener('pointercancel', layUp);
+}
+
+function laySel(){
+  const el = $('#lay-sel');
+  if (!LAY.sel){ el.textContent = '枠を選ぶと、ここに数値が出ます'; return; }
+  const o = layTarget(LAY.sel.kind, LAY.sel.i);
+  const label = { room:'ブース', struct:'通路・屋外', util:'設備', zone:'見出し' }[LAY.sel.kind];
+  el.textContent = o.w !== undefined
+    ? `${label}：x=${o.x} y=${o.y} 幅=${o.w} 高さ=${o.h}`
+    : `${label}：x=${o.x} y=${o.y}`;
+}
+
+/** FLOOR_PLAN にそのまま貼れる形で書き出す */
+function layCode(){
+  const j = v => JSON.stringify(v);
+  const one = f => {
+    const p = LAY.plan[f];
+    const zones  = p.zones.map(z => `      { label:${j(z.label)}, x:${z.x}, y:${z.y} }`).join(',\n');
+    const struct = p.struct.map(s =>
+      `      { type:${j(s.type)}, x:${s.x}, y:${s.y}, w:${s.w}, h:${s.h}` +
+      (s.label ? `, label:${j(s.label)}` : '') + ' }').join(',\n');
+    const utils  = p.utils.map(u =>
+      `      { x:${u.x}, y:${u.y}, w:${u.w}, h:${u.h}, t:${j(u.t)} }`).join(',\n');
+    const rooms  = p.rooms.map(r =>
+      `      { id:${j(r.id)}, x:${r.x}, y:${r.y}, w:${r.w}, h:${r.h} }`).join(',\n');
+    return `  ${f}: {\n    zones: [\n${zones}\n    ],\n    struct: [\n${struct}\n    ],\n` +
+           `    utils: [\n${utils}\n    ],\n    rooms: [${rooms ? '\n' + rooms + '\n    ' : ''}]\n  }`;
+  };
+  return `const FLOOR_PLAN = {\n${one(1)},\n${one(2)}\n};`;
+}
+
+function initLayout(){
+  LAY.plan = layClone();
+  layDraw();
+  const setF = n => {
+    LAY.floor = n; LAY.sel = null;
+    $('#lay-f1').setAttribute('aria-pressed', String(n === 1));
+    $('#lay-f2').setAttribute('aria-pressed', String(n === 2));
+    layDraw(); laySel();
+  };
+  $('#lay-f1').addEventListener('click', () => setF(1));
+  $('#lay-f2').addEventListener('click', () => setF(2));
+  $('#lay-grid').addEventListener('click', () => {
+    LAY.grid = !LAY.grid;
+    $('#lay-grid').setAttribute('aria-pressed', String(LAY.grid));
+    layDraw();
+  });
+  $('#lay-reset').addEventListener('click', () => {
+    if (!confirm('編集内容を捨てて元に戻しますか？')) return;
+    LAY.plan = layClone(); LAY.sel = null; layDraw(); laySel();
+  });
+  $('#lay-out').addEventListener('click', () => {
+    $('#lay-code').value = layCode();
+    $('#lay-code-box').classList.remove('hide');
+    $('#lay-code-box').scrollIntoView({ behavior:'smooth' });
+  });
+  $('#lay-copy').addEventListener('click', async () => {
+    const ta = $('#lay-code');
+    try{ await navigator.clipboard.writeText(ta.value); toast('コピーしました'); }
+    catch(e){ ta.select(); toast('選択しました。長押しでコピーしてください'); }
+  });
+}
+
+/* =====================================================================
+   初期化
+   ===================================================================== */
+function initTheme(){
+  const saved = load('kuroko_theme', null);
+  const t = saved || 'light';
+  document.documentElement.setAttribute('data-theme', t);
+  $('#btn-theme').addEventListener('click', () => {
+    const now = document.documentElement.getAttribute('data-theme') === 'cyber' ? 'light' : 'cyber';
+    document.documentElement.setAttribute('data-theme', now);
+    store('kuroko_theme', now);
+    toast(now === 'cyber' ? 'サイバーテーマ' : 'ライトテーマ');
+  });
+}
+
+function init(){
+  initTheme();
+  S.stamps   = new Set(load('kuroko_stamps_v2', []));
+  S.watch    = new Set(load('kuroko_watch_v1', []));
+  S.assigned = new Set(load('kuroko_assigned_v2', []));
+
+  // 前回の内容を先に出して待ち時間を減らす。
+  // ただし古すぎるもの（前日など）は出さない。混雑状況は数時間で無意味になる
+  const cache = load('kuroko_cache_v2', null);
+  if (cache && cache.fetchedAt && Date.now() - cache.fetchedAt > CONFIG.CACHE_MAX_AGE_MS){
+    store('kuroko_cache_v2', undefined);
+  } else if (cache && cache.booths){
+    S.booths = cache.booths; S.notice = cache.notice || null;
+    S.numbers = new Map(S.booths.map((b, i) => [b.id, i + 1]));
+    S.updatedAt = cache.updatedAt; S.fetchedAt = cache.fetchedAt || 0;
+    renderAll();
+  }
+  renderInfo();
+
+  $$('#nav button').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
+  $('#btn-reload').addEventListener('click', () => sync(true));
+  $('#banner-retry').addEventListener('click', () => { S.failures = 0; sync(true); });
+  $('#fl-1').addEventListener('click', () => setFloor(1));
+  $('#fl-2').addEventListener('click', () => setFloor(2));
+  $$('.chip[data-route]').forEach(el => el.addEventListener('click', () => {
+    S.route = S.route === el.dataset.route ? null : el.dataset.route;
+    $$('.chip[data-route]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.route === S.route)));
+    drawFloor(S.floor);
+  }));
+  $('#q').addEventListener('input', e => { S.q = e.target.value.trim(); renderList(); });
+  $('#sort-free').addEventListener('click', () => setSort('free'));
+  $('#sort-name').addEventListener('click', () => setSort('name'));
+  $('#stamp-share').addEventListener('click', shareStamps);
+  $('#stamp-reset').addEventListener('click', () => {
+    if (!confirm('スタンプの記録を消しますか？')) return;
+    S.stamps.clear(); store('kuroko_stamps_v2', []); store('kuroko_cert_at', undefined);
+    renderAll(); toast('記録をリセットしました');
+  });
+  // 初回だけ使い方のヒントを出す
+  if (!load('kuroko_tips_seen', false)) $('#tips').classList.remove('hide');
+  $('#tips-close').addEventListener('click', () => {
+    $('#tips').classList.add('hide');
+    store('kuroko_tips_seen', true);
+  });
+
+  $('#build-id').textContent = CONFIG.BUILD;
+  $('#btn-print').addEventListener('click', () => window.print());
+  $('#btn-print2').addEventListener('click', () => window.print());
+  $('#btn-report-print').addEventListener('click', () => window.print());
+  $('#btn-report-reload').addEventListener('click', renderReport);
+  $('#btn-hardreload').addEventListener('click', hardReload);
+  $('#btn-login').addEventListener('click', login);
+  $('#pw').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+  $('#btn-bulk').addEventListener('click', bulkReset);
+  $('#btn-logout').addEventListener('click', () => {
+    sessionStorage.removeItem('kuroko_pw'); S.isAdmin = false; switchView('map'); toast('ログアウトしました');
+  });
+
+  // ---- ディープリンク（LINEリッチメニューから直接タブを開くため）
+  //   ?tab=list  … 一覧タブ
+  //   ?booth=3   … ブースID 3 を開いてハイライト
+  //   ?mode=admin… 係員モード
+  const params = new URLSearchParams(location.search);
+  const mode = params.get('mode');
+  if (mode === 'admin'){
+    if (pw()){ S.isAdmin = true; renderAssign(); renderAdmin(); switchView('admin'); }
+    else switchView('auth');
+  } else if (mode === 'qr'){
+    switchView('qr');
+  } else if (mode === 'print'){
+    switchView('print');
+  } else if (mode === 'report'){
+    switchView('report');
+    renderReport();
+  } else if (mode === 'layout'){
+    switchView('layout');
+  } else {
+    const tab = params.get('tab');
+    if (['map','list','stamp','info'].indexOf(tab) >= 0) switchView(tab);
+  }
+
+  sync(false).then(() => {
+    if (mode === 'qr'){ renderQrSheet(); return; }
+    if (mode === 'print'){ renderPrintSheet(); return; }
+    if (mode === 'report') return;
+    if (mode === 'layout'){ initLayout(); return; }
+    const b = params.get('booth');
+    if (!b) return;
+    if (!S.booths.some(x => x.id === b)){
+      toast('そのブースは見つかりませんでした');
+      return;
+    }
+    // QRから来た場合はスタンプを自動で付与する
+    if (params.get('qr') === '1' && !S.stamps.has(b)){
+      S.stamps.add(b);
+      store('kuroko_stamps_v2', Array.from(S.stamps));
+      renderAll();
+      const nm = (S.booths.find(x => x.id === b) || {}).name || '';
+      setTimeout(() => toast(`🏅 「${nm}」のスタンプを獲得しました`), 400);
+    }
+    openBooth(b);
+  });
+
+  initLiff();
+
+  if ('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+}
+
+/**
+ * 保存済みのキャッシュとService Workerを消して読み直す。
+ * 「更新したのに古い画面のまま」を利用者自身で解消できるようにするための逃げ道。
+ * スタンプの記録は残す。
+ */
+async function hardReload(){
+  try{
+    if ('serviceWorker' in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    if (window.caches){
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    localStorage.removeItem('kuroko_cache_v2');
+  }catch(e){ /* 消せなくても読み直しは行う */ }
+  const u = new URL(location.href);
+  u.searchParams.set('v', Date.now().toString(36));
+  location.replace(u.toString());
+}
+
+/* LIFF（LINEミニアプリ）対応：CONFIG.LIFF_ID が空なら何もしない。
+   通常のブラウザでも動作を変えないよう、失敗しても握りつぶす。 */
+function initLiff(){
+  if (!CONFIG.LIFF_ID) return;
+  const s = document.createElement('script');
+  s.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
+  s.onload = () => {
+    if (!window.liff) return;
+    liff.init({ liffId: CONFIG.LIFF_ID })
+      .then(() => { document.documentElement.dataset.liff = '1'; })
+      .catch(() => {});
+  };
+  s.onerror = () => {};
+  document.head.appendChild(s);
+}
+
+function setFloor(n){
+  S.floor = n;
+  $('#fl-1').setAttribute('aria-pressed', String(n === 1));
+  $('#fl-2').setAttribute('aria-pressed', String(n === 2));
+  $('#plan-1').classList.toggle('hide', n !== 1);
+  $('#plan-2').classList.toggle('hide', n !== 2);
+  drawFloor(n);
+}
+function setSort(s){
+  S.sort = s;
+  $('#sort-free').setAttribute('aria-pressed', String(s === 'free'));
+  $('#sort-name').setAttribute('aria-pressed', String(s === 'name'));
+  renderList();
+}
+
+// 何かの拍子に初期化が失敗しても真っ白にはせず、状況と復旧手段を出す
+document.addEventListener('DOMContentLoaded', () => {
+  try{ init(); }
+  catch(e){
+    console.error(e);
+    document.querySelector('main').innerHTML =
+      `<div class="banner alert"><span>⚠️</span><span>
+        画面の読み込みに失敗しました。下のボタンで保存データを消して読み直してください。<br>
+        <small style="font-weight:600">${esc(String(e && e.message || e))}</small>
+      </span></div>
+      <button class="btn" onclick="hardReload()">読み直す</button>`;
+  }
+});
+
+// 当日、現地で状態を確認できるようにしておく（開発者コンソールから参照可能）
+window.KUROKO = {
+  S, CONFIG, sync, hardReload, QR, checkWatch, LAY,
+  redraw(){ drawFloor._fp = renderList._fp = null; renderAll(); }
+};
+</script>
+</body>
+</html>
