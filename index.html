@@ -61,10 +61,14 @@
   --bg:#eef1f6; --surface:#ffffff; --surface-2:#f8fafc; --surface-3:#eef2f7;
   --border:#dfe5ee; --border-strong:#c8d2e0;
   /* --text-mute は白背景でコントラスト4.8:1（WCAG AA）を満たす値にしてある */
-  --text:#101828; --text-dim:#5b6779; --text-mute:#5f6b7a;
+  /* --text-mute は淡い背景（混雑の赤帯 #fee2e2 など）の上でも 4.5:1 を満たす値にする。
+     #5f6b7a では 4.44 でわずかに足りず、待ち人数の表示が基準割れしていた。 */
+  --text:#101828; --text-dim:#5b6779; --text-mute:#566270;
   --accent:#b91c1c; --accent-2:#7f1d1d; --on-accent:#ffffff;
   --free:#15803d; --warn:#b45309; --busy:#dc2626; --unknown:#94a3b8; --closed:#64748b;
   --free-soft:#dcfce7; --warn-soft:#fef3c7; --busy-soft:#fee2e2;
+  --corridor-fill:#cfe0f5; --corridor-ink:#42607f;   /* 廊下 */
+  --road-fill:#dfe4ea;     --road-line:#ffffff;      /* 屋外の道 */
   /* 淡い背景の上に載せる文字色。--busy そのままだと 4:1 を切るため別に持つ */
   --busy-ink:#b91c1c;
   --on-status:#ffffff;   /* 混雑度の色を背景にしたときの文字色 */
@@ -87,6 +91,8 @@
   --accent:#00e5ff; --accent-2:#00b8d4; --on-accent:#04141a;
   --free:#22e39a; --warn:#ffc857; --busy:#ff4d6d; --unknown:#3d4d6b; --closed:#41506b;
   --free-soft:#08301f; --warn-soft:#33270a; --busy-soft:#3a0f1a;
+  --corridor-fill:#12314f; --corridor-ink:#7ea8d6;
+  --road-fill:#101b2c;     --road-line:#31506f;
   --busy-ink:#ff8095;
   --on-status:#04121c;   /* サイバーテーマは色が明るいので文字は暗くする */
   --corridor:#111c30; --outdoor:#0b1a16; --room-label:#04121c; --label-stroke:rgba(255,255,255,.5);
@@ -153,7 +159,7 @@ p{margin:0}
 .head .sub{font-size:10px;opacity:.75;letter-spacing:.08em}
 .head-actions{margin-left:auto;display:flex;align-items:center;gap:6px}
 .icon-btn{
-  width:38px;height:38px;border-radius:11px;display:grid;place-items:center;
+  width:44px;height:44px;border-radius:12px;display:grid;place-items:center;
   background:rgba(255,255,255,.16);font-size:15px;transition:.15s;
 }
 [data-theme="cyber"] .icon-btn{background:var(--surface-2);border:1px solid var(--border)}
@@ -175,7 +181,9 @@ p{margin:0}
 main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direction:column;gap:12px}
 .view{display:none;flex-direction:column;gap:12px}
 .view.on{display:flex;animation:view-in var(--t) var(--ease)}
-@keyframes view-in{from{opacity:0;transform:translateY(10px) scale(.994)}to{opacity:1;transform:none}}
+/* scale を混ぜると図面SVG(400要素超)を毎フレーム描き直すことになるので、
+   合成だけで済む opacity と translate に留める（安い端末での切替の重さ対策） */
+@keyframes view-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 
 /* 一覧やスタンプは、少しずつ現れると量が把握しやすい */
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
@@ -212,12 +220,18 @@ main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direc
         display:flex;gap:8px;align-items:flex-start;line-height:1.45}
 .banner.alert{background:var(--busy-soft);color:var(--busy-ink);border:1px solid var(--busy)}
 .banner.info{background:var(--surface-3);color:var(--text-dim);border:1px solid var(--border)}
-.retry{margin-left:auto;flex:none;font-size:11px;font-weight:900;padding:6px 12px;border-radius:8px;
+.retry{margin-left:auto;flex:none;font-size:11px;font-weight:900;padding:0 14px;min-height:44px;
+       border-radius:8px;display:inline-flex;align-items:center;
        background:var(--surface);border:1px solid var(--border-strong);color:var(--text)}
+.banner.update{background:var(--free-soft);color:var(--text);border:1px solid var(--free)}
+.banner.hours{background:var(--surface-3);color:var(--text);border:1px solid var(--border-strong)}
 .banner.notice{background:var(--accent);color:var(--on-accent);border:1px solid var(--accent)}
 .banner.notice[data-level="alert"]{background:var(--busy);border-color:var(--busy);color:#fff}
 [data-theme="cyber"] .banner.notice{box-shadow:0 0 20px -6px var(--accent)}
 .hide{display:none !important}
+/* 画面には出さず、読み上げにだけ渡すための箱 */
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+         clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
 
 /* ========================= 全体サマリ ========================= */
 .summary{display:flex;gap:6px}
@@ -250,7 +264,7 @@ main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direc
 .tips ul{margin:0;padding-left:18px;font-size:11.5px;color:var(--text-dim);
          font-weight:600;line-height:1.8}
 .tips b{color:var(--text)}
-.tips-x{position:absolute;top:4px;right:4px;width:36px;height:36px;border-radius:10px;
+.tips-x{position:absolute;top:2px;right:2px;width:44px;height:44px;border-radius:10px;
         font-size:18px;color:var(--text-mute);display:grid;place-items:center}
 
 /* ========================= おすすめ ========================= */
@@ -265,8 +279,9 @@ main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direc
 
 /* ========================= マップ ========================= */
 .map-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-.seg{display:flex;background:var(--surface-3);border-radius:10px;padding:3px;gap:2px}
-.seg button{font-size:11px;font-weight:800;padding:5px 9px;border-radius:8px;color:var(--text-dim);white-space:nowrap}
+.seg{display:flex;background:var(--surface-3);border-radius:10px;padding:3px;gap:4px}
+.seg button{font-size:11px;font-weight:800;padding:0 12px;min-height:44px;border-radius:8px;
+  color:var(--text-dim);white-space:nowrap;display:inline-flex;align-items:center;justify-content:center}
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
 [data-theme="cyber"] .seg button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
 
@@ -274,29 +289,85 @@ main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direc
           overflow:hidden;position:relative;
           box-shadow:inset 0 1px 3px rgba(16,24,40,.06)}
 [data-theme="cyber"] .map-wrap{box-shadow:inset 0 0 32px -14px var(--accent)}
+.svg-defs{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
 .map-view{position:relative;overflow:hidden}
 .map-zoom{transform-origin:0 0;will-change:transform;touch-action:pan-y}
 .map-zoom.zoomed{touch-action:none;cursor:grab}
 .map-zoom.grabbing{cursor:grabbing}
 svg.plan{display:block;width:100%;height:auto;touch-action:manipulation}
-.bldg{fill:var(--surface-3);stroke:var(--border-strong);stroke-width:1.2}
+.bldg{fill:transparent;stroke:var(--border-strong);stroke-width:1.4;pointer-events:all}
+.corridor{fill:var(--corridor-fill);stroke:none}
+.corridor-t{fill:var(--corridor-ink);font-weight:800;letter-spacing:.22em;pointer-events:none}
+.road{fill:var(--road-fill);stroke:none}
+.road-line{stroke:var(--road-line);stroke-width:1.4;stroke-dasharray:6 6;fill:none}
+.road-t{fill:var(--text-mute);font-weight:800;pointer-events:none}
+.blocked{fill:url(#pat-blocked);stroke:var(--text-mute);stroke-width:1.2;stroke-dasharray:6 4}
+.blocked-t{fill:var(--text-mute);font-weight:900;pointer-events:none}
 .bldg-tap{cursor:pointer}
-.bldg-tap .bldg{stroke:var(--accent);stroke-width:2;stroke-dasharray:5 3}
+.bldg-tap .bldg{fill:var(--surface-2);stroke:var(--accent);stroke-width:2;stroke-dasharray:5 3}
 .bldg-tap:hover .bldg{fill:var(--surface-2)}
-.room-bg rect{fill:var(--surface);stroke:var(--border);stroke-width:.7}
-.plan.has-booth .room-bg{opacity:.5}
+.room-bg rect{fill:var(--surface);stroke:var(--border-strong);stroke-width:.9}
+.plan.has-booth .room-bg{opacity:.78}
+.room-bg.faded{opacity:.16}
 .plan.has-booth .room .fill{stroke:var(--surface);stroke-width:1.6}
-.room-bg text.bg-nm{fill:var(--text-mute);font-weight:700;pointer-events:none}
+.room-bg text.bg-nm{fill:var(--text-dim);font-weight:700;pointer-events:none}
+.room-bg rect.dept{fill:color-mix(in srgb,var(--dept) 9%,var(--surface));
+                   stroke:color-mix(in srgb,var(--dept) 42%,var(--border))}
+.dept-bar{fill:var(--dept);opacity:.85;pointer-events:none}
+.dept-bar.on{opacity:1;fill:var(--dept)}
+[data-theme="cyber"] .room-bg rect.dept{fill:color-mix(in srgb,var(--dept) 22%,#0d1320)}
+.legend.marks{border-top:1px dashed var(--border);gap:10px}
+.legend.marks span{gap:5px}
+.legend.marks b{display:inline-grid;place-items:center;font-weight:900;flex:none}
+.mk-no{width:15px;height:15px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:9px}
+.mk-chk{width:15px;height:15px;border-radius:50%;background:var(--surface);
+        border:2px solid var(--free);color:var(--free);font-size:8px}
+.mk-ev{font-size:8.5px;padding:2px 6px;border-radius:999px;background:var(--warn);color:var(--on-status)}
+.mk-here{font-size:8.5px;padding:2px 6px;border-radius:999px;background:var(--accent);color:var(--on-accent)}
+.dept-legend{display:flex;gap:6px;padding:8px 10px;overflow-x:auto;
+  border-top:1px solid var(--border);background:var(--surface-2);
+  scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.dept-legend::-webkit-scrollbar{display:none}
+.dept-legend button{display:inline-flex;align-items:center;gap:4px;flex:none;cursor:pointer;
+  font-size:10px;font-weight:800;color:var(--text-dim);
+  padding:0 12px;min-height:40px;border-radius:999px;background:var(--surface);border:1px solid var(--border);
+  transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease),
+             border-color var(--t-fast) var(--ease)}
+.dept-legend button[aria-pressed="true"]{background:var(--text);color:var(--surface);border-color:var(--text)}
+.dept-legend button.dept-clear{color:var(--accent);border-color:var(--accent)}
+.dept-legend button.fac{color:var(--text);border-color:var(--border-strong)}
+.dept-legend button.fac[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.room-bg.entrance rect{fill:var(--free-soft);stroke:var(--free);stroke-width:1.4}
+.room-bg.entrance text{fill:var(--free);font-weight:900}
+.util-box.hot{fill:var(--accent);fill-opacity:.16;stroke:var(--accent);stroke-width:1.6}
+.room-bg.spot rect{fill:color-mix(in srgb,var(--accent) 16%,var(--surface));
+  stroke:var(--accent);stroke-width:2.4;animation:spotPulse 1.1s ease-in-out infinite}
+.room-bg.spot text{fill:var(--accent);font-weight:900}
+@keyframes spotPulse{50%{stroke-width:4.5}}
+@media (prefers-reduced-motion:reduce){ .room-bg.spot rect{animation:none} }
+.ev-badge{display:inline-block;font-size:9.5px;font-weight:900;padding:2px 7px;border-radius:999px;
+  background:var(--warn);color:var(--on-status);margin-right:4px;vertical-align:1px}
+.ev-badge[data-kind="now"]{background:var(--busy);color:var(--on-status)}
+.ev-why{color:var(--warn);font-weight:900}
+.ev-map rect{fill:var(--warn);stroke:var(--surface);stroke-width:1.2}
+.ev-map[data-kind="now"] rect{fill:var(--busy)}
+.ev-map text{font-size:7px;font-weight:900;fill:var(--on-status);pointer-events:none}
+.tt-now{background:var(--surface-3)}
+.tt-go{display:inline-flex;align-items:center;margin-top:2px;min-height:44px;
+  font-size:10.5px;font-weight:800;color:var(--accent);
+  background:none;border:none;padding:0 2px;cursor:pointer;text-align:left}
+.tt-go:hover{text-decoration:underline}
+.dept-legend i{width:9px;height:9px;border-radius:2.5px;flex:none}
 [data-theme="cyber"] .room-bg rect{fill:rgba(22,34,58,.55)}
 .zoom-ui{position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:5px;z-index:3}
-.zoom-ui button{width:31px;height:31px;border-radius:9px;border:1px solid var(--border);
+.zoom-ui button{width:44px;height:44px;border-radius:11px;border:1px solid var(--border);
    background:var(--surface);color:var(--text);
    font-size:16px;font-weight:900;line-height:1;cursor:pointer;box-shadow:var(--shadow);
    display:grid;place-items:center;
    transition:transform var(--t-fast) var(--ease),background var(--t-fast) var(--ease)}
 .zoom-ui button:active{transform:scale(.92)}
 .zoom-ui button:disabled{opacity:.4;cursor:default}
-.zoom-ui button.reset{font-size:9px;font-weight:800;height:24px;letter-spacing:-.02em}
+.zoom-ui button.reset{font-size:9px;font-weight:800;height:40px;letter-spacing:-.02em}
 .zoom-lv{position:absolute;left:8px;top:8px;z-index:3;font-size:10px;font-weight:900;
    padding:4px 8px;border-radius:8px;background:color-mix(in srgb,var(--surface) 88%,transparent);
    border:1px solid var(--border);color:var(--text-dim);
@@ -330,6 +401,7 @@ text.util:not([font-size]){font-size:7.5px}
 .room[data-lv="0"] .fill{fill:var(--free)}
 .room[data-lv="1"] .fill{fill:url(#pat-warn)}
 .room[data-lv="2"] .fill{fill:url(#pat-busy)}
+.room[data-lv="3"] .fill{fill:url(#pat-prep)}
 .room[data-lv="3"] .fill{fill:var(--closed)}
 .room[data-lv="2"] .fill{animation:breathe 2.4s ease-in-out infinite}
 @keyframes breathe{50%{opacity:.72}}
@@ -348,7 +420,8 @@ text.util:not([font-size]){font-size:7.5px}
   box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
 .here-bar .tx{flex:1;min-width:0}
 .here-bar .tx small{display:block;font-size:10.5px;font-weight:700;color:var(--text-mute);margin-top:1px}
-.here-bar button{flex:none;font-size:10.5px;font-weight:800;padding:6px 10px;border-radius:8px;
+.here-bar button{flex:none;font-size:10.5px;font-weight:800;padding:0 14px;min-height:44px;
+  border-radius:8px;display:inline-flex;align-items:center;
   border:1px solid var(--border);background:var(--surface-2);color:var(--text-dim);cursor:pointer}
 .stamp-mark{fill:#fff;stroke:var(--free);stroke-width:2}
 .stamp-check{font-size:9px;font-weight:900;fill:var(--free)}
@@ -382,6 +455,8 @@ text.util:not([font-size]){font-size:7.5px}
 .rs-st[data-lv="1"]{color:var(--warn)}
 .rs-st[data-lv="2"]{color:var(--busy-ink)}
 .rs-st[data-lv="3"],.rs-st[data-lv="-1"]{color:var(--text-mute)}
+.rs-more{width:100%;margin-top:4px;padding:9px;border-radius:10px;border:1px dashed var(--border-strong);
+  background:none;color:var(--accent);font-size:11.5px;font-weight:900;cursor:pointer}
 .route-badge circle{fill:var(--accent);stroke:var(--surface);stroke-width:2}
 .route-badge text{font-size:9px;font-weight:900;fill:var(--on-accent)}
 .room-no circle{fill:var(--surface);stroke:var(--border-strong);stroke-width:1.2}
@@ -400,7 +475,7 @@ text.util:not([font-size]){font-size:7.5px}
 .lg-free{background:var(--free)}
 .lg-warn{background:repeating-linear-gradient(45deg,var(--warn) 0 3px,rgba(255,255,255,.55) 3px 5px)}
 .lg-busy{background:var(--busy);background-image:radial-gradient(rgba(255,255,255,.7) 1px,transparent 1.2px);background-size:4px 4px}
-.lg-prep{background:var(--closed)}
+.lg-prep{background:repeating-linear-gradient(135deg,var(--closed) 0 3px,rgba(255,255,255,.5) 3px 6px)}
 .lg-unk{background:var(--unknown)}
 .legend-tip{flex-basis:100%;color:var(--text-mute);font-weight:700;font-size:9.5px;
             border-top:1px dashed var(--border);padding-top:6px;margin-top:2px}
@@ -423,7 +498,12 @@ text.util:not([font-size]){font-size:7.5px}
 
 /* ========================= ブースカード ========================= */
 .booth{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
-       box-shadow:var(--shadow);overflow:hidden}
+       box-shadow:var(--shadow);overflow:hidden;
+       /* 画面外のカードは組版・描画を省く。安い端末で一覧タブの切替が体感で軽くなる。
+          auto 96px は「まだ測っていない分の高さの見込み」。実測後はその値を覚える。 */
+       content-visibility:auto;contain-intrinsic-size:auto 96px}
+/* 印刷と画像化のときは全部描かせる（省いたままだと白紙になる） */
+@media print{ .booth{content-visibility:visible} }
 .booth.flash{outline:3px solid var(--accent);outline-offset:-1px}
 .booth-top{display:flex;gap:10px;padding:11px 12px;align-items:flex-start}
 .booth-bar{width:5px;border-radius:3px;align-self:stretch;flex:none;background:var(--unknown)}
@@ -438,6 +518,7 @@ text.util:not([font-size]){font-size:7.5px}
      background:var(--surface-3);color:var(--text-dim)}
 .booth-meta{font-size:10.5px;color:var(--text-mute);font-weight:600;margin-top:2px}
 .booth-note{font-size:11px;color:var(--text-dim);margin-top:5px;font-weight:600}
+.booth-room{font-size:10.5px;color:var(--text-mute);font-weight:700;margin-top:2px}
 .pill{font-size:11.5px;font-weight:900;padding:6px 11px;border-radius:999px;white-space:nowrap;
       display:flex;align-items:center;gap:5px;flex:none;
       transition:background var(--t) var(--ease),color var(--t) var(--ease)}
@@ -456,7 +537,7 @@ text.util:not([font-size]){font-size:7.5px}
        overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .trend-lb{font-size:9px;font-weight:800;color:var(--text-mute);margin-right:2px;
           white-space:nowrap;flex:none}
-.mini-btn{margin-left:auto;font-size:11px;font-weight:800;padding:0 13px;min-height:38px;
+.mini-btn{margin-left:auto;font-size:11px;font-weight:800;padding:0 13px;min-height:44px;
           border-radius:10px;display:inline-flex;align-items:center;
           border:1px solid var(--border);background:var(--surface);color:var(--text-dim);
           white-space:nowrap;flex:none}
@@ -545,7 +626,12 @@ text.util:not([font-size]){font-size:7.5px}
 .adm-booth{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
            padding:11px 12px;box-shadow:var(--shadow)}
 .adm-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
-.adm-nm{font-size:13px;font-weight:800;flex:1;min-width:0}
+.adm-nm{font-size:13px;font-weight:800;min-width:0;
+        overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bulk-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media (max-width:359px){ .bulk-row{grid-template-columns:1fr} }
+.adm-loc{font-size:10px;font-weight:800;color:var(--text-mute);flex:1;min-width:0;
+         overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .adm-btns{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
 .adm-btns button{padding:14px 4px;border-radius:11px;font-size:12px;font-weight:900;
                  border:1.5px solid var(--border);background:var(--surface-2);color:var(--text-dim)}
@@ -553,6 +639,11 @@ text.util:not([font-size]){font-size:7.5px}
 .adm-btns button[data-sel="1"][data-lv="1"]{background:var(--warn);border-color:var(--warn);color:var(--on-status)}
 .adm-btns button[data-sel="1"][data-lv="2"]{background:var(--busy);border-color:var(--busy);color:var(--on-status)}
 .adm-btns button:disabled{opacity:.5}
+.adm-btns2{margin-top:7px}
+.adm-btns2 button{width:100%;padding:12px 4px;border-radius:11px;font-size:12px;font-weight:900;
+  border:1px dashed var(--border-strong);background:var(--surface-2);color:var(--text-dim)}
+.adm-btns2 button[data-sel="1"]{background:var(--closed);border-style:solid;
+  border-color:var(--closed);color:#fff}
 .adm-booth[data-fresh="warn"]{border-color:var(--warn);box-shadow:inset 3px 0 0 var(--warn),var(--shadow)}
 .adm-booth[data-fresh="danger"]{border-color:var(--busy);box-shadow:inset 3px 0 0 var(--busy),var(--shadow)}
 .adm-elapsed{font-size:11px;font-weight:900;padding:3px 8px;border-radius:7px;
@@ -621,7 +712,8 @@ text.util:not([font-size]){font-size:7.5px}
 .foot{text-align:center;padding:14px 12px 4px;color:var(--text-mute);font-size:10px;font-weight:600}
 .foot-sub{margin-top:2px;font-variant-numeric:tabular-nums}
 .foot-btn{margin-top:8px;font-size:10px;font-weight:800;color:var(--text-dim);
-          text-decoration:underline;text-underline-offset:3px;padding:8px 4px}
+          text-decoration:underline;text-underline-offset:3px;padding:0 4px;
+          min-height:44px;display:inline-flex;align-items:center}
 
 /* ========================= 本部用 大画面ボード ========================= */
 body.board-mode .app{max-width:none;box-shadow:none}
@@ -646,6 +738,19 @@ body.board-mode main{padding:0}
 .board-grid{flex:1;display:grid;gap:clamp(8px,1vw,14px);align-content:stretch;
             grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
             grid-auto-rows:minmax(0,1fr)}
+/* ブースが多いときは詰める。壁掛けの画面で全部見えることを優先する */
+.board-grid.d2{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.board-grid.d3{grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:6px}
+.board-grid.d2 .btile{padding:9px 10px;gap:3px}
+.board-grid.d3 .btile{padding:7px 8px;gap:2px}
+.board-grid.d2 .bt-nm{font-size:clamp(11px,.85vw,14px)}
+.board-grid.d3 .bt-nm{font-size:clamp(10px,.72vw,12.5px);padding-left:6px}
+.board-grid.d2 .bt-loc,.board-grid.d3 .bt-loc{font-size:clamp(9px,.6vw,11px)}
+.board-grid.d3 .bt-loc{display:none}
+.board-grid.d2 .bt-big b{font-size:clamp(22px,2.4vw,40px)}
+.board-grid.d3 .bt-big b{font-size:clamp(18px,1.9vw,30px)}
+.board-grid.d3 .bt-age{font-size:clamp(8px,.6vw,10px)}
+.board-grid.d3 .bt-no{top:4px;right:5px;font-size:9px}
 .btile{position:relative;border-radius:var(--r-lg);padding:clamp(12px,1.3vw,20px);
        background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow);
        display:flex;flex-direction:column;justify-content:space-between;gap:6px;overflow:hidden;
@@ -659,6 +764,18 @@ body.board-mode main{padding:0}
 .bt-no{position:absolute;top:8px;right:10px;font-size:11px;font-weight:900;color:var(--text-mute)}
 .bt-nm{font-size:clamp(12px,1.15vw,17px);font-weight:900;line-height:1.25;padding-left:8px;
        overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.board-body{flex:1;display:grid;grid-template-columns:1fr;gap:16px;min-height:0}
+@media (min-width:1100px){ .board-body{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)} }
+.board-maps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-content:start}
+.bm{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px}
+.bm h3{font-size:clamp(11px,1vw,16px);font-weight:900;color:var(--text-dim);margin-bottom:6px}
+.bm svg{display:block;width:100%;height:auto}
+.bm .bm-bg{fill:var(--surface-2);stroke:var(--border);stroke-width:.6}
+.bm text.bm-no{fill:var(--on-status);font-weight:900;paint-order:stroke fill;
+  stroke:rgba(0,0,0,.25);stroke-width:2px;stroke-linejoin:round}
+.bt-head{display:flex;flex-direction:column;gap:2px;min-width:0}
+.bt-loc{font-size:clamp(10px,.85vw,14px);font-weight:700;color:var(--text-mute);
+        padding-left:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bt-big{padding-left:8px;display:flex;align-items:baseline;gap:5px}
 .bt-big b{font-size:clamp(26px,3.2vw,48px);font-weight:900;line-height:1;
           font-variant-numeric:tabular-nums}
@@ -691,6 +808,11 @@ body.board-mode main{padding:0}
 .chk-row.on span{color:var(--text-mute);text-decoration:line-through}
 
 /* ========================= 来場者カウンタ ========================= */
+.as-chip{display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;line-height:1.25}
+/* opacity で薄くすると白背景でコントラストが 3.1 まで落ちる。
+   9px の小さい文字なので、薄くせず色で差をつける */
+.as-chip small{font-size:9.5px;font-weight:700;color:var(--text-dim)}
+.as-chip[aria-pressed="true"] small{color:inherit;opacity:.85}
 .vis-row{display:flex;align-items:baseline;gap:6px}
 .vis-n{font-size:34px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
 .vis-unit{font-size:13px;font-weight:800;color:var(--text-mute)}
@@ -731,9 +853,14 @@ body.board-mode main{padding:0}
          padding:10px;text-align:center;color:#000;break-inside:avoid}
 .qr-img svg{width:100%;height:auto;max-width:220px}
 .qr-card figcaption{margin-top:6px}
-.qr-card b{display:block;font-size:12.5px;font-weight:900;line-height:1.3}
+.qr-card b{display:block;font-size:16px;font-weight:900;line-height:1.3;margin-bottom:6px}
+.qr-where{font-size:10px;font-weight:800;color:#fff;background:#b91c1c;
+          border-radius:999px;padding:3px 10px;display:inline-block;margin-bottom:6px}
+.qr-card.top .qr-where{background:#111}
+.qr-cta{font-size:11px !important;font-weight:900 !important;color:#111 !important}
 .qr-card span{display:block;font-size:9px;color:#555;margin-top:2px}
 .qr-card code{display:block;font-size:7px;color:#666;word-break:break-all;margin-top:4px}
+.qr-card.top code{font-size:11px;font-weight:700;color:#111;letter-spacing:.01em;margin-top:6px}
 
 /* ========================= 紙の校内マップ ========================= */
 /* ---- ブース詳細シート（マップやおすすめをタップで下から出る） ---- */
@@ -756,7 +883,7 @@ body.board-mode main{padding:0}
 .bsh-no{flex:none;min-width:26px;height:26px;border-radius:8px;background:var(--accent);
         color:var(--on-accent);font-size:13px;font-weight:900;
         display:grid;place-items:center;margin-top:2px}
-.bsh-x{flex:none;width:32px;height:32px;border-radius:50%;border:1px solid var(--border);
+.bsh-x{flex:none;width:44px;height:44px;border-radius:50%;border:1px solid var(--border);
        background:var(--surface-2);color:var(--text-mute);font-size:17px;line-height:1;
        cursor:pointer;transition:background var(--t-fast) var(--ease)}
 .bsh-x:hover{background:var(--surface-3)}
@@ -779,6 +906,16 @@ body.board-mode main{padding:0}
               font-variant-numeric:tabular-nums}
 .bsh-note{margin-top:11px;padding:10px 12px;border-radius:12px;background:var(--surface-2);
           border:1px dashed var(--border);font-size:12.5px;font-weight:700;line-height:1.65}
+.bsh-alt{display:flex;align-items:center;gap:9px;width:100%;margin-top:11px;padding:11px 12px;
+  border-radius:12px;border:1.5px solid var(--free);background:var(--free-soft);
+  cursor:pointer;text-align:left;transition:transform var(--t-fast) var(--ease)}
+.bsh-alt:active{transform:scale(.98)}
+.bsh-alt .ic{font-size:17px;flex:none}
+.bsh-alt .tx{flex:1;min-width:0}
+.bsh-alt .tx b{display:block;font-size:12.5px;font-weight:900;color:var(--free)}
+.bsh-alt .tx small{display:block;font-size:10.5px;font-weight:700;color:var(--busy-ink);
+  color:var(--text-dim);margin-top:2px}
+.bsh-alt .go{flex:none;font-size:11px;font-weight:900;color:var(--free)}
 .bsh-img{width:100%;max-height:150px;object-fit:cover;border-radius:12px;margin-top:11px;
          border:1px solid var(--border);display:block}
 .bsh-foot{display:flex;align-items:center;gap:8px;margin-top:11px;padding:9px 11px;
@@ -808,6 +945,7 @@ body.board-mode main{padding:0}
 .sheet-plan{width:100%;height:auto;border:1px solid #ddd;border-radius:8px;background:#fff}
 .sheet-table{width:100%;border-collapse:collapse;font-size:10px}
 .sheet-table td{border-bottom:1px solid #e5e5e5;padding:4px 5px;vertical-align:top}
+.sheet-table td:nth-child(3),.sheet-table td:nth-child(4){white-space:nowrap}
 .sheet-table td.no{width:20px;text-align:center;font-weight:900;color:#fff;background:#b91c1c;
                    border-radius:4px;padding:2px}
 .sheet-note{margin-top:8px;font-size:9px;color:#444;line-height:1.7;
@@ -829,14 +967,20 @@ body.board-mode main{padding:0}
 .vis-peak{margin-left:auto;font-size:10.5px;font-weight:800;color:var(--text-dim)}
 .hm{display:flex;flex-direction:column;gap:3px}
 .hm-row{display:flex;align-items:center;gap:6px}
-.hm-nm{width:84px;flex:none;font-size:10px;font-weight:800;overflow:hidden;
+.hm-nm small{display:block;font-size:8.5px;font-weight:700;color:var(--text-mute);margin-top:1px;
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hm-nm{width:96px;flex:none;font-size:10px;font-weight:800;overflow:hidden;
        text-overflow:ellipsis;white-space:nowrap}
-.hm-cells{flex:1;display:flex;gap:1px;min-width:0}
-.hm-cells i{flex:1;height:16px;border-radius:2px;background:var(--unknown)}
+.hm-cells{flex:1;display:flex;gap:1px;min-width:0;align-items:flex-end;height:16px}
+/* 色だけに頼らない。白黒で印刷しても段の高さで混み具合が分かるようにする */
+.hm-cells i{flex:1;height:5px;border-radius:2px;background:var(--unknown)}
+.hm-cells i[data-lv="1"]{height:11px}
+.hm-cells i[data-lv="2"]{height:16px}
+.hm-cells i[data-lv="3"]{height:16px;
+  background:repeating-linear-gradient(135deg,var(--closed) 0 2px,rgba(255,255,255,.5) 2px 4px)}
 .hm-cells i[data-lv="0"]{background:var(--free)}
 .hm-cells i[data-lv="1"]{background:var(--warn)}
 .hm-cells i[data-lv="2"]{background:var(--busy)}
-.hm-cells i[data-lv="3"]{background:var(--closed)}
 .hm-cells i[data-lv="x"]{background:var(--surface-3)}
 .hm-max{width:34px;flex:none;text-align:right;font-size:9.5px;font-weight:800;color:var(--text-mute)}
 
@@ -850,6 +994,8 @@ body.board-mode main{padding:0}
 .staff-steps{margin:10px 0 0;padding-left:20px;font-size:11.5px;line-height:1.85;font-weight:600}
 .staff-steps b{font-weight:900}
 .staff-note{display:block;font-size:10px;color:#444;font-weight:600}
+.staff-h{font-size:11px;font-weight:900;color:#b91c1c;margin:9px 0 3px;
+            border-bottom:1px solid #eee;padding-bottom:2px}
 .staff-warn{margin-top:10px;padding:8px 10px;background:#fef2f2;border-left:4px solid #b91c1c;
             font-size:10.5px;font-weight:700;line-height:1.6}
 .staff-url{margin-top:8px;font-size:8px;color:#666;word-break:break-all}
@@ -860,21 +1006,26 @@ body.board-mode main{padding:0}
   body{background:#fff}
   .app{max-width:none;box-shadow:none;background:#fff}
   .card{box-shadow:none}
-  .head,.nav,.no-print,#banner-notice,#banner-alert,#banner-offline,.toast{display:none !important}
+  .head,.nav,.no-print,#banner-notice,#banner-alert,#banner-offline,#banner-update,#banner-hours,.toast{display:none !important}
   main{padding:0}
   .qr-grid{grid-template-columns:repeat(2,1fr);gap:6mm}
   .qr-card{border:1px dashed #999;page-break-inside:avoid}
   .qr-card code{font-size:6pt}
+  .qr-card.top code{font-size:9.5pt}
+  .qr-card b{font-size:13pt}
+  .qr-where{font-size:8pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .qr-cta{font-size:9pt !important}
   /* 紙のマップはA4縦1枚に収まる。1階の地図は縦長なので縦向きが最適 */
   @page{size:A4 portrait}
   .sheet{border:none;padding:0}
   .sheet-body{grid-template-columns:1fr 1fr;gap:5mm;align-items:start}
   .sheet-maps{grid-column:1 / -1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
               gap:4mm;align-items:start}
-  .sheet-maps > div:only-child{grid-column:span 2}
+  .sheet-maps > div:only-child,.sheet-maps > div.wide{grid-column:1 / -1}
   .sheet-maps > div:only-child .sheet-plan{max-width:95mm;margin:0 auto;display:block}
   .sheet-info{border-top:none;padding-top:0}
-  .sheet-plan{width:100%;height:auto;break-inside:avoid}
+  .sheet-plan{width:100%;height:auto;max-height:96mm;break-inside:avoid}
+  .sheet-maps > div.wide .sheet-plan{max-height:120mm}
   .sheet-table{font-size:8pt}
   .sheet-table td{padding:2.5px 4px}
   .sheet-note{font-size:7.5pt}
@@ -882,6 +1033,25 @@ body.board-mode main{padding:0}
 
 /* ========================= 文字を大きく =========================
    本文まわりだけを一段大きくする。レイアウトは崩さない。 */
+[data-fs="xl"]{font-size:19.5px}
+[data-fs="xl"] .booth-nm{font-size:18px}
+[data-fs="xl"] .booth-meta{font-size:14.5px}
+[data-fs="xl"] .booth-note{font-size:15px}
+[data-fs="xl"] .booth-room{font-size:13.5px}
+[data-fs="xl"] .pill{font-size:15px;padding:8px 13px}
+[data-fs="xl"] .reco .nm{font-size:17px}
+[data-fs="xl"] .reco .why{font-size:13px}
+[data-fs="xl"] .card-t{font-size:15px}
+[data-fs="xl"] .tt th,[data-fs="xl"] .tt td{font-size:15.5px}
+[data-fs="xl"] .help{font-size:15.5px}
+[data-fs="xl"] .help b{font-size:15.5px}
+[data-fs="xl"] .help span{font-size:14.5px}
+[data-fs="xl"] .mini-btn{font-size:13px;min-height:44px}
+[data-fs="xl"] .nav button{font-size:11.5px}
+[data-fs="xl"] .rs-nm{font-size:14px}
+[data-fs="xl"] .bsh-head h2{font-size:22px}
+[data-fs="xl"] .bsh-st .tx b{font-size:18px}
+[data-fs="xl"] .bsh-acts button{font-size:15px;padding:15px 10px}
 [data-fs="lg"]{font-size:17px}
 [data-fs="lg"] .booth-nm{font-size:15.5px}
 [data-fs="lg"] .booth-meta{font-size:12.5px}
@@ -907,6 +1077,16 @@ body.board-mode main{padding:0}
    スマホを横にすると縦が390px程度しかなく、そのままでは地図まで届かない。
    情報を畳んで、地図を最初に見せる。 */
 @media (max-height:540px) and (orientation:landscape){
+  .banner{padding:6px 10px;font-size:11px}
+  .legend-tip{display:none}
+  .legend.marks{display:none}
+  .legend{padding:5px 8px;gap:6px;font-size:9.5px}
+  .dept-legend{padding:5px 8px}
+  .dept-legend button{font-size:9px;padding:3px 7px}
+  .banner span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .head{padding-top:6px;padding-bottom:6px}
+  .head h1{font-size:15px}
+  .head .sub{display:none}
   .head{padding:5px 12px}
   .head .sub{display:none}
   .head h1{font-size:13px}
@@ -931,7 +1111,8 @@ body.board-mode main{padding:0}
 }
 
 @media (prefers-reduced-motion:reduce){
-  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+  *{animation-duration:.01ms !important;animation-iteration-count:1 !important;
+    transition-duration:.01ms !important;scroll-behavior:auto !important}
 }
 </style>
 </head>
@@ -955,12 +1136,15 @@ body.board-mode main{padding:0}
   <main>
     <div class="banner notice hide" id="banner-notice" role="status" aria-live="polite"><span id="banner-notice-icon"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l4.5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 8.5a5 5 0 0 1 0 7"/></svg></span><span id="banner-notice-text"></span></div>
     <div class="banner alert hide" id="banner-alert" role="status" aria-live="polite"><span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20.5h19z"/><path d="M12 9.5v5M12 17.5h.01"/></svg></span><span id="banner-alert-text"></span></div>
-    <div class="banner info hide" id="banner-offline"><span id="banner-offline-icon"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8.5a16 16 0 0 1 20 0M5 12.5a11 11 0 0 1 14 0M8.5 16.3a6 6 0 0 1 7 0"/><path d="M12 20h.01"/></svg></span><span id="banner-offline-text">通信できません。最後に取得した情報を表示しています。</span><button id="banner-retry" class="retry">再試行</button></div>
+    <div class="banner info hide" id="banner-offline" role="status" aria-live="assertive"><span id="banner-offline-icon" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8.5a16 16 0 0 1 20 0M5 12.5a11 11 0 0 1 14 0M8.5 16.3a6 6 0 0 1 7 0"/><path d="M12 20h.01"/></svg></span><span id="banner-offline-text">通信できません。最後に取得した情報を表示しています。</span><button id="banner-retry" class="retry">再試行</button></div>
+    <div class="banner hours hide" id="banner-hours" role="status" aria-live="polite"><span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span id="banner-hours-text"></span></div>
+    <div class="banner update hide" id="banner-update" role="status" aria-live="polite"><span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v5h-5"/></svg></span><span>この画面の新しい版があります。</span><button id="banner-update-btn" class="retry">最新にする</button></div>
 
     <!-- ============ マップ ============ -->
     <section class="view on" id="v-map">
       <div class="here-bar hide" id="here-bar" aria-live="polite"></div>
-      <div class="summary" id="summary" aria-live="polite"></div>
+      <div class="summary" id="summary"></div>
+    <p class="sr-only" id="summary-live" role="status" aria-live="polite"></p>
 
       <button class="next-ev hide" id="next-ev"></button>
 
@@ -969,7 +1153,8 @@ body.board-mode main{padding:0}
         <div class="card-t">はじめての方へ</div>
         <ul>
           <li><b>色と模様</b>が混雑の目安です（緑＝空き／縞＝やや混雑／水玉＝混雑）</li>
-          <li>地図の<b>ブースをタップ</b>すると、待ち人数や実演の時間が見られます</li>
+          <li>地図の<b>枠をタップ</b>で待ち人数と実演の時間。<b>指でひろげる</b>と拡大できます</li>
+          <li>地図の下の色ボタンで<b>「電気科だけ」「トイレ・出入口」</b>に絞れます</li>
           <li>各ブースの入口にある<b>QRを読む</b>と、スタンプが自動でたまります</li>
         </ul>
       </div>
@@ -985,9 +1170,9 @@ body.board-mode main{padding:0}
           <div class="card-t" style="margin:0"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg> 校内マップ</div>
           <div class="seg" role="group" aria-label="フロア切替">
             <button id="fl-0" aria-pressed="false">屋外</button>
-            <button id="fl-1" aria-pressed="true">1F</button>
-            <button id="fl-2" aria-pressed="false">2F</button>
-            <button id="fl-3" aria-pressed="false">3F</button>
+            <button id="fl-1" aria-pressed="true">1階</button>
+            <button id="fl-2" aria-pressed="false">2階</button>
+            <button id="fl-3" aria-pressed="false">3階</button>
           </div>
         </div>
         <div class="map-wrap">
@@ -1007,20 +1192,31 @@ body.board-mode main{padding:0}
           </div>
           </div>
           <div class="unplaced hide" id="map-unplaced"></div>
+          <div class="dept-legend hide" id="dept-legend" aria-label="科ごとの色" role="group" tabindex="0"></div>
           <div class="legend">
             <span><i class="lg-free"></i>空いている</span>
             <span><i class="lg-warn"></i>やや混雑</span>
             <span><i class="lg-busy"></i>混雑</span>
             <span><i class="lg-prep"></i>準備中</span>
             <span><i class="lg-unk"></i>情報なし</span>
-            <span class="legend-tip">枠をタップすると待ち人数と実演時間が見られます</span>
+            <span class="legend-tip">枠をタップすると待ち人数と実演時間。指でひろげる／＋ボタンで拡大できます</span>
+          </div>
+          <div class="legend marks" aria-label="地図の記号">
+            <span><b class="mk-no">3</b>紙マップと同じ番号</span>
+            <span><b class="mk-chk">✓</b>訪問済み</span>
+            <span><b class="mk-ev">まもなく</b>もうすぐ始まる</span>
+            <span><b class="mk-here">いまここ</b>QRを読んだ場所</span>
           </div>
         </div>
         <div class="route-steps hide" id="route-steps"></div>
-        <div class="chips" style="padding:10px 0 12px">
-          <button class="chip" data-route="denshi" aria-pressed="false">🤖 電子科満喫コース</button>
-          <button class="chip" data-route="all" aria-pressed="false">🏫 全棟制覇コース</button>
-          <button class="chip" data-route="food" aria-pressed="false">🍜 食べ歩きコース</button>
+        <div class="card-t" style="padding:10px 0 0">おすすめの回りかた（おすと順番が地図に出ます）</div>
+        <div class="chips" style="padding:8px 0 12px">
+          <button class="chip" data-route="auto" aria-pressed="false"><span aria-hidden="true">🚩</span> 短い道で一周</button>
+          <button class="chip" data-route="free" aria-pressed="false"><span aria-hidden="true">🍃</span> 空いている順</button>
+          <button class="chip" data-route="flat" aria-pressed="false"><span aria-hidden="true">♿</span> 階段なしで回る</button>
+          <button class="chip" data-route="denshi" aria-pressed="false"><span aria-hidden="true">🤖</span> 電子科をたっぷり</button>
+          <button class="chip" data-route="all" aria-pressed="false"><span aria-hidden="true">🏫</span> 校舎ぜんぶ</button>
+          <button class="chip" data-route="food" aria-pressed="false"><span aria-hidden="true">🍜</span> 食べ歩き</button>
         </div>
       </div>
     </section>
@@ -1029,7 +1225,7 @@ body.board-mode main{padding:0}
     <section class="view" id="v-list">
       <div class="search">
         <svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
-        <input id="q" type="search" placeholder="ブース名で検索" aria-label="ブース検索" autocomplete="off">
+        <input id="q" type="search" placeholder="ブース名・部屋名・科で検索" aria-label="ブース検索" autocomplete="off">
       </div>
       <div class="chips" id="cat-chips"></div>
       <div class="chips">
@@ -1085,9 +1281,10 @@ body.board-mode main{padding:0}
         <div class="seg" role="group" aria-label="文字の大きさ" style="width:fit-content">
           <button id="fs-n" aria-pressed="true">標準</button>
           <button id="fs-l" aria-pressed="false">大きく</button>
+          <button id="fs-xl" aria-pressed="false">特大</button>
         </div>
         <p style="font-size:10.5px;color:var(--text-mute);font-weight:700;margin-top:6px">
-          読みにくいときは「大きく」を選んでください。設定はこの端末に保存されます。
+          読みにくいときは「大きく」か「特大」を選んでください。設定はこの端末に保存されます。
         </p>
 
         <div class="card-t" style="margin-top:14px">スタンプの音</div>
@@ -1155,8 +1352,31 @@ body.board-mode main{padding:0}
         </div>
         <p class="adm-hint">押した分だけ加算されます。押し間違えたら −1 で戻せます。</p>
       </div>
+      <div id="adm-warn" class="hide" style="margin-bottom:8px"></div>
       <div id="admin-list" style="display:flex;flex-direction:column;gap:9px"></div>
-      <button class="btn ghost" id="btn-bulk">全ブースを「空いています」に戻す</button>
+      <details class="card notice-card" id="notice-card">
+        <summary class="chk-sum">📣 お知らせを出す
+          <span class="card-note" id="notice-now">いまは出ていません</span></summary>
+        <div style="padding-top:10px">
+          <p style="font-size:11px;color:var(--text-mute);font-weight:700;margin-bottom:8px">
+            来場者全員の画面の上に出ます。落とし物・ステージ開始・雨天の案内などに。</p>
+          <textarea class="field" id="notice-text" rows="2" maxlength="200"
+            placeholder="例）12:00 から体育館でステージ発表があります。"></textarea>
+          <div class="seg" role="group" aria-label="お知らせの種類" style="width:fit-content;margin-top:8px">
+            <button id="notice-info" aria-pressed="true">お知らせ</button>
+            <button id="notice-alert" aria-pressed="false">注意（赤）</button>
+          </div>
+          <div class="bulk-row" style="margin-top:9px">
+            <button class="btn" id="notice-send">この内容で出す</button>
+            <button class="btn ghost" id="notice-clear">お知らせを消す</button>
+          </div>
+        </div>
+      </details>
+
+      <div class="bulk-row">
+        <button class="btn ghost" id="btn-bulk" data-st="空いています">開場：全ブースを「空いています」に</button>
+        <button class="btn ghost" id="btn-bulk-close" data-st="準備中">閉場：全ブースを「準備中」に</button>
+      </div>
       <a class="btn ghost" href="?mode=qr" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg> QRコード印刷シートを開く</a>
       <a class="btn ghost" href="?mode=print" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg> 配布用の紙マップを開く</a>
       <a class="btn ghost" href="?mode=report" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M8 17V10M13 17V6M18 17v-4"/></svg> 混雑の振り返りを見る</a>
@@ -1184,7 +1404,7 @@ body.board-mode main{padding:0}
       <div class="card no-print">
         <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg> 紙の校内マップ（配布用）</div>
         <p style="font-size:11.5px;color:var(--text-dim);font-weight:600;line-height:1.7">
-          スマホを持たない来場者や電池切れに備えた配布用マップです。A4横1枚に収まります。
+          スマホを持たない来場者や電池切れに備えた配布用マップです。A4横1〜2枚（ブースのある階だけ刷られます）。
         </p>
         <button class="btn" id="btn-print2" style="margin-top:10px">印刷する</button>
       </div>
@@ -1225,7 +1445,10 @@ body.board-mode main{padding:0}
           </div>
         </header>
         <div class="board-alert hide" id="board-alert"></div>
-        <div class="board-grid" id="board-grid"></div>
+        <div class="board-body">
+          <div class="board-grid" id="board-grid"></div>
+          <div class="board-maps" id="board-maps"></div>
+        </div>
         <footer class="board-foot" id="board-foot"></footer>
       </div>
     </section>
@@ -1263,7 +1486,7 @@ body.board-mode main{padding:0}
     <footer class="foot no-print">
       <p>&copy; 2026 岩手県立黒沢尻工業高等学校 電子科</p>
       <p class="foot-sub">表示バージョン <span id="build-id">-</span></p>
-      <button class="foot-btn" id="btn-hardreload">表示が古いときはここをタップ（保存済みデータを消して読み直す）</button>
+      <button class="foot-btn" id="btn-hardreload">画面が古いままのとき（スタンプの記録は消えません）</button>
     </footer>
   </main>
 
@@ -1281,7 +1504,25 @@ body.board-mode main{padding:0}
   <div id="bsh-body"></div>
 </aside>
 
-<div class="toast" id="toast"></div>
+<svg class="svg-defs" aria-hidden="true" focusable="false"><defs>
+    <pattern id="pat-warn" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="7" height="7" fill="var(--warn)"/>
+      <rect width="3" height="7" fill="rgba(255,255,255,.55)"/>
+    </pattern>
+    <pattern id="pat-busy" width="6" height="6" patternUnits="userSpaceOnUse">
+      <rect width="6" height="6" fill="var(--busy)"/>
+      <circle cx="3" cy="3" r="1.3" fill="rgba(255,255,255,.75)"/>
+    </pattern>
+    <pattern id="pat-prep" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(135)">
+      <rect width="8" height="8" fill="var(--closed)"/>
+      <rect width="3" height="8" fill="rgba(255,255,255,.5)"/>
+    </pattern>
+    <pattern id="pat-blocked" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="9" height="9" fill="var(--surface-3)"/>
+      <rect width="3.4" height="9" fill="var(--border)"/>
+    </pattern>
+  </defs></svg>
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script>
 "use strict";
@@ -1290,13 +1531,17 @@ body.board-mode main{padding:0}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-08-05m',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-08-06ad',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // LIFF化するときだけ '1234567890-abcdEFGH' の形式で設定（空なら通常のWebとして動作）
   POLL_MS: 20000,          // 通常のポーリング間隔
   POLL_MS_HIDDEN: 0,       // バックグラウンド時は停止（0）
   STALE_MS: 90000,         // これを超えたら「情報が古い」表示
+  // 一般公開の時間。開場前・閉場後・別の日に開いた人へ、
+  // 「壊れている」ではなく「まだ始まっていない」と伝えるために使う。
+  // date は開催日（YYYY-MM-DD）。空にすると日付の判定はしない。
+  HOURS: { date: '', open: '09:30', close: '15:00' },
   ADMIN_WARN_MIN: 15,      // 係員向け：15分未更新で注意
   ADMIN_DANGER_MIN: 30,    // 係員向け：30分未更新で警告（サーバー側45分で自動的に情報なしへ）
   ADMIN_HOLD_MS: 20000,    // 係員が操作した直後は並べ替えを止める時間
@@ -1314,24 +1559,29 @@ const CONFIG = {
     _default: 45
   },
   ROUTES: {
+    // auto / free / flat は毎回自動で作り直す（ここに書いた内容は使われない）
+    auto: [], free: [], flat: [],
     denshi: ['4','1','7'],
     all:    ['4','1','2','3','5','6','7','8'],
     food:   ['8','7','4']
   },
   INFO: {
+    // 3つめは場所（部屋ID）。書いておくと、その行をタップして地図に飛べる。
+    // 部屋IDは 部屋ID一覧.xlsx を参照（例: 1F-42 = 第一体育館）
     timetable: [
-      ['09:30', '開場・受付開始（正門）'],
-      ['10:00', 'オープニング（体育館）'],
+      ['09:30', '開場・受付開始（正門）', '0F-01'],
+      ['10:00', 'オープニング（体育館）', '1F-42'],
       ['11:00', '電子科 ロボット実演（第2校舎1F）'],
-      ['12:00', '各科ステージ発表（体育館）'],
-      ['13:30', '有志発表（体育館）'],
+      ['12:00', '各科ステージ発表（体育館）', '1F-42'],
+      ['13:30', '有志発表（体育館）', '1F-42'],
       ['15:00', '閉会・完全撤収']
     ],
     help: [
-      ['🏥','救護室','第1校舎1F 保健室。体調が悪くなったら近くの係員へ'],
-      ['🚻','トイレ','第2校舎1F／第1校舎1F・2F／体育館入口'],
-      ['🎒','落とし物','受付・本部（第1校舎1F）で預かっています'],
-      ['📢','迷子・呼び出し','受付・本部までお越しください'],
+      ['🏥','救護室','本館1階 保健室。体調が悪くなったら、近くの係員に声をかけてください'],
+      ['🚻','トイレ','各棟の1階・2階／体育館入口'],
+      ['🎒','落とし物','受付・本部で預かっています'],
+      ['📢','迷子・呼び出し','はぐれたら受付・本部へ。小さいお子さんとは、先に「はぐれたら本部に集合」と決めておくと安心です'],
+      ['♿','車椅子・ベビーカーの方','本校にエレベーターはありません。2階・3階へは階段のみです。1階と屋外は段差なしで回れます。「階段なしで回る」コースもお使いください'],
       ['🚭','喫煙・飲酒','校内は全面禁止です']
     ]
   }
@@ -1344,11 +1594,11 @@ const LEVELS = [
   { key:'空いています',   lv:0, short:'空き',   icon:'●',   wait:'待ち時間ほぼなし' },
   { key:'やや混雑',       lv:1, short:'やや混雑', icon:'◐',   wait:'5〜15分待ち' },
   { key:'混雑しています', lv:2, short:'混雑',    icon:'▲',   wait:'15分以上待ち' },
-  { key:'準備中',         lv:3, short:'準備中',  icon:'■',   wait:'現在受付していません' }
+  { key:'準備中',         lv:3, short:'準備中',  icon:'■',   wait:'いまは受付していません' }
 ];
 const byKey = Object.fromEntries(LEVELS.map(l => [l.key, l]));
 const UNKNOWN = { lv:-1, short:'情報なし', icon:'?', wait:'状況が届いていません' };
-const STALE   = { lv:-1, short:'更新待ち', icon:'…', wait:'しばらく更新されていません' };
+const STALE   = { lv:-1, short:'情報なし', icon:'…', wait:'しばらく係の人からの連絡がありません。行って確かめてください' };
 function lvOf(b){
   if (b && typeof b === 'object'){
     if (!b.status) return b.stale ? STALE : UNKNOWN;
@@ -1401,181 +1651,131 @@ function waitText(b){
 const FLOOR_PLAN = {
   0: {
     zones: [{"label":"■ 校舎エリア","x":143,"y":6}, {"label":"■ グラウンド","x":6,"y":155}, {"label":"■ 野球場","x":175,"y":381}],
-    struct: [{"x":143,"y":9,"w":209,"h":155,"type":"bldg","label":"校舎（1F〜3F）"}, {"x":6,"y":158,"w":84,"h":137,"type":"outdoor","label":"陸上競技場"}, {"x":140,"y":197,"w":108,"h":155,"type":"outdoor","label":"ラグビー場"}, {"x":233,"y":266,"w":98,"h":86,"type":"outdoor","label":"ラグビー場"}, {"x":239,"y":202,"w":101,"h":37,"type":"outdoor","label":"テニスコート"}, {"x":175,"y":384,"w":94,"h":85,"type":"outdoor","label":"軟式野球場"}, {"x":245,"y":393,"w":95,"h":76,"type":"outdoor","label":"硬式野球場"}],
+    struct: [{"x":128,"y":166,"w":228,"h":9,"type":"road","label":"8m 道路"}, {"x":106,"y":166,"w":9,"h":196,"type":"road","label":""}, {"x":106,"y":166,"w":24,"h":9,"type":"road","label":""}, {"x":347,"y":0,"w":9,"h":262,"type":"road","label":""}, {"x":347,"y":253,"w":34,"h":9,"type":"road","label":""}, {"x":97,"y":353,"w":24,"h":9,"type":"road","label":""}, {"x":347,"y":88,"w":16,"h":8,"type":"road","label":""}, {"x":143,"y":9,"w":209,"h":155,"type":"bldg","label":"校舎（1F〜3F）"}, {"x":6,"y":158,"w":84,"h":137,"type":"outdoor","label":"陸上競技場"}, {"x":140,"y":197,"w":108,"h":155,"type":"outdoor","label":"ラグビー場"}, {"x":233,"y":266,"w":98,"h":86,"type":"outdoor","label":"ラグビー場"}, {"x":239,"y":202,"w":101,"h":37,"type":"outdoor","label":"テニスコート"}, {"x":175,"y":384,"w":94,"h":85,"type":"outdoor","label":"軟式野球場"}, {"x":245,"y":393,"w":95,"h":76,"type":"outdoor","label":"硬式野球場"}],
     utils: [{"t":"正門","x":346,"y":248,"w":22,"h":14}, {"t":"通用門","x":98,"y":348,"w":24,"h":14}, {"t":"駐車場","x":275,"y":137,"w":71,"h":24}, {"t":"駐輪場","x":352,"y":127,"w":11,"h":31}, {"t":"駐輪場","x":374,"y":299,"w":11,"h":28}, {"t":"クラブハウス","x":374,"y":340,"w":11,"h":30}, {"t":"記念館","x":104,"y":45,"w":30,"h":15}, {"t":"北桜会館","x":104,"y":72,"w":30,"h":18}, {"t":"弓道場","x":78,"y":78,"w":19,"h":53}, {"t":"プール","x":104,"y":128,"w":24,"h":17}],
     rooms: [
       {"id":"0F-01","nm":"ふれあい広場","x":275,"y":115,"w":62,"h":16},
-    ]
+    ],
+    hidden: []
   },
   1: {
     zones: [{"label":"■ 電子科実習棟","x":351.9,"y":448.0}, {"label":"■ 専攻科棟","x":280.6,"y":448.0}, {"label":"■ 土木科実習棟","x":278.3,"y":396.0}, {"label":"■ 材料技術科実習棟","x":241.5,"y":294.0}, {"label":"■ 電子機械科実習棟","x":41.4,"y":294.0}, {"label":"■ 機械科実習棟","x":135.7,"y":294.0}, {"label":"■ 本館","x":197.8,"y":506.0}, {"label":"■ 家庭科実習棟","x":333.5,"y":296.0}, {"label":"■ 北教室棟","x":140.3,"y":390.0}, {"label":"■ 電気科実習棟","x":347.3,"y":396.0}, {"label":"■ 南教室棟","x":140.3,"y":442.0}],
-    struct: [{"x":34.0,"y":289.6,"w":288.4,"h":48.8,"type":"bldg"}, {"x":330.7,"y":291.6,"w":63.0,"h":20.8,"type":"bldg"}, {"x":330.7,"y":315.6,"w":63.0,"h":20.8,"type":"bldg"}, {"x":1.8,"y":339.6,"w":17.0,"h":32.8,"type":"bldg"}, {"x":43.2,"y":341.6,"w":56.1,"h":30.8,"type":"bldg"}, {"x":121.4,"y":345.6,"w":56.1,"h":16.8,"type":"bldg"}, {"x":259.4,"y":345.6,"w":145.8,"h":44.8,"type":"bldg"}, {"x":213.4,"y":363.6,"w":26.2,"h":72.8,"type":"bldg"}, {"x":119.1,"y":367.6,"w":86.0,"h":16.8,"type":"bldg"}, {"x":27.1,"y":381.6,"w":178.0,"h":54.8,"type":"bldg"}, {"x":259.4,"y":397.6,"w":145.8,"h":44.8,"type":"bldg"}, {"x":27.1,"y":433.6,"w":72.2,"h":18.8,"type":"bldg"}, {"x":130.6,"y":439.6,"w":125.1,"h":54.8,"type":"bldg"}, {"x":22.5,"y":455.6,"w":90.6,"h":40.8,"type":"bldg"}],
-    utils: [{"t":"WC","x":211.6,"y":292.0,"w":4.6,"h":14.0}, {"t":"WC","x":381.8,"y":298.0,"w":9.2,"h":12.0}, {"t":"WC","x":381.8,"y":318.0,"w":9.2,"h":12.0}, {"t":"WC","x":195.5,"y":370.0,"w":6.9,"h":12.0}, {"t":"WC","x":262.2,"y":376.0,"w":9.2,"h":12.0}, {"t":"WC","x":326.6,"y":376.0,"w":9.2,"h":12.0}, {"t":"WC","x":105.8,"y":408.0,"w":6.9,"h":10.0}, {"t":"WC","x":112.7,"y":408.0,"w":6.9,"h":10.0}, {"t":"WC","x":195.5,"y":422.0,"w":6.9,"h":12.0}, {"t":"WC","x":262.2,"y":428.0,"w":9.2,"h":12.0}, {"t":"WC","x":29.9,"y":436.0,"w":6.9,"h":14.0}, {"t":"WC","x":89.7,"y":436.0,"w":6.9,"h":14.0}, {"t":"WC","x":103.5,"y":460.0,"w":6.9,"h":6.0}, {"t":"WC","x":204.7,"y":462.0,"w":6.9,"h":6.0}, {"t":"WC","x":103.5,"y":466.0,"w":6.9,"h":6.0}, {"t":"WC","x":216.2,"y":466.0,"w":4.6,"h":8.0}, {"t":"WC","x":204.7,"y":468.0,"w":6.9,"h":6.0}],
+    struct: [{"x":34.0,"y":289.6,"w":288.4,"h":48.8,"type":"bldg","zone":"材料技術科実習棟"}, {"x":211.6,"y":292.0,"w":4.6,"h":44.0,"type":"corridor","label":""}, {"x":342.2,"y":291.6,"w":42.3,"h":20.8,"type":"bldg","zone":"家庭科実習棟"}, {"x":330.7,"y":315.6,"w":53.8,"h":26.8,"type":"bldg","zone":""}, {"x":333.5,"y":334.0,"w":48.3,"h":6.0,"type":"corridor","label":""}, {"x":1.8,"y":339.6,"w":17.0,"h":32.8,"type":"bldg","zone":""}, {"x":4.6,"y":354.0,"w":11.5,"h":4.0,"type":"corridor","label":""}, {"x":43.2,"y":341.6,"w":56.1,"h":36.8,"type":"bldg","zone":""}, {"x":46.0,"y":370.0,"w":50.6,"h":6.0,"type":"corridor","label":""}, {"x":268.6,"y":345.6,"w":60.7,"h":44.8,"type":"bldg","zone":"土木科実習棟"}, {"x":271.4,"y":366.0,"w":55.2,"h":4.0,"type":"corridor","label":""}, {"x":333.0,"y":345.6,"w":72.2,"h":44.8,"type":"bldg","zone":"電気科実習棟"}, {"x":335.8,"y":366.0,"w":66.7,"h":4.0,"type":"corridor","label":""}, {"x":213.4,"y":363.6,"w":21.6,"h":20.8,"type":"bldg","zone":""}, {"x":119.1,"y":367.6,"w":79.1,"h":22.8,"type":"bldg","zone":"北教室棟"}, {"x":121.9,"y":382.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":36.3,"y":381.6,"w":69.9,"h":40.8,"type":"bldg","zone":""}, {"x":39.1,"y":414.0,"w":64.4,"h":6.0,"type":"corridor","label":"廊下"}, {"x":275.5,"y":397.6,"w":129.7,"h":44.8,"type":"bldg","zone":"電子科実習棟"}, {"x":278.3,"y":418.0,"w":124.2,"h":4.0,"type":"corridor","label":""}, {"x":340.4,"y":400.0,"w":6.9,"h":40.0,"type":"corridor","label":""}, {"x":213.4,"y":415.6,"w":21.6,"h":20.8,"type":"bldg","zone":""}, {"x":155.9,"y":419.6,"w":42.3,"h":16.8,"type":"bldg","zone":"南教室棟"}, {"x":22.5,"y":455.6,"w":83.7,"h":46.8,"type":"bldg","zone":""}, {"x":41.4,"y":458.0,"w":4.6,"h":36.0,"type":"corridor","label":""}, {"x":25.3,"y":494.0,"w":78.2,"h":6.0,"type":"corridor","label":"廊下"}, {"x":128.8,"y":458.0,"w":115.0,"h":38.0,"type":"blocked","label":"本館1階（立入禁止）"}],
+    utils: [{"t":"WC","x":103.5,"y":466.0,"w":6.9,"h":6.0}, {"t":"WC","x":29.9,"y":436.0,"w":6.9,"h":14.0}, {"t":"WC","x":326.6,"y":376.0,"w":9.2,"h":12.0}, {"t":"WC","x":262.2,"y":376.0,"w":9.2,"h":12.0}, {"t":"WC","x":195.5,"y":422.0,"w":6.9,"h":12.0}, {"t":"WC","x":112.7,"y":408.0,"w":6.9,"h":10.0}, {"t":"WC","x":381.8,"y":298.0,"w":9.2,"h":12.0}, {"t":"WC","x":262.2,"y":428.0,"w":9.2,"h":12.0}, {"t":"WC","x":211.6,"y":292.0,"w":4.6,"h":14.0}, {"t":"WC","x":195.5,"y":370.0,"w":6.9,"h":12.0}, {"t":"WC","x":89.7,"y":436.0,"w":6.9,"h":14.0}, {"t":"WC","x":381.8,"y":318.0,"w":9.2,"h":12.0}, {"t":"WC","x":103.5,"y":460.0,"w":6.9,"h":6.0}, {"t":"WC","x":105.8,"y":408.0,"w":6.9,"h":10.0}],
     rooms: [
-      {"x":36.8,"y":292.0,"w":23.0,"h":22.0,"id":"1F-01","nm":"FA実習室"},
-      {"x":59.8,"y":292.0,"w":32.2,"h":44.0,"id":"1F-02","nm":"機械加工実習室"},
-      {"x":92.0,"y":292.0,"w":16.1,"h":20.0,"id":"1F-03","nm":"計測実習室"},
-      {"x":108.1,"y":292.0,"w":16.1,"h":20.0,"id":"1F-04","nm":"材料試験室"},
-      {"x":124.2,"y":292.0,"w":27.6,"h":20.0,"id":"1F-05","nm":"溶接実習室"},
-      {"x":151.8,"y":292.0,"w":23.0,"h":20.0,"id":"1F-06","nm":"塑性加工室"},
-      {"x":174.8,"y":292.0,"w":36.8,"h":20.0,"id":"1F-07","nm":"原動機実験室"},
-      {"x":216.2,"y":292.0,"w":43.7,"h":20.0,"id":"1F-08","nm":"切削加工室"},
-      {"x":259.9,"y":292.0,"w":16.1,"h":20.0,"id":"1F-09","nm":"情報処理室"},
-      {"x":276.0,"y":292.0,"w":23.0,"h":20.0,"id":"1F-10","nm":"塑性加工溶接室"},
-      {"x":299.0,"y":292.0,"w":20.7,"h":14.0,"id":"1F-11","nm":"専攻科機械加工実習室"},
-      {"x":333.5,"y":294.0,"w":11.5,"h":16.0,"id":"1F-12","nm":"準備室"},
-      {"x":345.0,"y":294.0,"w":36.8,"h":16.0,"id":"1F-13","nm":"家庭総合実習室"},
-      {"x":92.0,"y":316.0,"w":9.2,"h":20.0,"id":"1F-14","nm":"機械科準備室"},
-      {"x":101.2,"y":316.0,"w":23.0,"h":20.0,"id":"1F-15","nm":"仕上組立室"},
-      {"x":124.2,"y":316.0,"w":16.1,"h":20.0,"id":"1F-16","nm":"電気実習室"},
-      {"x":140.3,"y":316.0,"w":9.2,"h":20.0,"id":"1F-17","nm":"製図準備室"},
-      {"x":149.5,"y":316.0,"w":25.3,"h":20.0,"id":"1F-18","nm":"製図室"},
-      {"x":174.8,"y":316.0,"w":11.5,"h":14.0,"id":"1F-19","nm":"鋳造準備室"},
-      {"x":186.3,"y":316.0,"w":25.3,"h":20.0,"id":"1F-20","nm":"鋳造実習室"},
-      {"x":216.2,"y":316.0,"w":29.9,"h":20.0,"id":"1F-21","nm":"製図室"},
-      {"x":253.0,"y":316.0,"w":16.1,"h":20.0,"id":"1F-22","nm":"材料組織室"},
-      {"x":269.1,"y":316.0,"w":16.1,"h":20.0,"id":"1F-23","nm":"セラミック室"},
-      {"x":285.2,"y":316.0,"w":11.5,"h":20.0,"id":"1F-24","nm":"電子顕微鏡室"},
-      {"x":296.7,"y":316.0,"w":11.5,"h":20.0,"id":"1F-25","nm":"高分子材料室"},
-      {"x":308.2,"y":316.0,"w":11.5,"h":20.0,"id":"1F-26","nm":"材料物性室"},
-      {"x":333.5,"y":318.0,"w":48.3,"h":16.0,"id":"1F-27","nm":"食物実習室"},
-      {"x":246.1,"y":320.0,"w":6.9,"h":16.0,"id":"1F-28","nm":"準備室"},
-      {"x":36.8,"y":324.0,"w":23.0,"h":12.0,"id":"1F-29","nm":"制御実習室"},
-      {"x":4.6,"y":342.0,"w":11.5,"h":12.0,"id":"1F-30","nm":"記念館"},
-      {"x":46.0,"y":344.0,"w":50.6,"h":26.0,"id":"1F-31","nm":"柔剣道場"},
-      {"x":124.2,"y":348.0,"w":50.6,"h":12.0,"id":"1F-32","nm":"北棟外部非常階段"},
-      {"x":271.4,"y":348.0,"w":36.8,"h":18.0,"id":"1F-33","nm":"材料試験室"},
-      {"x":308.2,"y":348.0,"w":18.4,"h":18.0,"id":"1F-34","nm":"施工実習室"},
-      {"x":335.8,"y":348.0,"w":29.9,"h":18.0,"id":"1F-35","nm":"工作工事実習室"},
-      {"x":365.7,"y":348.0,"w":9.2,"h":18.0,"id":"1F-36","nm":"工作工事準備室"},
-      {"x":374.9,"y":348.0,"w":27.6,"h":18.0,"id":"1F-37","nm":"製図実習室"},
-      {"x":4.6,"y":358.0,"w":11.5,"h":12.0,"id":"1F-38","nm":"北桜会館"},
-      {"x":216.2,"y":366.0,"w":16.1,"h":16.0,"id":"1F-39","nm":"北棟昇降口"},
-      {"x":121.9,"y":370.0,"w":18.4,"h":12.0,"id":"1F-40","nm":"電子機３"},
-      {"x":140.3,"y":370.0,"w":18.4,"h":12.0,"id":"1F-41","nm":"機械３"},
-      {"x":158.7,"y":370.0,"w":18.4,"h":12.0,"id":"1F-42","nm":"材料３"},
-      {"x":177.1,"y":370.0,"w":18.4,"h":12.0,"id":"1F-43","nm":"土木３"},
-      {"x":271.4,"y":370.0,"w":23.0,"h":18.0,"id":"1F-44","nm":"土質試験実習室"},
-      {"x":294.4,"y":370.0,"w":9.2,"h":18.0,"id":"1F-45","nm":"測量・土質準備室"},
-      {"x":303.6,"y":370.0,"w":23.0,"h":18.0,"id":"1F-46","nm":"測量実習室"},
-      {"x":335.8,"y":370.0,"w":18.4,"h":18.0,"id":"1F-47","nm":"自動制御実習室"},
-      {"x":354.2,"y":370.0,"w":11.5,"h":18.0,"id":"1F-48","nm":"電気機器準備室"},
-      {"x":365.7,"y":370.0,"w":25.3,"h":18.0,"id":"1F-49","nm":"電気機器実習室"},
-      {"x":391.0,"y":370.0,"w":11.5,"h":18.0,"id":"1F-50","nm":"高圧実験室"},
-      {"x":216.2,"y":382.0,"w":20.7,"h":36.0,"id":"1F-51","nm":"工業科職員室"},
-      {"x":39.1,"y":384.0,"w":64.4,"h":30.0,"id":"1F-52","nm":"第一体育館"},
-      {"x":271.4,"y":400.0,"w":13.8,"h":18.0,"id":"1F-53","nm":"薬品器材室"},
-      {"x":285.2,"y":400.0,"w":18.4,"h":18.0,"id":"1F-54","nm":"合成化学実習室"},
-      {"x":303.6,"y":400.0,"w":23.0,"h":18.0,"id":"1F-55","nm":"工作実習室①"},
-      {"x":326.6,"y":400.0,"w":13.8,"h":18.0,"id":"1F-56","nm":"工作実習室②"},
-      {"x":347.3,"y":400.0,"w":27.6,"h":18.0,"id":"1F-57","nm":"電気磁気実習室②"},
-      {"x":374.9,"y":400.0,"w":27.6,"h":18.0,"id":"1F-58","nm":"通信実習室②"},
-      {"x":29.9,"y":410.0,"w":9.2,"h":10.0,"id":"1F-59","nm":"体育科職員室"},
-      {"x":216.2,"y":418.0,"w":16.1,"h":16.0,"id":"1F-60","nm":"南棟昇降口"},
-      {"x":384.1,"y":418.0,"w":18.4,"h":4.0,"id":"1F-61","nm":"磁気シールド"},
-      {"x":121.9,"y":422.0,"w":18.4,"h":12.0,"id":"1F-62","nm":"体育準備室"},
-      {"x":140.3,"y":422.0,"w":18.4,"h":12.0,"id":"1F-63","nm":"物品庫"},
-      {"x":158.7,"y":422.0,"w":18.4,"h":12.0,"id":"1F-64","nm":"選択③"},
-      {"x":177.1,"y":422.0,"w":18.4,"h":12.0,"id":"1F-65","nm":"ＤＸルーム"},
-      {"x":271.4,"y":422.0,"w":6.9,"h":18.0,"id":"1F-66","nm":"計測準備室"},
-      {"x":278.3,"y":422.0,"w":27.6,"h":18.0,"id":"1F-67","nm":"計測実習室"},
-      {"x":305.9,"y":422.0,"w":6.9,"h":18.0,"id":"1F-68","nm":"自動制御準備室"},
-      {"x":312.8,"y":422.0,"w":13.8,"h":18.0,"id":"1F-69","nm":"自動制御実習室①"},
-      {"x":326.6,"y":422.0,"w":13.8,"h":18.0,"id":"1F-70","nm":"自動制御実習室②"},
-      {"x":347.3,"y":422.0,"w":25.3,"h":18.0,"id":"1F-71","nm":"電子機器室②"},
-      {"x":372.6,"y":422.0,"w":29.9,"h":18.0,"id":"1F-72","nm":"計測室②"},
-      {"x":36.8,"y":436.0,"w":52.9,"h":14.0,"id":"1F-73","nm":"部室"},
-      {"x":216.2,"y":442.0,"w":20.7,"h":14.0,"id":"1F-74","nm":"ボイラー 室"},
-      {"x":25.3,"y":458.0,"w":16.1,"h":36.0,"id":"1F-75","nm":"ボクシング場"},
-      {"x":46.0,"y":458.0,"w":57.5,"h":36.0,"id":"1F-76","nm":"第二体育館"},
-      {"x":133.4,"y":462.0,"w":6.9,"h":12.0,"id":"1F-77","nm":"更衣室"},
-      {"x":140.3,"y":462.0,"w":18.4,"h":12.0,"id":"1F-78","nm":"進路指導室"},
-      {"x":158.7,"y":462.0,"w":9.2,"h":12.0,"id":"1F-79","nm":"進路指導応接室"},
-      {"x":167.9,"y":462.0,"w":6.9,"h":12.0,"id":"1F-80","nm":"書庫"},
-      {"x":174.8,"y":462.0,"w":9.2,"h":8.0,"id":"1F-81","nm":"耐火書庫"},
-      {"x":184.0,"y":462.0,"w":11.5,"h":12.0,"id":"1F-82","nm":"応接室"},
-      {"x":195.5,"y":462.0,"w":9.2,"h":12.0,"id":"1F-83","nm":"給湯室"},
-      {"x":225.4,"y":462.0,"w":9.2,"h":8.0,"id":"1F-84","nm":"ＰＴＡ同窓会"},
-      {"x":225.4,"y":470.0,"w":27.6,"h":22.0,"id":"1F-85","nm":"普通科職員室"},
-      {"x":133.4,"y":478.0,"w":20.7,"h":14.0,"id":"1F-86","nm":"保健室"},
-      {"x":154.1,"y":478.0,"w":23.0,"h":14.0,"id":"1F-87","nm":"中会議室"},
-      {"x":177.1,"y":478.0,"w":9.2,"h":14.0,"id":"1F-88","nm":"ロッカー"},
-      {"x":186.3,"y":478.0,"w":11.5,"h":14.0,"id":"1F-89","nm":"玄関"},
-      {"x":197.8,"y":478.0,"w":13.8,"h":14.0,"id":"1F-90","nm":"事務室"},
-      {"x":211.6,"y":478.0,"w":13.8,"h":14.0,"id":"1F-91","nm":"校長室"},
-    ]
+      {"x":36.8,"y":292.0,"w":23.0,"h":22.0,"id":"1F-01","nm":"FA実習室","z":"電子機械科実習棟"},
+      {"x":59.8,"y":292.0,"w":32.2,"h":44.0,"id":"1F-02","nm":"機械加工実習室","z":"電子機械科実習棟"},
+      {"x":92.0,"y":292.0,"w":16.1,"h":20.0,"id":"1F-03","nm":"計測実習室","z":"電子機械科実習棟"},
+      {"x":108.1,"y":292.0,"w":16.1,"h":20.0,"id":"1F-04","nm":"材料試験室","z":"機械科実習棟"},
+      {"x":124.2,"y":292.0,"w":27.6,"h":20.0,"id":"1F-05","nm":"溶接実習室","z":"機械科実習棟"},
+      {"x":151.8,"y":292.0,"w":23.0,"h":20.0,"id":"1F-06","nm":"塑性加工室","z":"機械科実習棟"},
+      {"x":174.8,"y":292.0,"w":36.8,"h":20.0,"id":"1F-07","nm":"原動機実験室","z":"機械科実習棟"},
+      {"x":216.2,"y":292.0,"w":43.7,"h":20.0,"id":"1F-08","nm":"切削加工室","z":"材料技術科実習棟"},
+      {"x":259.9,"y":292.0,"w":16.1,"h":20.0,"id":"1F-09","nm":"情報処理室","z":"材料技術科実習棟"},
+      {"x":276.0,"y":292.0,"w":23.0,"h":20.0,"id":"1F-10","nm":"塑性加工溶接室","z":"材料技術科実習棟"},
+      {"x":299.0,"y":292.0,"w":20.7,"h":14.0,"id":"1F-11","nm":"専攻科機械加工実習室","z":"材料技術科実習棟"},
+      {"x":345.0,"y":294.0,"w":36.8,"h":16.0,"id":"1F-12","nm":"家庭総合実習室","z":"家庭科実習棟"},
+      {"x":101.2,"y":316.0,"w":23.0,"h":20.0,"id":"1F-13","nm":"仕上組立室","z":"電子機械科実習棟"},
+      {"x":124.2,"y":316.0,"w":16.1,"h":20.0,"id":"1F-14","nm":"電気実習室","z":"機械科実習棟"},
+      {"x":149.5,"y":316.0,"w":25.3,"h":20.0,"id":"1F-15","nm":"製図室","z":"機械科実習棟"},
+      {"x":186.3,"y":316.0,"w":25.3,"h":20.0,"id":"1F-16","nm":"鋳造実習室","z":"機械科実習棟"},
+      {"x":216.2,"y":316.0,"w":29.9,"h":20.0,"id":"1F-17","nm":"製図室","z":"材料技術科実習棟"},
+      {"x":253.0,"y":316.0,"w":16.1,"h":20.0,"id":"1F-18","nm":"材料組織室","z":"材料技術科実習棟"},
+      {"x":269.1,"y":316.0,"w":16.1,"h":20.0,"id":"1F-19","nm":"セラミック室","z":"材料技術科実習棟"},
+      {"x":285.2,"y":316.0,"w":11.5,"h":20.0,"id":"1F-20","nm":"電子顕微鏡室","z":"材料技術科実習棟"},
+      {"x":296.7,"y":316.0,"w":11.5,"h":20.0,"id":"1F-21","nm":"高分子材料室","z":"材料技術科実習棟"},
+      {"x":308.2,"y":316.0,"w":11.5,"h":20.0,"id":"1F-22","nm":"材料物性室","z":"家庭科実習棟"},
+      {"x":333.5,"y":318.0,"w":48.3,"h":16.0,"id":"1F-23","nm":"食物実習室","z":"家庭科実習棟"},
+      {"x":36.8,"y":324.0,"w":23.0,"h":12.0,"id":"1F-24","nm":"制御実習室","z":"電子機械科実習棟"},
+      {"x":4.6,"y":342.0,"w":11.5,"h":12.0,"id":"1F-25","nm":"記念館"},
+      {"x":46.0,"y":344.0,"w":50.6,"h":26.0,"id":"1F-26","nm":"柔剣道場"},
+      {"x":271.4,"y":348.0,"w":36.8,"h":18.0,"id":"1F-27","nm":"材料試験室","z":"土木科実習棟"},
+      {"x":308.2,"y":348.0,"w":18.4,"h":18.0,"id":"1F-28","nm":"施工実習室","z":"土木科実習棟"},
+      {"x":335.8,"y":348.0,"w":29.9,"h":18.0,"id":"1F-29","nm":"工作工事実習室","z":"電気科実習棟"},
+      {"x":374.9,"y":348.0,"w":27.6,"h":18.0,"id":"1F-30","nm":"製図実習室","z":"電気科実習棟"},
+      {"x":4.6,"y":358.0,"w":11.5,"h":12.0,"id":"1F-31","nm":"北桜会館"},
+      {"x":216.2,"y":366.0,"w":16.1,"h":16.0,"id":"1F-32","nm":"北棟昇降口"},
+      {"x":121.9,"y":370.0,"w":18.4,"h":12.0,"id":"1F-33","nm":"電子機３","z":"北教室棟"},
+      {"x":140.3,"y":370.0,"w":18.4,"h":12.0,"id":"1F-34","nm":"機械３","z":"北教室棟"},
+      {"x":158.7,"y":370.0,"w":18.4,"h":12.0,"id":"1F-35","nm":"材料３","z":"北教室棟"},
+      {"x":177.1,"y":370.0,"w":18.4,"h":12.0,"id":"1F-36","nm":"土木３","z":"北教室棟"},
+      {"x":271.4,"y":370.0,"w":23.0,"h":18.0,"id":"1F-37","nm":"土質試験実習室","z":"土木科実習棟"},
+      {"x":303.6,"y":370.0,"w":23.0,"h":18.0,"id":"1F-38","nm":"測量実習室","z":"土木科実習棟"},
+      {"x":335.8,"y":370.0,"w":18.4,"h":18.0,"id":"1F-39","nm":"自動制御実習室","z":"電気科実習棟"},
+      {"x":365.7,"y":370.0,"w":25.3,"h":18.0,"id":"1F-40","nm":"電気機器実習室","z":"電気科実習棟"},
+      {"x":391.0,"y":370.0,"w":11.5,"h":18.0,"id":"1F-41","nm":"高圧実験室","z":"電気科実習棟"},
+      {"x":39.1,"y":384.0,"w":64.4,"h":30.0,"id":"1F-42","nm":"第一体育館"},
+      {"x":285.2,"y":400.0,"w":18.4,"h":18.0,"id":"1F-43","nm":"合成化学実習室","z":"土木科実習棟"},
+      {"x":303.6,"y":400.0,"w":23.0,"h":18.0,"id":"1F-44","nm":"工作実習室①","z":"土木科実習棟"},
+      {"x":326.6,"y":400.0,"w":13.8,"h":18.0,"id":"1F-45","nm":"工作実習室②","z":"土木科実習棟"},
+      {"x":347.3,"y":400.0,"w":27.6,"h":18.0,"id":"1F-46","nm":"電気磁気実習室②","z":"電気科実習棟"},
+      {"x":374.9,"y":400.0,"w":27.6,"h":18.0,"id":"1F-47","nm":"通信実習室②","z":"電気科実習棟"},
+      {"x":216.2,"y":418.0,"w":16.1,"h":16.0,"id":"1F-48","nm":"南棟昇降口"},
+      {"x":158.7,"y":422.0,"w":18.4,"h":12.0,"id":"1F-49","nm":"選択③","z":"南教室棟"},
+      {"x":177.1,"y":422.0,"w":18.4,"h":12.0,"id":"1F-50","nm":"ＤＸルーム","z":"南教室棟"},
+      {"x":278.3,"y":422.0,"w":27.6,"h":18.0,"id":"1F-51","nm":"計測実習室","z":"専攻科棟"},
+      {"x":312.8,"y":422.0,"w":13.8,"h":18.0,"id":"1F-52","nm":"自動制御実習室①","z":"専攻科棟"},
+      {"x":326.6,"y":422.0,"w":13.8,"h":18.0,"id":"1F-53","nm":"自動制御実習室②","z":"専攻科棟"},
+      {"x":347.3,"y":422.0,"w":25.3,"h":18.0,"id":"1F-54","nm":"電子機器室②","z":"電子科実習棟"},
+      {"x":372.6,"y":422.0,"w":29.9,"h":18.0,"id":"1F-55","nm":"計測室②","z":"電子科実習棟"},
+      {"x":25.3,"y":458.0,"w":16.1,"h":36.0,"id":"1F-56","nm":"ボクシング場"},
+      {"x":46.0,"y":458.0,"w":57.5,"h":36.0,"id":"1F-57","nm":"第二体育館"},
+    ],
+    hidden: [{"x":294.4,"y":370.0,"w":9.2,"h":18.0,"id":"1X-01","nm":"測量・土質準備室","z":"土木科実習棟"}, {"x":186.3,"y":478.0,"w":11.5,"h":14.0,"id":"1X-02","nm":"玄関","z":"本館"}, {"x":124.2,"y":348.0,"w":50.6,"h":12.0,"id":"1X-03","nm":"北棟外部非常階段","z":"北教室棟"}, {"x":216.2,"y":442.0,"w":20.7,"h":14.0,"id":"1X-04","nm":"ボイラー 室","z":"専攻科棟"}, {"x":211.6,"y":478.0,"w":13.8,"h":14.0,"id":"1X-05","nm":"校長室","z":"本館"}, {"x":121.9,"y":422.0,"w":18.4,"h":12.0,"id":"1X-06","nm":"体育準備室","z":"南教室棟"}, {"x":133.4,"y":478.0,"w":20.7,"h":14.0,"id":"1X-07","nm":"保健室","z":"本館"}, {"x":36.8,"y":436.0,"w":52.9,"h":14.0,"id":"1X-08","nm":"部室","z":"南教室棟"}, {"x":92.0,"y":316.0,"w":9.2,"h":20.0,"id":"1X-09","nm":"機械科準備室","z":"電子機械科実習棟"}, {"x":140.3,"y":316.0,"w":9.2,"h":20.0,"id":"1X-10","nm":"製図準備室","z":"機械科実習棟"}, {"x":133.4,"y":462.0,"w":6.9,"h":12.0,"id":"1X-11","nm":"更衣室","z":"南教室棟"}, {"x":197.8,"y":478.0,"w":13.8,"h":14.0,"id":"1X-12","nm":"事務室","z":"本館"}, {"x":271.4,"y":422.0,"w":6.9,"h":18.0,"id":"1X-13","nm":"計測準備室","z":"専攻科棟"}, {"x":225.4,"y":470.0,"w":27.6,"h":22.0,"id":"1X-14","nm":"普通科職員室","z":"本館"}, {"x":384.1,"y":418.0,"w":18.4,"h":4.0,"id":"1X-15","nm":"磁気シールド","z":"電子科実習棟"}, {"x":154.1,"y":478.0,"w":23.0,"h":14.0,"id":"1X-16","nm":"中会議室","z":"本館"}, {"x":271.4,"y":400.0,"w":13.8,"h":18.0,"id":"1X-17","nm":"薬品器材室","z":"土木科実習棟"}, {"x":365.7,"y":348.0,"w":9.2,"h":18.0,"id":"1X-18","nm":"工作工事準備室","z":"電気科実習棟"}, {"x":140.3,"y":422.0,"w":18.4,"h":12.0,"id":"1X-19","nm":"物品庫","z":"南教室棟"}, {"x":184.0,"y":462.0,"w":11.5,"h":12.0,"id":"1X-20","nm":"応接室","z":"本館"}, {"x":333.5,"y":294.0,"w":11.5,"h":16.0,"id":"1X-21","nm":"準備室","z":"家庭科実習棟"}, {"x":174.8,"y":316.0,"w":11.5,"h":14.0,"id":"1X-22","nm":"鋳造準備室","z":"機械科実習棟"}, {"x":195.5,"y":462.0,"w":9.2,"h":12.0,"id":"1X-23","nm":"給湯室","z":"本館"}, {"x":216.2,"y":382.0,"w":20.7,"h":36.0,"id":"1X-24","nm":"工業科職員室","z":"土木科実習棟"}, {"x":305.9,"y":422.0,"w":6.9,"h":18.0,"id":"1X-25","nm":"自動制御準備室","z":"専攻科棟"}, {"x":167.9,"y":462.0,"w":6.9,"h":12.0,"id":"1X-26","nm":"書庫","z":"南教室棟"}, {"x":158.7,"y":462.0,"w":9.2,"h":12.0,"id":"1X-27","nm":"進路指導応接室","z":"南教室棟"}, {"x":140.3,"y":462.0,"w":18.4,"h":12.0,"id":"1X-28","nm":"進路指導室","z":"南教室棟"}, {"x":174.8,"y":462.0,"w":9.2,"h":8.0,"id":"1X-29","nm":"耐火書庫","z":"南教室棟"}, {"x":225.4,"y":462.0,"w":9.2,"h":8.0,"id":"1X-30","nm":"ＰＴＡ同窓会","z":"本館"}, {"x":354.2,"y":370.0,"w":11.5,"h":18.0,"id":"1X-31","nm":"電気機器準備室","z":"電気科実習棟"}, {"x":29.9,"y":410.0,"w":9.2,"h":10.0,"id":"1X-32","nm":"体育科職員室","z":"南教室棟"}, {"x":246.1,"y":320.0,"w":6.9,"h":16.0,"id":"1X-33","nm":"準備室","z":"材料技術科実習棟"}, {"x":177.1,"y":478.0,"w":9.2,"h":14.0,"id":"1X-34","nm":"ロッカー","z":"本館"}]
   },
   2: {
     zones: [{"label":"■ 本館","x":197.8,"y":280.0}, {"label":"■ 専攻科棟","x":280.6,"y":228.0}, {"label":"■ 土木科実習棟","x":276.0,"y":178.0}, {"label":"■ 南教室棟","x":144.9,"y":222.0}, {"label":"■ 電子科実習棟","x":345.0,"y":178.0}, {"label":"■ 北教室棟","x":144.9,"y":172.0}],
-    struct: [{"x":259.4,"y":127.6,"w":145.8,"h":44.8,"type":"bldg"}, {"x":119.1,"y":149.6,"w":86.0,"h":16.8,"type":"bldg"}, {"x":213.4,"y":149.6,"w":19.3,"h":16.8,"type":"bldg"}, {"x":259.4,"y":177.6,"w":83.7,"h":44.8,"type":"bldg"}, {"x":119.1,"y":199.6,"w":86.0,"h":16.8,"type":"bldg"}, {"x":213.4,"y":199.6,"w":19.3,"h":16.8,"type":"bldg"}, {"x":130.6,"y":239.6,"w":125.1,"h":34.8,"type":"bldg"}],
-    utils: [{"t":"WC","x":195.5,"y":152.0,"w":6.9,"h":12.0}, {"t":"WC","x":262.2,"y":158.0,"w":9.2,"h":12.0}, {"t":"WC","x":326.6,"y":158.0,"w":9.2,"h":12.0}, {"t":"WC","x":195.5,"y":202.0,"w":6.9,"h":12.0}, {"t":"WC","x":262.2,"y":208.0,"w":9.2,"h":12.0}, {"t":"WC","x":204.7,"y":242.0,"w":6.9,"h":6.0}, {"t":"WC","x":204.7,"y":248.0,"w":6.9,"h":6.0}],
+    struct: [{"x":268.6,"y":127.6,"w":60.7,"h":44.8,"type":"bldg","zone":"土木科実習棟"}, {"x":271.4,"y":148.0,"w":55.2,"h":4.0,"type":"corridor","label":""}, {"x":333.0,"y":127.6,"w":72.2,"h":44.8,"type":"bldg","zone":"電子科実習棟"}, {"x":335.8,"y":148.0,"w":66.7,"h":4.0,"type":"corridor","label":""}, {"x":119.1,"y":149.6,"w":79.1,"h":22.8,"type":"bldg","zone":"北教室棟"}, {"x":121.9,"y":164.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":268.6,"y":177.6,"w":74.5,"h":44.8,"type":"bldg","zone":"専攻科棟"}, {"x":271.4,"y":198.0,"w":69.0,"h":4.0,"type":"corridor","label":""}, {"x":119.1,"y":199.6,"w":79.1,"h":22.8,"type":"bldg","zone":"南教室棟"}, {"x":121.9,"y":214.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":130.6,"y":239.6,"w":42.3,"h":34.8,"type":"bldg","zone":"本館"}, {"x":133.4,"y":254.0,"w":36.8,"h":4.0,"type":"corridor","label":""}, {"x":222.6,"y":239.6,"w":33.1,"h":16.8,"type":"bldg","zone":""}, {"x":181.2,"y":255.6,"w":37.7,"h":18.8,"type":"bldg","zone":"本館"}],
+    utils: [{"t":"WC","x":204.7,"y":242.0,"w":6.9,"h":6.0}, {"t":"WC","x":195.5,"y":152.0,"w":6.9,"h":12.0}, {"t":"WC","x":195.5,"y":202.0,"w":6.9,"h":12.0}, {"t":"WC","x":326.6,"y":158.0,"w":9.2,"h":12.0}, {"t":"WC","x":262.2,"y":208.0,"w":9.2,"h":12.0}, {"t":"WC","x":262.2,"y":158.0,"w":9.2,"h":12.0}, {"t":"WC","x":204.7,"y":248.0,"w":6.9,"h":6.0}],
     rooms: [
-      {"x":271.4,"y":130.0,"w":36.8,"h":18.0,"id":"2F-01","nm":"土木情報実習室"},
-      {"x":308.2,"y":130.0,"w":18.4,"h":18.0,"id":"2F-02","nm":"CAD実習室"},
-      {"x":335.8,"y":130.0,"w":20.7,"h":18.0,"id":"2F-03","nm":"通信実習室"},
-      {"x":356.5,"y":130.0,"w":4.6,"h":18.0,"id":"2F-04","nm":"通信準備室"},
-      {"x":361.1,"y":130.0,"w":20.7,"h":18.0,"id":"2F-05","nm":"電子機器室"},
-      {"x":381.8,"y":130.0,"w":20.7,"h":18.0,"id":"2F-06","nm":"電気磁気室"},
-      {"x":121.9,"y":152.0,"w":18.4,"h":12.0,"id":"2F-07","nm":"電子機２"},
-      {"x":140.3,"y":152.0,"w":18.4,"h":12.0,"id":"2F-08","nm":"機械２"},
-      {"x":158.7,"y":152.0,"w":18.4,"h":12.0,"id":"2F-09","nm":"材料２"},
-      {"x":177.1,"y":152.0,"w":18.4,"h":12.0,"id":"2F-10","nm":"土木２"},
-      {"x":216.2,"y":152.0,"w":13.8,"h":12.0,"id":"2F-11","nm":"無線部室"},
-      {"x":271.4,"y":152.0,"w":36.8,"h":18.0,"id":"2F-12","nm":"製図室"},
-      {"x":308.2,"y":152.0,"w":18.4,"h":18.0,"id":"2F-13","nm":"情報応用室"},
-      {"x":335.8,"y":152.0,"w":23.0,"h":18.0,"id":"2F-14","nm":"計測実習室"},
-      {"x":358.8,"y":152.0,"w":4.6,"h":18.0,"id":"2F-15","nm":"暗室"},
-      {"x":363.4,"y":152.0,"w":4.6,"h":18.0,"id":"2F-16","nm":"電子磁気準備室"},
-      {"x":368.0,"y":152.0,"w":34.5,"h":18.0,"id":"2F-17","nm":"電子計算機室"},
-      {"x":271.4,"y":180.0,"w":20.7,"h":18.0,"id":"2F-18","nm":"電気実習室"},
-      {"x":292.1,"y":180.0,"w":11.5,"h":18.0,"id":"2F-19","nm":"資料室"},
-      {"x":303.6,"y":180.0,"w":16.1,"h":18.0,"id":"2F-20","nm":"制御実習室"},
-      {"x":319.7,"y":180.0,"w":20.7,"h":18.0,"id":"2F-21","nm":"専攻科１年"},
-      {"x":121.9,"y":202.0,"w":18.4,"h":12.0,"id":"2F-22","nm":"電気３"},
-      {"x":140.3,"y":202.0,"w":18.4,"h":12.0,"id":"2F-23","nm":"電子３"},
-      {"x":158.7,"y":202.0,"w":18.4,"h":12.0,"id":"2F-24","nm":"選択②"},
-      {"x":177.1,"y":202.0,"w":18.4,"h":12.0,"id":"2F-25","nm":"選択①"},
-      {"x":216.2,"y":202.0,"w":13.8,"h":12.0,"id":"2F-26","nm":"生徒会室"},
-      {"x":271.4,"y":202.0,"w":16.1,"h":18.0,"id":"2F-27","nm":"専攻科職員室"},
-      {"x":287.5,"y":202.0,"w":18.4,"h":18.0,"id":"2F-28","nm":"専攻科２年"},
-      {"x":305.9,"y":202.0,"w":6.9,"h":18.0,"id":"2F-29","nm":"化学分析準備室"},
-      {"x":312.8,"y":202.0,"w":27.6,"h":18.0,"id":"2F-30","nm":"化学分析実習室"},
-      {"x":133.4,"y":242.0,"w":9.2,"h":12.0,"id":"2F-31","nm":"教育支援談室"},
-      {"x":142.6,"y":242.0,"w":27.6,"h":12.0,"id":"2F-32","nm":"理科教室"},
-      {"x":170.2,"y":242.0,"w":11.5,"h":12.0,"id":"2F-33","nm":"更衣室"},
-      {"x":181.7,"y":242.0,"w":23.0,"h":12.0,"id":"2F-34","nm":"会議室"},
-      {"x":225.4,"y":242.0,"w":27.6,"h":12.0,"id":"2F-35","nm":"図書室"},
-      {"x":133.4,"y":258.0,"w":32.2,"h":14.0,"id":"2F-36","nm":"化学実験室"},
-      {"x":165.6,"y":258.0,"w":9.2,"h":14.0,"id":"2F-37","nm":"化学準備室"},
-      {"x":174.8,"y":258.0,"w":9.2,"h":14.0,"id":"2F-38","nm":"物理準備室"},
-      {"x":184.0,"y":258.0,"w":32.2,"h":14.0,"id":"2F-39","nm":"物理実験室"},
-      {"x":216.2,"y":258.0,"w":9.2,"h":14.0,"id":"2F-40","nm":"書庫"},
-      {"x":225.4,"y":258.0,"w":11.5,"h":14.0,"id":"2F-41","nm":"司書室"},
-    ]
+      {"x":271.4,"y":130.0,"w":36.8,"h":18.0,"id":"2F-01","nm":"土木情報実習室","z":"土木科実習棟"},
+      {"x":308.2,"y":130.0,"w":18.4,"h":18.0,"id":"2F-02","nm":"CAD実習室","z":"土木科実習棟"},
+      {"x":335.8,"y":130.0,"w":20.7,"h":18.0,"id":"2F-03","nm":"通信実習室","z":"電子科実習棟"},
+      {"x":361.1,"y":130.0,"w":20.7,"h":18.0,"id":"2F-04","nm":"電子機器室","z":"電子科実習棟"},
+      {"x":381.8,"y":130.0,"w":20.7,"h":18.0,"id":"2F-05","nm":"電気磁気室","z":"電子科実習棟"},
+      {"x":121.9,"y":152.0,"w":18.4,"h":12.0,"id":"2F-06","nm":"電子機２","z":"北教室棟"},
+      {"x":140.3,"y":152.0,"w":18.4,"h":12.0,"id":"2F-07","nm":"機械２","z":"北教室棟"},
+      {"x":158.7,"y":152.0,"w":18.4,"h":12.0,"id":"2F-08","nm":"材料２","z":"北教室棟"},
+      {"x":177.1,"y":152.0,"w":18.4,"h":12.0,"id":"2F-09","nm":"土木２","z":"北教室棟"},
+      {"x":271.4,"y":152.0,"w":36.8,"h":18.0,"id":"2F-10","nm":"製図室","z":"土木科実習棟"},
+      {"x":308.2,"y":152.0,"w":18.4,"h":18.0,"id":"2F-11","nm":"情報応用室","z":"土木科実習棟"},
+      {"x":335.8,"y":152.0,"w":23.0,"h":18.0,"id":"2F-12","nm":"計測実習室","z":"電子科実習棟"},
+      {"x":368.0,"y":152.0,"w":34.5,"h":18.0,"id":"2F-13","nm":"電子計算機室","z":"電子科実習棟"},
+      {"x":271.4,"y":180.0,"w":20.7,"h":18.0,"id":"2F-14","nm":"電気実習室","z":"土木科実習棟"},
+      {"x":303.6,"y":180.0,"w":16.1,"h":18.0,"id":"2F-15","nm":"制御実習室","z":"土木科実習棟"},
+      {"x":319.7,"y":180.0,"w":20.7,"h":18.0,"id":"2F-16","nm":"専攻科１年","z":"土木科実習棟"},
+      {"x":121.9,"y":202.0,"w":18.4,"h":12.0,"id":"2F-17","nm":"電気３","z":"南教室棟"},
+      {"x":140.3,"y":202.0,"w":18.4,"h":12.0,"id":"2F-18","nm":"電子３","z":"南教室棟"},
+      {"x":158.7,"y":202.0,"w":18.4,"h":12.0,"id":"2F-19","nm":"選択②","z":"南教室棟"},
+      {"x":177.1,"y":202.0,"w":18.4,"h":12.0,"id":"2F-20","nm":"選択①","z":"南教室棟"},
+      {"x":287.5,"y":202.0,"w":18.4,"h":18.0,"id":"2F-21","nm":"専攻科２年","z":"専攻科棟"},
+      {"x":312.8,"y":202.0,"w":27.6,"h":18.0,"id":"2F-22","nm":"化学分析実習室","z":"専攻科棟"},
+      {"x":142.6,"y":242.0,"w":27.6,"h":12.0,"id":"2F-23","nm":"理科教室","z":"南教室棟"},
+      {"x":225.4,"y":242.0,"w":27.6,"h":12.0,"id":"2F-24","nm":"図書室","z":"本館"},
+      {"x":133.4,"y":258.0,"w":32.2,"h":14.0,"id":"2F-25","nm":"化学実験室","z":"本館"},
+      {"x":184.0,"y":258.0,"w":32.2,"h":14.0,"id":"2F-26","nm":"物理実験室","z":"本館"},
+    ],
+    hidden: [{"x":174.8,"y":258.0,"w":9.2,"h":14.0,"id":"2X-01","nm":"物理準備室","z":"本館"}, {"x":133.4,"y":242.0,"w":9.2,"h":12.0,"id":"2X-02","nm":"教育支援談室","z":"南教室棟"}, {"x":363.4,"y":152.0,"w":4.6,"h":18.0,"id":"2X-03","nm":"電子磁気準備室","z":"電子科実習棟"}, {"x":170.2,"y":242.0,"w":11.5,"h":12.0,"id":"2X-04","nm":"更衣室","z":"本館"}, {"x":271.4,"y":202.0,"w":16.1,"h":18.0,"id":"2X-05","nm":"専攻科職員室","z":"専攻科棟"}, {"x":216.2,"y":202.0,"w":13.8,"h":12.0,"id":"2X-06","nm":"生徒会室","z":"南教室棟"}, {"x":181.7,"y":242.0,"w":23.0,"h":12.0,"id":"2X-07","nm":"会議室","z":"本館"}, {"x":356.5,"y":130.0,"w":4.6,"h":18.0,"id":"2X-08","nm":"通信準備室","z":"電子科実習棟"}, {"x":305.9,"y":202.0,"w":6.9,"h":18.0,"id":"2X-09","nm":"化学分析準備室","z":"専攻科棟"}, {"x":225.4,"y":258.0,"w":11.5,"h":14.0,"id":"2X-10","nm":"司書室","z":"本館"}, {"x":292.1,"y":180.0,"w":11.5,"h":18.0,"id":"2X-11","nm":"資料室","z":"土木科実習棟"}, {"x":216.2,"y":152.0,"w":13.8,"h":12.0,"id":"2X-12","nm":"無線部室","z":"北教室棟"}, {"x":165.6,"y":258.0,"w":9.2,"h":14.0,"id":"2X-13","nm":"化学準備室","z":"本館"}, {"x":358.8,"y":152.0,"w":4.6,"h":18.0,"id":"2X-14","nm":"暗室","z":"電子科実習棟"}, {"x":216.2,"y":258.0,"w":9.2,"h":14.0,"id":"2X-15","nm":"書庫","z":"本館"}]
   },
   3: {
     zones: [{"label":"■ 北教室棟","x":144.9,"y":36.0}, {"label":"■ 南教室棟","x":144.9,"y":72.0}, {"label":"■ 本館","x":200.1,"y":118.0}],
-    struct: [{"x":119.1,"y":7.6,"w":86.0,"h":16.8,"type":"bldg"}, {"x":119.1,"y":43.6,"w":86.0,"h":16.8,"type":"bldg"}, {"x":130.6,"y":77.6,"w":125.1,"h":34.8,"type":"bldg"}],
-    utils: [{"t":"WC","x":195.5,"y":10.0,"w":6.9,"h":12.0}, {"t":"WC","x":195.5,"y":46.0,"w":6.9,"h":12.0}, {"t":"WC","x":202.4,"y":80.0,"w":6.9,"h":12.0}],
+    struct: [{"x":119.1,"y":7.6,"w":79.1,"h":22.8,"type":"bldg","zone":"北教室棟"}, {"x":121.9,"y":22.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":119.1,"y":43.6,"w":79.1,"h":22.8,"type":"bldg","zone":"南教室棟"}, {"x":121.9,"y":58.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":130.6,"y":77.6,"w":125.1,"h":34.8,"type":"bldg","zone":"本館"}, {"x":220.8,"y":80.0,"w":4.6,"h":30.0,"type":"corridor","label":""}],
+    utils: [{"t":"WC","x":202.4,"y":80.0,"w":6.9,"h":12.0}, {"t":"WC","x":195.5,"y":10.0,"w":6.9,"h":12.0}, {"t":"WC","x":195.5,"y":46.0,"w":6.9,"h":12.0}],
     rooms: [
-      {"x":121.9,"y":10.0,"w":18.4,"h":12.0,"id":"3F-01","nm":"電子機１"},
-      {"x":140.3,"y":10.0,"w":18.4,"h":12.0,"id":"3F-02","nm":"機械１"},
-      {"x":158.7,"y":10.0,"w":18.4,"h":12.0,"id":"3F-03","nm":"材料１"},
-      {"x":177.1,"y":10.0,"w":18.4,"h":12.0,"id":"3F-04","nm":"土木１"},
-      {"x":121.9,"y":46.0,"w":18.4,"h":12.0,"id":"3F-05","nm":"電気２"},
-      {"x":140.3,"y":46.0,"w":18.4,"h":12.0,"id":"3F-06","nm":"電子２"},
-      {"x":158.7,"y":46.0,"w":18.4,"h":12.0,"id":"3F-07","nm":"電気１"},
-      {"x":177.1,"y":46.0,"w":18.4,"h":12.0,"id":"3F-08","nm":"電子１"},
-      {"x":133.4,"y":80.0,"w":25.3,"h":12.0,"id":"3F-09","nm":"資料室"},
-      {"x":158.7,"y":80.0,"w":6.9,"h":12.0,"id":"3F-10","nm":"更衣室"},
-      {"x":165.6,"y":80.0,"w":6.9,"h":12.0,"id":"3F-11","nm":"美術準備室"},
-      {"x":172.5,"y":80.0,"w":29.9,"h":12.0,"id":"3F-12","nm":"美術室"},
-      {"x":209.3,"y":80.0,"w":6.9,"h":10.0,"id":"3F-13","nm":"暗室"},
-      {"x":225.4,"y":80.0,"w":27.6,"h":24.0,"id":"3F-14","nm":"視聴覚室"},
-      {"x":133.4,"y":96.0,"w":39.1,"h":14.0,"id":"3F-15","nm":"音楽室"},
-      {"x":172.5,"y":96.0,"w":48.3,"h":14.0,"id":"3F-16","nm":"CAI教室"},
-      {"x":220.8,"y":104.0,"w":32.2,"h":6.0,"id":"3F-17","nm":"CAI準備室 視聴覚準備室"},
-    ]
+      {"x":121.9,"y":10.0,"w":18.4,"h":12.0,"id":"3F-01","nm":"電子機１","z":"北教室棟"},
+      {"x":140.3,"y":10.0,"w":18.4,"h":12.0,"id":"3F-02","nm":"機械１","z":"北教室棟"},
+      {"x":158.7,"y":10.0,"w":18.4,"h":12.0,"id":"3F-03","nm":"材料１","z":"北教室棟"},
+      {"x":177.1,"y":10.0,"w":18.4,"h":12.0,"id":"3F-04","nm":"土木１","z":"北教室棟"},
+      {"x":121.9,"y":46.0,"w":18.4,"h":12.0,"id":"3F-05","nm":"電気２","z":"南教室棟"},
+      {"x":140.3,"y":46.0,"w":18.4,"h":12.0,"id":"3F-06","nm":"電子２","z":"南教室棟"},
+      {"x":158.7,"y":46.0,"w":18.4,"h":12.0,"id":"3F-07","nm":"電気１","z":"南教室棟"},
+      {"x":177.1,"y":46.0,"w":18.4,"h":12.0,"id":"3F-08","nm":"電子１","z":"南教室棟"},
+      {"x":172.5,"y":80.0,"w":29.9,"h":12.0,"id":"3F-09","nm":"美術室","z":"南教室棟"},
+      {"x":225.4,"y":80.0,"w":27.6,"h":24.0,"id":"3F-10","nm":"視聴覚室","z":"本館"},
+      {"x":133.4,"y":96.0,"w":39.1,"h":14.0,"id":"3F-11","nm":"音楽室","z":"本館"},
+      {"x":172.5,"y":96.0,"w":48.3,"h":14.0,"id":"3F-12","nm":"CAI教室","z":"本館"},
+    ],
+    hidden: [{"x":220.8,"y":104.0,"w":32.2,"h":6.0,"id":"3X-01","nm":"CAI準備室 視聴覚準備室","z":"本館"}, {"x":158.7,"y":80.0,"w":6.9,"h":12.0,"id":"3X-02","nm":"更衣室","z":"南教室棟"}, {"x":165.6,"y":80.0,"w":6.9,"h":12.0,"id":"3X-03","nm":"美術準備室","z":"南教室棟"}, {"x":133.4,"y":80.0,"w":25.3,"h":12.0,"id":"3X-04","nm":"資料室","z":"南教室棟"}, {"x":209.3,"y":80.0,"w":6.9,"h":10.0,"id":"3X-05","nm":"暗室","z":"本館"}]
   }
 };
 // floor=2 のブースが来た場合に割り当てる予備スロット
@@ -1590,7 +1790,8 @@ const ICON_WIFI  = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill=
 const ICON_WRENCH= `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5a4.5 4.5 0 0 0 5.6 5.6L11 19.7a2.4 2.4 0 1 1-3.4-3.4z"/></svg>`;
 
 const S = {
-  sheetId: null, sheetFrom: null,
+  sheetId: null, sheetFrom: null, sheetFromKey: null, dept: null, spot: null, dupIds: [], routeAll: false,
+  pendingLink: null,      // QRで来たがデータ未着のときの保留処理
   booths: [],
   numbers: new Map(),
   visitors: { today: 0, updatedAt: null },
@@ -1613,6 +1814,7 @@ const S = {
   q: '',
   stamps: new Set(),
   watch: new Set(),       // 空いたら知らせてほしいブース
+  watchLv: {},            // 登録した時点の混み具合（これより空いたら知らせる）
   assigned: new Set(),
   isAdmin: false,
   draftWait: {},        // 送信前の待ち人数（自動同期で消さないため）
@@ -1630,8 +1832,13 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
  * 画面下部の通知。action を渡すと押せるボタンが付く（取り消し用）。
  * @param {{label:string, fn:Function}=} action
  */
+/** 動きを減らす設定のときはスムーススクロールもやめる（前庭障害・片頭痛対策） */
+const REDUCE_MOTION = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches:false };
+function smoothBehavior(){ return REDUCE_MOTION.matches ? 'auto' : 'smooth'; }
+
 function toast(msg, action){
   const t = $('#toast');
+  t.textContent = '';          // 同じ文言でも読み上げが再発火するよう一度空にする
   t.textContent = msg;
   let ms = 2200;
   if (action){
@@ -1647,6 +1854,17 @@ function toast(msg, action){
   toast._t = setTimeout(() => t.classList.remove('on'), ms);
 }
 function store(k, v){ try{ v===undefined ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+/** この端末を表すランダムな文字列。個人情報は含まない */
+function deviceId(){
+  if (deviceId._v) return deviceId._v;
+  let v = load('kuroko_cid', null);
+  if (!v){
+    v = (Math.random().toString(36).slice(2) + Date.now().toString(36)).slice(0, 20);
+    store('kuroko_cid', v);
+  }
+  deviceId._v = v;
+  return v;
+}
 function load(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } }
 
 /* =====================================================================
@@ -1661,7 +1879,9 @@ async function api(opts){
     if (opts && opts.body){
       init.method = 'POST';
       // Content-Type を指定しない = プリフライトを避ける（GAS制約）
-      init.body = JSON.stringify(opts.body);
+      // cid は端末の識別子。パスワードの失敗回数を端末ごとに数えるために使う
+      // （全員で1つのカウンタだと、数人の打ち間違いで全係員が締め出される）
+      init.body = JSON.stringify(Object.assign({ cid: deviceId() }, opts.body));
     } else {
       url += (url.includes('?') ? '&' : '?') + '_=' + Date.now();
     }
@@ -1673,21 +1893,43 @@ async function api(opts){
   } finally { clearTimeout(to); }
 }
 
+/**
+ * 待ち人数を数値にそろえる。
+ * 「10人」「５」「—」のような値がシートに入っていても NaN を画面に出さない。
+ * 全角数字は半角へ、数字以外の文字は落とす。数にできなければ null（＝人数なし）。
+ */
+function toWait(v){
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'number') return isFinite(v) && v >= 0 ? Math.round(v) : null;
+  const t = String(v).trim()
+    .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[^\d.\-]/g, '');
+  if (t === '') return null;
+  const n = Number(t);
+  return isFinite(n) && n >= 0 ? Math.round(n) : null;
+}
+
 function normalize(raw){
   // 旧API（配列のみ）にも新API（{ok,booths}）にも対応
-  const arr = Array.isArray(raw) ? raw : (raw && raw.booths) || [];
-  const seen = new Set();
-  return arr.filter(b => {
+  const src = Array.isArray(raw) ? raw : (raw && raw.booths);
+  // 配列以外（オブジェクト形式）で来ても捨てずに拾う
+  const arr = Array.isArray(src) ? src
+            : (src && typeof src === 'object') ? Object.values(src) : [];
+  const seen = new Set(), dup = [];
+  const kept = arr.filter(b => {
     if (!b || b.id == null) return false;
     const id = String(b.id).trim();
-    if (!id || seen.has(id)) return false;   // idの重複でマップが壊れるのを防ぐ
+    if (!id) return false;
+    if (seen.has(id)){ dup.push(id); return false; }   // idの重複でマップが壊れるのを防ぐ
     seen.add(id); return true;
-  }).map(b => ({
+  });
+  S.dupIds = Array.from(new Set(dup));
+  return kept.map(b => ({
     id: String(b.id).trim(),
     name: String(b.name ?? '名称未設定').trim(),
     status: String(b.status ?? '').trim(),
     stale: b.stale === true,
-    wait: (b.wait === null || b.wait === undefined || b.wait === '') ? null : Number(b.wait),
+    wait: toWait(b.wait),
     time: b.time || null,
     category: String(b.category || 'その他').trim(),
     floor: [0,1,2,3].indexOf(Number(b.floor)) >= 0 ? Number(b.floor) : 1,
@@ -1700,22 +1942,33 @@ function normalize(raw){
 async function sync(manual){
   // 手動更新と自動更新が重ならないようにする
   if (sync._busy){ if (manual) toast('更新中です'); return; }
+  // 係員の送信中に取り込むと、送った値が古い値で上書きされて見える
+  if (update._busy && !manual){ schedule(); return; }
   sync._busy = true;
   try{
     const raw = await api();
     const booths = normalize(raw);
-    if (!booths.length) throw new Error('データが空です');
+    // 0件は「まだ登録されていない」だけで障害ではない。
+    // ここで例外にすると5分バックオフに入り、先生がブースを足しても反映されなくなる。
     S.booths = booths;
     S.numbers = new Map(booths.map((b, i) => [b.id, i + 1]));   // 紙のマップと共通の通し番号
+    restoreHiddenRooms();
+    pickStartFloor();
     S.notice = (raw && raw.notice) || null;
     if (raw && raw.visitors) S.visitors = raw.visitors;
-    if (raw && raw.waitThresholds) S.waitTh = raw.waitThresholds;
+    const th = raw && raw.waitThresholds;
+    // {} や null が来ると閾値が NaN になり、印刷物にまで NaN が刷られる
+    if (th && isFinite(+th.warn) && isFinite(+th.busy) && +th.warn < +th.busy){
+      S.waitTh = { warn:+th.warn, busy:+th.busy };
+    }
     S.updatedAt = (raw && raw.updatedAt) || new Date().toISOString();
     S.fetchedAt = Date.now();
     S.online = true; S.failures = 0;
     store('kuroko_cache_v2', { booths, notice: S.notice, updatedAt: S.updatedAt, fetchedAt: S.fetchedAt });
     checkWatch();
     renderAll();
+    // QRで来たが最初の同期に失敗していた場合、ここで拾い直す
+    if (S.pendingLink && S.pendingLink()) S.pendingLink = null;
     if (manual) toast('最新の状況に更新しました');
   }catch(err){
     S.online = false; S.failures++;
@@ -1747,8 +2000,9 @@ document.addEventListener('visibilitychange', () => {
    同期ステータス表示
    ===================================================================== */
 function ago(ts){
-  if (!ts) return '未取得';
-  const m = Math.floor((Date.now() - new Date(ts).getTime()) / 60000);
+  const t = ts ? new Date(ts).getTime() : NaN;
+  if (!isFinite(t)) return '未取得';        // 不正な日付で「NaN時間前」を出さない
+  const m = Math.floor((Date.now() - t) / 60000);
   if (m < 1) return 'たった今';
   if (m < 60) return m + '分前';
   return Math.floor(m / 60) + '時間前';
@@ -1756,18 +2010,24 @@ function ago(ts){
 function renderSyncState(){
   const dot = $('#sync-dot'), txt = $('#sync-text');
   const age = Date.now() - S.fetchedAt;
-  $('#banner-offline').classList.toggle('hide', S.online || !S.booths.length);
+  // 初回訪問（保存データなし）で通信できないときこそ、いちばん説明が要る。
+  // 以前は !S.booths.length でバナーごと隠していたため、
+  // 最も困る場面で灰色の枠だけが出て「壊れている」ようにしか見えなかった。
+  $('#banner-offline').classList.toggle('hide', S.online);
   if (!S.online){
     const net = S.errKind !== 'server';
+    const has = S.booths.length > 0;
     $('#banner-offline-icon').innerHTML = net ? ICON_WIFI : ICON_WRENCH;
-    $('#banner-offline-text').textContent = net
-      ? '通信できません。電波の良い場所へ移動してください。最後に取得した情報を表示しています。'
-      : '案内システムが一時的に応答していません。最後に取得した情報を表示しています。';
+    $('#banner-offline-text').textContent = has
+      ? (net ? '通信できません。電波の良い場所へ移動してください。最後に取得した情報を表示しています。'
+             : '案内システムが一時的に応答していません。最後に取得した情報を表示しています。')
+      : '混雑状況を取れませんでした。校内マップと出し物の一覧は下に出ています。'
+        + 'くわしい待ち時間は、各ブースの入口の掲示か、近くの係の人にきいてください。';
     dot.className = 'dot down';
-    txt.textContent = S.booths.length ? `オフライン・${ago(S.updatedAt)}の情報` : '接続できません';
+    txt.textContent = S.booths.length ? `つながっていません・${ago(S.updatedAt)}の情報` : 'つながっていません';
   } else if (S.fetchedAt && age > CONFIG.STALE_MS){
     dot.className = 'dot stale';
-    txt.textContent = `情報がやや古い（${ago(S.updatedAt)}）`;
+    txt.textContent = `情報が少し古いです（${ago(S.updatedAt)}）`;
   } else {
     dot.className = 'dot';
     txt.textContent = `リアルタイム更新中・${ago(S.updatedAt)}`;
@@ -1782,18 +2042,80 @@ setInterval(() => {
 /* =====================================================================
    マップ描画
    ===================================================================== */
-function defs(){
-  return `<defs>
-    <pattern id="pat-warn" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <rect width="7" height="7" fill="var(--warn)"/>
-      <rect width="3" height="7" fill="rgba(255,255,255,.55)"/>
-    </pattern>
-    <pattern id="pat-busy" width="6" height="6" patternUnits="userSpaceOnUse">
-      <rect width="6" height="6" fill="var(--busy)"/>
-      <circle cx="3" cy="3" r="1.3" fill="rgba(255,255,255,.75)"/>
-    </pattern>
-  </defs>`;
+/** 道の真ん中に白い破線を引く（車道だと一目で分かる） */
+function roadLine(st){
+  const horiz = st.w >= st.h;
+  const cx = st.x + st.w / 2, cy = st.y + st.h / 2;
+  const d = horiz
+    ? `M${(st.x + 3).toFixed(1)} ${cy.toFixed(1)}H${(st.x + st.w - 3).toFixed(1)}`
+    : `M${cx.toFixed(1)} ${(st.y + 3).toFixed(1)}V${(st.y + st.h - 3).toFixed(1)}`;
+  return `<path class="road-line" d="${d}"/>`;
 }
+
+/**
+ * 科ごとの色。「どこに何があるか」を、部屋名を読まなくても掴めるようにする。
+ * 色覚に多様性があっても見分けられるよう、P型・D型・T型の見え方を計算して
+ * いちばん似ている組の差が最大になる組み合わせを選んである（最小距離 44/255）。
+ * それでも色だけに頼らせないため、凡例はタップで絞り込める（色が分からなくても使える）。
+ */
+const DEPTS = [
+  { z:'電子機械科実習棟', s:'電子機械科', c:'#6699CC' },
+  { z:'機械科実習棟',     s:'機械科',     c:'#7570B3' },
+  { z:'材料技術科実習棟', s:'材料技術科', c:'#762A83' },
+  { z:'家庭科実習棟',     s:'家庭科',     c:'#D95F02' },
+  { z:'土木科実習棟',     s:'土木科',     c:'#E69F00' },
+  { z:'電気科実習棟',     s:'電気科',     c:'#008080' },
+  { z:'電子科実習棟',     s:'電子科',     c:'#44AA99' },
+  { z:'専攻科棟',         s:'専攻科',     c:'#999933' },
+  { z:'北教室棟',         s:'北教室棟',   c:'#4D4D4D' },
+  { z:'南教室棟',         s:'南教室棟',   c:'#4D4D4D' },
+  { z:'本館',             s:'本館',       c:'#88CCEE' }
+];
+const DEPT_BY_ZONE = Object.fromEntries(DEPTS.map(d => [d.z, d]));
+function deptOf(room){ return room && room.z ? DEPT_BY_ZONE[room.z] : null; }
+
+/** 地図の下に出す「科の色」の凡例。その階にある科だけを出す */
+/** 出入口かどうか（昇降口・玄関） */
+function isEntrance(nm){ return /昇降口|玄関/.test(String(nm || '')); }
+
+function renderDeptLegend(floorNum){
+  const box = $('#dept-legend');
+  if (!box) return;
+  const plan = FLOOR_PLAN[floorNum];
+  const seen = [];
+  (plan.rooms || []).forEach(r => {
+    const d = deptOf(r);
+    if (d && seen.indexOf(d) < 0) seen.push(d);
+  });
+  box.classList.toggle('hide', !seen.length);
+  // 押すとその科だけを残す。「電気科どこ？」に一発で答えられるようにする
+  const hasWc = (plan.utils || []).length > 0;
+  const hasEnt = (plan.rooms || []).some(r => isEntrance(r.nm));
+  box.innerHTML =
+    ((hasWc || hasEnt) ? `<button class="fac" data-dept="__fac" aria-pressed="${S.dept === '__fac'}"
+        >🚻 トイレ・出入口</button>` : '') +
+    seen.map(d =>
+    `<button data-dept="${esc(d.z)}" aria-pressed="${S.dept === d.z}"
+       ><i style="background:${d.c}"></i>${esc(d.s)}</button>`).join('') +
+    (S.dept ? `<button class="dept-clear" data-dept="">絞り込みを解除</button>` : '');
+  $$('[data-dept]', box).forEach(el => el.addEventListener('click', () => {
+    const z = el.dataset.dept;
+    S.dept = (S.dept === z || !z) ? null : z;
+    drawFloor(S.floor);
+    if (S.dept === '__fac') toast('トイレと出入口を目立たせています');
+    else if (S.dept){
+      const d = DEPT_BY_ZONE[S.dept];
+      toast(`${d ? d.s : S.dept}だけを表示しています`);
+    }
+  }));
+}
+
+/**
+ * パターンの定義は文書に1つだけ置く（body直下の .svg-defs）。
+ * SVGごとに同じidで持たせると、非表示側の定義が先に解決されて
+ * 塗りが消えることがある（本部ボードで実際に起きた）。
+ */
+function defs(){ return ''; }
 /**
  * 部屋の枠に収まる文字の大きさと折り返しを決める。
  * 実際の校舎図は細長い部屋が多く、固定サイズだと必ずはみ出すので、
@@ -1803,7 +2125,9 @@ function defs(){
 function fitText(text, w, h, maxSize){
   const t = String(text || '');
   if (!t) return { lines:[], size:0, rot:false };
-  const MAX = maxSize || 5.4, MIN = 2.2;
+  // 2.2px まで縮めていたが、その大きさは誰にも読めない。
+  // 読める下限を決めて、入りきらない名前は「…」で切る方が実用的。
+  const MAX = maxSize || 5.4, MIN = 3.4;
   const best = (bw, bh) => {
     let r = null;
     for (let L = 1; L <= 3; L++){
@@ -1819,9 +2143,16 @@ function fitText(text, w, h, maxSize){
   const use = b.size > a.size * 1.18 ? b : a;   // 少しの差では倒さない（読みにくいので）
   const rot = use === b;
   const size = Math.max(MIN, Math.min(MAX, use.size));
+  // MIN まで縮めても入らない場合は、はみ出すのではなく末尾を「…」にする
+  const bw = rot ? h - 3 : w - 3, bh = rot ? w - 3 : h - 3;
+  const per = Math.max(1, Math.floor(bw / size));
+  const rows = Math.max(1, Math.min(3, Math.floor(bh / (size * 1.18))));
+  const cap = per * rows;
+  const body = t.length > cap ? t.slice(0, Math.max(1, cap - 1)) + '…' : t;
+  const nL = Math.min(rows, Math.ceil(body.length / per));
   const lines = [];
-  for (let i = 0; i < use.L; i++){
-    const seg = t.slice(i * use.per, (i + 1) * use.per);
+  for (let i = 0; i < nL; i++){
+    const seg = body.slice(i * per, (i + 1) * per);
     if (seg) lines.push(seg);
   }
   return { lines, size:Math.round(size * 10) / 10, rot };
@@ -1887,14 +2218,77 @@ const ROOM_INDEX = (() => {
   const m = new Map();
   Object.keys(FLOOR_PLAN).forEach(f => {
     (FLOOR_PLAN[f].rooms || []).forEach(r => m.set(r.id, { f:Number(f), r }));
+    // 地図から外してある部屋（準備室・本館1階など）も座標は持っている。
+    // ブースが割り当てられたときだけ復活させるため、索引には入れておく。
+    (FLOOR_PLAN[f].hidden || []).forEach(r => m.set(r.id, { f:Number(f), r, hidden:true }));
   });
   return m;
 })();
-function flLabel(b){ const f = floorOfBooth(b); return f === 0 ? '屋外' : f + 'F'; }
+
+/**
+ * ブースが割り当てられた「ひかえ」の部屋を、その階の地図に足す。
+ * 先生が保健室や中会議室でブースを出しても、地図に出ないという事故を防ぐ。
+ */
+/**
+ * 最初に開く階を決める。前回見ていた階があればそこ、無ければブースが
+ * いちばん多い階。「開いたら何も無い階だった」を避ける。
+ */
+function pickStartFloor(){
+  if (pickStartFloor._done) return;
+  pickStartFloor._done = true;
+  if (S.view !== 'map') return;
+  const saved = load('kuroko_floor', null);
+  if (saved != null && FLOOR_PLAN[saved]){
+    if (saved !== S.floor) setFloor(Number(saved));
+    return;
+  }
+  // 「ブースが多い階」ではなく「地図に出せるブースが多い階」を選ぶ。
+  // 部屋IDが図面に無いブースばかりの階を最初に出すと、
+  // 開いた瞬間に何も載っていない地図が出てしまう。
+  const cnt = {}, placed = {};
+  S.booths.forEach(b => {
+    const f = floorOfBooth(b);
+    cnt[f] = (cnt[f] || 0) + 1;
+    if (slotOf(b.id)) placed[f] = (placed[f] || 0) + 1;
+  });
+  const pick = table => {
+    let bf = null, bn = 0;
+    Object.keys(table).forEach(f => { if (table[f] > bn){ bn = table[f]; bf = Number(f); } });
+    return bn > 0 ? bf : null;
+  };
+  const bestF = pick(placed) !== null ? pick(placed) : pick(cnt);
+  if (bestF !== null && bestF !== S.floor) setFloor(bestF);
+}
+
+function restoreHiddenRooms(){
+  let added = 0;
+  S.booths.forEach(b => {
+    const v = ROOM_INDEX.get(b.id);
+    if (!v || !v.hidden) return;
+    const plan = FLOOR_PLAN[v.f];
+    if (plan.rooms.some(r => r.id === b.id)) return;
+    plan.rooms.push(v.r);
+    added++;
+  });
+  if (added){ drawFloor._fp = null; }
+  return added;
+}
+/** 部屋名。ブース名に既に入っているときは出さない（「北棟昇降口 受付／北棟昇降口」の重複を避ける） */
+function roomLabel(b){
+  const sl = slotOf(b.id);
+  if (!sl || !sl.nm) return '';
+  const nm = sl.nm, name = String(b.name || '');
+  if (name === nm || name.indexOf(nm) >= 0) return '';
+  return nm;
+}
+function flLabel(b){ const f = floorOfBooth(b); return f === 0 ? '屋外' : f + '階'; }
 function slotOf(id){ const v = ROOM_INDEX.get(id); return v ? v.r : null; }
 function floorOfBooth(b){
   const v = ROOM_INDEX.get(b.id);
-  return v ? v.f : Number(b.floor) || 1;
+  if (v) return v.f;
+  // Number(0) || 1 は 1 になる。屋外(0階)が1Fに飛ばされるので明示的に判定する
+  const f = Number(b.floor);
+  return [0,1,2,3].indexOf(f) >= 0 ? f : 1;
 }
 /** この階に表示するフロア一覧（?mode=layout も使う） */
 const FLOORS = [
@@ -1917,8 +2311,43 @@ function planViewBox(floorNum){
   return `${x0} ${y0} ${x1 - x0} ${y1 - y0}`;
 }
 
+/**
+ * ブースのメモから時刻を拾って「まもなく／開催中」を判定する。
+ * 「ロボット実演 11:00〜」のように書いてあれば、10:45 に「まもなく」と出せる。
+ * 係員が特別な入力をしなくても、いつもの書き方のまま効くようにしている。
+ */
+const SOON_MIN = 20;       // 何分前から「まもなく」と出すか
+const RUN_MIN  = 30;       // 開始後どれくらい「開催中」と見なすか
+function noteTimes(note){
+  const out = [];
+  String(note || '').replace(/(\d{1,2})[:：](\d{2})/g, (_, h, m) => {
+    const v = Number(h) * 60 + Number(m);
+    if (v >= 0 && v < 24 * 60) out.push(v);
+    return _;
+  });
+  return out;
+}
+function eventState(b){
+  const ts = noteTimes(b && b.note);
+  if (!ts.length) return null;
+  const now = new Date();
+  const mins = now.getHours() * 60 + now.getMinutes();
+  let best = null;
+  ts.forEach(t => {
+    const d = t - mins;
+    if (d >= 0 && d <= SOON_MIN){ if (!best || best.kind !== 'now') best = { kind:'soon', min:d, at:t }; }
+    else if (d < 0 && d >= -RUN_MIN) best = { kind:'now', min:-d, at:t };
+  });
+  return best;
+}
+function eventLabel(b){
+  const e = eventState(b);
+  if (!e) return '';
+  return e.kind === 'now' ? '開催中' : (e.min <= 1 ? 'まもなく' : `あと${e.min}分`);
+}
+
 function drawFloor(floorNum){
-  const fp = fingerprint(`map:${floorNum}:${S.route}:${hereId()}`);
+  const fp = fingerprint(`map:${floorNum}:${S.route}:${S.dept}:${S.spot}:${hereId()}:${Math.floor(Date.now() / 60000)}`);
   if (drawFloor._fp === fp) return;
   drawFloor._fp = fp;
 
@@ -1928,12 +2357,22 @@ function drawFloor(floorNum){
   let html = defs();
 
   plan.struct.forEach(st => {
-    const cls = st.type === 'outdoor' ? 'outdoor' : st.type === 'bldg' ? 'bldg' : 'struct';
+    const cls = st.type === 'outdoor' ? 'outdoor'
+              : st.type === 'blocked' ? 'blocked'
+              : st.type === 'corridor' ? 'corridor'
+              : st.type === 'road' ? 'road'
+              : st.type === 'bldg' ? 'bldg' : 'struct';
     // 屋外マップの校舎ブロックはタップで1階へ入れるようにする
     const enter = floorNum === 0 && st.type === 'bldg';
     html += `<g class="${enter ? 'bldg-tap' : ''}" ${enter ? 'data-enter="1" role="button" tabindex="0" aria-label="校舎の地図をひらく"' : ''}>
       <rect x="${st.x}" y="${st.y}" width="${st.w}" height="${st.h}" rx="5" class="${cls}"/>
-      ${st.label ? fitTextSvg(st.label, st.x, st.y - (enter ? 14 : 0), st.w, st.h, 'util', 11) : ''}
+      ${st.type === 'road' ? roadLine(st) : ''}
+      ${st.label ? (st.type === 'corridor'
+            ? fitTextSvg(st.label, st.x, st.y, st.w, st.h, 'corridor-t', 5.2)
+            : st.type === 'road'
+            ? fitTextSvg(st.label, st.x, st.y, st.w, st.h, 'road-t', 5)
+            : fitTextSvg(st.label, st.x, st.y - (enter ? 14 : 0), st.w, st.h,
+                         st.type === 'blocked' ? 'blocked-t' : 'util', 11)) : ''}
       ${enter ? `<text x="${st.x + st.w / 2}" y="${st.y + st.h / 2 + 12}" text-anchor="middle" class="util" font-size="8">タップで中の地図へ</text>` : ''}
     </g>`;
   });
@@ -1945,7 +2384,8 @@ function drawFloor(floorNum){
     const jump = /救護|WC|トイレ/.test(u.t);
     html += `<g class="${jump ? 'util-tap' : ''}" ${jump ? 'data-info="1" role="button" tabindex="0"' : ''}
               ${jump ? `aria-label="${esc(u.t)}の案内を見る"` : ''}>
-             <rect x="${u.x}" y="${u.y}" width="${u.w}" height="${u.h}" rx="3" class="util-box"/>
+             <rect x="${u.x}" y="${u.y}" width="${u.w}" height="${u.h}" rx="3"
+                   class="util-box${S.dept === '__fac' ? ' hot' : ''}"/>
              ${fitTextSvg(u.t, u.x, u.y, u.w, u.h, 'util', 6)}
              </g>`;
   });
@@ -1976,8 +2416,15 @@ function drawFloor(floorNum){
   // これが無いと校舎の形が分からず、自分がどこにいるのか掴めない。
   plan.rooms.forEach(r => {
     if (usedIds.has(r.id)) return;
-    html += `<g class="room-bg"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="4"/>`
-          + fitTextSvg(r.nm, r.x, r.y, r.w, r.h, 'bg-nm', 5) + `</g>`;
+    const ent = isEntrance(r.nm);
+    const spot = S.spot === r.id;
+    const d = deptOf(r);
+    const off = S.dept === '__fac' ? !isEntrance(r.nm)
+              : S.dept ? (!d || d.z !== S.dept) : false;
+    html += `<g class="room-bg${off ? ' faded' : ''}${ent ? ' entrance' : ''}${spot ? ' spot' : ''}"${d ? ` style="--dept:${d.c}"` : ''}>`
+          + `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="4"${d && !ent ? ' class="dept"' : ''}/>`
+          + (d ? `<rect class="dept-bar" x="${r.x}" y="${r.y}" width="${Math.min(3.4, r.w / 6)}" height="${r.h}" rx="1.7"/>` : '')
+          + fitTextSvg(r.nm, r.x, r.y, r.w, r.h, 'bg-nm', 6.2) + `</g>`;
   });
 
   const routeIds = S.route ? CONFIG.ROUTES[S.route] : null;
@@ -2029,7 +2476,7 @@ function drawFloor(floorNum){
     const stTxt = `${L.icon} ${stLabel}`;
     const stF = fitText(stTxt, s.w - 2, Math.max(6, s.h * 0.3), 6);
     t += `<text x="${cx}" y="${(s.y + s.h - 3).toFixed(1)}" text-anchor="middle" class="st"
-            font-size="${Math.max(3.2, stF.size)}">${esc(stTxt)}</text>`;
+            font-size="${Math.max(3.4, stF.size)}">${esc(stTxt)}</text>`;
 
     let extra = '';
     // 紙のマップと同じ番号を出す（配布物と画面で見比べられるように）
@@ -2039,6 +2486,12 @@ function drawFloor(floorNum){
     if (no && !(routeIds && routeIds.includes(b.id))){
       extra += `<g class="room-no"><circle cx="${bx}" cy="${by}" r="8"/>
                 <text x="${bx}" y="${by + 3.2}" text-anchor="middle">${no}</text></g>`;
+    }
+    const evl = eventLabel(b);
+    if (evl){
+      extra += `<g class="ev-map" data-kind="${eventState(b).kind}">
+        <rect x="${cx - 17}" y="${s.y + s.h - 6}" width="34" height="11" rx="5.5"/>
+        <text x="${cx}" y="${s.y + s.h + 1.8}" text-anchor="middle">${esc(evl)}</text></g>`;
     }
     if (S.stamps.has(b.id)){
       extra += `<circle class="stamp-mark" cx="${sx}" cy="${by}" r="8"/>
@@ -2059,9 +2512,13 @@ function drawFloor(floorNum){
                 <text class="here-tag" x="${cx}" y="${s.y + 2.4}" text-anchor="middle">いまここ</text>`;
     }
 
-    html += `<g class="room${dim}${isHere ? ' here' : ''}${isChanged(b.id) ? ' changed' : ''}" data-lv="${L.lv}" data-id="${esc(b.id)}" role="button" tabindex="0"
+    const dp = deptOf(s);
+    const dimD = (S.dept === '__fac' || (S.dept && (!dp || dp.z !== S.dept))) ? ' dimmed' : '';
+    html += `<g class="room${dim}${dimD}${isHere ? ' here' : ''}${isChanged(b.id) ? ' changed' : ''}" data-lv="${L.lv}" data-id="${esc(b.id)}" role="button" tabindex="0"
+              ${dp ? `style="--dept:${dp.c}"` : ''}
               aria-label="${esc(b.name)} ${esc(L.short)}${isHere ? '（いまここ）' : ''}">
         <rect class="fill" x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="7"/>
+        ${dp ? `<rect class="dept-bar on" x="${s.x}" y="${s.y}" width="${Math.min(3.6, s.w / 6)}" height="${s.h}" rx="1.8"/>` : ''}
         ${t}${extra}
       </g>`;
   });
@@ -2069,10 +2526,11 @@ function drawFloor(floorNum){
   if (!placed.length){
     const vb = planViewBox(floorNum).split(' ').map(Number);
     html += `<text x="${vb[0] + vb[2] / 2}" y="${vb[1] + vb[3] / 2}" text-anchor="middle"
-              class="util">このフロアに公開ブースはありません</text>`;
+              class="util">この階にはブースがありません（上のボタンで階をえらべます）</text>`;
   }
   svg.setAttribute('viewBox', planViewBox(floorNum));
   svg.classList.toggle('has-booth', placed.length > 0);
+  renderDeptLegend(floorNum);
   svg.innerHTML = html;
 
   // 図面に置き場所が無いブースを取りこぼさない。
@@ -2081,7 +2539,7 @@ function drawFloor(floorNum){
   const note = $('#map-unplaced');
   note.classList.toggle('hide', !unplaced.length);
   if (unplaced.length){
-    note.innerHTML = '図面に未配置：' + unplaced.map(b =>
+    note.innerHTML = '地図にのっていないブース（おしてくわしく）：' + unplaced.map(b =>
       `<button data-id="${esc(b.id)}">${esc(b.name)}</button>`).join('');
     $$('button', note).forEach(el => el.addEventListener('click', () => openSheet(el.dataset.id)));
   }
@@ -2150,11 +2608,27 @@ function renderHere(){
     <span class="dot" aria-hidden="true"></span>
     <span class="tx">いまここ：${esc(b.name)}
       <small>${near ? `同じ${esc(flLabel(b))}の「${esc(near.name)}」がいま空いています` : 'QRを読んだ場所を表示しています'}</small></span>
-    ${near ? `<button data-here-go="${esc(near.id)}">見る</button>` : ''}
+    ${near ? `<button data-here-go="${esc(near.id)}" aria-label="${esc(near.name)}のくわしい情報をひらく">見る</button>` : ''}
     <button data-here-x="1" aria-label="現在地の表示を消す">消す</button>`;
   const go = $('[data-here-go]', bar);
   if (go) go.addEventListener('click', () => openSheet(go.dataset.hereGo));
   $('[data-here-x]', bar).addEventListener('click', clearHere);
+}
+
+/**
+ * ボトムシートを開いている間、Tabがシートの外へ出ないようにする。
+ * aria-modal は読み上げの範囲を絞るだけで、Tab は止めない。
+ * 背後のボタンが「見えないのに押せる」状態になるのを防ぐ。
+ */
+function trapTab(e){
+  if (e.key !== 'Tab' || !S.sheetId) return;
+  const sh = $('#bsh');
+  const f = $$('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])', sh)
+    .filter(el => !el.disabled && el.offsetParent !== null);
+  if (!f.length) return;
+  const first = f[0], last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
 }
 
 function openSheet(id, fromHistory){
@@ -2165,7 +2639,14 @@ function openSheet(id, fromHistory){
   if (S.view === 'map' && bf !== S.floor) setFloor(bf);
   const first = !S.sheetId;
   S.sheetId = id;
-  S.sheetFrom = document.activeElement;
+  // 戻り先を要素そのものだけで覚えると、地図が描き直された瞬間に消える。
+  // ブースidでも控えておき、消えていたら探し直す。
+  const prev = document.activeElement;
+  S.sheetFrom = prev;
+  S.sheetFromKey = (prev && (prev.dataset && (prev.dataset.id || prev.dataset.stamp)))
+                 || (prev && prev.closest && prev.closest('.room') && prev.closest('.room').dataset.id)
+                 || null;
+  document.addEventListener('keydown', trapTab);
   const back = $('#bsh-back'), sh = $('#bsh');
   back.hidden = false; sh.hidden = false;
   renderSheet();
@@ -2184,12 +2665,55 @@ function closeSheet(fromHistory){
   back.classList.remove('on'); sh.classList.remove('on');
   sh.style.transform = '';
   setTimeout(() => { if (!S.sheetId){ back.hidden = true; sh.hidden = true; } }, 340);
-  const f = S.sheetFrom; S.sheetFrom = null;
+  document.removeEventListener('keydown', trapTab);
+  let f = S.sheetFrom;
+  if (!f || !f.isConnected){
+    const k = S.sheetFromKey;
+    f = k ? document.querySelector(`.room[data-id="${CSS.escape(k)}"],[data-id="${CSS.escape(k)}"]`) : null;
+  }
+  if (!f || !f.isConnected) f = $('#nav button[aria-pressed="true"]');
+  S.sheetFrom = null; S.sheetFromKey = null;
   if (f && f.isConnected) { try{ f.focus({ preventScroll:true }); }catch(e){} }
   if (!fromHistory){
     const st = history.state;
     if (st && st.sheet) { try{ history.back(); }catch(e){} }
   }
+}
+
+/**
+ * 混んでいるブースを開いたときに、いま空いている近くのブースを1つ出す。
+ * 「混んでいます」で終わると引き返すしかないが、代わりが見えれば動ける。
+ * 同じ階を優先し、無ければ他の階から選ぶ。
+ */
+function altSuggest(b){
+  const L = lvOf(b);
+  if (L.lv !== 2) return '';                     // 混雑のときだけ
+  const f = floorOfBooth(b);
+  const w = b.wait == null ? 99 : b.wait;
+  // 「空いています(lv=0)」だけを候補にしていたので、
+  // 全ブースが「やや混雑」になる昼のピーク（＝いちばん必要な時間帯）に
+  // 提案が消えていた。自分より空いていれば候補にする。
+  const cand = S.booths.filter(x => {
+    if (x.id === b.id || S.stamps.has(x.id)) return false;
+    const l = lvOf(x);
+    if (l.lv < 0 || l.lv === 3) return false;                 // 情報なし・準備中は勧めない
+    if (l.lv === 0) return true;
+    return l.lv < L.lv || (x.wait != null && x.wait < w - 2); // 明確に空いているものだけ
+  });
+  if (!cand.length) return '';
+  const same = cand.filter(x => floorOfBooth(x) === f);
+  const pick = (same.length ? same : cand)
+    .sort((x, y) => (lvOf(x).lv - lvOf(y).lv)
+                 || ((x.wait == null ? 99 : x.wait) - (y.wait == null ? 99 : y.wait)))[0];
+  if (!pick) return '';
+  const sameFloor = floorOfBooth(pick) === f;
+  const free = lvOf(pick).lv === 0;
+  return `<button class="bsh-alt" data-alt="${esc(pick.id)}">
+      <span class="ic">🍃</span>
+      <span class="tx"><b>${free ? 'いま空いているのは' : 'こちらの方が空いています'}「${esc(pick.name)}」</b>
+        <small>${sameFloor ? '同じ' + esc(flLabel(pick)) : esc(flLabel(pick)) + 'です'}${
+          pick.wait ? '・' + pick.wait + '人待ち' : '・待ちなし'}</small></span>
+      <span class="go">見る</span></button>`;
 }
 
 function renderSheet(){
@@ -2199,6 +2723,7 @@ function renderSheet(){
   // 中身が変わっていなければ描き直さない（20秒ごとの同期でフォーカスが飛ぶのを防ぐ）
   const fp = [b.id, b.status, b.wait, b.time, b.note, b.image,
               S.stamps.has(b.id), S.watch.has(b.id),
+              S.booths.filter(x => lvOf(x).lv === 0).map(x => x.id).join(','),
               (b.history || []).length, Math.floor(Date.now() / 60000)].join('|');
   if (renderSheet._fp === fp) return;
   renderSheet._fp = fp;
@@ -2218,6 +2743,7 @@ function renderSheet(){
       <span class="tag">${esc(b.category)}</span>
       <span class="tag">${esc(flLabel(b))}</span>
       ${got ? '<span class="tag">✓ 訪問済み</span>' : ''}
+      ${(() => { const r = roomLabel(b); return r ? `<span class="tag">📍 ${esc(r)}</span>` : ''; })()}
     </div>
     <div class="bsh-st" data-lv="${L.lv}">
       <span class="ico" aria-hidden="true">${esc(L.icon)}</span>
@@ -2225,18 +2751,22 @@ function renderSheet(){
       ${showWait ? `<span class="wt"><b>${b.wait}</b>人待ち</span>` : ''}
     </div>
     ${b.image ? `<img class="bsh-img" src="${esc(b.image)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : ''}
-    ${b.note ? `<p class="bsh-note">📌 ${esc(b.note)}</p>` : ''}
+    ${b.note ? `<p class="bsh-note">${eventLabel(b)
+        ? `<span class="ev-badge" data-kind="${eventState(b).kind}">${esc(eventLabel(b))}</span>` : '<span aria-hidden="true">📌</span>'} ${esc(b.note)}</p>` : ''}
+    ${altSuggest(b)}
     <div class="bsh-foot">${sparkline(b.history)}</div>
     <p class="bsh-upd">更新 ${esc(ago(b.time))}</p>
     <div class="bsh-acts">
       <button data-act="stamp" aria-pressed="${got}">${got ? '✓ 訪問済み' : 'スタンプを押す'}</button>
       ${canWatch
-        ? `<button class="watch" data-act="watch" aria-pressed="${watching}">${watching ? '🔔 通知オン' : '🔔 空いたら知らせる'}</button>`
+        ? `<button class="watch" data-act="watch" aria-pressed="${watching}"><span aria-hidden="true">🔔</span> ${watching ? '通知オン' : '空いたら知らせる'}</button>`
         : `<button data-act="list">一覧で見る</button>`}
       ${canWatch ? `<button class="wide" data-act="list">一覧で見る</button>` : ''}
     </div>`;
 
   $('#bsh-x').addEventListener('click', () => closeSheet());
+  const alt = $('#bsh-body [data-alt]');
+  if (alt) alt.addEventListener('click', () => openSheet(alt.dataset.alt));
   $$('#bsh-body [data-act]').forEach(el => el.addEventListener('click', () => {
     const a = el.dataset.act;
     if (a === 'stamp') toggleStamp(b.id);
@@ -2257,15 +2787,30 @@ function renderSheet(){
    拡大していないときは縦スクロールを邪魔しない（touch-action:pan-y）。
    ===================================================================== */
 const ZOOM = { k:1, x:0, y:0, min:1, max:4, el:null, wrap:null, pts:new Map(),
-               base:0, baseK:1, moved:false, lastTap:0, hideT:null };
+               base:0, baseK:1, moved:false, lastTap:0, hideT:null,
+               // 実寸の控え。指でなぞるたびに測り直すと400要素超のSVGで毎フレーム固まる
+               mW:0, mH:0, mNat:0 };
+
+/**
+ * 地図の実寸を測って控える。測るとレイアウトが止まるので、
+ * フロア切替・画面回転・箱の高さ変更のときだけ呼ぶ。
+ */
+function zoomMeasure(){
+  const z = ZOOM;
+  if (!z.el || !z.wrap) return;
+  z.mW = z.wrap.clientWidth;
+  z.mH = z.wrap.clientHeight;
+  z.mNat = z.el.offsetHeight;
+}
 
 function zoomApply(animate){
   const z = ZOOM;
   if (!z.el) return;
+  if (!z.mNat) zoomMeasure();
   // 拡大していないときは常に原点。はみ出して余白が見えないよう毎回丸める
-  const w = z.wrap.clientWidth, h = z.el.offsetHeight * z.k;
+  const w = z.mW, h = z.mNat * z.k;
   z.x = Math.min(0, Math.max(w - w * z.k, z.x));
-  const wh = z.wrap.clientHeight;
+  const wh = z.mH;
   if (h < wh) z.y = (wh - h) / 2;                 // 中身が短いときは上下中央
   else z.y = Math.min(0, Math.max(wh - h, z.y));
   z.el.style.transition = animate ? 'transform var(--t) var(--ease)' : 'none';
@@ -2312,7 +2857,7 @@ function initZoom(){
   $('#zoom-in').addEventListener('click', () => zoomTo(z.k * 1.6));
   $('#zoom-out').addEventListener('click', () => zoomTo(z.k / 1.6));
   $('#zoom-reset').addEventListener('click', () => {
-    zoomReset(); toast('地図を全体表示に戻しました');
+    zoomReset(false); fitMapBox(S.floor); toast('地図を全体表示に戻しました');
   });
   $('#zoom-booth').addEventListener('click', () => {
     const n = S.booths.filter(b => floorOfBooth(b) === S.floor).length;
@@ -2389,7 +2934,15 @@ function initZoom(){
 }
 
 /** マップから離れるときは拡大を戻す（迷子防止） */
-function zoomResetIfNeeded(){ if (ZOOM.k > 1.01) zoomReset(false); }
+/**
+ * マップから離れるときは拡大を戻す（次に開いたとき迷子にならないように）。
+ * ただし文字を大きくしている人にとっては、その倍率が「読むために必要な設定」なので保持する。
+ */
+function zoomResetIfNeeded(){
+  const fs = document.documentElement.getAttribute('data-fs');
+  if (fs && fs !== 'n') return;
+  if (ZOOM.k > 1.01) zoomReset(false);
+}
 
 /**
  * その階のブースがまとまって見える位置・大きさに合わせる。
@@ -2473,7 +3026,7 @@ function openBooth(id){
   requestAnimationFrame(() => {
     const el = document.getElementById('booth-' + id);
     if (!el) return;
-    el.scrollIntoView({ behavior:'smooth', block:'center' });
+    el.scrollIntoView({ behavior: smoothBehavior(), block:'center' });
     el.classList.add('flash');
     setTimeout(() => el.classList.remove('flash'), 1600);
   });
@@ -2486,8 +3039,79 @@ function openBooth(id){
  * 周回コースの行き先一覧。地図の線だけでは階をまたぐ移動が表せないので、
  * 順番・階・いまの混み具合を並べて出す。押すとそのブースのシートが開く。
  */
+/**
+ * 「まるごと一周」コースを、いまあるブースから自動で作る。
+ * CONFIG.ROUTES を手で組む前でも順路が使えるようにするため。
+ * 順番は 屋外 → 1F → 2F → 3F、同じ階では図面の上から下・左から右。
+ */
+function autoRoute(){
+  // 階ごとに、近いブースから順にたどる（貪欲法）。
+  // 座標をそのまま並べ替えるだけだと校舎を何度も往復する順路になり、
+  // 地図の線が交差して読めなくなる。
+  const byFloor = {};
+  S.booths.filter(b => lvOf(b).lv !== 3).forEach(b => {
+    const f = floorOfBooth(b);
+    (byFloor[f] = byFloor[f] || []).push(b);
+  });
+  const out = [];
+  Object.keys(byFloor).map(Number).sort((a, b) => a - b).forEach(f => {
+    const rest = byFloor[f].slice();
+    const pos = b => { const sl = slotOf(b.id); return sl ? [sl.x + sl.w / 2, sl.y + sl.h / 2] : [0, 0]; };
+    // 出入口があればそこから歩き出す（無ければいちばん上のブース）
+    const ent = rest.find(b => { const sl = slotOf(b.id); return sl && isEntrance(sl.nm); });
+    let cur = ent || rest.slice().sort((a, b) => pos(a)[1] - pos(b)[1])[0];
+    while (cur){
+      out.push(cur.id);
+      rest.splice(rest.indexOf(cur), 1);
+      if (!rest.length) break;
+      const [cx, cy] = pos(cur);
+      cur = rest.reduce((best, b) => {
+        const [x, y] = pos(b);
+        const d = (x - cx) * (x - cx) + (y - cy) * (y - cy);
+        return (!best || d < best.d) ? { b, d } : best;
+      }, null).b;
+    }
+  });
+  return out;
+}
+
+/**
+ * 「空いている順コース」。混んでいるところを後回しにして、
+ * いま空いている順に回る。実演の時間が決まっているものだけは先に入れる。
+ */
+function autoRouteFree(){
+  const cand = S.booths.filter(b => { const lv = lvOf(b).lv; return lv >= 0 && lv < 3; });
+  const timed = cand.filter(b => eventState(b));
+  const rest  = cand.filter(b => !eventState(b))
+    .sort((a, b) => {
+      const la = lvOf(a).lv, lb = lvOf(b).lv;
+      if (la !== lb) return la - lb;
+      const wa = a.wait == null ? 99 : a.wait, wb = b.wait == null ? 99 : b.wait;
+      return wa - wb;
+    });
+  return timed.concat(rest).map(b => b.id);
+}
+
+/**
+ * 「階段なしで回るコース」。
+ * 本校にエレベーターは無く、2階・3階へは階段しかない。
+ * 車椅子・ベビーカー・小さい子ども連れ・足の悪い方は、
+ * 階をまたぐ順路を出されるとその場で詰む。屋外と1階だけでつなぐ。
+ */
+function autoRouteFlat(){
+  return autoRoute().filter(id => {
+    const b = S.booths.find(x => x.id === id);
+    if (!b) return false;
+    const f = floorOfBooth(b);
+    return f === 0 || f === 1;
+  });
+}
+
 /** ブースが2件以上そろっているコースだけボタンを出す */
 function renderRouteChips(){
+  CONFIG.ROUTES.auto = autoRoute();
+  CONFIG.ROUTES.free = autoRouteFree();
+  CONFIG.ROUTES.flat = autoRouteFlat();
   $$('.chip[data-route]').forEach(el => {
     const ids = CONFIG.ROUTES[el.dataset.route] || [];
     const n = ids.filter(id => S.booths.some(b => b.id === id)).length;
@@ -2507,9 +3131,18 @@ function renderRouteSteps(){
   const doneN = stops.filter(b => S.stamps.has(b.id)).length;
 
   box.classList.remove('hide');
+  // 全部並べると画面が埋まる。次に行くところから数件だけ出し、あとは畳む
+  const SHOW = 6;
+  const firstTodo = Math.max(0, stops.findIndex(b => !S.stamps.has(b.id)));
+  const many = stops.length > SHOW;
+  const from = (many && !S.routeAll) ? Math.min(firstTodo, Math.max(0, stops.length - SHOW)) : 0;
+  const view = (many && !S.routeAll) ? stops.slice(from, from + SHOW) : stops;
+
   box.innerHTML =
-    `<h4>このコースの回り方 <span>${doneN} / ${stops.length} 到達</span></h4>` +
-    stops.map((b, i) => {
+    `<h4>${S.route === 'free' ? '空いている順に回る' : 'このコースの回り方'}
+       <span>${doneN} / ${stops.length} 到達</span></h4>` +
+    view.map((b, k) => {
+      const i = stops.indexOf(b);
       const L = lvOf(b);
       const got = S.stamps.has(b.id);
       const min = waitMin(b);
@@ -2520,8 +3153,13 @@ function renderRouteSteps(){
           <span class="rs-fl">${esc(flLabel(b))}</span>
           <span class="rs-st" data-lv="${L.lv}">${esc(L.icon)}${min != null ? ` 約${min}分` : ''}</span>
         </button>`;
-    }).join('');
+    }).join('') +
+    (many ? `<button class="rs-more" id="rs-more">${S.routeAll
+        ? '次に行くところだけ表示'
+        : `すべて見る（${stops.length}件）`}</button>` : '');
   $$('[data-rs]', box).forEach(el => el.addEventListener('click', () => openSheet(el.dataset.rs)));
+  const more = $('#rs-more', box);
+  if (more) more.addEventListener('click', () => { S.routeAll = !S.routeAll; renderRouteSteps(); });
 }
 
 function recommend(){
@@ -2536,6 +3174,8 @@ function recommend(){
       // 「いまここ」が分かっているときは、同じ階を少しだけ優先する（移動が短い）
       if (hb && floorOfBooth(b) === floorOfBooth(hb)) sc += 3;
       if (hb && b.id === hb.id) return null;
+      const ev = eventState(b);
+      if (ev) sc += ev.kind === 'now' ? 8 : 12;   // 時間が決まっているものは逃すと戻れない
       return { b, L, sc };
     })
     .filter(Boolean)
@@ -2544,14 +3184,22 @@ function recommend(){
 
   const box = $('#reco-list');
   if (!scored.length){
-    box.innerHTML = `<p class="empty" style="padding:12px">状況を取得中です</p>`;
+    // 全ブースが準備中（開場前・閉場後）のときに「取得中」と出すのは嘘になる。
+    // 状況ごとに、いま何が起きているのかを書く。
+    const st = openState().state;
+    const msg = !S.booths.length
+      ? (S.online ? 'ブースの情報がまだ登録されていません。' : '混雑状況を取れませんでした。下の地図はそのまま見られます。')
+      : st === 'before' ? '開場したら、ここに「いま空いているブース」が出ます。'
+      : st === 'after'  ? '本日の一般公開は終了しました。'
+      : 'いまはおすすめできるブースがありません。<br>下の地図でようすを見てください。';
+    box.innerHTML = `<p class="empty" style="padding:12px">${msg}</p>`;
     return;
   }
   box.innerHTML = scored.map((r, i) => `
     <button class="reco" data-id="${esc(r.b.id)}">
       <span class="rank">${i + 1}</span>
       <span class="nm">${esc(r.b.name)}</span>
-      <span class="why">${esc(r.L.short)}${S.stamps.has(r.b.id) ? '' : '・未訪問'}</span>
+      <span class="why">${eventLabel(r.b) ? `<b class="ev-why">${esc(eventLabel(r.b))}</b>・` : ''}${esc(r.L.short)}${S.stamps.has(r.b.id) ? '' : '・未訪問'}</span>
     </button>`).join('');
   $$('.reco', box).forEach(el => el.addEventListener('click', () => openSheet(el.dataset.id)));
 }
@@ -2563,6 +3211,36 @@ function recommend(){
  * 検索用の正規化。ひらがな→カタカナ、全角英数→半角、小文字化。
  * 「でんし」でも「デンシ」でも「ｄｅｎｓｈｉ」でも当たるようにする。
  */
+/**
+ * ひらがな・カタカナで探せるようにするための読み。
+ * 小学生や保護者は漢字ではなく音で探す（「でんし」「たべもの」「たいいくかん」）。
+ * 辞書は持てないので、この学校で実際に出てくる語だけを並べる。
+ * 増やすときは「漢字表記: カタカナ読み」を1行足すだけでよい。
+ */
+const YOMI = {
+  '電子機械科':'デンシキカイカ', '材料技術科':'ザイリョウギジュツカ', '専攻科':'センコウカ',
+  '電子科':'デンシカ', '電気科':'デンキカ', '機械科':'キカイカ', '土木科':'ドボクカ',
+  '家庭科':'カテイカ', '本館':'ホンカン', '北教室棟':'キタキョウシツトウ', '南教室棟':'ミナミキョウシツトウ',
+  '実習棟':'ジッシュウトウ', '実習':'ジッシュウ', '実演':'ジツエン', '体験':'タイケン',
+  '展示':'テンジ', '販売':'ハンバイ', '受付':'ウケツケ', '売店':'バイテン', '模擬店':'モギテン',
+  '体育館':'タイイクカン', '第一体育館':'ダイイチタイイクカン', '第二体育館':'ダイニタイイクカン',
+  '音楽室':'オンガクシツ', '美術室':'ビジュツシツ', '図書室':'トショシツ',
+  '調理':'チョウリ', '製図':'セイズ', '溶接':'ヨウセツ', '旋盤':'センバン', '鋳造':'チュウゾウ',
+  '情報':'ジョウホウ', '電算':'デンサン', '教室':'キョウシツ', '講堂':'コウドウ',
+  '正門':'セイモン', '昇降口':'ショウコウグチ', '広場':'ヒロバ', '屋外':'オクガイ', '校庭':'コウテイ',
+  '食べ物':'タベモノ', '飲み物':'ノミモノ', '焼きそば':'ヤキソバ', '唐揚げ':'カラアゲ',
+  '綿あめ':'ワタアメ', '射的':'シャテキ', '迷路':'メイロ', '喫茶':'キッサ', '古本':'フルホン',
+  '発表':'ハッピョウ', '演奏':'エンソウ', '舞台':'ブタイ', '有志':'ユウシ'
+};
+const YOMI_KEYS = Object.keys(YOMI);
+
+/** 検索対象の文字列に、含まれる語の読みを足す */
+function withYomi(text){
+  let extra = '';
+  for (const k of YOMI_KEYS) if (text.indexOf(k) >= 0) extra += YOMI[k];
+  return text + extra;
+}
+
 function normalizeQ(s){
   return String(s)
     .replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60))
@@ -2614,7 +3292,12 @@ function renderList(){
   if (S.cat !== 'all') items = items.filter(b => b.category === S.cat);
   if (S.q){
     const q = normalizeQ(S.q);
-    items = items.filter(b => normalizeQ(b.name + b.category + b.note).includes(q));
+    items = items.filter(b => {
+      const sl = slotOf(b.id);
+      const dept = sl && sl.z ? (DEPT_BY_ZONE[sl.z] ? DEPT_BY_ZONE[sl.z].s : sl.z) : '';
+      const hay = b.name + b.category + b.note + (sl ? sl.nm : '') + dept + (sl ? sl.z : '');
+      return normalizeQ(withYomi(hay)).includes(q);
+    });
   }
   // 「空いている順」：空き→やや混雑→混雑→情報なし→準備中。
   // 状況が分からないものを先頭に出さない（内部値の -1 をそのまま使わない）
@@ -2623,7 +3306,11 @@ function renderList(){
     ? (rank(a) - rank(b)) || a.id.localeCompare(b.id, 'ja', { numeric:true })
     : a.id.localeCompare(b.id, 'ja', { numeric:true }));
 
-  if (!items.length){ box.innerHTML = `<p class="empty">該当するブースがありません</p>`; return; }
+  if (!items.length){
+    box.innerHTML = `<p class="empty">さがしたブースは見つかりませんでした。<br>
+      文字をけすか、上のボタンで「すべて」をえらんでください。</p>`;
+    return;
+  }
 
   box.innerHTML = items.map(b => {
     const L = lvOf(b);
@@ -2637,18 +3324,20 @@ function renderList(){
         <div class="booth-main">
           <h3 class="booth-nm"><span class="no">${S.numbers.get(b.id) || '-'}</span>${esc(b.name)}
             <span class="tag">${esc(b.category)}</span><span class="tag">${esc(flLabel(b))}</span></h3>
+          ${(() => { const r = roomLabel(b); return r ? `<p class="booth-room"><span aria-hidden="true">📍</span> ${esc(r)}</p>` : ''; })()}
           <p class="booth-meta">${esc(waitText(b))}${
             waitMin(b) != null ? `（約${waitMin(b)}分）` : ''}・更新 ${esc(ago(b.time))}</p>
-          ${b.note ? `<p class="booth-note">📌 ${esc(b.note)}</p>` : ''}
+          ${b.note ? `<p class="booth-note">${eventLabel(b)
+              ? `<span class="ev-badge" data-kind="${eventState(b).kind}">${esc(eventLabel(b))}</span>` : '<span aria-hidden="true">📌</span>'} ${esc(b.note)}</p>` : ''}
         </div>
-        <span class="pill" data-lv="${L.lv}">${L.icon} ${esc(L.short)}${
+        <span class="pill" data-lv="${L.lv}"><span aria-hidden="true">${L.icon}</span> ${esc(L.short)}${
           b.wait > 0 && L.lv >= 0 && L.lv < 3 ? ` <b>${b.wait}</b>人` : ''}</span>
       </div>
       <div class="booth-foot">
         ${sparkline(b.history)}
         ${L.lv > 0 && L.lv < 3
           ? `<button class="mini-btn watch" data-watch="${esc(b.id)}" aria-pressed="${S.watch.has(b.id)}"
-              >${S.watch.has(b.id) ? '🔔 通知オン' : '🔔 空いたら通知'}</button>`
+              ><span aria-hidden="true">🔔</span> ${S.watch.has(b.id) ? '通知オン' : '空いたら知らせる'}</button>`
           : ''}
         <button class="mini-btn" data-stamp="${esc(b.id)}" aria-pressed="${got}">${got ? '✓ スタンプ済' : '＋ スタンプ'}</button>
       </div>
@@ -2667,25 +3356,41 @@ function renderList(){
  * 空いた時点で画面に知らせる（アプリを開いている間だけ動く簡易版）。
  */
 function toggleWatch(id){
-  S.watch.has(id) ? S.watch.delete(id) : S.watch.add(id);
+  if (S.watch.has(id)){
+    S.watch.delete(id); delete S.watchLv[id];
+  } else {
+    S.watch.add(id);
+    // 登録したときの混み具合を覚えておく。
+    // 「空いています」になるまで待つ設計だと、全体が混んでいる時間帯は永遠に鳴らない。
+    S.watchLv[id] = lvOf(S.booths.find(x => x.id === id) || {}).lv;
+  }
   store('kuroko_watch_v1', Array.from(S.watch));
+  store('kuroko_watch_lv', S.watchLv);
   renderList();
   if (S.sheetId) renderSheet();
   const b = S.booths.find(x => x.id === id);
   toast(S.watch.has(id)
-    ? `「${b ? b.name : ''}」が空いたらお知らせします`
-    : 'お知らせを解除しました');
+    ? `「${b ? b.name : ''}」が空いたら、この画面で知らせます`
+    : '知らせるのをやめました');
 }
 
 /** 同期のたびに、見張り中のブースが空いていないか確かめる */
 function checkWatch(){
   if (!S.watch.size) return;
-  const freed = S.booths.filter(b => S.watch.has(b.id) && lvOf(b).lv === 0);
+  // 「空いた」＝ lv0 だけでなく「登録したときより空いた」も知らせる
+  const freed = S.booths.filter(b => {
+    if (!S.watch.has(b.id)) return false;
+    const lv = lvOf(b).lv;
+    if (lv < 0 || lv === 3) return false;
+    const base = S.watchLv[b.id];
+    return lv === 0 || (base != null && lv < base);
+  });
   if (!freed.length) return;
-  freed.forEach(b => S.watch.delete(b.id));
+  freed.forEach(b => { S.watch.delete(b.id); delete S.watchLv[b.id]; });
   store('kuroko_watch_v1', Array.from(S.watch));
+  store('kuroko_watch_lv', S.watchLv);
   const names = freed.map(b => b.name).join('・');
-  toast(`🔔 「${names}」が空きました`);
+  toast(`🔔 「${names}」が空いてきました`);
   try{ navigator.vibrate && navigator.vibrate([120, 60, 120]); }catch(e){}
 }
 
@@ -2741,12 +3446,16 @@ function renderStamps(){
     const no = S.numbers.get(b.id) || '';
     // idごとに傾きを固定して、手で押したような不揃いさを出す
     const tilt = ((Number(b.id) * 37) % 13) - 6;
-    return `<div class="stamp ${g ? 'got' : ''}${S.justStamp === b.id ? ' just' : ''}"
-                 style="--tilt:${tilt}deg">
+    return `<button class="stamp ${g ? 'got' : ''}${S.justStamp === b.id ? ' just' : ''}"
+                 style="--tilt:${tilt}deg" data-sid="${esc(b.id)}"
+                 aria-label="${esc(b.name)}${g ? ' 訪問済み' : ''} の詳細をひらく">
       <span class="no">${no}</span>
       <span class="mk">${g ? '済' : ''}</span>
-      <span class="lb">${esc(b.name)}</span></div>`;
+      <span class="lb">${esc(b.name)}</span></button>`;
   }).join('');
+
+  $$('[data-sid]', $('#stamp-grid')).forEach(el =>
+    el.addEventListener('click', () => openSheet(el.dataset.sid)));
 
   // 完走記録。達成した瞬間の時刻を保存し、以後は同じ時刻を表示する
   $('#stamp-cert').classList.toggle('hide', !done);
@@ -2962,6 +3671,30 @@ async function shareStamps(){
 /* =====================================================================
    インフォ
    ===================================================================== */
+/**
+ * 部屋IDを地図で示す。ブースが入っていれば詳細シートを開き、
+ * 入っていなければ地図でその部屋を光らせるだけにする。
+ * タイムテーブルの「体育館」から現物にたどり着けるようにするため。
+ */
+function showPlace(id){
+  const room = slotOf(id);
+  if (!room){ toast('その場所は地図に登録されていません'); return; }
+  const b = S.booths.find(x => x.id === id);
+  const f = (ROOM_INDEX.get(id) || {}).f;
+  switchView('map');
+  if (f != null && f !== S.floor) setFloor(f);
+  if (b){ setTimeout(() => openSheet(id), 260); return; }
+  S.spot = id;
+  clearTimeout(showPlace._t);
+  showPlace._t = setTimeout(() => { S.spot = null; drawFloor(S.floor); }, 6000);
+  drawFloor(S.floor);
+  setTimeout(() => {
+    const el = $('#map-card');
+    if (el) el.scrollIntoView({ behavior: smoothBehavior(), block:'center' });
+  }, 120);
+  toast(`${room.nm} を地図で示しています`);
+}
+
 function renderInfo(){
   // 「今どのコマか」を強調する（現在時刻を過ぎた直近の行）
   const now = new Date();
@@ -2971,12 +3704,17 @@ function renderInfo(){
   CONFIG.INFO.timetable.forEach(([t], i) => { if (toMin(t) <= mins) cur = i; });
 
   $('#tt-body').innerHTML = CONFIG.INFO.timetable
-    .map(([t, v], i) => {
+    .map(([t, v, where], i) => {
       const on = i === cur;
-      return `<tr${on ? ' style="background:var(--surface-3)"' : ''}>
+      const room = where ? slotOf(where) : null;
+      return `<tr${on ? ' class="tt-now"' : ''}>
         <td>${esc(t)}</td>
-        <td>${on ? '<b>▶ ' + esc(v) + '</b>' : esc(v)}</td></tr>`;
+        <td>${on ? '<b>▶ ' + esc(v) + '</b>' : esc(v)}
+          ${room ? `<button class="tt-go" data-go="${esc(where)}">📍 ${esc(room.nm)}を地図で見る</button>` : ''}
+        </td></tr>`;
     }).join('');
+  $$('[data-go]', $('#tt-body')).forEach(el =>
+    el.addEventListener('click', () => showPlace(el.dataset.go)));
   $('#help-list').innerHTML = CONFIG.INFO.help
     .map(([i, t, d]) => `<div class="help"><span style="font-size:18px">${i}</span>
       <span><b>${esc(t)}</b><span>${esc(d)}</span></span></div>`).join('');
@@ -3004,6 +3742,13 @@ function renderSummary(){
       `<div class="sum" data-lv="${x.lv}"><b data-v="0">0</b><span>${x.t}</span></div>`).join('');
   }
   cells.forEach((x, i) => animateNumber(box.children[i].querySelector('b'), x.n));
+  // 数字は 0.6 秒かけて動くので、live 領域に置くと1回の更新で数十回読み上げられる。
+  // 読み上げ用は別の箱に、変化したときだけ1文で入れる。
+  const live = $('#summary-live');
+  if (live){
+    const line = `空いている${c[0]}件、やや混雑${c[1]}件、混雑${c[2]}件、準備中・情報なし${c[3]}件`;
+    if (live.textContent !== line) live.textContent = line;
+  }
 }
 
 /**
@@ -3022,7 +3767,7 @@ function renderNextEvent(){
   el.innerHTML = `<span class="tm">${esc(next[0])}</span>
                   <span class="tx">${esc(next[1])}</span>
                   <span class="left">${left <= 60 ? 'あと' + left + '分' : ''}</span>`;
-  el.onclick = () => switchView('info');
+  el.onclick = () => { if (next[2] && slotOf(next[2])) showPlace(next[2]); else switchView('info'); };
 }
 
 /**
@@ -3030,13 +3775,24 @@ function renderNextEvent(){
  * 画面のスクリーンショットではなく、報告書に貼る前提で描き直している。
  * 外部ライブラリは使わず Canvas に直接描く。
  */
+/**
+ * 振り返りに出す場所の表記。「電子科」だけだと来年見返したときに
+ * どの部屋だったか分からないので、階と部屋名を添える。
+ */
+function reportWhere(id){
+  const v = ROOM_INDEX.get(id);
+  if (!v) return '';
+  const f = v.f === 0 ? '屋外' : v.f + 'F';
+  return v.r && v.r.nm ? `${f}・${v.r.nm}` : f;
+}
+
 function exportReportPng(){
   const r = S.report;
   if (!r || !r.buckets || !r.buckets.length){ toast('先にレポートを表示してください'); return; }
 
   const W = 1400, PAD = 48;
   const rows = r.booths.length;
-  const chartH = 220, cellH = 26, headH = 210;
+  const chartH = 220, cellH = 30, headH = 210;
   const H = headH + chartH + 90 + 150 + rows * (cellH + 6) + 130;
   const cv = document.createElement('canvas');
   const dpr = 2;
@@ -3124,13 +3880,16 @@ function exportReportPng(){
 
   // ブース別ヒートマップ
   g.fillStyle = C.ink; g.font = F(16, 900);
-  g.fillText(`ブース別の推移（${r.bucketMinutes}分ごと）`, PAD, y); y += 18;
+  g.fillText(`ブース別の推移（${r.bucketMinutes || 15}分ごと）`, PAD, y); y += 18;
   const nameW = 190, maxW = 74;
   const gridW = W - PAD * 2 - nameW - maxW;
   const cellW = gridW / r.buckets.length;
   r.booths.forEach(b => {
     g.fillStyle = C.ink; g.font = F(13, 800);
-    g.fillText(String(b.name).slice(0, 12), PAD, y + 18);
+    g.fillText(String(b.name).slice(0, 12), PAD, y + 14);
+    const where = reportWhere(b.id);
+    if (where){ g.fillStyle = C.mute; g.font = F(10, 700);
+                g.fillText(where.slice(0, 16), PAD, y + 26); }
     b.series.forEach((lv, i) => {
       g.fillStyle = lv === 0 ? C.free : lv === 1 ? C.warn : lv === 2 ? C.busy
                   : lv === 3 ? C.prep : C.none;
@@ -3178,6 +3937,47 @@ function exportReportPng(){
    受付や本部にノートPCを1台置いて映しっぱなしにする想定。
    触らなくても分かること、遠くから読めることを最優先にしている。
    ===================================================================== */
+/**
+ * 本部ボードの地図。タイルだけだと「どの棟が混んでいるか」が分からない。
+ * 場所と混雑が同時に見えると、係員をどこに回すか即断できる。
+ * 大画面に映しっぱなしにする前提なので、操作は付けない。
+ */
+function renderBoardMaps(){
+  const box = $('#board-maps');
+  if (!box) return;
+  const floors = FLOORS.filter(f => S.booths.some(b => floorOfBooth(b) === f.n));
+  const fp = 'bm|' + floors.map(f => f.n).join(',') + '|' +
+             S.booths.map(b => b.id + lvOf(b).lv + b.wait).join(',');
+  if (renderBoardMaps._fp === fp) return;
+  renderBoardMaps._fp = fp;
+
+  box.innerHTML = floors.map(f => {
+    const plan = FLOOR_PLAN[f.n];
+    const here = S.booths.filter(b => floorOfBooth(b) === f.n);
+    const used = new Set(here.map(b => b.id));
+    let h = defs();
+    plan.struct.forEach(st => {
+      const cls = st.type === 'outdoor' ? 'outdoor' : st.type === 'blocked' ? 'blocked'
+                : st.type === 'corridor' ? 'corridor' : st.type === 'road' ? 'road' : 'bldg';
+      h += `<rect x="${st.x}" y="${st.y}" width="${st.w}" height="${st.h}" rx="4" class="${cls}"/>`;
+    });
+    plan.rooms.forEach(r => {
+      if (used.has(r.id)) return;
+      h += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="3" class="bm-bg"/>`;
+    });
+    here.forEach(b => {
+      const sl = plan.rooms.find(x => x.id === b.id);
+      if (!sl) return;
+      const L = lvOf(b);
+      h += `<g class="room" data-lv="${L.lv}">
+        <rect class="fill" x="${sl.x}" y="${sl.y}" width="${sl.w}" height="${sl.h}" rx="5"/></g>`
+        + fitTextSvg(String(S.numbers.get(b.id) || ''), sl.x, sl.y, sl.w, sl.h, 'bm-no', 14);
+    });
+    return `<div class="bm"><h3>${f.n === 0 ? '屋外' : f.n + '階'}</h3>
+      <svg viewBox="${planViewBox(f.n)}" role="img" aria-label="${f.n === 0 ? '屋外' : f.n + '階'}の混雑">${h}</svg></div>`;
+  }).join('');
+}
+
 function renderBoard(){
   if (S.view !== 'board') return;
 
@@ -3201,6 +4001,9 @@ function renderBoard(){
   if (renderBoard._fp !== fp){
     renderBoard._fp = fp;
     const grid = $('#board-grid');
+    const n = S.booths.length;
+    grid.classList.toggle('d2', n > 12 && n <= 24);
+    grid.classList.toggle('d3', n > 24);
     grid.innerHTML = S.booths.map(b => {
       const L = lvOf(b);
       const m = elapsedMin(b);
@@ -3209,12 +4012,16 @@ function renderBoard(){
         ? `<b>${b.wait}</b><i>人待ち</i>` : `<b class="tx">${esc(L.short)}</b>`;
       return `<div class="btile${isChanged(b.id) ? ' changed' : ''}" data-lv="${L.lv}" data-fresh="${fresh}">
         <span class="bt-no">${S.numbers.get(b.id) || ''}</span>
-        <span class="bt-nm">${esc(b.name)}</span>
+        <span class="bt-head"><span class="bt-nm">${esc(b.name)}</span>
+        <span class="bt-loc">${esc(flLabel(b))}${(() => { const r = roomLabel(b);
+          return r ? '・' + r : ''; })()}</span></span>
         <span class="bt-big">${big}</span>
         <span class="bt-age">${m >= NEVER ? '未更新' : m < 1 ? 'たった今' : m + '分前'}</span>
       </div>`;
     }).join('');
   }
+
+  renderBoardMaps();
 
   const foot = $('#board-foot');
   foot.textContent = S.notice && S.notice.text ? '📣 ' + S.notice.text : '';
@@ -3311,6 +4118,58 @@ async function addVisitors(n){
   }finally{ btns.forEach(b => b.disabled = false); }
 }
 
+/**
+ * いま開催中かどうか。
+ * @returns {{state:'before'|'open'|'after'|'otherday', minutes:number}}
+ *   minutes は開場までの残り分（before のときだけ意味を持つ）
+ */
+function openState(now){
+  const H = CONFIG.HOURS || {};
+  const d = now || new Date();
+  const mins = t => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(t || ''));
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+  const o = mins(H.open), c = mins(H.close);
+  if (o == null || c == null) return { state:'open', minutes:0 };
+  if (H.date){
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (today !== H.date) return { state:'otherday', minutes:0 };
+  }
+  const cur = d.getHours() * 60 + d.getMinutes();
+  if (cur < o) return { state:'before', minutes: o - cur };
+  if (cur >= c) return { state:'after', minutes:0 };
+  return { state:'open', minutes:0 };
+}
+
+/**
+ * 開場前・閉場後に開いた人へ状況を出す。
+ * これが無いと、全ブースが「準備中」の画面を見て「壊れている」と思われる。
+ */
+function renderHours(){
+  const el = $('#banner-hours');
+  if (!el) return;
+  const H = CONFIG.HOURS || {};
+  const st = openState();
+  const staff = ['auth','admin','qr','print','report','layout','board'].indexOf(S.view) >= 0;
+  let msg = '';
+  if (!staff){
+    if (st.state === 'before'){
+      const h = Math.floor(st.minutes / 60), m = st.minutes % 60;
+      const left = h ? `あと${h}時間${m}分` : `あと${m}分`;
+      msg = `本日は ${H.open} 開場です（${left}）。混雑状況は開場後に出ます。`;
+    } else if (st.state === 'after'){
+      msg = `本日の一般公開は ${H.close} で終了しました。ご来場ありがとうございました。`;
+    } else if (st.state === 'otherday'){
+      msg = H.date
+        ? `文化祭は ${H.date.replace(/^\d{4}-/, '').replace('-', '月')}日です。当日はこの画面で混み具合が見られます。`
+        : '';
+    }
+  }
+  el.classList.toggle('hide', !msg);
+  if (msg) $('#banner-hours-text').textContent = msg;
+}
+
 /** 本部からのお知らせ（シート駆動） */
 function renderNotice(){
   const el = $('#banner-notice');
@@ -3342,6 +4201,7 @@ function renderAll(){
   const hadBooths = renderAll._had;
   renderAll._had = S.booths.length > 0;
   renderSyncState();
+  renderHours();
   renderNotice();
   renderAlert();
   renderSummary();
@@ -3372,7 +4232,15 @@ function renderAll(){
  * @param {boolean=} fromHistory 戻る操作から呼ばれたときは履歴を積み直さない
  */
 function switchView(v, fromHistory){
-  if (S.sheetId) closeSheet(true);
+  // タブを移るときは、開いていたシートの履歴エントリごと畳む。
+  // 残すと「戻る」でシートだけがせり上がり、前のタブに戻れなくなる。
+  if (S.sheetId){
+    closeSheet(true);
+    try{
+      const st = history.state;
+      if (!fromHistory && st && st.sheet) history.replaceState({ v: st.v || S.view }, '', location.hash);
+    }catch(e){}
+  }
   if (v !== 'map') zoomResetIfNeeded();
   S.view = v;
   ['map','list','stamp','info','auth','admin','qr','print','report','layout','board'].forEach(k =>
@@ -3383,7 +4251,8 @@ function switchView(v, fromHistory){
   // 来場者向けの混雑アラートは係員画面では出さない（ノイズになる）
   $('#banner-alert').classList.toggle('hide', staff || !$('#banner-alert-text').textContent);
   if (v === 'qr' || v === 'board') $('#banner-notice').classList.add('hide'); else renderNotice();
-  window.scrollTo({ top:0, behavior:'smooth' });
+  renderHours();
+  window.scrollTo({ top:0, behavior: smoothBehavior() });
 
   // Androidの戻るボタンで、アプリごと閉じずに前のタブへ戻れるようにする
   const TABS = ['map','list','stamp','info'];
@@ -3414,10 +4283,14 @@ async function login(){
   try{
     const r = await api({ body:{ action:'verify', pass:v } });
     if (r && r.ok){
-      sessionStorage.setItem('kuroko_pw', v);
+      // LINE内ブラウザやプライベートモードでは例外が出る。
+      // 保存できなくてもログイン自体は成立させる（画面を閉じたら再入力になるだけ）
+      let saved = true;
+      try{ sessionStorage.setItem('kuroko_pw', v); }catch(_){ saved = false; }
       S.isAdmin = true;
       $('#auth-err').classList.add('hide');
       renderAssign(); renderAdmin(); renderChecklist(); switchView('admin');
+      if (!saved) toast('この端末では設定を保存できません。画面を閉じると入れ直しが必要です');
     } else throw new Error('bad');
   }catch(e){
     const m = String(e && e.message || e);
@@ -3432,7 +4305,12 @@ async function login(){
 function renderAssign(){
   $('#assign-chips').innerHTML =
     `<button class="chip" data-as="__all" aria-pressed="${S.assigned.size === 0}">すべて表示</button>` +
-    S.booths.map(b => `<button class="chip" data-as="${esc(b.id)}" aria-pressed="${S.assigned.has(b.id)}">${esc(b.name)}</button>`).join('');
+    S.booths.map(b => {
+      // 場所も出す。名前が似ていると、担当でないブースを選んでしまう
+      const r = roomLabel(b);
+      return `<button class="chip as-chip" data-as="${esc(b.id)}" aria-pressed="${S.assigned.has(b.id)}"
+        >${esc(b.name)}<small>${esc(flLabel(b))}${r ? '・' + esc(r) : ''}</small></button>`;
+    }).join('');
   $$('#assign-chips .chip').forEach(el => el.addEventListener('click', () => {
     const v = el.dataset.as;
     if (v === '__all') S.assigned.clear();
@@ -3456,6 +4334,55 @@ function elapsedMin(b){
  *   - 入力途中の待ち人数（下書き）を消さない
  *   - 操作中はカードを並べ替えない（押そうとしたボタンが動くのを防ぐ）
  */
+/**
+ * 本部からその場でお知らせを出す。
+ * スプレッドシートを開いて行を編集する手順は、当日の忙しさでは踏めない。
+ */
+function initNotice(){
+  const box = $('#notice-card');
+  if (!box) return;
+  let level = 'info';
+  const setLv = v => {
+    level = v;
+    $('#notice-info').setAttribute('aria-pressed', String(v === 'info'));
+    $('#notice-alert').setAttribute('aria-pressed', String(v === 'alert'));
+  };
+  $('#notice-info').addEventListener('click', () => setLv('info'));
+  $('#notice-alert').addEventListener('click', () => setLv('alert'));
+
+  const send = async (text) => {
+    if (navigator.onLine === false){ toast('圏外です。電波の届く場所で操作してください'); return; }
+    const btns = $$('#notice-send, #notice-clear');
+    btns.forEach(b => b.disabled = true);
+    try{
+      await api({ body:{ action:'notice', text, level, pass: pw() } });
+      await sync(false);
+      toast(text ? 'お知らせを出しました' : 'お知らせを消しました');
+      if (!text) $('#notice-text').value = '';
+      renderNoticeState();
+    }catch(e){ if (!authFailed(e)) toast('お知らせの送信に失敗しました'); }
+    finally{ btns.forEach(b => b.disabled = false); }
+  };
+  $('#notice-send').addEventListener('click', () => {
+    const t = $('#notice-text').value.trim();
+    if (!t){ toast('文面を入れてください'); return; }
+    send(t);
+  });
+  $('#notice-clear').addEventListener('click', () => {
+    if (!confirm('いま出ているお知らせを消します。よろしいですか？')) return;
+    send('');
+  });
+  renderNoticeState();
+}
+function renderNoticeState(){
+  const el = $('#notice-now');
+  if (!el) return;
+  const n = S.notice && S.notice.text ? S.notice.text : '';
+  el.textContent = n ? `いま出ている：${n.slice(0, 24)}${n.length > 24 ? '…' : ''}` : 'いまは出ていません';
+  const ta = $('#notice-text');
+  if (ta && !ta.value && n) ta.value = n;
+}
+
 function renderAdmin(){
   const container = $('#admin-list');
   let list = S.assigned.size ? S.booths.filter(b => S.assigned.has(b.id)) : S.booths;
@@ -3473,6 +4400,16 @@ function renderAdmin(){
   }
 
   const overdue = list.filter(b => elapsedMin(b) >= CONFIG.ADMIN_WARN_MIN).length;
+  renderNoticeState();
+  const warn = [];
+  if (S.dupIds.length) warn.push(`id が重なっています：${S.dupIds.join('・')}（後の行は無視しました）`);
+  const noSlot = S.booths.filter(b => !slotOf(b.id));
+  if (noSlot.length) warn.push(
+    `図面に無い id：${noSlot.slice(0, 4).map(b => b.id).join('・')}` +
+    (noSlot.length > 4 ? ` ほか${noSlot.length - 4}件` : '') + '（一覧には出ますが地図に載りません）');
+  $('#adm-warn').innerHTML = warn.map(t => `<p class="stale-warn">⚠ ${esc(t)}</p>`).join('');
+  $('#adm-warn').classList.toggle('hide', !warn.length);
+
   $('#adm-summary').innerHTML = overdue
     ? `<span class="stale-warn">⚠ ${overdue}件が${CONFIG.ADMIN_WARN_MIN}分以上未更新です。上から順に確認してください</span>`
     : `<span style="color:var(--free);font-weight:800;font-size:11px">✓ すべて${CONFIG.ADMIN_WARN_MIN}分以内に更新されています</span>`;
@@ -3489,6 +4426,7 @@ function renderAdmin(){
       card.innerHTML = `
         <div class="adm-head">
           <span class="adm-nm"></span>
+          <span class="adm-loc"></span>
           <span class="adm-elapsed"></span>
           <span class="pill"></span>
         </div>
@@ -3505,6 +4443,9 @@ function renderAdmin(){
         <div class="adm-btns">
           ${LEVELS.slice(0, 3).map(l =>
             `<button data-lv="${l.lv}" data-key="${esc(l.key)}">${esc(l.short)}</button>`).join('')}
+        </div>
+        <div class="adm-btns2">
+          <button class="pause" data-lv="3" data-key="準備中">■ 休止中にする</button>
         </div>`;
       bindAdminCard(card);
       container.appendChild(card);
@@ -3517,6 +4458,9 @@ function renderAdmin(){
 
     card.dataset.fresh = cls;
     card.querySelector('.adm-nm').textContent = b.name;
+    const sl = slotOf(b.id);
+    card.querySelector('.adm-loc').textContent =
+      flLabel(b) + (roomLabel(b) ? '・' + roomLabel(b) : '');
     const elp = card.querySelector('.adm-elapsed');
     elp.textContent = el; elp.dataset.fresh = cls;
     const pill = card.querySelector('.pill');
@@ -3535,6 +4479,12 @@ function renderAdmin(){
     card.querySelectorAll('.adm-btns button').forEach(btn => {
       btn.dataset.sel = String(L.lv) === btn.dataset.lv ? '1' : '0';
     });
+    const pz = card.querySelector('.adm-btns2 .pause');
+    if (pz){
+      const paused = L.lv === 3;
+      pz.dataset.sel = paused ? '1' : '0';
+      pz.textContent = paused ? '□ 休止をやめる（再開）' : '■ 休止中にする';
+    }
   });
 
   // 表示対象外になったカードを取り除く
@@ -3564,6 +4514,17 @@ function bindAdminCard(card){
     S.lastAdminTouch = Date.now();
     update(id, btn.dataset.key, null);
   }));
+  // 売り切れ・雨天中止・機材トラブルで止まったとき。
+  // これが無いと「空いています」のまま残り、来場者を無駄足させる。
+  const pause = card.querySelector('.adm-btns2 .pause');
+  if (pause) pause.addEventListener('click', () => {
+    const b = S.booths.find(x => x.id === id);
+    const now = lvOf(b).lv === 3;
+    if (now){ S.lastAdminTouch = Date.now(); update(id, '空いています', 0); return; }
+    if (!confirm('このブースを「休止中」にします。\n来場者の画面には「いまは受付していません」と出ます。\nよろしいですか？')) return;
+    S.lastAdminTouch = Date.now();
+    update(id, '準備中', null);
+  });
 }
 
 /**
@@ -3588,9 +4549,14 @@ async function update(id, status, wait){
 
   const btns = $$(`.adm-booth[data-id="${CSS.escape(id)}"] button`);
   btns.forEach(x => x.disabled = true);
+  update._busy = (update._busy || 0) + 1;                   // 送信中は自動同期を待たせる
   try{
     // wait は常に送る。null なら人数を消す指示になる
     await api({ body:{ action:'update', id, status, wait, pass: pw() } });
+    // await の間に sync() が S.booths を丸ごと差し替えている可能性がある。
+    // 元の b は配列から切り離された孤児になるので、必ず id で引き直す。
+    const cur = S.booths.find(x => x.id === id) || b;
+    Object.assign(cur, { status, wait, stale:false, time:new Date().toISOString() });
     delete S.draftWait[id];                                // 送信できたので下書きを確定
     renderAdmin();
     // 押し間違いをすぐ戻せるようにする
@@ -3599,24 +4565,36 @@ async function update(id, status, wait){
     toast(`${b.name} → ${lvOf(status).short}${wait != null ? `（${wait}人）` : ''}`,
       canUndo ? { label:'元に戻す', fn: () => update(id, prev.status, prev.wait ?? null) } : null);
   }catch(e){
-    Object.assign(b, prev);                                // ロールバック
+    Object.assign(S.booths.find(x => x.id === id) || b, prev);   // ロールバックも引き直す
     if (wait != null) S.draftWait[id] = wait;              // 入力値は消さずに残す
     renderAdmin();
-    if (!authFailed(e)) toast('更新失敗：もう一度お試しください');
+    if (!authFailed(e)){
+      toast(/busy|混み合/i.test(String(e && e.message || e))
+        ? '混み合っています。少し待ってもう一度押してください'
+        : '更新失敗：もう一度お試しください');
+    }
   }finally{
+    update._busy--;
     $$(`.adm-booth[data-id="${CSS.escape(id)}"] button`).forEach(x => x.disabled = false);
   }
 }
 
-async function bulkReset(){
+/**
+ * 全ブースの状態をまとめて変える。
+ * 開場前は「空いています」、閉場時は「準備中」。閉場を1タップにしておかないと、
+ * 片付けで忙しい時間に全ブース分の操作が残って、結局そのまま放置される。
+ */
+async function bulkReset(btn){
+  const status = btn.dataset.st;
   if (navigator.onLine === false){ toast('圏外です。電波の届く場所で操作してください'); return; }
-  if (!confirm('全ブースを「空いています」に戻します。よろしいですか？')) return;
-  const btn = $('#btn-bulk'); btn.disabled = true; btn.textContent = '送信中…';
+  if (!confirm(`全ブースを「${status}」にします。よろしいですか？`)) return;
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = '送信中…';
   try{
-    await api({ body:{ action:'bulk', status:'空いています', pass: pw() } });
-    await sync(false); toast('全ブースをリセットしました');
-  }catch(e){ if (!authFailed(e)) toast('リセットに失敗しました'); }
-  finally{ btn.disabled = false; btn.textContent = '全ブースを「空いています」に戻す'; }
+    await api({ body:{ action:'bulk', status, pass: pw() } });
+    await sync(false); toast(`全ブースを「${status}」にしました`);
+  }catch(e){ if (!authFailed(e)) toast('まとめての変更に失敗しました'); }
+  finally{ btn.disabled = false; btn.textContent = label; }
 }
 
 /**
@@ -3625,7 +4603,13 @@ async function bulkReset(){
  * @return {boolean} 認証エラーとして処理したか
  */
 function authFailed(e){
-  if (!/unauthorized/i.test(String(e && e.message || e))) return false;
+  const m = String(e && e.message || e);
+  // 連続で外して一時的に止められている状態。「パスワードが違う」とは原因が別なので分けて出す
+  if (/locked/i.test(m)){
+    toast('何度も違っています。1分ほど待ってから、もう一度お試しください');
+    return true;
+  }
+  if (!/unauthorized/i.test(m)) return false;
   try{ sessionStorage.removeItem('kuroko_pw'); }catch(_){}
   S.isAdmin = false;
   switchView('auth');
@@ -3917,18 +4901,26 @@ const QR = (() => {
 function renderQrSheet(){
   const base = location.origin + location.pathname.replace(/[^/]*$/, '');
   const items = [
-    { name:'総合案内（校門・ポスター用）', url: base, note:'校内マップ全体を開きます' },
-    ...S.booths.map(b => ({
-      name: b.name,
-      url: `${base}?booth=${encodeURIComponent(b.id)}&qr=1`,
-      note: 'このブースが開き、スタンプが入ります'
-    }))
+    { name:'黒工文化祭 校内マップ', url: base, top:true,
+      where:'正門・受付・掲示板など、目につくところへ',
+      note:'いまの混雑状況と待ち人数が見られます' },
+    ...S.booths.map(b => {
+      const sl = slotOf(b.id);
+      return {
+        name: b.name,
+        url: `${base}?booth=${encodeURIComponent(b.id)}&qr=1`,
+        where: `${flLabel(b)}${sl && sl.nm ? '　' + sl.nm : ''}　の入口へ`,
+        note: 'スタンプがたまります'
+      };
+    })
   ];
   $('#qr-grid').innerHTML = items.map(it => `
-    <figure class="qr-card">
+    <figure class="qr-card${it.top ? ' top' : ''}">
+      <div class="qr-where">${esc(it.where)}</div>
+      <b>${esc(it.name)}</b>
       <div class="qr-img">${QR.svgSafe(it.url, 200)}</div>
       <figcaption>
-        <b>${esc(it.name)}</b>
+        <span class="qr-cta">スマホのカメラで読み取ってください</span>
         <span>${esc(it.note)}</span>
         <code>${esc(it.url)}</code>
       </figcaption>
@@ -3946,6 +4938,8 @@ function renderQrSheet(){
         </div>
         <div class="staff-qr">${QR.svgSafe(adminUrl, 150)}</div>
       </div>
+
+      <h4 class="staff-h">ブース担当</h4>
       <ol class="staff-steps">
         <li>左のQRを読み取り、開いたページをホーム画面に追加する</li>
         <li>配布されたパスワードを入力してログインする</li>
@@ -3953,11 +4947,25 @@ function renderQrSheet(){
         <li>待ち列を数えて <b>＋1 / ＋5</b> で人数を合わせ、<b>送信</b> を押す<br>
             <span class="staff-note">人数から混雑度が自動で決まります：
             0〜${S.waitTh.warn - 1}人＝空き ／ ${S.waitTh.warn}〜${S.waitTh.busy - 1}人＝やや混雑 ／ ${S.waitTh.busy}人〜＝混雑</span></li>
-        <li>数えられないときは下の3つのボタンでもよい</li>
+        <li>数えられないときは下の3つのボタン（空き／やや混雑／混雑）でもよい</li>
+        <li>押し間違えたら、直後に出る「元に戻す」で戻せる</li>
       </ol>
+
+      <h4 class="staff-h">本部担当</h4>
+      <ol class="staff-steps">
+        <li><b>当日チェックリスト</b>（画面いちばん上）で開場前・開場後・閉場後の確認をする</li>
+        <li>開場したら <b>「開場：全ブースを空いています」</b> を1回押す</li>
+        <li>落とし物・ステージ開始などは <b>「📣 お知らせを出す」</b> から。
+            来場者全員の画面の上に出ます（「注意（赤）」も選べます）</li>
+        <li>受付では <b>来場者カウンタ</b> で入場者数を記録する</li>
+        <li>大画面に映すときは <b>「本部用の大画面ボード」</b>。混雑と地図が同時に見えます</li>
+        <li>閉場したら <b>「閉場：全ブースを準備中」</b> を1回押す</li>
+      </ol>
+
       <p class="staff-warn">
         15分に1回は更新してください。30分で警告表示、45分を過ぎると来場者側では「情報なし」になります
-        （古い情報を見せないための仕組みです）。
+        （古い情報を見せないための仕組みです）。<br>
+        ログインできないときは、10回続けて間違えると90秒だけ止まります。少し待ってから入力し直してください。
       </p>
       <p class="staff-url">${esc(adminUrl)}</p>
     </div>`;
@@ -3975,10 +4983,22 @@ function renderPrintSheet(){
     const plan = FLOOR_PLAN[floorNum];
     const here = S.booths.filter(b => floorOfBooth(b) === floorNum);
     let h = '';
-    plan.struct.forEach(s => {
-      h += `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="5" fill="#f1f1f1" stroke="#bbb"/>`;
-      if (s.label) h += `<text x="${s.x + s.w/2}" y="${s.y + s.h/2 + 3}" text-anchor="middle"
-                          font-size="7.5" fill="#555">${esc(s.label)}</text>`;
+    plan.struct.forEach(st => {
+      const fill = st.type === 'corridor' ? '#e6ecf4'
+                 : st.type === 'road' ? '#e9e9e9'
+                 : st.type === 'blocked' ? '#f0f0f0'
+                 : st.type === 'outdoor' ? '#f4f7f2' : 'none';
+      const stroke = st.type === 'corridor' || st.type === 'road' ? 'none'
+                   : st.type === 'blocked' ? '#999' : '#bbb';
+      h += `<rect x="${st.x}" y="${st.y}" width="${st.w}" height="${st.h}" rx="4"
+             fill="${fill}" stroke="${stroke}"${st.type === 'blocked' ? ' stroke-dasharray="5 3"' : ''}/>`;
+      if (st.type === 'road'){
+        const hz = st.w >= st.h, cx = st.x + st.w / 2, cy = st.y + st.h / 2;
+        h += `<path d="${hz ? `M${st.x + 3} ${cy}H${st.x + st.w - 3}` : `M${cx} ${st.y + 3}V${st.y + st.h - 3}`}"
+                stroke="#fff" stroke-width="1.2" stroke-dasharray="5 5" fill="none"/>`;
+      }
+      if (st.label) h += fitTextSvg(st.label, st.x, st.y, st.w, st.h, 'pl-st', st.type === 'blocked' ? 10 : 6)
+                          .replace(/class="pl-st"/g, `fill="${st.type === 'blocked' ? '#666' : '#777'}" font-weight="700"`);
     });
     plan.zones.forEach(z => { h += `<text x="${z.x}" y="${z.y}" font-size="8.5" font-weight="bold" fill="#777">${esc(z.label)}</text>`; });
     plan.utils.forEach(u => {
@@ -3989,7 +5009,9 @@ function renderPrintSheet(){
     const used = new Set(here.map(b => b.id));
     plan.rooms.forEach(r => {
       if (used.has(r.id)) return;
+      const d = deptOf(r);
       h += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="4" fill="#fff" stroke="#ccc"/>`
+         + (d ? `<rect x="${r.x}" y="${r.y}" width="${Math.min(3, r.w / 6)}" height="${r.h}" rx="1.5" fill="${d.c}"/>` : '')
          + fitTextSvg(r.nm, r.x, r.y, r.w, r.h, 'pl-bg', 5).replace(/class="pl-bg"/g, 'fill="#888" font-weight="600"');
     });
     here.forEach(b => {
@@ -4027,7 +5049,12 @@ function renderPrintSheet(){
     <div class="sheet-body">
       <div class="sheet-maps sheet-col">
         ${FLOORS.filter(f => S.booths.some(b => floorOfBooth(b) === f.n))
-          .map(f => `<div><h2>${f.n === 0 ? '屋外' : f.n + '階'}</h2>${planSvg(f.n)}</div>`).join('')}
+          .map(f => {
+            // 部屋が多い階と屋外は横1段ぶんを使う（半分の幅だと紙で字が読めない）
+            const wide = (FLOOR_PLAN[f.n].rooms || []).length >= 40;
+            return `<div${wide ? ' class="wide"' : ''}>
+              <h2>${f.n === 0 ? '屋外' : f.n + '階'}</h2>${planSvg(f.n)}</div>`;
+          }).join('')}
       </div>
       <div class="sheet-list sheet-col">
         <h2>ブース一覧</h2>
@@ -4075,6 +5102,13 @@ async function renderReport(){
 
   if (!r.buckets || !r.buckets.length){
     box.innerHTML = `<p class="empty">まだ記録がありません。係員が混雑状況を更新すると、ここに推移が出ます。</p>`;
+    return;
+  }
+  // 古いGASは buckets しか返さない。ここで弾かないと下で例外になり、
+  // 灰色の板が出たまま永久に止まる（原因が誰にも分からない状態になる）
+  if (!Array.isArray(r.booths) || !Array.isArray(r.overall)){
+    box.innerHTML = `<p class="empty">記録の形式が古いようです。Apps Script のコードを最新の Code.gs に差し替えて、
+      「デプロイを管理 → 編集 → 新バージョン → デプロイ」まで実行してください。</p>`;
     return;
   }
 
@@ -4126,7 +5160,7 @@ async function renderReport(){
 
   const heat = r.booths.map(b => `
     <div class="hm-row">
-      <span class="hm-nm">${esc(b.name)}</span>
+      <span class="hm-nm">${esc(b.name)}<small>${esc(reportWhere(b.id))}</small></span>
       <div class="hm-cells">${b.series.map((lv, i) =>
         `<i data-lv="${lv === null ? 'x' : lv}" title="${esc(r.buckets[i])}"></i>`).join('')}</div>
       <span class="hm-max">${b.maxWait == null ? '' : b.maxWait + '人'}</span>
@@ -4177,7 +5211,7 @@ async function renderReport(){
     </div>` : ''}
 
     <div class="card">
-      <div class="card-t">ブース別の推移（${r.bucketMinutes}分ごと）</div>
+      <div class="card-t">ブース別の推移（${r.bucketMinutes || 15}分ごと）</div>
       <div class="hm">${heat}</div>
       <p style="font-size:9.5px;color:var(--text-mute);font-weight:600;margin-top:8px">
         右端の数字はその日の最大待ち人数です。
@@ -4323,20 +5357,20 @@ function laySel(){
 }
 
 /** FLOOR_PLAN にそのまま貼れる形で書き出す */
+/**
+ * 編集した配置を FLOOR_PLAN の形で書き出す。
+ * 手で項目を並べると、後から足した項目（科の色 z、控えの部屋 hidden）が
+ * こぼれ落ちて、貼り直した瞬間に消える。丸ごと写して出す。
+ */
 function layCode(){
-  const j = v => JSON.stringify(v);
+  const line = o => '      ' + JSON.stringify(o);
+  const arr = (key, list) =>
+    `    ${key}: [${list && list.length ? '\n' + list.map(line).join(',\n') + '\n    ' : ''}],`;
   const one = f => {
     const p = LAY.plan[f];
-    const zones  = p.zones.map(z => `      { label:${j(z.label)}, x:${z.x}, y:${z.y} }`).join(',\n');
-    const struct = p.struct.map(s =>
-      `      { type:${j(s.type)}, x:${s.x}, y:${s.y}, w:${s.w}, h:${s.h}` +
-      (s.label ? `, label:${j(s.label)}` : '') + ' }').join(',\n');
-    const utils  = p.utils.map(u =>
-      `      { x:${u.x}, y:${u.y}, w:${u.w}, h:${u.h}, t:${j(u.t)} }`).join(',\n');
-    const rooms  = p.rooms.map(r =>
-      `      {"id":${j(r.id)},"nm":${j(r.nm || '')},"x":${r.x},"y":${r.y},"w":${r.w},"h":${r.h}}`).join(',\n');
-    return `  ${f}: {\n    zones: [\n${zones}\n    ],\n    struct: [\n${struct}\n    ],\n` +
-           `    utils: [\n${utils}\n    ],\n    rooms: [${rooms ? '\n' + rooms + '\n    ' : ''}]\n  }`;
+    return `  ${f}: {\n` + arr('zones', p.zones) + '\n' + arr('struct', p.struct) + '\n' +
+           arr('utils', p.utils) + '\n' + arr('rooms', p.rooms) + '\n' +
+           `    hidden: [${(p.hidden || []).length ? '\n' + (p.hidden || []).map(line).join(',\n') + '\n    ' : ''}]\n  }`;
   };
   return `const FLOOR_PLAN = {\n${FLOORS.map(f => one(f.n)).join(',\n')}\n};`;
 }
@@ -4362,7 +5396,7 @@ function initLayout(){
   $('#lay-out').addEventListener('click', () => {
     $('#lay-code').value = layCode();
     $('#lay-code-box').classList.remove('hide');
-    $('#lay-code-box').scrollIntoView({ behavior:'smooth' });
+    $('#lay-code-box').scrollIntoView({ behavior: smoothBehavior() });
   });
   $('#lay-copy').addEventListener('click', async () => {
     const ta = $('#lay-code');
@@ -4407,14 +5441,25 @@ function initSound(){
 }
 
 function initFontSize(){
+  const SIZES = [['n', '#fs-n', ''], ['lg', '#fs-l', '文字を大きくしました'],
+                 ['xl', '#fs-xl', '文字を特大にしました']];
   const apply = v => {
     document.documentElement.setAttribute('data-fs', v);
-    $('#fs-n').setAttribute('aria-pressed', String(v !== 'lg'));
-    $('#fs-l').setAttribute('aria-pressed', String(v === 'lg'));
+    SIZES.forEach(([k, sel]) => $(sel).setAttribute('aria-pressed', String(k === v)));
+    // 文字を変えると地図の高さも変わるので測り直す
+    requestAnimationFrame(() => fitMapBox(S.floor));
   };
-  apply(load('kuroko_fs', 'n'));
-  $('#fs-n').addEventListener('click', () => { store('kuroko_fs', 'n'); apply('n'); });
-  $('#fs-l').addEventListener('click', () => { store('kuroko_fs', 'lg'); apply('lg'); toast('文字を大きくしました'); });
+  const saved = load('kuroko_fs', 'n');
+  apply(SIZES.some(x => x[0] === saved) ? saved : 'n');
+  SIZES.forEach(([k, sel, msg]) => $(sel).addEventListener('click', () => {
+    store('kuroko_fs', k); apply(k);
+    // 地図の文字は図面の縮尺で決まるので、文字サイズの設定だけでは大きくならない。
+    // 「大きく」「特大」を選んだ人には、地図もブースへ寄せて実際に読める状態にする。
+    if (k !== 'n'){
+      requestAnimationFrame(() => { try{ zoomToBooths(S.floor); }catch(e){} });
+      toast(msg + '。地図もブースに寄せました（「全体」で戻せます）');
+    } else if (msg) toast(msg);
+  }));
 }
 
 function initTheme(){
@@ -4435,9 +5480,11 @@ function init(){
   initSound();
   initSheet();
   initZoom();
+  initNotice();
   requestAnimationFrame(() => fitMapBox(S.floor));
   S.stamps   = new Set(load('kuroko_stamps_v2', []));
   S.watch    = new Set(load('kuroko_watch_v1', []));
+  S.watchLv  = load('kuroko_watch_lv', {}) || {};
   S.assigned = new Set(load('kuroko_assigned_v2', []));
 
   // 前回の内容を先に出して待ち時間を減らす。
@@ -4494,11 +5541,13 @@ function init(){
   $('#btn-hardreload').addEventListener('click', hardReload);
   $('#btn-login').addEventListener('click', login);
   $('#pw').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
-  $('#btn-bulk').addEventListener('click', bulkReset);
+  $$('#btn-bulk, #btn-bulk-close').forEach(b =>
+    b.addEventListener('click', () => bulkReset(b)));
   $$('.vis-btns button').forEach(b =>
     b.addEventListener('click', () => addVisitors(Number(b.dataset.n))));
   $('#btn-logout').addEventListener('click', () => {
-    sessionStorage.removeItem('kuroko_pw'); S.isAdmin = false; switchView('map'); toast('ログアウトしました');
+    try{ sessionStorage.removeItem('kuroko_pw'); }catch(_){}
+    S.isAdmin = false; switchView('map'); toast('ログアウトしました');
   });
 
   // ---- ディープリンク（LINEリッチメニューから直接タブを開くため）
@@ -4528,17 +5577,21 @@ function init(){
     else history.replaceState({ v:'map' }, '', location.pathname + location.search);
   }
 
-  sync(false).then(() => {
-    if (mode === 'qr'){ renderQrSheet(); return; }
-    if (mode === 'print'){ renderPrintSheet(); return; }
-    if (mode === 'report') return;
-    if (mode === 'layout'){ initLayout(); return; }
-    if (mode === 'board'){ renderBoard(); return; }
+  /**
+   * QR・リンクで来たときの処理。
+   * 最初の同期が失敗するとブース一覧が空なので、実在するブースでも
+   * 「見つかりませんでした」と言ってスタンプを取りこぼしていた。
+   * データが無いうちは処理せず保留し、届いた時点で実行する。
+   * @returns {boolean} 実行済みなら true（保留を解除してよい）
+   */
+  function applyDeepLink(){
     const b = params.get('booth');
-    if (!b) return;
+    if (!b) return true;
+    if (!S.booths.length) return false;                 // まだ届いていない＝保留
     if (!S.booths.some(x => x.id === b)){
-      toast('そのブースは見つかりませんでした');
-      return;
+      toast('そのブースは移動したか、終わった可能性があります。一覧からさがしてください');
+      switchView('list');
+      return true;
     }
     // QRから来た場合はスタンプを自動で付与する
     if (params.get('qr') === '1' && !S.stamps.has(b)){
@@ -4560,12 +5613,58 @@ function init(){
       u.searchParams.delete('booth'); u.searchParams.delete('qr');
       history.replaceState(history.state, '', u.pathname + u.search + u.hash);
     }catch(e){}
+    return true;
+  }
+
+  sync(false).then(() => {
+    if (mode === 'qr'){ renderQrSheet(); return; }
+    if (mode === 'print'){ renderPrintSheet(); return; }
+    if (mode === 'report') return;
+    if (mode === 'layout'){ initLayout(); return; }
+    if (mode === 'board'){ renderBoard(); return; }
+    if (!applyDeepLink()) S.pendingLink = applyDeepLink;
   });
 
   initLiff();
 
-  if ('serviceWorker' in navigator){
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+  initSW();
+}
+
+/**
+ * Service Worker の登録と「新しい版が届いた」通知。
+ *
+ * 回線が遅いとSWは保存済みのHTMLを先に返すため、そのままだと
+ * 利用者は古い画面を見続けたまま気づけない（実際に「ずっと前のまま」と報告があった）。
+ * 中身が変わったことをSWから知らせてもらい、更新バーを出して選ばせる。
+ * updateViaCache:'none' … sw.js 自体がブラウザキャッシュで古いまま残るのを防ぐ。
+ */
+function initSW(){
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+    .then(reg => {
+      // 文化祭中は開きっぱなしになりやすいので、定期的に新版を探しにいく
+      setInterval(() => { try{ reg.update(); }catch(e){} }, 15 * 60 * 1000);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden){ try{ reg.update(); }catch(e){} }
+      });
+    })
+    .catch(() => {});
+  navigator.serviceWorker.addEventListener('message', ev => {
+    if (ev.data && ev.data.type === 'app-updated') showUpdateBanner();
+  });
+}
+
+function showUpdateBanner(){
+  const el = $('#banner-update');
+  if (!el || !el.classList.contains('hide')) return;
+  el.classList.remove('hide');
+  const btn = $('#banner-update-btn');
+  if (btn && !btn._bound){
+    btn._bound = true;
+    btn.addEventListener('click', () => {
+      btn.disabled = true; btn.textContent = '更新中…';
+      location.reload();
+    });
   }
 }
 
@@ -4609,6 +5708,7 @@ function initLiff(){
 
 function setFloor(n){
   S.floor = n;
+  store('kuroko_floor', n);
   FLOORS.forEach(f => {
     $('#fl-' + f.n).setAttribute('aria-pressed', String(n === f.n));
     $('#plan-' + f.n).classList.toggle('hide', n !== f.n);
@@ -4626,9 +5726,28 @@ function setFloor(n){
 function fitMapBox(floorNum){
   const view = $('#map-view'), svg = $('#plan-' + floorNum);
   if (!view || !svg) return;
-  const maxH = Math.min(540, Math.max(250, Math.round(window.innerHeight * 0.52)));
-  const nat = svg.getBoundingClientRect().height || svg.offsetHeight;
-  view.style.height = Math.max(240, Math.min(maxH, Math.round(nat))) + 'px';
+  // 画面が低いとき（横向き）は地図も低くする。270px 固定だと下が切れる
+  // 同じ条件なら測り直さない。図面のSVGは400要素を超えるので、
+  // getBoundingClientRect を呼ぶたびに安い端末で数十msの引っかかりになる。
+  const vb = svg.getAttribute('viewBox') || '';
+  const key = floorNum + '|' + vb + '|' + window.innerWidth + 'x' + window.innerHeight;
+  if (fitMapBox._key === key && view.style.height){ if (!ZOOM.mNat) zoomMeasure(); zoomApply(false); return; }
+
+  const land = window.innerHeight < 560 && window.innerWidth > window.innerHeight;
+  const maxH = Math.max(150, Math.min(560, Math.round(window.innerHeight * (land ? 0.44 : 0.54))));
+  // svg.plan は width:100%/height:auto なので、高さは viewBox の縦横比から計算できる。
+  // 実測(getBoundingClientRect)はレイアウトを強制するので、比率で求められるときは使わない。
+  const vp = vb.split(/\s+/).map(Number);
+  const ratio = (vp.length === 4 && vp[2] > 0) ? vp[3] / vp[2] : 0;
+  const w = view.clientWidth || svg.clientWidth || window.innerWidth;
+  const nat = (ratio && w) ? w * ratio : (svg.getBoundingClientRect().height || svg.offsetHeight);
+  // 屋外のように全体を見せたい図面は拡大しない（正門やグラウンドが切れると意味がない）
+  // 初期表示では図面を切らない。端が隠れていると、そこに何かある事に気づけない。
+  // 文字を読みたいときは拡大してもらう（＋ボタン・ピンチ・「ブース」ボタン）。
+  const boxH = Math.max(Math.min(190, maxH), Math.min(maxH, Math.round(nat)));
+  view.style.height = boxH + 'px';
+  fitMapBox._key = key;
+  zoomMeasure();
   zoomApply(false);
 }
 function setSort(s){
