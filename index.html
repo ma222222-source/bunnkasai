@@ -187,7 +187,10 @@ main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direc
 
 /* 一覧やスタンプは、少しずつ現れると量が把握しやすい */
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-.stagger > *{animation:rise .34s var(--ease) both}
+/* 出てくる演出は画面に入る最初の数件だけ。
+   73件すべてを同時に動かすと、一覧タブを開いた瞬間に一拍もたつく。 */
+.stagger > *{animation:none}
+.stagger > *:nth-child(-n+8){animation:rise .34s var(--ease) both}
 .stagger > *:nth-child(1){animation-delay:.00s}
 .stagger > *:nth-child(2){animation-delay:.03s}
 .stagger > *:nth-child(3){animation-delay:.06s}
@@ -218,6 +221,10 @@ main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direc
 /* ========================= バナー ========================= */
 .banner{border-radius:var(--r);padding:10px 12px;font-size:12px;font-weight:700;
         display:flex;gap:8px;align-items:flex-start;line-height:1.45}
+/* 長いお知らせでも3行まで。それ以上は画面が案内文で埋まって、地図も一覧も見えなくなる */
+.banner span:last-of-type{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
+  overflow:hidden}
+.banner .retry{-webkit-line-clamp:none}
 .banner.alert{background:var(--busy-soft);color:var(--busy-ink);border:1px solid var(--busy)}
 .banner.info{background:var(--surface-3);color:var(--text-dim);border:1px solid var(--border)}
 .retry{margin-left:auto;flex:none;font-size:11px;font-weight:900;padding:0 14px;min-height:44px;
@@ -278,7 +285,14 @@ main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direc
 .reco .why{font-size:10px;color:var(--text-mute);font-weight:600}
 
 /* ========================= マップ ========================= */
-.map-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.map-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+/* 狭い画面では「校内マップ」の見出しを畳んで、階のボタンを横幅いっぱいに。
+   どの画面かは下のタブで分かるので、見出しは地図の場所を奪うだけになる。 */
+@media (max-width:360px){
+  .map-head .card-t{display:none}
+  .map-head .seg{flex:1}
+  .map-head .seg button{flex:1;padding:0 4px}
+}
 .seg{display:flex;background:var(--surface-3);border-radius:10px;padding:3px;gap:4px}
 .seg button{font-size:11px;font-weight:800;padding:0 12px;min-height:44px;border-radius:8px;
   color:var(--text-dim);white-space:nowrap;display:inline-flex;align-items:center;justify-content:center}
@@ -296,8 +310,31 @@ main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direc
 .map-zoom.grabbing{cursor:grabbing}
 svg.plan{display:block;width:100%;height:auto;touch-action:manipulation}
 .bldg{fill:transparent;stroke:var(--border-strong);stroke-width:1.4;pointer-events:all}
-.corridor{fill:var(--corridor-fill);stroke:none}
-.corridor-t{fill:var(--corridor-ink);font-weight:800;letter-spacing:.22em;pointer-events:none}
+/* 棟の地の色＝その棟を使う科の色。部屋の塗りは混雑度に使うので、
+   「どこに何科があるか」は建物の背景で見せる */
+.bldg.tinted{fill:color-mix(in srgb,var(--dept) 13%,transparent);
+             stroke:color-mix(in srgb,var(--dept) 55%,var(--border-strong))}
+[data-theme="cyber"] .bldg.tinted{fill:color-mix(in srgb,var(--dept) 22%,transparent)}
+.faded .bldg.tinted{fill:none;stroke:var(--border)}
+
+/* 廊下は「歩ける道」だと分かる見た目にする。細い帯を塗るだけでは伝わらない */
+.corridor{fill:var(--corridor-fill);stroke:color-mix(in srgb,var(--corridor-ink) 35%,transparent);
+          stroke-width:.7}
+.corridor-line{stroke:var(--corridor-ink);stroke-width:1.1;stroke-dasharray:3.5 3.5;
+               stroke-linecap:round;fill:none;opacity:.75}
+.corridor-t{fill:var(--corridor-ink);font-weight:900;font-size:4.6px;letter-spacing:.2em;
+            pointer-events:none;paint-order:stroke fill;
+            stroke:var(--corridor-fill);stroke-width:2.4px;stroke-linejoin:round}
+/* 「ここから外に出る」道。屋内の通路と同じ見た目だと、外に出られず迷う */
+.out-tag rect{fill:var(--warn-soft);stroke:var(--warn);stroke-width:.7}
+.out-tag text{font-size:5px;font-weight:900;fill:var(--warn-ink,var(--text));letter-spacing:.02em}
+
+/* 棟の名札。素の文字だと部屋名と混ざるので、札にして浮かせる */
+.zone-tag rect{fill:var(--surface);stroke:var(--border-strong);stroke-width:.8;
+               filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.18))}
+.zone-tag .dot{fill:var(--dept)}
+.zone-tag text{font-weight:900;fill:var(--text);letter-spacing:.02em}
+.zone-tag.faded{opacity:.3}
 .road{fill:var(--road-fill);stroke:none}
 .road-line{stroke:var(--road-line);stroke-width:1.4;stroke-dasharray:6 6;fill:none}
 .road-t{fill:var(--text-mute);font-weight:800;pointer-events:none}
@@ -319,6 +356,13 @@ svg.plan{display:block;width:100%;height:auto;touch-action:manipulation}
 .legend.marks{border-top:1px dashed var(--border);gap:10px}
 .legend.marks span{gap:5px}
 .legend.marks b{display:inline-grid;place-items:center;font-weight:900;flex:none}
+/* 地図の水色の帯＝歩けるところ。凡例に無いと「ただの隙間」に見える */
+.mk-way{width:22px;height:9px;border-radius:3px;background:var(--corridor-fill);
+        border:1px solid color-mix(in srgb,var(--corridor-ink) 35%,transparent);position:relative}
+.mk-way::after{content:'';position:absolute;left:1px;right:1px;top:50%;height:0;
+        border-top:1.4px dashed var(--corridor-ink);opacity:.75}
+.mk-out{font-size:8px;padding:2px 5px;border-radius:999px;background:var(--warn-soft);
+        border:1px solid var(--warn);color:var(--text)}
 .mk-no{width:15px;height:15px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:9px}
 .mk-chk{width:15px;height:15px;border-radius:50%;background:var(--surface);
         border:2px solid var(--free);color:var(--free);font-size:8px}
@@ -353,21 +397,25 @@ svg.plan{display:block;width:100%;height:auto;touch-action:manipulation}
 .ev-map[data-kind="now"] rect{fill:var(--busy)}
 .ev-map text{font-size:7px;font-weight:900;fill:var(--on-status);pointer-events:none}
 .tt-now{background:var(--surface-3)}
-.tt-go{display:inline-flex;align-items:center;margin-top:2px;min-height:44px;
-  font-size:10.5px;font-weight:800;color:var(--accent);
+.tt-go{display:inline-flex;align-items:center;margin-top:0;min-height:44px;
+  font-size:10.5px;font-weight:700;color:var(--text-dim);
   background:none;border:none;padding:0 2px;cursor:pointer;text-align:left}
+.tt-go u{color:var(--accent);text-decoration:none}
 .tt-go:hover{text-decoration:underline}
 .dept-legend i{width:9px;height:9px;border-radius:2.5px;flex:none}
 [data-theme="cyber"] .room-bg rect{fill:rgba(22,34,58,.55)}
-.zoom-ui{position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:5px;z-index:3}
-.zoom-ui button{width:44px;height:44px;border-radius:11px;border:1px solid var(--border);
-   background:var(--surface);color:var(--text);
-   font-size:16px;font-weight:900;line-height:1;cursor:pointer;box-shadow:var(--shadow);
-   display:grid;place-items:center;
-   transition:transform var(--t-fast) var(--ease),background var(--t-fast) var(--ease)}
-.zoom-ui button:active{transform:scale(.92)}
-.zoom-ui button:disabled{opacity:.4;cursor:default}
-.zoom-ui button.reset{font-size:9px;font-weight:800;height:40px;letter-spacing:-.02em}
+/* 地図の上には何も重ねない。ボタンで隠れた場所に何があるか分からなくなるため、
+   拡大・縮小・寄せる・全体はすべて地図の下の1列にまとめる */
+/* 拡大ボタンは地図に重ねるが、寄せる／全体は地図の外に置く。
+   地図の右端が常にボタンで隠れていて、そこに何があるか分からなかった */
+.map-tools{display:flex;gap:6px;margin-top:8px}
+.map-tools button{flex:1;min-height:44px;border-radius:11px;font-size:11.5px;font-weight:800;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--text);
+  display:inline-flex;align-items:center;justify-content:center;gap:4px;
+  transition:transform var(--t-fast) var(--ease)}
+.map-tools button.sq{flex:none;width:46px;font-size:18px;font-weight:900}
+.map-tools button:disabled{opacity:.45}
+.map-tools button:active{transform:scale(.97)}
 .zoom-lv{position:absolute;left:8px;top:8px;z-index:3;font-size:10px;font-weight:900;
    padding:4px 8px;border-radius:8px;background:color-mix(in srgb,var(--surface) 88%,transparent);
    border:1px solid var(--border);color:var(--text-dim);
@@ -384,6 +432,8 @@ text.util:not([font-size]){font-size:7.5px}
 .util-tap{cursor:pointer}
 .util-tap .util-box{stroke:var(--border-strong)}
 .util-tap:hover .util-box{stroke:var(--accent)}
+/* トイレは文字ではなく絵記号。狭い枠に「WC」を入れると必ずはみ出す */
+.wc-icon{fill:var(--text-mute);pointer-events:none}
 .util-tap:active .util-box{fill:var(--accent);fill-opacity:.15}
 
 /* データ待ちのあいだに出す、校舎の枠だけの下描き */
@@ -459,8 +509,17 @@ text.util:not([font-size]){font-size:7.5px}
   background:none;color:var(--accent);font-size:11.5px;font-weight:900;cursor:pointer}
 .route-badge circle{fill:var(--accent);stroke:var(--surface);stroke-width:2}
 .route-badge text{font-size:9px;font-weight:900;fill:var(--on-accent)}
-.room-no circle{fill:var(--surface);stroke:var(--border-strong);stroke-width:1.2}
-.room-no text{font-size:9px;font-weight:900;fill:var(--text)}
+/* 番号の輪は科の色。部屋の塗りが混雑度で埋まるぶん、
+   ここが「その部屋が何科か」を示す唯一の確実な手がかりになる */
+.room-no circle{fill:var(--surface);stroke:var(--dept,var(--border-strong));stroke-width:1.8}
+.dept-dot{fill:var(--dept,var(--text-mute));opacity:.9}
+/* 狭い部屋では ✓ を置く余白がない。番号の輪を緑にして訪問済みを示す */
+.visited-ring .room-no circle{stroke:var(--free);stroke-width:2.4}
+.room-no text{font-weight:900;fill:var(--text)}
+/* 部屋が狭くて名前が入らないときは、番号だけを部屋いっぱいに出す。
+   番号は紙のマップ・一覧と共通なので、これだけで引き当てられる */
+.room-no.big circle{stroke-width:1.6}
+.room-no.big text{fill:var(--text)}
 .dimmed{opacity:.32}
 
 .unplaced{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;
@@ -484,8 +543,10 @@ text.util:not([font-size]){font-size:7.5px}
 .search{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);
         border-radius:var(--r);padding:0 12px;box-shadow:var(--shadow)}
 .search input{border:none;outline:none;background:none;color:var(--text);
-              padding:12px 0;width:100%;font-size:13px}
+              padding:0;min-height:44px;width:100%;font-size:13px}
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+/* 分類と並び替えは行を分ける。1行にまとめると、横スクロールの外に
+   「空いている順」が隠れてしまい、いちばん使う操作に手が届かなくなる。 */
 .chips::-webkit-scrollbar{display:none}
 /* 指で押しやすいよう、タップ領域は40px以上を確保する */
 .chip{flex:none;font-size:11.5px;font-weight:800;padding:0 14px;min-height:40px;border-radius:999px;
@@ -505,7 +566,7 @@ text.util:not([font-size]){font-size:7.5px}
 /* 印刷と画像化のときは全部描かせる（省いたままだと白紙になる） */
 @media print{ .booth{content-visibility:visible} }
 .booth.flash{outline:3px solid var(--accent);outline-offset:-1px}
-.booth-top{display:flex;gap:10px;padding:11px 12px;align-items:flex-start}
+.booth-top{display:flex;gap:10px;padding:10px 12px;align-items:flex-start}
 .booth-bar{width:5px;border-radius:3px;align-self:stretch;flex:none;background:var(--unknown)}
 .booth[data-lv="0"] .booth-bar{background:var(--free)}
 .booth[data-lv="1"] .booth-bar{background:var(--warn)}
@@ -517,7 +578,8 @@ text.util:not([font-size]){font-size:7.5px}
 .tag{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:6px;
      background:var(--surface-3);color:var(--text-dim)}
 .booth-meta{font-size:10.5px;color:var(--text-mute);font-weight:600;margin-top:2px}
-.booth-note{font-size:11px;color:var(--text-dim);margin-top:5px;font-weight:600}
+.booth-note{font-size:11px;color:var(--text-dim);margin-top:5px;font-weight:600;
+   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .booth-room{font-size:10.5px;color:var(--text-mute);font-weight:700;margin-top:2px}
 .pill{font-size:11.5px;font-weight:900;padding:6px 11px;border-radius:999px;white-space:nowrap;
       display:flex;align-items:center;gap:5px;flex:none;
@@ -526,7 +588,7 @@ text.util:not([font-size]){font-size:7.5px}
 .pill[data-lv="1"]{background:var(--warn-soft);color:var(--warn)}
 .pill[data-lv="2"]{background:var(--busy-soft);color:var(--busy-ink)}
 .pill[data-lv="-1"],.pill[data-lv="3"]{background:var(--surface-3);color:var(--text-mute)}
-.booth-foot{display:flex;align-items:center;gap:8px;padding:8px 12px;
+.booth-foot{display:flex;align-items:center;gap:8px;padding:5px 12px;
             border-top:1px dashed var(--border);background:var(--surface-2)}
 .spark{display:flex;align-items:flex-end;gap:2px;height:18px;flex:none}
 .spark i{width:4px;border-radius:1.5px;display:block;background:var(--unknown)}
@@ -614,7 +676,8 @@ text.util:not([font-size]){font-size:7.5px}
 
 /* ========================= インフォ ========================= */
 .tt{width:100%;border-collapse:collapse;font-size:11.5px}
-.tt th,.tt td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--border)}
+.tt th,.tt td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--border);
+   vertical-align:top}
 .tt th{font-size:10px;color:var(--text-mute);font-weight:800;letter-spacing:.05em}
 .tt td:first-child{font-weight:800;white-space:nowrap;color:var(--accent)}
 .help{display:flex;gap:9px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px}
@@ -644,6 +707,12 @@ text.util:not([font-size]){font-size:7.5px}
   border:1px dashed var(--border-strong);background:var(--surface-2);color:var(--text-dim)}
 .adm-btns2 button[data-sel="1"]{background:var(--closed);border-style:solid;
   border-color:var(--closed);color:#fff}
+/* 係員が最初に見るのは担当ブースの更新カード。並び順で先頭側へ寄せる */
+#adm-warn{order:var(--o-warn)}
+#admin-list{order:var(--o-list)}
+#v-admin .vis-card{order:var(--o-vis)}
+#v-admin .chk-card{order:var(--o-chk)}
+#v-admin .notice-card{order:5}
 .adm-booth[data-fresh="warn"]{border-color:var(--warn);box-shadow:inset 3px 0 0 var(--warn),var(--shadow)}
 .adm-booth[data-fresh="danger"]{border-color:var(--busy);box-shadow:inset 3px 0 0 var(--busy),var(--shadow)}
 .adm-elapsed{font-size:11px;font-weight:900;padding:3px 8px;border-radius:7px;
@@ -1093,9 +1162,13 @@ body.board-mode main{padding:0}
   .head-row{gap:8px}
   .icon-btn{width:32px;height:32px;font-size:13px;border-radius:9px}
   .sync{margin-top:3px;padding:2px 8px;font-size:9.5px}
-  main{padding:8px 10px calc(62px + var(--safe-b));gap:8px}
+  main{padding:8px 8px calc(62px + var(--safe-b));gap:8px}
   .card{padding:9px}
+  #map-card{padding:8px 8px 0 !important}
+  .map-head{margin-bottom:6px}
   .banner{padding:6px 10px;font-size:11px;line-height:1.4}
+  /* 横向きは縦が390pxしかない。案内文は1行に畳んで、地図に高さを回す */
+  .banner span:last-of-type{-webkit-line-clamp:1}
   .summary{gap:4px}
   .sum{padding:5px 3px}
   .sum b{font-size:15px}
@@ -1108,7 +1181,37 @@ body.board-mode main{padding:0}
   /* 地図を先頭へ。横向きは「場所を確かめたい」場面がほとんど */
   #map-card{order:-1}
   #reco-card{order:1}
+  /* 横向きでは 520px の枠をやめて幅を使い切る。
+     縦向き用の幅のままだと、左右に広い余白ができて地図だけが細長くなり、
+     いちばん見たい地図が下のタブに隠れてしまう。 */
+  .app{max-width:none}
+  .nav{max-width:none}
+  .bsh{max-width:none}
+  /* 横向きは縦が390pxしかない。地図より上にあるものを削れるだけ削る */
+  .map-head{margin-bottom:4px}
+  .map-head .card-t{display:none}
+  .map-head .seg{width:100%}
+  .map-head .seg button{flex:1;min-height:36px}
+  #map-card{padding:6px 10px 0 !important}
+  .head{padding:4px 12px}
+  .head h1{font-size:13px}
+  .sync{margin-top:2px;padding:2px 8px;font-size:9.5px}
+  main{gap:6px;padding-top:6px}
 }
+
+/* 縦向きでも地図を先頭にする。
+   「マップ」タブを押した人が最初に見たいのは地図であって、
+   お知らせでもサマリでも「はじめての方へ」でもない。
+   小さい端末では、地図より上に3つ積むだけで地図が画面外に出る。 */
+/* display は .view / .view.on で切り替えている。ここで display を指定すると
+   idの方が強く、一覧タブにしても地図が出たままになる（実際にそうなった）。
+   ここでは並び順だけを決める。 */
+#here-bar{order:0}
+#map-card{order:1}
+#summary{order:2}
+#next-ev{order:3}
+#reco-card{order:4}
+#tips{order:5}
 
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.01ms !important;animation-iteration-count:1 !important;
@@ -1123,7 +1226,7 @@ body.board-mode main{padding:0}
     <div class="head-row">
       <div style="min-width:0">
         <h1>黒工文化祭 校内マップ</h1>
-        <p class="sub">KUROKO FESTIVAL · LIVE CONGESTION</p>
+        <p class="sub" id="head-sub">岩手県立黒沢尻工業高等学校</p>
       </div>
       <div class="head-actions">
         <button class="icon-btn" id="btn-theme" aria-label="テーマ切替" title="テーマ切替">◐</button>
@@ -1143,6 +1246,8 @@ body.board-mode main{padding:0}
     <!-- ============ マップ ============ -->
     <section class="view on" id="v-map">
       <div class="here-bar hide" id="here-bar" aria-live="polite"></div>
+      <!-- 地図はこのタブの主役。ここより上に何かを積むと、
+           小さい端末（iPhone SE）では地図が画面の外に出てしまう。 -->
       <div class="summary" id="summary"></div>
     <p class="sr-only" id="summary-live" role="status" aria-live="polite"></p>
 
@@ -1177,12 +1282,7 @@ body.board-mode main{padding:0}
         </div>
         <div class="map-wrap">
           <div class="zoom-lv" id="zoom-lv" aria-hidden="true"></div>
-          <div class="zoom-ui">
-            <button id="zoom-in" aria-label="地図を拡大">＋</button>
-            <button id="zoom-out" aria-label="地図を縮小" disabled>−</button>
-            <button id="zoom-booth" class="reset" aria-label="この階のブースに寄せる">ブース</button>
-            <button id="zoom-reset" class="reset" aria-label="地図の拡大を元に戻す" disabled>全体</button>
-          </div>
+
           <div class="map-view" id="map-view">
           <div class="map-zoom" id="map-zoom">
             <svg class="plan hide" id="plan-0" viewBox="0 0 400 500" role="group" aria-label="屋外の敷地マップ"></svg>
@@ -1190,6 +1290,12 @@ body.board-mode main{padding:0}
             <svg class="plan hide" id="plan-2" viewBox="0 0 400 500" role="group" aria-label="2階の校内マップ"></svg>
             <svg class="plan hide" id="plan-3" viewBox="0 0 400 500" role="group" aria-label="3階の校内マップ"></svg>
           </div>
+          </div>
+          <div class="map-tools">
+            <button id="zoom-out" class="sq" aria-label="地図を縮小" disabled>−</button>
+            <button id="zoom-in" class="sq" aria-label="地図を拡大">＋</button>
+            <button id="zoom-booth" aria-label="この階のブースに寄せる">ブースに寄せる</button>
+            <button id="zoom-reset" aria-label="地図の拡大を元に戻す" disabled>全体を見る</button>
           </div>
           <div class="unplaced hide" id="map-unplaced"></div>
           <div class="dept-legend hide" id="dept-legend" aria-label="科ごとの色" role="group" tabindex="0"></div>
@@ -1199,9 +1305,11 @@ body.board-mode main{padding:0}
             <span><i class="lg-busy"></i>混雑</span>
             <span><i class="lg-prep"></i>準備中</span>
             <span><i class="lg-unk"></i>情報なし</span>
-            <span class="legend-tip">枠をタップすると待ち人数と実演時間。指でひろげる／＋ボタンで拡大できます</span>
+            <span class="legend-tip">数字をタップすると名前・待ち人数・実演時間が出ます。指でひろげる／＋ボタンで拡大すると、地図にも名前が出ます</span>
           </div>
           <div class="legend marks" aria-label="地図の記号">
+            <span><b class="mk-way"></b>歩ける道（廊下・渡り廊下）</span>
+            <span><b class="mk-out">外に出る</b>いったん外へ</span>
             <span><b class="mk-no">3</b>紙マップと同じ番号</span>
             <span><b class="mk-chk">✓</b>訪問済み</span>
             <span><b class="mk-ev">まもなく</b>もうすぐ始まる</span>
@@ -1241,9 +1349,8 @@ body.board-mode main{padding:0}
     <section class="view" id="v-stamp">
       <div class="card">
         <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M8.2 12.5 6 22l6-3 6 3-2.2-9.5"/></svg> スタンプラリー</div>
-        <p style="font-size:12px;color:var(--text-dim);font-weight:600">
-          <b>各ブースの入口にあるQRコードを読むと、自動でスタンプが押されます。</b><br>
-          手動で記録するときは、一覧やブースの詳細にある「スタンプ」ボタンを押してください。
+        <p style="font-size:12px;color:var(--text-dim);font-weight:700;line-height:1.7">
+          入口の<b>QRコード</b>を読むと自動でスタンプ。「<b>＋ スタンプ</b>」ボタンでも記録できます。
         </p>
         <div style="display:flex;align-items:baseline;gap:6px;margin-top:10px">
           <span style="font-size:26px;font-weight:900" id="stamp-n">0</span>
@@ -1321,7 +1428,7 @@ body.board-mode main{padding:0}
       </div>
     </section>
 
-    <section class="view" id="v-admin">
+    <section class="view" id="v-admin" style="--o-warn:1;--o-list:2;--o-vis:3;--o-chk:4">
       <div class="card">
         <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5a4.5 4.5 0 0 0 5.6 5.6L11 19.7a2.4 2.4 0 1 1-3.4-3.4z"/><circle cx="18" cy="6" r="1"/></svg> 係員コンソール</div>
         <div class="chips" id="assign-chips"></div>
@@ -1331,6 +1438,9 @@ body.board-mode main{padding:0}
         <div id="adm-summary" style="margin-top:9px;padding-top:9px;border-top:1px solid var(--border)"></div>
       </div>
 
+      <!-- 係員が当日いちばん多くやるのは「担当ブースの更新」。
+           来場者カウンタやチェックリストが先にあると、更新まで毎回スクロールが要る。
+           並び順は 担当選択 → ブースの更新 → 来場者 → チェックリスト → お知らせ にする。 -->
       <details class="card chk-card" id="chk-card">
         <summary class="chk-sum">当日の流れ（本部用チェックリスト）<span id="chk-count"></span></summary>
         <div id="chk-body"></div>
@@ -1352,7 +1462,7 @@ body.board-mode main{padding:0}
         </div>
         <p class="adm-hint">押した分だけ加算されます。押し間違えたら −1 で戻せます。</p>
       </div>
-      <div id="adm-warn" class="hide" style="margin-bottom:8px"></div>
+      <div id="adm-warn" class="hide" style="margin-bottom:8px;line-height:1.6"></div>
       <div id="admin-list" style="display:flex;flex-direction:column;gap:9px"></div>
       <details class="card notice-card" id="notice-card">
         <summary class="chk-sum">📣 お知らせを出す
@@ -1531,7 +1641,7 @@ body.board-mode main{padding:0}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-08-06ad',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-08-07d',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // LIFF化するときだけ '1234567890-abcdEFGH' の形式で設定（空なら通常のWebとして動作）
@@ -1660,7 +1770,7 @@ const FLOOR_PLAN = {
   },
   1: {
     zones: [{"label":"■ 電子科実習棟","x":351.9,"y":448.0}, {"label":"■ 専攻科棟","x":280.6,"y":448.0}, {"label":"■ 土木科実習棟","x":278.3,"y":396.0}, {"label":"■ 材料技術科実習棟","x":241.5,"y":294.0}, {"label":"■ 電子機械科実習棟","x":41.4,"y":294.0}, {"label":"■ 機械科実習棟","x":135.7,"y":294.0}, {"label":"■ 本館","x":197.8,"y":506.0}, {"label":"■ 家庭科実習棟","x":333.5,"y":296.0}, {"label":"■ 北教室棟","x":140.3,"y":390.0}, {"label":"■ 電気科実習棟","x":347.3,"y":396.0}, {"label":"■ 南教室棟","x":140.3,"y":442.0}],
-    struct: [{"x":34.0,"y":289.6,"w":288.4,"h":48.8,"type":"bldg","zone":"材料技術科実習棟"}, {"x":211.6,"y":292.0,"w":4.6,"h":44.0,"type":"corridor","label":""}, {"x":342.2,"y":291.6,"w":42.3,"h":20.8,"type":"bldg","zone":"家庭科実習棟"}, {"x":330.7,"y":315.6,"w":53.8,"h":26.8,"type":"bldg","zone":""}, {"x":333.5,"y":334.0,"w":48.3,"h":6.0,"type":"corridor","label":""}, {"x":1.8,"y":339.6,"w":17.0,"h":32.8,"type":"bldg","zone":""}, {"x":4.6,"y":354.0,"w":11.5,"h":4.0,"type":"corridor","label":""}, {"x":43.2,"y":341.6,"w":56.1,"h":36.8,"type":"bldg","zone":""}, {"x":46.0,"y":370.0,"w":50.6,"h":6.0,"type":"corridor","label":""}, {"x":268.6,"y":345.6,"w":60.7,"h":44.8,"type":"bldg","zone":"土木科実習棟"}, {"x":271.4,"y":366.0,"w":55.2,"h":4.0,"type":"corridor","label":""}, {"x":333.0,"y":345.6,"w":72.2,"h":44.8,"type":"bldg","zone":"電気科実習棟"}, {"x":335.8,"y":366.0,"w":66.7,"h":4.0,"type":"corridor","label":""}, {"x":213.4,"y":363.6,"w":21.6,"h":20.8,"type":"bldg","zone":""}, {"x":119.1,"y":367.6,"w":79.1,"h":22.8,"type":"bldg","zone":"北教室棟"}, {"x":121.9,"y":382.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":36.3,"y":381.6,"w":69.9,"h":40.8,"type":"bldg","zone":""}, {"x":39.1,"y":414.0,"w":64.4,"h":6.0,"type":"corridor","label":"廊下"}, {"x":275.5,"y":397.6,"w":129.7,"h":44.8,"type":"bldg","zone":"電子科実習棟"}, {"x":278.3,"y":418.0,"w":124.2,"h":4.0,"type":"corridor","label":""}, {"x":340.4,"y":400.0,"w":6.9,"h":40.0,"type":"corridor","label":""}, {"x":213.4,"y":415.6,"w":21.6,"h":20.8,"type":"bldg","zone":""}, {"x":155.9,"y":419.6,"w":42.3,"h":16.8,"type":"bldg","zone":"南教室棟"}, {"x":22.5,"y":455.6,"w":83.7,"h":46.8,"type":"bldg","zone":""}, {"x":41.4,"y":458.0,"w":4.6,"h":36.0,"type":"corridor","label":""}, {"x":25.3,"y":494.0,"w":78.2,"h":6.0,"type":"corridor","label":"廊下"}, {"x":128.8,"y":458.0,"w":115.0,"h":38.0,"type":"blocked","label":"本館1階（立入禁止）"}],
+    struct: [{"x":34.0,"y":289.6,"w":288.4,"h":48.8,"type":"bldg","zone":"材料技術科実習棟"}, {"x":211.6,"y":292.0,"w":4.6,"h":44.0,"type":"corridor","label":""}, {"x":342.2,"y":291.6,"w":42.3,"h":20.8,"type":"bldg","zone":"家庭科実習棟"}, {"x":330.7,"y":315.6,"w":53.8,"h":26.8,"type":"bldg","zone":""}, {"x":333.5,"y":334.0,"w":48.3,"h":6.0,"type":"corridor","label":""}, {"x":1.8,"y":339.6,"w":17.0,"h":32.8,"type":"bldg","zone":""}, {"x":4.6,"y":354.0,"w":11.5,"h":4.0,"type":"corridor","label":""}, {"x":43.2,"y":341.6,"w":56.1,"h":36.8,"type":"bldg","zone":""}, {"x":46.0,"y":370.0,"w":50.6,"h":6.0,"type":"corridor","label":""}, {"x":268.6,"y":345.6,"w":60.7,"h":44.8,"type":"bldg","zone":"土木科実習棟"}, {"x":271.4,"y":366.0,"w":55.2,"h":4.0,"type":"corridor","label":""}, {"x":333.0,"y":345.6,"w":72.2,"h":44.8,"type":"bldg","zone":"電気科実習棟"}, {"x":335.8,"y":366.0,"w":66.7,"h":4.0,"type":"corridor","label":""}, {"x":213.4,"y":363.6,"w":21.6,"h":20.8,"type":"bldg","zone":""}, {"x":119.1,"y":367.6,"w":79.1,"h":22.8,"type":"bldg","zone":"北教室棟"}, {"x":121.9,"y":382.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":36.3,"y":381.6,"w":69.9,"h":40.8,"type":"bldg","zone":""}, {"x":39.1,"y":414.0,"w":64.4,"h":6.0,"type":"corridor","label":"廊下"}, {"x":275.5,"y":397.6,"w":129.7,"h":44.8,"type":"bldg","zone":"電子科実習棟"}, {"x":278.3,"y":418.0,"w":124.2,"h":4.0,"type":"corridor","label":""}, {"x":340.4,"y":400.0,"w":6.9,"h":40.0,"type":"corridor","label":""}, {"x":213.4,"y":415.6,"w":21.6,"h":20.8,"type":"bldg","zone":""}, {"x":155.9,"y":419.6,"w":42.3,"h":16.8,"type":"bldg","zone":"南教室棟"}, {"x":22.5,"y":455.6,"w":83.7,"h":46.8,"type":"bldg","zone":""}, {"x":41.4,"y":458.0,"w":4.6,"h":36.0,"type":"corridor","label":""}, {"x":25.3,"y":494.0,"w":78.2,"h":6.0,"type":"corridor","label":"廊下"}, {"x":128.8,"y":458.0,"w":115.0,"h":38.0,"type":"blocked","label":"本館1階（立入禁止）"}, {"x": 211.6, "y": 338.4, "w": 4.6, "h": 25.2, "type": "corridor", "link": 1}, {"x": 198.2, "y": 372.0, "w": 15.2, "h": 6.0, "type": "corridor", "link": 1}, {"x": 235.0, "y": 366.0, "w": 33.6, "h": 6.0, "type": "corridor", "link": 1, "label": "渡り廊下"}, {"x": 329.3, "y": 366.0, "w": 3.7, "h": 4.0, "type": "corridor", "link": 1}, {"x": 219.0, "y": 384.4, "w": 6.0, "h": 31.2, "type": "corridor", "link": 1}, {"x": 198.2, "y": 423.0, "w": 15.2, "h": 6.0, "type": "corridor", "link": 1}, {"x": 235.0, "y": 418.0, "w": 43.3, "h": 6.0, "type": "corridor", "link": 1, "label": "渡り廊下"}, {"x": 103.5, "y": 414.0, "w": 52.4, "h": 6.0, "type": "corridor", "link": 1, "label": "渡り廊下"}, {"x": 66.0, "y": 376.0, "w": 6.0, "h": 8.0, "type": "corridor", "link": 1}, {"x": 322.4, "y": 322.0, "w": 8.3, "h": 6.0, "type": "corridor", "link": 1}, {"x": 355.0, "y": 340.0, "w": 6.0, "h": 26.0, "type": "corridor", "link": 1}, {"x": 63.0, "y": 422.4, "w": 8.0, "h": 33.2, "type": "road", "link": 1, "label": "外に出る"}, {"x": 250.0, "y": 436.4, "w": 8.0, "h": 14.0, "type": "road", "link": 1, "label": "外に出る"}],
     utils: [{"t":"WC","x":103.5,"y":466.0,"w":6.9,"h":6.0}, {"t":"WC","x":29.9,"y":436.0,"w":6.9,"h":14.0}, {"t":"WC","x":326.6,"y":376.0,"w":9.2,"h":12.0}, {"t":"WC","x":262.2,"y":376.0,"w":9.2,"h":12.0}, {"t":"WC","x":195.5,"y":422.0,"w":6.9,"h":12.0}, {"t":"WC","x":112.7,"y":408.0,"w":6.9,"h":10.0}, {"t":"WC","x":381.8,"y":298.0,"w":9.2,"h":12.0}, {"t":"WC","x":262.2,"y":428.0,"w":9.2,"h":12.0}, {"t":"WC","x":211.6,"y":292.0,"w":4.6,"h":14.0}, {"t":"WC","x":195.5,"y":370.0,"w":6.9,"h":12.0}, {"t":"WC","x":89.7,"y":436.0,"w":6.9,"h":14.0}, {"t":"WC","x":381.8,"y":318.0,"w":9.2,"h":12.0}, {"t":"WC","x":103.5,"y":460.0,"w":6.9,"h":6.0}, {"t":"WC","x":105.8,"y":408.0,"w":6.9,"h":10.0}],
     rooms: [
       {"x":36.8,"y":292.0,"w":23.0,"h":22.0,"id":"1F-01","nm":"FA実習室","z":"電子機械科実習棟"},
@@ -1725,7 +1835,7 @@ const FLOOR_PLAN = {
   },
   2: {
     zones: [{"label":"■ 本館","x":197.8,"y":280.0}, {"label":"■ 専攻科棟","x":280.6,"y":228.0}, {"label":"■ 土木科実習棟","x":276.0,"y":178.0}, {"label":"■ 南教室棟","x":144.9,"y":222.0}, {"label":"■ 電子科実習棟","x":345.0,"y":178.0}, {"label":"■ 北教室棟","x":144.9,"y":172.0}],
-    struct: [{"x":268.6,"y":127.6,"w":60.7,"h":44.8,"type":"bldg","zone":"土木科実習棟"}, {"x":271.4,"y":148.0,"w":55.2,"h":4.0,"type":"corridor","label":""}, {"x":333.0,"y":127.6,"w":72.2,"h":44.8,"type":"bldg","zone":"電子科実習棟"}, {"x":335.8,"y":148.0,"w":66.7,"h":4.0,"type":"corridor","label":""}, {"x":119.1,"y":149.6,"w":79.1,"h":22.8,"type":"bldg","zone":"北教室棟"}, {"x":121.9,"y":164.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":268.6,"y":177.6,"w":74.5,"h":44.8,"type":"bldg","zone":"専攻科棟"}, {"x":271.4,"y":198.0,"w":69.0,"h":4.0,"type":"corridor","label":""}, {"x":119.1,"y":199.6,"w":79.1,"h":22.8,"type":"bldg","zone":"南教室棟"}, {"x":121.9,"y":214.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":130.6,"y":239.6,"w":42.3,"h":34.8,"type":"bldg","zone":"本館"}, {"x":133.4,"y":254.0,"w":36.8,"h":4.0,"type":"corridor","label":""}, {"x":222.6,"y":239.6,"w":33.1,"h":16.8,"type":"bldg","zone":""}, {"x":181.2,"y":255.6,"w":37.7,"h":18.8,"type":"bldg","zone":"本館"}],
+    struct: [{"x":268.6,"y":127.6,"w":60.7,"h":44.8,"type":"bldg","zone":"土木科実習棟"}, {"x":271.4,"y":148.0,"w":55.2,"h":4.0,"type":"corridor","label":""}, {"x":333.0,"y":127.6,"w":72.2,"h":44.8,"type":"bldg","zone":"電子科実習棟"}, {"x":335.8,"y":148.0,"w":66.7,"h":4.0,"type":"corridor","label":""}, {"x":119.1,"y":149.6,"w":79.1,"h":22.8,"type":"bldg","zone":"北教室棟"}, {"x":121.9,"y":164.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":268.6,"y":177.6,"w":74.5,"h":44.8,"type":"bldg","zone":"専攻科棟"}, {"x":271.4,"y":198.0,"w":69.0,"h":4.0,"type":"corridor","label":""}, {"x":119.1,"y":199.6,"w":79.1,"h":22.8,"type":"bldg","zone":"南教室棟"}, {"x":121.9,"y":214.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":130.6,"y":239.6,"w":42.3,"h":34.8,"type":"bldg","zone":"本館"}, {"x":133.4,"y":254.0,"w":36.8,"h":4.0,"type":"corridor","label":""}, {"x":222.6,"y":239.6,"w":33.1,"h":16.8,"type":"bldg","zone":""}, {"x":181.2,"y":255.6,"w":37.7,"h":18.8,"type":"bldg","zone":"本館"}, {"x": 198.2, "y": 160.0, "w": 70.4, "h": 6.0, "type": "corridor", "link": 1, "label": "渡り廊下"}, {"x": 329.3, "y": 148.0, "w": 3.7, "h": 4.0, "type": "corridor", "link": 1}, {"x": 295.0, "y": 172.4, "w": 6.0, "h": 5.2, "type": "corridor", "link": 1}, {"x": 186.0, "y": 172.4, "w": 6.0, "h": 27.2, "type": "corridor", "link": 1}, {"x": 198.2, "y": 214.0, "w": 70.4, "h": 6.0, "type": "corridor", "link": 1, "label": "渡り廊下"}, {"x": 150.0, "y": 222.4, "w": 6.0, "h": 17.2, "type": "corridor", "link": 1}],
     utils: [{"t":"WC","x":204.7,"y":242.0,"w":6.9,"h":6.0}, {"t":"WC","x":195.5,"y":152.0,"w":6.9,"h":12.0}, {"t":"WC","x":195.5,"y":202.0,"w":6.9,"h":12.0}, {"t":"WC","x":326.6,"y":158.0,"w":9.2,"h":12.0}, {"t":"WC","x":262.2,"y":208.0,"w":9.2,"h":12.0}, {"t":"WC","x":262.2,"y":158.0,"w":9.2,"h":12.0}, {"t":"WC","x":204.7,"y":248.0,"w":6.9,"h":6.0}],
     rooms: [
       {"x":271.4,"y":130.0,"w":36.8,"h":18.0,"id":"2F-01","nm":"土木情報実習室","z":"土木科実習棟"},
@@ -1759,7 +1869,7 @@ const FLOOR_PLAN = {
   },
   3: {
     zones: [{"label":"■ 北教室棟","x":144.9,"y":36.0}, {"label":"■ 南教室棟","x":144.9,"y":72.0}, {"label":"■ 本館","x":200.1,"y":118.0}],
-    struct: [{"x":119.1,"y":7.6,"w":79.1,"h":22.8,"type":"bldg","zone":"北教室棟"}, {"x":121.9,"y":22.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":119.1,"y":43.6,"w":79.1,"h":22.8,"type":"bldg","zone":"南教室棟"}, {"x":121.9,"y":58.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":130.6,"y":77.6,"w":125.1,"h":34.8,"type":"bldg","zone":"本館"}, {"x":220.8,"y":80.0,"w":4.6,"h":30.0,"type":"corridor","label":""}],
+    struct: [{"x":119.1,"y":7.6,"w":79.1,"h":22.8,"type":"bldg","zone":"北教室棟"}, {"x":121.9,"y":22.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":119.1,"y":43.6,"w":79.1,"h":22.8,"type":"bldg","zone":"南教室棟"}, {"x":121.9,"y":58.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":130.6,"y":77.6,"w":125.1,"h":34.8,"type":"bldg","zone":"本館"}, {"x":220.8,"y":80.0,"w":4.6,"h":30.0,"type":"corridor","label":""}, {"x": 186.0, "y": 30.4, "w": 6.0, "h": 13.2, "type": "corridor", "link": 1}, {"x": 186.0, "y": 66.4, "w": 6.0, "h": 11.2, "type": "corridor", "link": 1}],
     utils: [{"t":"WC","x":202.4,"y":80.0,"w":6.9,"h":12.0}, {"t":"WC","x":195.5,"y":10.0,"w":6.9,"h":12.0}, {"t":"WC","x":195.5,"y":46.0,"w":6.9,"h":12.0}],
     rooms: [
       {"x":121.9,"y":10.0,"w":18.4,"h":12.0,"id":"3F-01","nm":"電子機１","z":"北教室棟"},
@@ -2030,7 +2140,10 @@ function renderSyncState(){
     txt.textContent = `情報が少し古いです（${ago(S.updatedAt)}）`;
   } else {
     dot.className = 'dot';
-    txt.textContent = `リアルタイム更新中・${ago(S.updatedAt)}`;
+    const hm = hoursMessage();
+    // 開催時間の外なら、更新状況より「いまは開いていない」ことの方が大事
+    if (hm){ dot.className = 'dot stale'; txt.textContent = hm.short; }
+    else txt.textContent = `最新の情報です（係の人の更新 ${ago(S.updatedAt)}）`;
   }
 }
 setInterval(() => {
@@ -2043,6 +2156,93 @@ setInterval(() => {
    マップ描画
    ===================================================================== */
 /** 道の真ん中に白い破線を引く（車道だと一目で分かる） */
+/**
+ * 廊下の見せ方。
+ * 細い帯を塗るだけだと、部屋と部屋の隙間にしか見えず「ここが通路だ」と伝わらない。
+ * 真ん中に点線を通して「歩ける道」だと分かるようにし、
+ * 幅と長さに余裕があるときだけ「廊下」の文字を入れる。
+ */
+/**
+ * いまの表示倍率で、その部屋に文字を入れて読めるかどうか。
+ *
+ * 図面は viewBox 400 幅を画面幅（およそ 366px）に収めているので、
+ * 図面の 1 単位はおよそ 0.92px。ここに拡大倍率を掛けたものが実寸になる。
+ * 「入らないなら描かない」を徹底しないと、字が重なって地図全体が読めなくなる。
+ */
+function mapScale(){
+  const view = document.getElementById('map-view');
+  const w = view ? view.clientWidth : 366;
+  return (w / 400) * (ZOOM.k || 1);
+}
+function fitsName(r){ const k = mapScale(); return r.w * k >= 46 && r.h * k >= 20; }
+function fitsStatus(r){ const k = mapScale(); return r.w * k >= 52 && r.h * k >= 34; }
+
+/**
+ * トイレなどの記号。
+ * 「WC」の2文字が枠に入らず「W」「C」の2行に折れて読めなくなっていたので、
+ * 短い記号は折り返さず、枠に合わせて1行で縮める。
+ */
+function utilLabel(u){
+  const t = String(u.t || '');
+  if (!t) return '';
+  const cx = u.x + u.w / 2, cy = u.y + u.h / 2;
+  // トイレの枠は 7×10 ほどしかなく、「WC」の2文字を入れると必ず外へはみ出して
+  // 隣のトイレの字と重なる。文字をやめて絵記号にする（言葉も要らない）。
+  if (t === 'WC' || t === 'トイレ'){
+    const k = Math.min(u.w / 7, u.h / 9);
+    const g = (dx, w2) => `<g transform="translate(${(cx + dx * k).toFixed(2)} ${cy.toFixed(2)}) scale(${k.toFixed(3)})">
+        <circle cx="0" cy="-3.1" r="1.15"/>
+        <path d="M${-w2} -1.6h${w2 * 2}l-${w2 * 0.55} 3.1h-${w2 * 0.9}z"/>
+        <rect x="${-w2 * 0.62}" y="1.4" width="${(w2 * 0.44).toFixed(2)}" height="2.6" rx=".4"/>
+        <rect x="${w2 * 0.18}" y="1.4" width="${(w2 * 0.44).toFixed(2)}" height="2.6" rx=".4"/>
+      </g>`;
+    return `<g class="wc-icon">${g(-1.7, 1.35)}${g(1.7, 1.7)}</g>`;
+  }
+  if (t.length <= 3){
+    const size = Math.max(2.8, Math.min((u.w - 1) / (t.length * 0.98), u.h * 0.7, 7));
+    return `<text x="${cx.toFixed(1)}" y="${(cy + size * 0.36).toFixed(1)}" text-anchor="middle"
+              class="util" font-size="${size.toFixed(1)}">${esc(t)}</text>`;
+  }
+  return fitTextSvg(t, u.x, u.y, u.w, u.h, 'util', 6);
+}
+
+/** 「ここから外に出る」道の札。屋内の通路と取り違えると外に出られず迷う。 */
+function outLabel(st){
+  const horiz = st.w >= st.h;
+  const cx = st.x + st.w / 2, cy = st.y + st.h / 2;
+  const t = st.label || '外に出る';
+  const w = t.length * 5.4 + 6;
+  // 縦の道は幅が8しかない。札を道の上に載せると文字が潰れるので、
+  // 道の始まり（建物を出るところ）の脇に置く。
+  // 縦の道は、始まり（建物を出るところ）の右脇に置く。
+  // 真上に置くと建物の中の「廊下」の字とぶつかる。
+  const tx = horiz ? cx : cx + w / 2 + st.w / 2 + 1;
+  const ty = horiz ? cy : st.y + 5;
+  return `<g class="out-tag"><rect x="${(tx - w / 2).toFixed(1)}" y="${(ty - 4.5).toFixed(1)}"
+      width="${w.toFixed(1)}" height="9" rx="4.5"/>
+    <text x="${tx.toFixed(1)}" y="${(ty + 2.2).toFixed(1)}" text-anchor="middle">${esc(t)}</text></g>`;
+}
+
+function corridorMark(st){
+  const horiz = st.w >= st.h;
+  const cx = st.x + st.w / 2, cy = st.y + st.h / 2;
+  const long = horiz ? st.w : st.h;
+  const thick = horiz ? st.h : st.w;
+  if (long < 4) return '';
+  // 端まで線を引く。手前で止めると棟と棟のあいだで道が途切れて見える
+  const d = horiz
+    ? `M${st.x.toFixed(1)} ${cy.toFixed(1)}H${(st.x + st.w).toFixed(1)}`
+    : `M${cx.toFixed(1)} ${st.y.toFixed(1)}V${(st.y + st.h).toFixed(1)}`;
+  let out = `<path class="corridor-line" d="${d}"/>`;
+  // 文字は、点線を消してでも入れる価値があるだけの余白があるときだけ
+  const label = st.label || '廊下';
+  if (horiz && thick >= 5.4 && long >= (st.link ? 34 : 46)){
+    out += `<text x="${cx.toFixed(1)}" y="${(cy + 1.7).toFixed(1)}" text-anchor="middle"
+              class="corridor-t">${esc(label)}</text>`;
+  }
+  return out;
+}
+
 function roadLine(st){
   const horiz = st.w >= st.h;
   const cx = st.x + st.w / 2, cy = st.y + st.h / 2;
@@ -2214,6 +2414,53 @@ function fingerprint(extra){
  * 2Fのように要素が少ないフロアで、無駄な余白が出るのを防ぐ。
  */
 /** 部屋idからその部屋がある階を引く（シートのfloor列より図面を信じる） */
+/**
+ * 立入禁止に指定した範囲（本館1階など）の中にある部屋を、地図から取り除く。
+ * 座標だけが残っていると、斜線の「立入禁止」ブロックの上にブースが重なって描かれ、
+ * 「入れないはずの場所に模擬店がある」という矛盾した地図になる。
+ * 取り除いた部屋にブースが割り当てられた場合は、
+ * 「地図にのっていないブース」として一覧に出る（見落とさないように）。
+ */
+/**
+ * 同じ場所に重なって定義されているトイレなどの記号をまとめる。
+ * 重なったまま描くと「WC」の字が二重になって、どちらも読めない。
+ */
+(function mergeUtils(){
+  Object.keys(FLOOR_PLAN).forEach(f => {
+    const us = FLOOR_PLAN[f].utils || [];
+    const out = [];
+    us.forEach(u => {
+      const hit = out.find(v => v.t === u.t
+        && u.x < v.x + v.w && u.x + u.w > v.x && u.y < v.y + v.h && u.y + u.h > v.y);
+      if (hit){
+        const x1 = Math.min(hit.x, u.x), y1 = Math.min(hit.y, u.y);
+        const x2 = Math.max(hit.x + hit.w, u.x + u.w), y2 = Math.max(hit.y + hit.h, u.y + u.h);
+        hit.x = x1; hit.y = y1; hit.w = x2 - x1; hit.h = y2 - y1;
+      } else out.push(Object.assign({}, u));
+    });
+    FLOOR_PLAN[f].utils = out;
+  });
+})();
+
+(function dropBlockedRooms(){
+  Object.keys(FLOOR_PLAN).forEach(f => {
+    const plan = FLOOR_PLAN[f];
+    const zones = (plan.struct || []).filter(st => st.type === 'blocked');
+    if (!zones.length) return;
+    const inside = r => {
+      const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+      return zones.some(z => cx >= z.x && cx <= z.x + z.w && cy >= z.y && cy <= z.y + z.h);
+    };
+    // rooms だけでなく hidden も外す。hidden に残っていると
+    // ブースが割り当てられた瞬間 restoreHiddenRooms() が地図へ戻してしまう。
+    const dropped = (plan.rooms || []).filter(inside).concat((plan.hidden || []).filter(inside));
+    if (!dropped.length) return;
+    plan.rooms  = (plan.rooms  || []).filter(r => !inside(r));
+    plan.hidden = (plan.hidden || []).filter(r => !inside(r));
+    plan.blockedRooms = dropped;      // 何を外したかは残しておく
+  });
+})();
+
 const ROOM_INDEX = (() => {
   const m = new Map();
   Object.keys(FLOOR_PLAN).forEach(f => {
@@ -2300,10 +2547,18 @@ function planViewBox(floorNum){
   const boxes = []
     .concat(plan.struct.map(s => [s.x, s.y, s.w, s.h]))
     .concat(plan.utils.map(u => [u.x, u.y, u.w, u.h]))
-    .concat(plan.zones.map(z => [z.x, z.y - 9, String(z.label || '').length * 8.2, 10]));
+    .concat(plan.zones.map(z => {
+      // 名札は z.x を中心に置くので、左右にはみ出す分もふくめて範囲に入れる。
+      // ここを見落とすと、いちばん上の棟の名札が画面の外で切れる。
+      const nm = String(z.label || '').replace(/^[■●▪\s]+/, '');
+      const w = nm.length * 6.4 + 13;
+      const host = plan.struct.find(st => st.zone === nm);
+      const top = (host ? host.y : z.y) - 26;      // 逃がした分の余白も見込む
+      return [z.x - w / 2, top, w, 40];
+    }));
   plan.rooms.forEach(s => boxes.push([s.x, s.y, s.w, s.h]));
   if (!boxes.length) return '0 0 400 500';
-  const pad = 8;
+  const pad = 10;
   const x0 = Math.min(...boxes.map(b => b[0])) - pad;
   const y0 = Math.min(...boxes.map(b => b[1])) - pad;
   const x1 = Math.max(...boxes.map(b => b[0] + b[2])) + pad;
@@ -2347,7 +2602,9 @@ function eventLabel(b){
 }
 
 function drawFloor(floorNum){
-  const fp = fingerprint(`map:${floorNum}:${S.route}:${S.dept}:${S.spot}:${hereId()}:${Math.floor(Date.now() / 60000)}`);
+  // 倍率が変わると「文字を入れられる部屋」が変わるので、段階が変わったら描き直す
+  const lod = Math.round(mapScale() * 4);
+  const fp = fingerprint(`map:${floorNum}:${S.route}:${S.dept}:${S.spot}:${hereId()}:${lod}:${Math.floor(Date.now() / 60000)}`);
   if (drawFloor._fp === fp) return;
   drawFloor._fp = fp;
 
@@ -2364,20 +2621,81 @@ function drawFloor(floorNum){
               : st.type === 'bldg' ? 'bldg' : 'struct';
     // 屋外マップの校舎ブロックはタップで1階へ入れるようにする
     const enter = floorNum === 0 && st.type === 'bldg';
-    html += `<g class="${enter ? 'bldg-tap' : ''}" ${enter ? 'data-enter="1" role="button" tabindex="0" aria-label="校舎の地図をひらく"' : ''}>
-      <rect x="${st.x}" y="${st.y}" width="${st.w}" height="${st.h}" rx="5" class="${cls}"/>
-      ${st.type === 'road' ? roadLine(st) : ''}
-      ${st.label ? (st.type === 'corridor'
-            ? fitTextSvg(st.label, st.x, st.y, st.w, st.h, 'corridor-t', 5.2)
-            : st.type === 'road'
+    // 棟そのものを科の色でうすく塗る。
+    // 部屋の塗りは混雑度に使っているので、「どこに何科があるか」は
+    // 建物の地の色で見せる。両方を部屋の中で表そうとすると必ず潰れる。
+    const zd = st.zone ? DEPT_BY_ZONE[st.zone] : null;
+    const dimZ = zd && S.dept && S.dept !== zd.z ? ' faded' : '';
+    html += `<g class="${enter ? 'bldg-tap' : ''}${dimZ}" ${enter ? 'data-enter="1" role="button" tabindex="0" aria-label="校舎の地図をひらく"' : ''}
+              ${zd ? `style="--dept:${zd.c}"` : ''}>
+      <rect x="${st.x}" y="${st.y}" width="${st.w}" height="${st.h}" rx="5"
+            class="${cls}${zd ? ' tinted' : ''}"/>
+      ${st.type === 'road' ? roadLine(st) + (st.link ? outLabel(st) : '') : ''}
+      ${st.type === 'corridor' ? corridorMark(st) : ''}
+      ${st.label && st.type !== 'corridor' ? (st.type === 'road'
             ? fitTextSvg(st.label, st.x, st.y, st.w, st.h, 'road-t', 5)
             : fitTextSvg(st.label, st.x, st.y - (enter ? 14 : 0), st.w, st.h,
                          st.type === 'blocked' ? 'blocked-t' : 'util', 11)) : ''}
       ${enter ? `<text x="${st.x + st.w / 2}" y="${st.y + st.h / 2 + 12}" text-anchor="middle" class="util" font-size="8">タップで中の地図へ</text>` : ''}
     </g>`;
   });
+  // 棟の名前は、色つきの小さな札にして建物の外に置く。
+  // 素の文字だと部屋の名前と混ざって、どれが棟名か分からなくなる。
+  // 拡大しても名札まで大きくなると、部屋を覆い隠してしまう。
+  // 倍率で割って、画面上の見た目の大きさを一定に保つ。
+  const BASE = 366 / 400;                       // 縦向きスマホでの 1単位あたりのpx
+  const zk = Math.max(1, Math.min(6, mapScale() / BASE));
+  // 名札は最後にまとめて描く（部屋より手前に出さないと下半分が隠れる）。
+  // 位置は建物の上に完全に逃がす。建物と重ねると、どちらも読めなくなる。
+  let zoneTags = '';
+  // 名札を置くときに避ける相手。名札どうしだけでなく、
+  // 廊下の字やトイレの記号ともぶつからないようにする。
+  const tagBoxes = plan.struct
+    .filter(st => st.type === 'corridor' && st.w >= st.h && st.h >= 5.4 && st.w >= 46)
+    .map(st => ({ x: st.x + st.w / 2 - 9, y: st.y - 2, w: 18, h: st.h + 4 }))
+    .concat(plan.utils.map(u => ({ x: u.x, y: u.y, w: u.w, h: u.h })))
+    .concat(plan.rooms.map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h })));
   plan.zones.forEach(z => {
-    html += `<text x="${z.x}" y="${z.y}" class="zone-label">${esc(z.label)}</text>`;
+    // ラベルは「■ 北教室棟」の形。飾りの記号を外した名前で科と建物を照合する
+    const name = String(z.label || '').replace(/^[■●▪\s]+/, '');
+    const d = DEPT_BY_ZONE[name];
+    const fs = 6.6 / zk, h = 11 / zk, r = 3 / zk;
+    const w = (name.length * 6.4 + (d ? 13 : 7)) / zk;
+    const x = z.x - w / 2;
+    // 名札は必ず建物の外（上）に出す。建物に重ねると、
+    // 中の「廊下」やトイレの表示と字がぶつかって両方読めなくなる。
+    const host = plan.struct.find(st => st.zone === name);
+    // 建物のすぐ上・すぐ下を候補にし、ぶつかる面積がいちばん小さい所へ置く。
+    // 上へ何段も積み上げると、名札が建物から離れてどの棟のものか分からなくなるので、
+    // 逃がすのは1段までにする。
+    const overlapAt = ty => tagBoxes.reduce((sum, t) => {
+      const ox = Math.min(x + w, t.x + t.w) - Math.max(x, t.x);
+      const oy = Math.min(ty + h, t.y + t.h) - Math.max(ty, t.y);
+      return sum + (ox > 0 && oy > 0 ? ox * oy : 0);
+    }, 0);
+    const base = host ? host.y : z.y;
+    const cands = [
+      base - 2.5 - h,                              // 建物のすぐ上
+      host ? host.y + host.h + 2.5 : base + 2.5,   // 建物のすぐ下
+      base - 4 - h * 2,                            // 1段だけ上へ逃がす
+      (host ? host.y + host.h : base) + 4 + h      // 1段だけ下へ逃がす
+    ];
+    let top = cands[0], best = Infinity;
+    for (const ty of cands){
+      const v = overlapAt(ty);
+      if (v < best){ best = v; top = ty; }
+      if (v === 0) break;
+    }
+    tagBoxes.push({ x, y: top, w, h });
+    void best;
+    const off = d && S.dept && S.dept !== d.z;
+    zoneTags += `<g class="zone-tag${off ? ' faded' : ''}"${d ? ` style="--dept:${d.c}"` : ''}>
+      <rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${w.toFixed(1)}"
+            height="${h.toFixed(1)}" rx="${(h / 2).toFixed(1)}"/>
+      ${d ? `<circle class="dot" cx="${(x + 6 / zk).toFixed(1)}" cy="${(top + h / 2).toFixed(1)}" r="${r.toFixed(1)}"/>` : ''}
+      <text x="${(x + (d ? 12 : 5) / zk).toFixed(1)}" y="${(top + h * 0.72).toFixed(1)}"
+            font-size="${fs.toFixed(2)}">${esc(name)}</text>
+    </g>`;
   });
   plan.utils.forEach(u => {
     // トイレ・救護室は場所を知りたい人が多いので、タップでインフォへ飛べるようにする
@@ -2386,7 +2704,7 @@ function drawFloor(floorNum){
               ${jump ? `aria-label="${esc(u.t)}の案内を見る"` : ''}>
              <rect x="${u.x}" y="${u.y}" width="${u.w}" height="${u.h}" rx="3"
                    class="util-box${S.dept === '__fac' ? ' hot' : ''}"/>
-             ${fitTextSvg(u.t, u.x, u.y, u.w, u.h, 'util', 6)}
+             ${utilLabel(u)}
              </g>`;
   });
 
@@ -2421,10 +2739,12 @@ function drawFloor(floorNum){
     const d = deptOf(r);
     const off = S.dept === '__fac' ? !isEntrance(r.nm)
               : S.dept ? (!d || d.z !== S.dept) : false;
+    // 名前は入るときだけ。入らないなら描かない（読めない字を重ねても邪魔なだけ）
+    const label = fitsName(r) ? fitTextSvg(r.nm, r.x, r.y, r.w, r.h, 'bg-nm', 6.2) : '';
     html += `<g class="room-bg${off ? ' faded' : ''}${ent ? ' entrance' : ''}${spot ? ' spot' : ''}"${d ? ` style="--dept:${d.c}"` : ''}>`
           + `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="4"${d && !ent ? ' class="dept"' : ''}/>`
           + (d ? `<rect class="dept-bar" x="${r.x}" y="${r.y}" width="${Math.min(3.4, r.w / 6)}" height="${r.h}" rx="1.7"/>` : '')
-          + fitTextSvg(r.nm, r.x, r.y, r.w, r.h, 'bg-nm', 6.2) + `</g>`;
+          + label + `</g>`;
   });
 
   const routeIds = S.route ? CONFIG.ROUTES[S.route] : null;
@@ -2466,41 +2786,87 @@ function drawFloor(floorNum){
   placed.forEach(({ b, s }) => {
     const L = lvOf(b);
     const dim = routeIds && !routeIds.includes(b.id) ? ' dimmed' : '';
-    const cx = s.x + s.w / 2;
+    const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
     const stLabel = (b.wait != null && L.lv >= 0 && L.lv < 3)
       ? (b.wait === 0 ? '待ちなし' : b.wait + '人待ち')
       : L.short;
-    // 名前は枠の上寄り、状態は下端。どちらも枠に収まる大きさに縮める
-    const nmH = Math.max(8, s.h * 0.58);
-    let t = fitTextSvg(b.name, s.x, s.y + 1, s.w, nmH, 'nm', 8);
-    const stTxt = `${L.icon} ${stLabel}`;
-    const stF = fitText(stTxt, s.w - 2, Math.max(6, s.h * 0.3), 6);
-    t += `<text x="${cx}" y="${(s.y + s.h - 3).toFixed(1)}" text-anchor="middle" class="st"
-            font-size="${Math.max(3.4, stF.size)}">${esc(stTxt)}</text>`;
 
+    // どこまで文字を出すかは、いまの表示倍率で実際に読める大きさかどうかで決める。
+    // 全部を常に描こうとすると、番号・名前・状態・待ち人数が重なって
+    // どれも読めない地図になる（実際にそうなっていた）。
+    const showNm = fitsName(s);
+    const showSt = fitsStatus(s);
+    let t = '';
     let extra = '';
-    // 紙のマップと同じ番号を出す（配布物と画面で見比べられるように）
     const no = S.numbers.get(b.id);
-    // バッジは部屋の角に重ねて置く。中央のブース名と重ならない位置にする
-    const bx = s.x + 3, by = s.y + 3, sx = s.x + s.w - 3;
-    if (no && !(routeIds && routeIds.includes(b.id))){
-      extra += `<g class="room-no"><circle cx="${bx}" cy="${by}" r="8"/>
-                <text x="${bx}" y="${by + 3.2}" text-anchor="middle">${no}</text></g>`;
+    const onRoute = routeIds && routeIds.includes(b.id);
+
+    if (showNm){
+      // 番号バッジは左上に置き、そのぶん名前の場所を右へずらす。
+      // 重ねるとどちらも読めなくなる（実際にそうなっていた）。
+      const br = Math.min(5.5, s.h * 0.22, s.w * 0.16);
+      const bx = s.x + br + 1.5, by = s.y + br + 1.5;
+      const padL = no && !onRoute ? br * 2 + 3 : 2;
+      const nmTop = s.y + 1.5;
+      const nmH = Math.max(7, s.h * (showSt ? 0.55 : 0.82));
+      t += fitTextSvg(b.name, s.x + padL, nmTop, s.w - padL - 2, nmH, 'nm', 8);
+      if (showSt){
+        const stTxt = `${L.icon} ${stLabel}`;
+        const stF = fitText(stTxt, s.w - 4, Math.max(6, s.h * 0.26), 6);
+        t += `<text x="${cx}" y="${(s.y + s.h - 2.5).toFixed(1)}" text-anchor="middle" class="st"
+                font-size="${Math.max(4.2, stF.size)}">${esc(stTxt)}</text>`;
+      }
+      if (no && !onRoute){
+        // 番号の輪を科の色にする。部屋の塗りは混雑度で埋まるので、
+        // 番号バッジが「科の色が必ず見える場所」になる。
+        extra += `<g class="room-no"><circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="${br.toFixed(1)}"/>
+                  <text x="${bx.toFixed(1)}" y="${(by + br * 0.4).toFixed(1)}" text-anchor="middle"
+                    font-size="${(br * 1.2).toFixed(1)}">${no}</text></g>`;
+      }
+    } else {
+      // 狭い：番号だけを部屋いっぱいに大きく出す。
+      // 番号は紙のマップ・一覧と共通なので、これだけで引き当てられる。
+      const r = Math.max(3.2, Math.min(9, Math.min(s.w, s.h) * 0.36));
+      if (no && !onRoute){
+        extra += `<g class="room-no big"><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}"/>
+                  <text x="${cx.toFixed(1)}" y="${(cy + r * 0.38).toFixed(1)}" text-anchor="middle"
+                    font-size="${(r * 1.15).toFixed(1)}">${no}</text></g>`;
+      } else if (!no && !onRoute){
+        // 番号が無い（一覧に載らない）ときでも、科の色の点だけは残す
+        extra += `<circle class="dept-dot" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${Math.min(3.4, r * 0.5).toFixed(1)}"/>`;
+      }
     }
+    // 「まもなく」「訪問済み」「コースの順番」は、部屋の大きさに合わせて置く。
+    // 固定の大きさで描くと、小さい部屋では番号もろとも塗りつぶしてしまう。
+    const mk = Math.max(3.4, Math.min(6.5, Math.min(s.w, s.h) * 0.26));   // 印の半径
+    const rx = s.x + s.w - mk - 1.5, ry = s.y + mk + 1.5;                 // 右上
     const evl = eventLabel(b);
-    if (evl){
+    if (evl && s.w >= 26){
+      const ew = Math.min(34, s.w - 4);
       extra += `<g class="ev-map" data-kind="${eventState(b).kind}">
-        <rect x="${cx - 17}" y="${s.y + s.h - 6}" width="34" height="11" rx="5.5"/>
-        <text x="${cx}" y="${s.y + s.h + 1.8}" text-anchor="middle">${esc(evl)}</text></g>`;
+        <rect x="${(cx - ew / 2).toFixed(1)}" y="${(s.y + s.h - 5.5).toFixed(1)}"
+              width="${ew.toFixed(1)}" height="11" rx="5.5"/>
+        <text x="${cx}" y="${(s.y + s.h + 1.8).toFixed(1)}" text-anchor="middle">${esc(evl)}</text></g>`;
     }
+    // 訪問済みの印。小さい部屋に無理やり足すと番号と重なって
+    // どちらも読めなくなるので、その場合は番号の輪を緑にして表す。
+    // ✓ を置いても番号とぶつからない大きさかどうか
+    const roomy = showNm ? (s.w >= 20 && s.h >= 16) : (s.w >= mk * 5 && s.h >= mk * 3.4);
     if (S.stamps.has(b.id)){
-      extra += `<circle class="stamp-mark" cx="${sx}" cy="${by}" r="8"/>
-                <text class="stamp-check" x="${sx}" y="${by + 3.2}" text-anchor="middle">✓</text>`;
+      if (roomy){
+        extra += `<circle class="stamp-mark" cx="${rx.toFixed(1)}" cy="${ry.toFixed(1)}" r="${mk.toFixed(1)}"/>
+                  <text class="stamp-check" x="${rx.toFixed(1)}" y="${(ry + mk * 0.4).toFixed(1)}"
+                    text-anchor="middle" font-size="${(mk * 1.2).toFixed(1)}">✓</text>`;
+      } else {
+        extra = `<g class="visited-ring">${extra}</g>`;
+      }
     }
-    if (routeIds && routeIds.includes(b.id)){
+    if (onRoute){
       const n = routeIds.indexOf(b.id) + 1;
-      extra += `<g class="route-badge"><circle cx="${bx}" cy="${by}" r="8.5"/>
-                <text x="${bx}" y="${by + 3.2}" text-anchor="middle">${n}</text></g>`;
+      const rr = Math.max(4, Math.min(8.5, Math.min(s.w, s.h) * 0.34));
+      extra += `<g class="route-badge"><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${rr.toFixed(1)}"/>
+                <text x="${cx.toFixed(1)}" y="${(cy + rr * 0.38).toFixed(1)}" text-anchor="middle"
+                  font-size="${(rr * 1.15).toFixed(1)}">${n}</text></g>`;
     }
 
     // QRを読んだ場所を「いまここ」として光らせる
@@ -2528,6 +2894,7 @@ function drawFloor(floorNum){
     html += `<text x="${vb[0] + vb[2] / 2}" y="${vb[1] + vb[3] / 2}" text-anchor="middle"
               class="util">この階にはブースがありません（上のボタンで階をえらべます）</text>`;
   }
+  html += zoneTags;                       // 棟の名札はいちばん手前
   svg.setAttribute('viewBox', planViewBox(floorNum));
   svg.classList.toggle('has-booth', placed.length > 0);
   renderDeptLegend(floorNum);
@@ -2620,6 +2987,8 @@ function renderHere(){
  * aria-modal は読み上げの範囲を絞るだけで、Tab は止めない。
  * 背後のボタンが「見えないのに押せる」状態になるのを防ぐ。
  */
+/* シートを開くと×へフォーカスを移すが、:focus だと指で開いたときも輪が出て
+   「押しっぱなし」に見える。キーボード操作のときだけ出す。 */
 function trapTab(e){
   if (e.key !== 'Tab' || !S.sheetId) return;
   const sh = $('#bsh');
@@ -2816,6 +3185,14 @@ function zoomApply(animate){
   z.el.style.transition = animate ? 'transform var(--t) var(--ease)' : 'none';
   z.el.style.transform = `translate(${z.x}px,${z.y}px) scale(${z.k})`;
   z.el.classList.toggle('zoomed', z.k > 1.01);
+  // 倍率が変われば、部屋に入れられる文字の量も変わる。
+  // 指を離したあとにまとめて描き直す（拡大の途中で毎フレーム描くと重い）
+  const step = Math.round(z.k * 2);
+  if (zoomApply._step !== step){
+    zoomApply._step = step;
+    clearTimeout(zoomApply._t);
+    zoomApply._t = setTimeout(() => { drawFloor._fp = null; drawFloor(S.floor); }, 160);
+  }
   // 初回だけ「動かせる」ことを伝える
   if (z.k > 1.01 && !load('kuroko_zoom_hint', false)){
     store('kuroko_zoom_hint', true);
@@ -3331,7 +3708,7 @@ function renderList(){
               ? `<span class="ev-badge" data-kind="${eventState(b).kind}">${esc(eventLabel(b))}</span>` : '<span aria-hidden="true">📌</span>'} ${esc(b.note)}</p>` : ''}
         </div>
         <span class="pill" data-lv="${L.lv}"><span aria-hidden="true">${L.icon}</span> ${esc(L.short)}${
-          b.wait > 0 && L.lv >= 0 && L.lv < 3 ? ` <b>${b.wait}</b>人` : ''}</span>
+          b.wait > 0 && L.lv >= 0 && L.lv < 3 ? `・<b>${b.wait}</b>人待ち` : ''}</span>
       </div>
       <div class="booth-foot">
         ${sparkline(b.history)}
@@ -3436,10 +3813,10 @@ function renderStamps(){
   chip.classList.toggle('top', !!done);
   if (rk) chip.textContent = `${rk.icon} ${rk.name}`;
 
-  $('#stamp-msg').textContent = done ? '🎉 全制覇！'
-    : got === 0 ? ''
-    : got >= total - 1 ? 'あと1つ！'
-    : `あと${total - got}つ`;
+  $('#stamp-msg').textContent = done ? '🎉 ぜんぶ回りました！'
+    : got === 0 ? 'まずは1つ回ってみよう'
+    : got >= total - 1 ? 'あと1か所！'
+    : `あと${total - got}か所`;
 
   $('#stamp-grid').innerHTML = S.booths.map(b => {
     const g = S.stamps.has(b.id);
@@ -3969,9 +4346,10 @@ function renderBoardMaps(){
       const sl = plan.rooms.find(x => x.id === b.id);
       if (!sl) return;
       const L = lvOf(b);
+      // ボードの地図は離れた場所から見る。番号を入れても2px程度にしか描けず、
+      // 読めないうえに色を濁らせるだけなので、混み具合の色と模様だけにする。
       h += `<g class="room" data-lv="${L.lv}">
-        <rect class="fill" x="${sl.x}" y="${sl.y}" width="${sl.w}" height="${sl.h}" rx="5"/></g>`
-        + fitTextSvg(String(S.numbers.get(b.id) || ''), sl.x, sl.y, sl.w, sl.h, 'bm-no', 14);
+        <rect class="fill" x="${sl.x}" y="${sl.y}" width="${sl.w}" height="${sl.h}" rx="5"/></g>`;
     });
     return `<div class="bm"><h3>${f.n === 0 ? '屋外' : f.n + '階'}</h3>
       <svg viewBox="${planViewBox(f.n)}" role="img" aria-label="${f.n === 0 ? '屋外' : f.n + '階'}の混雑">${h}</svg></div>`;
@@ -3993,8 +4371,12 @@ function renderBoard(){
   if (overdue.length){
     alertEl.classList.remove('hide');
     alertEl.textContent =
-      `更新が止まっています：${overdue.slice(0, 4).map(b => b.name).join('・')}` +
-      (overdue.length > 4 ? ` ほか${overdue.length - 4}件` : '');
+      // 何十件も名前を並べても読めない。件数を先に出し、名前は数件までにする。
+      (overdue.length === S.booths.length
+        ? `${overdue.length}件すべての更新が止まっています。係員に確認してください`
+        : `更新が止まっています（${overdue.length}件）：`
+          + overdue.slice(0, 3).map(b => b.name).join('・')
+          + (overdue.length > 3 ? ` ほか${overdue.length - 3}件` : ''));
   } else alertEl.classList.add('hide');
 
   const fp = fingerprint('board') + '|' + S.booths.map(b => elapsedMin(b)).join(',');
@@ -4008,8 +4390,15 @@ function renderBoard(){
       const L = lvOf(b);
       const m = elapsedMin(b);
       const fresh = m >= CONFIG.ADMIN_DANGER_MIN ? 'danger' : m >= CONFIG.ADMIN_WARN_MIN ? 'warn' : 'ok';
-      const big = (b.wait != null && L.lv >= 0 && L.lv < 3)
-        ? `<b>${b.wait}</b><i>人待ち</i>` : `<b class="tx">${esc(L.short)}</b>`;
+      // タイルの色は状態、数字は待ち人数。
+      // この2つが食い違うと（赤いのに「0人待ち」など）遠目に判断できなくなるので、
+      // 合わないときは数字をやめて状態の言葉だけにする。
+      const w = b.wait;
+      const fits = w == null ? false
+        : L.lv === 0 ? w < S.waitTh.warn
+        : L.lv === 1 ? w >= S.waitTh.warn && w < S.waitTh.busy
+        : L.lv === 2 ? w >= S.waitTh.busy : false;
+      const big = fits ? `<b>${w}</b><i>人待ち</i>` : `<b class="tx">${esc(L.short)}</b>`;
       return `<div class="btile${isChanged(b.id) ? ' changed' : ''}" data-lv="${L.lv}" data-fresh="${fresh}">
         <span class="bt-no">${S.numbers.get(b.id) || ''}</span>
         <span class="bt-head"><span class="bt-nm">${esc(b.name)}</span>
@@ -4131,11 +4520,12 @@ function openState(now){
     return m ? Number(m[1]) * 60 + Number(m[2]) : null;
   };
   const o = mins(H.open), c = mins(H.close);
-  if (o == null || c == null) return { state:'open', minutes:0 };
-  if (H.date){
-    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    if (today !== H.date) return { state:'otherday', minutes:0 };
-  }
+  // 開催日を入れるまでは時間の判定をしない。
+  // 雛形のまま（09:30〜15:00）だと、設定し忘れたときに
+  // 夕方から「本日は終了しました」と出てしまう。
+  if (o == null || c == null || !H.date) return { state:'open', minutes:0 };
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (today !== H.date) return { state:'otherday', minutes:0 };
   const cur = d.getHours() * 60 + d.getMinutes();
   if (cur < o) return { state:'before', minutes: o - cur };
   if (cur >= c) return { state:'after', minutes:0 };
@@ -4146,28 +4536,40 @@ function openState(now){
  * 開場前・閉場後に開いた人へ状況を出す。
  * これが無いと、全ブースが「準備中」の画面を見て「壊れている」と思われる。
  */
+/**
+ * 開場前・閉場後の案内文。短い版はヘッダーの状態行に、長い版はバナーに使う。
+ * ずっと変わらない状態なので、原則はバナーではなく状態行に出す。
+ * バナーにすると、お知らせと合わせて画面の半分が案内文で埋まり、
+ * 小さい端末（iPhone SE）では肝心の地図が画面の外へ出てしまう。
+ */
+function hoursMessage(){
+  const H = CONFIG.HOURS || {};
+  const st = openState();
+  if (st.state === 'before'){
+    const h = Math.floor(st.minutes / 60), m = st.minutes % 60;
+    return { short: `${H.open} 開場（あと${h ? h + '時間' : ''}${m}分）`,
+             long: `本日は ${H.open} 開場です。混雑状況は開場後に出ます。` };
+  }
+  if (st.state === 'after'){
+    return { short: `本日は終了しました（${H.close}）`,
+             long: `本日の一般公開は ${H.close} で終了しました。ご来場ありがとうございました。` };
+  }
+  if (st.state === 'otherday' && H.date){
+    const d = H.date.replace(/^\d{4}-/, '').replace('-', '月');
+    return { short: `文化祭は ${d}日です`, long: `文化祭は ${d}日です。当日はこの画面で混み具合が見られます。` };
+  }
+  return null;
+}
+
 function renderHours(){
   const el = $('#banner-hours');
   if (!el) return;
-  const H = CONFIG.HOURS || {};
-  const st = openState();
   const staff = ['auth','admin','qr','print','report','layout','board'].indexOf(S.view) >= 0;
-  let msg = '';
-  if (!staff){
-    if (st.state === 'before'){
-      const h = Math.floor(st.minutes / 60), m = st.minutes % 60;
-      const left = h ? `あと${h}時間${m}分` : `あと${m}分`;
-      msg = `本日は ${H.open} 開場です（${left}）。混雑状況は開場後に出ます。`;
-    } else if (st.state === 'after'){
-      msg = `本日の一般公開は ${H.close} で終了しました。ご来場ありがとうございました。`;
-    } else if (st.state === 'otherday'){
-      msg = H.date
-        ? `文化祭は ${H.date.replace(/^\d{4}-/, '').replace('-', '月')}日です。当日はこの画面で混み具合が見られます。`
-        : '';
-    }
-  }
-  el.classList.toggle('hide', !msg);
-  if (msg) $('#banner-hours-text').textContent = msg;
+  const h = staff ? null : hoursMessage();
+  // ふだんは状態行に短く出す。開場前だけは見落とすと困るのでバナーにも出す。
+  const useBanner = !!h && openState().state === 'before';
+  el.classList.toggle('hide', !useBanner);
+  if (useBanner) $('#banner-hours-text').textContent = h.long;
 }
 
 /** 本部からのお知らせ（シート駆動） */
@@ -4182,15 +4584,25 @@ function renderNotice(){
 }
 
 function renderAlert(){
-  const busy = S.booths.filter(b => lvOf(b).lv === 2);
+  // 開場前・閉場後に「混雑中です」を出すと、
+  // すぐ上の「本日は終了しました」と矛盾して見える。出さない。
+  const st = openState().state;
+  const busy = st === 'open' ? S.booths.filter(b => lvOf(b).lv === 2) : [];
   const free = S.booths.filter(b => lvOf(b).lv === 0);
   const el = $('#banner-alert');
-  const staff = ['auth','admin','qr','print','report','layout','board'].indexOf(S.view) >= 0;
+  // 混雑の案内が役に立つのは地図を見ているときだけ。
+  // 一覧は「空いている順」に並んでいて先頭がその答えだし、
+  // スタンプやインフォに出しても、その画面の中身を押し下げるだけになる。
+  const staff = S.view !== 'map';
   if (!busy.length || staff){ el.classList.add('hide'); if (!busy.length) $('#banner-alert-text').textContent = ''; return; }
   el.classList.remove('hide');
-  const names = busy.slice(0, 2).map(b => b.name).join('・') + (busy.length > 2 ? ` ほか${busy.length - 2}件` : '');
-  const alt = free.length ? `いまは「${free[0].name}」が空いています。` : '';
-  $('#banner-alert-text').textContent = `${names} が混雑中です。${alt}`;
+  // 混んでいるブースを何件も並べても読み切れないし、
+  // どこが混んでいるかは下の地図の色で分かる。件数と「代わりにどこへ行くか」だけにする。
+  const alt = free.length ? `空いているのは「${free[0].name}」など` : '';
+  const head = busy.length >= 3
+    ? `いま${busy.length}件が混雑中`
+    : `${busy.map(b => b.name).join('・')} が混雑中`;
+  $('#banner-alert-text').textContent = alt ? `${head}。${alt}` : `${head}です`;
 }
 
 /* =====================================================================
@@ -4249,7 +4661,8 @@ function switchView(v, fromHistory){
   const staff = ['auth','admin','qr','print','report','layout','board'].indexOf(v) >= 0;
   $('#nav').classList.toggle('hide', staff);
   // 来場者向けの混雑アラートは係員画面では出さない（ノイズになる）
-  $('#banner-alert').classList.toggle('hide', staff || !$('#banner-alert-text').textContent);
+  // 一覧は「空いている順」に並んでいて先頭がその答えなので、同じ内容のバナーは出さない
+  $('#banner-alert').classList.toggle('hide', v !== 'map' || !$('#banner-alert-text').textContent);
   if (v === 'qr' || v === 'board') $('#banner-notice').classList.add('hide'); else renderNotice();
   renderHours();
   window.scrollTo({ top:0, behavior: smoothBehavior() });
@@ -5000,10 +5413,22 @@ function renderPrintSheet(){
       if (st.label) h += fitTextSvg(st.label, st.x, st.y, st.w, st.h, 'pl-st', st.type === 'blocked' ? 10 : 6)
                           .replace(/class="pl-st"/g, `fill="${st.type === 'blocked' ? '#666' : '#777'}" font-weight="700"`);
     });
-    plan.zones.forEach(z => { h += `<text x="${z.x}" y="${z.y}" font-size="8.5" font-weight="bold" fill="#777">${esc(z.label)}</text>`; });
+    // 棟名は建物の外（上）に、白地の札にして置く。
+    // そのまま文字を置くと部屋名や番号と重なって、紙では特に読めなくなる。
+    plan.zones.forEach(z => {
+      const nm = String(z.label || '').replace(/^[■●▪\s]+/, '');
+      const host = plan.struct.find(st => st.zone === nm);
+      const w = nm.length * 6.2 + 6, x = z.x - w / 2;
+      const y = (host ? host.y : z.y) - 12;
+      h += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="10" rx="5"
+              fill="#fff" stroke="#bbb"/>
+            <text x="${(x + w / 2).toFixed(1)}" y="${(y + 7).toFixed(1)}" text-anchor="middle"
+              font-size="6.4" font-weight="bold" fill="#444">${esc(nm)}</text>`;
+    });
     plan.utils.forEach(u => {
       h += `<rect x="${u.x}" y="${u.y}" width="${u.w}" height="${u.h}" rx="4" fill="#fff" stroke="#bbb"/>
-            <text x="${u.x + u.w/2}" y="${u.y + u.h/2 + 2.8}" text-anchor="middle" font-size="7.5" fill="#444">${esc(u.t)}</text>`;
+            ${utilLabel(u).replace(/class="util"/g, 'fill="#444" font-weight="700"')
+                          .replace(/class="wc-icon"/g, 'fill="#555"')}`;
     });
     // ブースが無い部屋も薄く出す（紙でも校舎の形が分かるように）
     const used = new Set(here.map(b => b.id));
@@ -5017,11 +5442,19 @@ function renderPrintSheet(){
     here.forEach(b => {
       const s = plan.rooms.find(x => x.id === b.id);
       if (!s) return;
-      h += `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="6" fill="#fff" stroke="#333" stroke-width="1.6"/>`;
-      h += `<circle cx="${s.x + 4}" cy="${s.y + 4}" r="7" fill="#b91c1c"/>
-            <text x="${s.x + 4}" y="${s.y + 6.8}" text-anchor="middle" font-size="8" font-weight="bold" fill="#fff">${S.numbers.get(b.id)}</text>`;
-      h += fitTextSvg(b.name, s.x, s.y, s.w, s.h, 'pl-nm', 9)
-             .replace(/class="pl-nm"/g, 'fill="#111" font-weight="bold"');
+      // 番号の丸と部屋名が同じ場所に重なって、どちらも読めない状態だった。
+      // 画面の地図と同じで、番号は左上に置き、名前はその分だけ右へずらす。
+      // A4に校舎3階分を載せると、部屋名は4pt程度にしかならず読めない。
+      // 紙は「地図は番号だけ、名前は下の一覧表で引く」形にする。
+      // 番号を大きく打てるぶん、遠目でも探しやすくなる。
+      const d2 = deptOf(s);
+      const cx2 = s.x + s.w / 2, cy2 = s.y + s.h / 2;
+      const br = Math.max(4, Math.min(8.5, Math.min(s.w, s.h) * 0.4));
+      h += `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="6" fill="#fff" stroke="#333" stroke-width="1.4"/>`
+         + (d2 ? `<rect x="${s.x}" y="${s.y}" width="${Math.min(3, s.w / 6)}" height="${s.h}" rx="1.5" fill="${d2.c}"/>` : '');
+      h += `<circle cx="${cx2.toFixed(1)}" cy="${cy2.toFixed(1)}" r="${br.toFixed(1)}" fill="#b91c1c"/>
+            <text x="${cx2.toFixed(1)}" y="${(cy2 + br * 0.38).toFixed(1)}" text-anchor="middle"
+              font-size="${(br * 1.2).toFixed(1)}" font-weight="bold" fill="#fff">${S.numbers.get(b.id)}</text>`;
     });
     return `<svg viewBox="${planViewBox(floorNum)}" class="sheet-plan">${h}</svg>`;
   };
@@ -5733,8 +6166,15 @@ function fitMapBox(floorNum){
   const key = floorNum + '|' + vb + '|' + window.innerWidth + 'x' + window.innerHeight;
   if (fitMapBox._key === key && view.style.height){ if (!ZOOM.mNat) zoomMeasure(); zoomApply(false); return; }
 
+  // 「画面の何割」ではなく「実際に空いている高さ」から決める。
+  // 割合で決めると、上のバナーが増えた分だけ地図が下のタブに隠れる。
   const land = window.innerHeight < 560 && window.innerWidth > window.innerHeight;
-  const maxH = Math.max(150, Math.min(560, Math.round(window.innerHeight * (land ? 0.44 : 0.54))));
+  const top = view.getBoundingClientRect().top;
+  const avail = window.innerHeight - top - 74;      // 74 = 下のタブ＋余白
+  const cap = Math.round(window.innerHeight * (land ? 0.72 : 0.62));
+  // 横向きは縦が足りない。下限を下げないと、下のタブに地図が潜り込む
+  const floorH = land ? 110 : 150;
+  const maxH = Math.max(floorH, Math.min(560, cap, Math.round(avail)));
   // svg.plan は width:100%/height:auto なので、高さは viewBox の縦横比から計算できる。
   // 実測(getBoundingClientRect)はレイアウトを強制するので、比率で求められるときは使わない。
   const vp = vb.split(/\s+/).map(Number);
@@ -5746,6 +6186,12 @@ function fitMapBox(floorNum){
   // 文字を読みたいときは拡大してもらう（＋ボタン・ピンチ・「ブース」ボタン）。
   const boxH = Math.max(Math.min(190, maxH), Math.min(maxH, Math.round(nat)));
   view.style.height = boxH + 'px';
+  // 幅に合わせるだけだと、横長の図面は高さが窓を超えて下半分が切れる。
+  // 高さにも上限をかけると、SVGが自動で縮んで全体が収まる。
+  FLOORS.forEach(f => {
+    const el = $('#plan-' + f.n);
+    if (el) el.style.maxHeight = boxH + 'px';
+  });
   fitMapBox._key = key;
   zoomMeasure();
   zoomApply(false);
