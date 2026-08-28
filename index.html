@@ -266,14 +266,6 @@ main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direc
              overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .next-ev .left{font-size:10.5px;font-weight:800;color:var(--text-mute);flex:none}
 
-/* ========================= はじめての方へ ========================= */
-.tips{position:relative;border-left:4px solid var(--accent)}
-.tips ul{margin:0;padding-left:18px;font-size:11.5px;color:var(--text-dim);
-         font-weight:600;line-height:1.8}
-.tips b{color:var(--text)}
-.tips-x{position:absolute;top:2px;right:2px;width:44px;height:44px;border-radius:10px;
-        font-size:18px;color:var(--text-mute);display:grid;place-items:center}
-
 /* ========================= おすすめ ========================= */
 .reco-list{display:flex;flex-direction:column;gap:6px}
 .reco{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r-sm);
@@ -285,7 +277,8 @@ main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direc
 .reco .why{font-size:10px;color:var(--text-mute);font-weight:600}
 
 /* ========================= マップ ========================= */
-.map-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.map-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.map-head .seg{flex:1}          /* フロア切替だけになったので幅いっぱいに */
 /* 狭い画面では「校内マップ」の見出しを畳んで、階のボタンを横幅いっぱいに。
    どの画面かは下のタブで分かるので、見出しは地図の場所を奪うだけになる。 */
 @media (max-width:360px){
@@ -322,12 +315,12 @@ svg.plan{display:block;width:100%;height:auto;touch-action:manipulation}
           stroke-width:.7}
 .corridor-line{stroke:var(--corridor-ink);stroke-width:1.1;stroke-dasharray:3.5 3.5;
                stroke-linecap:round;fill:none;opacity:.75}
-.corridor-t{fill:var(--corridor-ink);font-weight:900;font-size:4.6px;letter-spacing:.2em;
+.corridor-t{fill:var(--corridor-ink);font-weight:900;letter-spacing:.2em;
             pointer-events:none;paint-order:stroke fill;
             stroke:var(--corridor-fill);stroke-width:2.4px;stroke-linejoin:round}
 /* 「ここから外に出る」道。屋内の通路と同じ見た目だと、外に出られず迷う */
 .out-tag rect{fill:var(--warn-soft);stroke:var(--warn);stroke-width:.7}
-.out-tag text{font-size:5px;font-weight:900;fill:var(--warn-ink,var(--text));letter-spacing:.02em}
+.out-tag text{font-weight:900;fill:var(--warn-ink,var(--text));letter-spacing:.02em}
 
 /* 棟の名札。素の文字だと部屋名と混ざるので、札にして浮かせる */
 .zone-tag rect{fill:var(--surface);stroke:var(--border-strong);stroke-width:.8;
@@ -397,7 +390,10 @@ svg.plan{display:block;width:100%;height:auto;touch-action:manipulation}
 .ev-map[data-kind="now"] rect{fill:var(--busy)}
 .ev-map text{font-size:7px;font-weight:900;fill:var(--on-status);pointer-events:none}
 .tt-now{background:var(--surface-3)}
-.tt-go{display:inline-flex;align-items:center;margin-top:0;min-height:44px;
+/* 「地図で見る」は行の中に混ぜず、予定の下に置く。
+   44px の高さのボタンを文中に置くと、その行だけ行間が44pxに広がり、
+   時刻と予定の高さが行ごとにバラバラになって読みにくかった。 */
+.tt-go{display:flex;align-items:center;margin-top:1px;min-height:44px;width:fit-content;
   font-size:10.5px;font-weight:700;color:var(--text-dim);
   background:none;border:none;padding:0 2px;cursor:pointer;text-align:left}
 .tt-go u{color:var(--accent);text-decoration:none}
@@ -548,6 +544,18 @@ text.util:not([font-size]){font-size:7.5px}
 /* 分類と並び替えは行を分ける。1行にまとめると、横スクロールの外に
    「空いている順」が隠れてしまい、いちばん使う操作に手が届かなくなる。 */
 .chips::-webkit-scrollbar{display:none}
+/* 横に続きがあることを端のぼかしで示す。「イベント」が切れているのに
+   スクロールできると気づかず、分類で絞り込めない人が出る。
+   端まで寄せたらぼかしを消す（最後の項目が薄いままだと不具合に見える）。 */
+.chips.has-more,.dept-legend.has-more{
+  -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 26px),transparent);
+          mask-image:linear-gradient(90deg,#000 calc(100% - 26px),transparent)}
+.chips.has-prev,.dept-legend.has-prev{
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 26px);
+          mask-image:linear-gradient(90deg,transparent,#000 26px)}
+.chips.has-prev.has-more,.dept-legend.has-prev.has-more{
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 26px,#000 calc(100% - 26px),transparent);
+          mask-image:linear-gradient(90deg,transparent,#000 26px,#000 calc(100% - 26px),transparent)}
 /* 指で押しやすいよう、タップ領域は40px以上を確保する */
 .chip{flex:none;font-size:11.5px;font-weight:800;padding:0 14px;min-height:40px;border-radius:999px;
       display:inline-flex;align-items:center;
@@ -590,6 +598,9 @@ text.util:not([font-size]){font-size:7.5px}
 .pill[data-lv="-1"],.pill[data-lv="3"]{background:var(--surface-3);color:var(--text-mute)}
 .booth-foot{display:flex;align-items:center;gap:8px;padding:5px 12px;
             border-top:1px dashed var(--border);background:var(--surface-2)}
+/* 状態バッジとスタンプは右側に縦に積む。別の帯に分けるとカードが倍の高さになる */
+.booth-side{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none;max-width:47%}
+.booth-side .mini-btn{margin-left:0}
 .spark{display:flex;align-items:flex-end;gap:2px;height:18px;flex:none}
 .spark i{width:4px;border-radius:1.5px;display:block;background:var(--unknown)}
 .spark i[data-lv="0"]{background:var(--free);height:5px}
@@ -604,27 +615,27 @@ text.util:not([font-size]){font-size:7.5px}
           border:1px solid var(--border);background:var(--surface);color:var(--text-dim);
           white-space:nowrap;flex:none}
 .mini-btn[aria-pressed="true"]{background:var(--free);border-color:var(--free);color:var(--on-status)}
-.mini-btn.watch{margin-left:auto}
-.mini-btn.watch[aria-pressed="true"]{background:var(--warn);border-color:var(--warn);color:var(--on-status)}
-.mini-btn.watch + .mini-btn{margin-left:6px}
 
 /* ========================= スタンプ ========================= */
 .stamp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
-.stamp{aspect-ratio:1;border-radius:var(--r);border:2px dashed var(--border-strong);
+/* 正方形にしていたころは1マス235pxもあり、40ブースで3400pxスクロールしていた。
+   中身は番号・丸・部屋名だけなので、丸を小さくして高さを内容なりにする。
+   「あと何個か」「どれを回ったか」は一覧できるほど掴みやすい。 */
+.stamp{min-height:86px;border-radius:var(--r);border:2px dashed var(--border-strong);
        background:var(--surface-2);display:flex;flex-direction:column;align-items:center;
        justify-content:center;gap:5px;padding:6px;text-align:center;position:relative;overflow:hidden}
 /* 未取得は「ここに押す」と分かるよう、枠だけを置く */
-.stamp .mk{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;
-           font-size:17px;font-weight:900;line-height:1;position:relative;
+.stamp .mk{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+           font-size:13px;font-weight:900;line-height:1;position:relative;flex:none;
            color:var(--text-mute);border:2px dashed var(--border-strong);background:transparent}
-.stamp .mk::after{content:"";position:absolute;width:36px;height:36px;border-radius:50%;
+.stamp .mk::after{content:"";position:absolute;width:26px;height:26px;border-radius:50%;
                   border:1px dashed var(--border-strong)}
 /* 取得済みは、インクで押した判子のように少し傾ける */
 .stamp.got{border-style:solid;border-color:var(--free);background:var(--free-soft)}
 .stamp.got .mk{color:var(--free);border:3px solid var(--free);
                transform:rotate(var(--tilt,-7deg))}
 .stamp.got .mk::after{border:2px solid color-mix(in srgb,var(--free) 55%,transparent);
-                      width:34px;height:34px}
+                      width:25px;height:25px}
 .stamp .no{position:absolute;top:5px;left:7px;font-size:9px;font-weight:900;color:var(--text-mute)}
 .stamp.got .no{color:var(--free)}
 .stamp .lb{font-size:9.5px;font-weight:800;color:var(--text-dim);line-height:1.25}
@@ -677,7 +688,7 @@ text.util:not([font-size]){font-size:7.5px}
 /* ========================= インフォ ========================= */
 .tt{width:100%;border-collapse:collapse;font-size:11.5px}
 .tt th,.tt td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--border);
-   vertical-align:top}
+   vertical-align:top;line-height:1.45}
 .tt th{font-size:10px;color:var(--text-mute);font-weight:800;letter-spacing:.05em}
 .tt td:first-child{font-weight:800;white-space:nowrap;color:var(--accent)}
 .help{display:flex;gap:9px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px}
@@ -708,11 +719,21 @@ text.util:not([font-size]){font-size:7.5px}
 .adm-btns2 button[data-sel="1"]{background:var(--closed);border-style:solid;
   border-color:var(--closed);color:#fff}
 /* 係員が最初に見るのは担当ブースの更新カード。並び順で先頭側へ寄せる */
+/* 係員が当日くり返すのは「担当ブースの待ち人数を送る」だけ。
+   準備用（QR印刷・紙マップ・振り返り・校舎配置・ボード）が上にあると、
+   更新のたびに900pxスクロールする羽目になる。並びは
+   担当選択 → ブースの更新 → 開場/閉場 → 来場者 → お知らせ → チェックリスト → 準備用 → ログアウト。 */
 #adm-warn{order:var(--o-warn)}
 #admin-list{order:var(--o-list)}
+#v-admin > .bulk-row{order:3}
 #v-admin .vis-card{order:var(--o-vis)}
+#v-admin .notice-card{order:var(--o-note)}
 #v-admin .chk-card{order:var(--o-chk)}
-#v-admin .notice-card{order:5}
+#v-admin > a.btn{order:7}
+#v-admin > #btn-logout{order:8}
+/* 準備用のまとまりの手前に見出しを1本入れて、当日の操作と区切る */
+#v-admin > .adm-tools-t{order:6;font-size:10.5px;font-weight:800;color:var(--text-mute);
+  margin-top:6px;padding-top:9px;border-top:1px dashed var(--border)}
 .adm-booth[data-fresh="warn"]{border-color:var(--warn);box-shadow:inset 3px 0 0 var(--warn),var(--shadow)}
 .adm-booth[data-fresh="danger"]{border-color:var(--busy);box-shadow:inset 3px 0 0 var(--busy),var(--shadow)}
 .adm-elapsed{font-size:11px;font-weight:900;padding:3px 8px;border-radius:7px;
@@ -786,9 +807,17 @@ text.util:not([font-size]){font-size:7.5px}
 
 /* ========================= 本部用 大画面ボード ========================= */
 body.board-mode .app{max-width:none;box-shadow:none}
+/* 校舎配置エディタと振り返りはPCで開く画面。スマホ幅（520px）のままだと
+   図もグラフも小さすぎて、枠をつまむ操作も数字の読み取りもできない。 */
+body.wide-mode .app{max-width:1100px}
 body.board-mode .head{display:none}
-body.board-mode main{padding:0}
-.board{min-height:100dvh;display:flex;flex-direction:column;gap:14px;padding:18px 20px 14px;
+/* ボードは1画面ぴったり。main に余白や他の要素の高さが残ると、
+   画面の下（1階の地図）が見切れてスクロールが必要になる。 */
+body.board-mode main{padding:0;gap:0;height:100dvh;overflow:hidden}
+body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
+/* 本部モニタは1画面に収まりきる必要がある。min-height だと中身の高さに
+   引きずられて画面より縦に伸び、下が見切れる（地図を大きくしたら実際にそうなった）。 */
+.board{height:100dvh;overflow:hidden;display:flex;flex-direction:column;gap:14px;padding:18px 20px 14px;
        background:var(--bg)}
 .board-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;
             border-bottom:3px solid var(--accent);padding-bottom:12px}
@@ -804,7 +833,7 @@ body.board-mode main{padding:0}
              font-size:clamp(12px,1.3vw,18px);font-weight:900;letter-spacing:.02em;
              animation:board-blink 2.4s ease-in-out infinite}
 @keyframes board-blink{50%{opacity:.72}}
-.board-grid{flex:1;display:grid;gap:clamp(8px,1vw,14px);align-content:stretch;
+.board-grid{flex:1;display:grid;gap:clamp(8px,1vw,14px);align-content:stretch;min-height:0;overflow:hidden;
             grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
             grid-auto-rows:minmax(0,1fr)}
 /* ブースが多いときは詰める。壁掛けの画面で全部見えることを優先する */
@@ -833,12 +862,19 @@ body.board-mode main{padding:0}
 .bt-no{position:absolute;top:8px;right:10px;font-size:11px;font-weight:900;color:var(--text-mute)}
 .bt-nm{font-size:clamp(12px,1.15vw,17px);font-weight:900;line-height:1.25;padding-left:8px;
        overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.board-body{flex:1;display:grid;grid-template-columns:1fr;gap:16px;min-height:0}
+.board-body{flex:1;display:grid;grid-template-columns:1fr;gap:16px;min-height:0;overflow:hidden}
 @media (min-width:1100px){ .board-body{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)} }
-.board-maps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-content:start}
-.bm{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px}
+/* 校内図は横に長い（縦横比 約1.6）。常に2列にしていたため1枚が右半分の
+   さらに半分（約400px）にしかならず、下に600pxの空白が残っていた。
+   階が2つまでは縦に積んで幅いっぱいに、3つ以上で2列にする。
+   高さも余った分まで使い切る（svg を height:100% にして中で拡大縮小させる）。 */
+.board-maps{display:grid;grid-template-columns:minmax(0,1fr);grid-auto-rows:minmax(0,1fr);
+            gap:12px;align-content:stretch;min-height:0}
+.board-maps.m2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.bm{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px;
+     display:flex;flex-direction:column;min-height:0}
 .bm h3{font-size:clamp(11px,1vw,16px);font-weight:900;color:var(--text-dim);margin-bottom:6px}
-.bm svg{display:block;width:100%;height:auto}
+.bm svg{display:block;width:100%;height:100%;flex:1;min-height:0}
 .bm .bm-bg{fill:var(--surface-2);stroke:var(--border);stroke-width:.6}
 .bm text.bm-no{fill:var(--on-status);font-weight:900;paint-order:stroke fill;
   stroke:rgba(0,0,0,.25);stroke-width:2px;stroke-linejoin:round}
@@ -899,22 +935,6 @@ body.board-mode main{padding:0}
            background:var(--surface-3);border:1px solid var(--border)}
 
 /* ========================= 配置エディタ ========================= */
-.lay-tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
-.lay-sel{margin-top:8px;font-size:11px;font-weight:800;color:var(--text-dim);
-         font-variant-numeric:tabular-nums}
-.lay-svg{width:100%;height:auto;background:var(--surface-2);border-radius:var(--r-sm);
-         touch-action:none;user-select:none}
-.lay-svg .box{cursor:move}
-.lay-svg .box rect{stroke:var(--border-strong);stroke-width:1.2}
-.lay-svg .box[data-kind="room"] rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6}
-.lay-svg .box[data-kind="struct"] rect{fill:var(--corridor)}
-.lay-svg .box[data-kind="util"] rect{fill:var(--surface-3)}
-.lay-svg .box.on rect{stroke:var(--accent);stroke-width:3}
-.lay-svg .box text{font-size:8.5px;font-weight:800;fill:var(--text);pointer-events:none}
-.lay-svg .hnd{fill:var(--accent);cursor:nwse-resize}
-.lay-code{width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px;
-          line-height:1.5;border:1px solid var(--border);border-radius:var(--r-sm);
-          background:var(--surface-2);color:var(--text);padding:8px;resize:vertical}
 
 /* ========================= QR印刷シート ========================= */
 .qr-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
@@ -999,7 +1019,6 @@ body.board-mode main{padding:0}
 .bsh-acts button.wide{grid-column:1 / -1}
 .bsh-acts button.pri{background:var(--free);border-color:var(--free);color:var(--on-status)}
 .bsh-acts button[aria-pressed="true"]{background:var(--free);border-color:var(--free);color:var(--on-status)}
-.bsh-acts button.watch[aria-pressed="true"]{background:var(--warn);border-color:var(--warn);color:var(--on-status)}
 @media (prefers-reduced-motion:reduce){ .bsh{transition:none} .bsh-back{transition:none} }
 .sheet{background:#fff;color:#111;border:1px solid var(--border);border-radius:var(--r);padding:14px}
 .sheet-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;
@@ -1077,8 +1096,15 @@ body.board-mode main{padding:0}
   .card{box-shadow:none}
   .head,.nav,.no-print,#banner-notice,#banner-alert,#banner-offline,#banner-update,#banner-hours,.toast{display:none !important}
   main{padding:0}
-  .qr-grid{grid-template-columns:repeat(2,1fr);gap:6mm}
-  .qr-card{border:1px dashed #999;page-break-inside:avoid}
+  /* 1ページ2段だと40ブースで10ページになる。QRは40mm角あればスマホで読めるので、
+     1枚を85mm弱に収めて3段（=1ページ6枚）にする。 */
+  .qr-grid{grid-template-columns:repeat(2,1fr);gap:5mm}
+  .qr-card{border:1px dashed #999;page-break-inside:avoid;padding:3mm}
+  .qr-card .qr-img svg{max-width:42mm}
+  .qr-card.top .qr-img svg{max-width:52mm}
+  .qr-card b{margin-bottom:2mm}
+  .qr-card figcaption{margin-top:2mm}
+  .qr-where{margin-bottom:2mm;padding:1mm 3mm}
   .qr-card code{font-size:6pt}
   .qr-card.top code{font-size:9.5pt}
   .qr-card b{font-size:13pt}
@@ -1095,6 +1121,8 @@ body.board-mode main{padding:0}
   .sheet-info{border-top:none;padding-top:0}
   .sheet-plan{width:100%;height:auto;max-height:96mm;break-inside:avoid}
   .sheet-maps > div.wide .sheet-plan{max-height:120mm}
+  /* 縦長の図面は高さで合わせる。幅100%だと中身が小さいまま左右が空く */
+  .sheet-maps > div.tall .sheet-plan{width:auto;max-width:100%;max-height:92mm;margin:0 auto;display:block}
   .sheet-table{font-size:8pt}
   .sheet-table td{padding:2.5px 4px}
   .sheet-note{font-size:7.5pt}
@@ -1137,7 +1165,6 @@ body.board-mode main{padding:0}
 [data-fs="lg"] .nav button{font-size:11px}
 [data-fs="lg"] .sum span{font-size:11px}
 [data-fs="lg"] .next-ev .tx{font-size:13.5px}
-[data-fs="lg"] .tips ul{font-size:13px}
 [data-fs="lg"] .mini-btn{font-size:12.5px;min-height:42px}
 [data-fs="lg"] .search input{font-size:15px}
 [data-fs="lg"] .stamp .lb{font-size:11px}
@@ -1173,7 +1200,6 @@ body.board-mode main{padding:0}
   .sum{padding:5px 3px}
   .sum b{font-size:15px}
   .sum span{font-size:8.5px}
-  .tips{display:none}
   .next-ev{padding:6px 10px}
   .next-ev .tm{font-size:13px}
   .nav button{padding:5px 0 4px;font-size:9px}
@@ -1211,7 +1237,6 @@ body.board-mode main{padding:0}
 #summary{order:2}
 #next-ev{order:3}
 #reco-card{order:4}
-#tips{order:5}
 
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.01ms !important;animation-iteration-count:1 !important;
@@ -1253,17 +1278,6 @@ body.board-mode main{padding:0}
 
       <button class="next-ev hide" id="next-ev"></button>
 
-      <div class="card tips hide" id="tips">
-        <button class="tips-x" id="tips-close" aria-label="このヒントを閉じる">×</button>
-        <div class="card-t">はじめての方へ</div>
-        <ul>
-          <li><b>色と模様</b>が混雑の目安です（緑＝空き／縞＝やや混雑／水玉＝混雑）</li>
-          <li>地図の<b>枠をタップ</b>で待ち人数と実演の時間。<b>指でひろげる</b>と拡大できます</li>
-          <li>地図の下の色ボタンで<b>「電気科だけ」「トイレ・出入口」</b>に絞れます</li>
-          <li>各ブースの入口にある<b>QRを読む</b>と、スタンプが自動でたまります</li>
-        </ul>
-      </div>
-
       <div class="card" id="reco-card">
         <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></svg> いま行くならここ
           <span class="card-note">空いている順・まだ行っていない順</span></div>
@@ -1272,7 +1286,8 @@ body.board-mode main{padding:0}
 
       <div class="card" id="map-card" style="padding:12px 12px 0">
         <div class="map-head">
-          <div class="card-t" style="margin:0"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg> 校内マップ</div>
+          <!-- 「校内マップ」の見出しは外した。下のタブで「マップ」が光っているので
+               同じことを2か所で言っており、そのぶん地図が下へ押し下げられていた。 -->
           <div class="seg" role="group" aria-label="フロア切替">
             <button id="fl-0" aria-pressed="false">屋外</button>
             <button id="fl-1" aria-pressed="true">1階</button>
@@ -1305,15 +1320,12 @@ body.board-mode main{padding:0}
             <span><i class="lg-busy"></i>混雑</span>
             <span><i class="lg-prep"></i>準備中</span>
             <span><i class="lg-unk"></i>情報なし</span>
-            <span class="legend-tip">数字をタップすると名前・待ち人数・実演時間が出ます。指でひろげる／＋ボタンで拡大すると、地図にも名前が出ます</span>
+            <span class="legend-tip">数字をタップすると詳しく出ます。ひろげると名前も出ます。上の色ボタンで科をしぼれます</span>
           </div>
           <div class="legend marks" aria-label="地図の記号">
             <span><b class="mk-way"></b>歩ける道（廊下・渡り廊下）</span>
             <span><b class="mk-out">外に出る</b>いったん外へ</span>
             <span><b class="mk-no">3</b>紙マップと同じ番号</span>
-            <span><b class="mk-chk">✓</b>訪問済み</span>
-            <span><b class="mk-ev">まもなく</b>もうすぐ始まる</span>
-            <span><b class="mk-here">いまここ</b>QRを読んだ場所</span>
           </div>
         </div>
         <div class="route-steps hide" id="route-steps"></div>
@@ -1428,13 +1440,14 @@ body.board-mode main{padding:0}
       </div>
     </section>
 
-    <section class="view" id="v-admin" style="--o-warn:1;--o-list:2;--o-vis:3;--o-chk:4">
+    <section class="view" id="v-admin" style="--o-warn:1;--o-list:2;--o-vis:4;--o-note:5;--o-chk:6">
       <div class="card">
         <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5a4.5 4.5 0 0 0 5.6 5.6L11 19.7a2.4 2.4 0 1 1-3.4-3.4z"/><circle cx="18" cy="6" r="1"/></svg> 係員コンソール</div>
         <div class="chips" id="assign-chips"></div>
         <p style="font-size:10.5px;color:var(--text-mute);font-weight:700;margin-top:8px">
           担当ブースを選ぶと、その分だけが表示されます（誤操作防止）。
         </p>
+        <p class="adm-hint" id="adm-rule" style="margin-top:6px"></p>
         <div id="adm-summary" style="margin-top:9px;padding-top:9px;border-top:1px solid var(--border)"></div>
       </div>
 
@@ -1487,10 +1500,10 @@ body.board-mode main{padding:0}
         <button class="btn ghost" id="btn-bulk" data-st="空いています">開場：全ブースを「空いています」に</button>
         <button class="btn ghost" id="btn-bulk-close" data-st="準備中">閉場：全ブースを「準備中」に</button>
       </div>
+      <p class="adm-tools-t">ここから下は準備・本部用（当日の更新には使いません）</p>
       <a class="btn ghost" href="?mode=qr" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg> QRコード印刷シートを開く</a>
       <a class="btn ghost" href="?mode=print" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg> 配布用の紙マップを開く</a>
       <a class="btn ghost" href="?mode=report" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M8 17V10M13 17V6M18 17v-4"/></svg> 混雑の振り返りを見る</a>
-      <a class="btn ghost" href="?mode=layout" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15 15 3l6 6L9 21z"/><path d="M7.5 10.5l2 2M10.5 7.5l2 2M13.5 4.5l2 2"/></svg> 校舎配置を調整する</a>
       <a class="btn ghost" href="?mode=board" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5h20v12H2z"/><path d="M8.5 20.5h7M12 16.5v4"/></svg> 本部用の大画面ボードを開く</a>
       <button class="btn ghost" id="btn-logout">ログアウト</button>
     </section>
@@ -1563,36 +1576,6 @@ body.board-mode main{padding:0}
       </div>
     </section>
 
-    <section class="view" id="v-layout">
-      <div class="card">
-        <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15 15 3l6 6L9 21z"/><path d="M7.5 10.5l2 2M10.5 7.5l2 2M13.5 4.5l2 2"/></svg> 校舎配置エディタ</div>
-        <p style="font-size:11.5px;color:var(--text-dim);font-weight:600;line-height:1.7">
-          枠をドラッグで移動、右下の角をドラッグで大きさ変更ができます。<br>
-          調整が終わったら「コードを出す」を押して、出てきた内容を index.html の
-          <code>FLOOR_PLAN</code> と差し替えてください。
-        </p>
-        <div class="lay-tools">
-          <div class="seg" role="group" aria-label="フロア切替">
-            <button id="lay-f0" aria-pressed="false">屋外</button>
-            <button id="lay-f1" aria-pressed="true">1F</button>
-            <button id="lay-f2" aria-pressed="false">2F</button>
-            <button id="lay-f3" aria-pressed="false">3F</button>
-          </div>
-          <button class="chip" id="lay-grid" aria-pressed="true">方眼</button>
-          <button class="chip" id="lay-reset">元に戻す</button>
-          <button class="chip" id="lay-out" aria-pressed="false">コードを出す</button>
-        </div>
-        <p class="lay-sel" id="lay-sel">枠を選ぶと、ここに数値が出ます</p>
-      </div>
-      <div class="card" style="padding:8px">
-        <svg id="lay-svg" class="lay-svg" viewBox="0 0 400 500"></svg>
-      </div>
-      <div class="card hide" id="lay-code-box">
-        <div class="card-t">貼り替えるコード</div>
-        <textarea id="lay-code" class="lay-code" readonly rows="14"></textarea>
-        <button class="btn" id="lay-copy" style="margin-top:8px">コピーする</button>
-      </div>
-    </section>
     <footer class="foot no-print">
       <p>&copy; 2026 岩手県立黒沢尻工業高等学校 電子科</p>
       <p class="foot-sub">表示バージョン <span id="build-id">-</span></p>
@@ -1641,7 +1624,7 @@ body.board-mode main{padding:0}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-08-07d',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-08-28a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // LIFF化するときだけ '1234567890-abcdEFGH' の形式で設定（空なら通常のWebとして動作）
@@ -1756,7 +1739,8 @@ function waitText(b){
    実寸比。0=屋外（敷地図）／1F／2F／3F。
    nm は部屋の名前。ブースが割り当てられていない部屋は、この名前で
    薄く描かれる（目印になるので消さない）。
-   微調整は ?mode=layout から。
+   この中身は xlsx の平面図から自動生成している。手で書き換えないこと
+   （次に図面をもらって作り直したときに消える）。
    ===================================================================== */
 const FLOOR_PLAN = {
   0: {
@@ -1769,9 +1753,96 @@ const FLOOR_PLAN = {
     hidden: []
   },
   1: {
-    zones: [{"label":"■ 電子科実習棟","x":351.9,"y":448.0}, {"label":"■ 専攻科棟","x":280.6,"y":448.0}, {"label":"■ 土木科実習棟","x":278.3,"y":396.0}, {"label":"■ 材料技術科実習棟","x":241.5,"y":294.0}, {"label":"■ 電子機械科実習棟","x":41.4,"y":294.0}, {"label":"■ 機械科実習棟","x":135.7,"y":294.0}, {"label":"■ 本館","x":197.8,"y":506.0}, {"label":"■ 家庭科実習棟","x":333.5,"y":296.0}, {"label":"■ 北教室棟","x":140.3,"y":390.0}, {"label":"■ 電気科実習棟","x":347.3,"y":396.0}, {"label":"■ 南教室棟","x":140.3,"y":442.0}],
-    struct: [{"x":34.0,"y":289.6,"w":288.4,"h":48.8,"type":"bldg","zone":"材料技術科実習棟"}, {"x":211.6,"y":292.0,"w":4.6,"h":44.0,"type":"corridor","label":""}, {"x":342.2,"y":291.6,"w":42.3,"h":20.8,"type":"bldg","zone":"家庭科実習棟"}, {"x":330.7,"y":315.6,"w":53.8,"h":26.8,"type":"bldg","zone":""}, {"x":333.5,"y":334.0,"w":48.3,"h":6.0,"type":"corridor","label":""}, {"x":1.8,"y":339.6,"w":17.0,"h":32.8,"type":"bldg","zone":""}, {"x":4.6,"y":354.0,"w":11.5,"h":4.0,"type":"corridor","label":""}, {"x":43.2,"y":341.6,"w":56.1,"h":36.8,"type":"bldg","zone":""}, {"x":46.0,"y":370.0,"w":50.6,"h":6.0,"type":"corridor","label":""}, {"x":268.6,"y":345.6,"w":60.7,"h":44.8,"type":"bldg","zone":"土木科実習棟"}, {"x":271.4,"y":366.0,"w":55.2,"h":4.0,"type":"corridor","label":""}, {"x":333.0,"y":345.6,"w":72.2,"h":44.8,"type":"bldg","zone":"電気科実習棟"}, {"x":335.8,"y":366.0,"w":66.7,"h":4.0,"type":"corridor","label":""}, {"x":213.4,"y":363.6,"w":21.6,"h":20.8,"type":"bldg","zone":""}, {"x":119.1,"y":367.6,"w":79.1,"h":22.8,"type":"bldg","zone":"北教室棟"}, {"x":121.9,"y":382.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":36.3,"y":381.6,"w":69.9,"h":40.8,"type":"bldg","zone":""}, {"x":39.1,"y":414.0,"w":64.4,"h":6.0,"type":"corridor","label":"廊下"}, {"x":275.5,"y":397.6,"w":129.7,"h":44.8,"type":"bldg","zone":"電子科実習棟"}, {"x":278.3,"y":418.0,"w":124.2,"h":4.0,"type":"corridor","label":""}, {"x":340.4,"y":400.0,"w":6.9,"h":40.0,"type":"corridor","label":""}, {"x":213.4,"y":415.6,"w":21.6,"h":20.8,"type":"bldg","zone":""}, {"x":155.9,"y":419.6,"w":42.3,"h":16.8,"type":"bldg","zone":"南教室棟"}, {"x":22.5,"y":455.6,"w":83.7,"h":46.8,"type":"bldg","zone":""}, {"x":41.4,"y":458.0,"w":4.6,"h":36.0,"type":"corridor","label":""}, {"x":25.3,"y":494.0,"w":78.2,"h":6.0,"type":"corridor","label":"廊下"}, {"x":128.8,"y":458.0,"w":115.0,"h":38.0,"type":"blocked","label":"本館1階（立入禁止）"}, {"x": 211.6, "y": 338.4, "w": 4.6, "h": 25.2, "type": "corridor", "link": 1}, {"x": 198.2, "y": 372.0, "w": 15.2, "h": 6.0, "type": "corridor", "link": 1}, {"x": 235.0, "y": 366.0, "w": 33.6, "h": 6.0, "type": "corridor", "link": 1, "label": "渡り廊下"}, {"x": 329.3, "y": 366.0, "w": 3.7, "h": 4.0, "type": "corridor", "link": 1}, {"x": 219.0, "y": 384.4, "w": 6.0, "h": 31.2, "type": "corridor", "link": 1}, {"x": 198.2, "y": 423.0, "w": 15.2, "h": 6.0, "type": "corridor", "link": 1}, {"x": 235.0, "y": 418.0, "w": 43.3, "h": 6.0, "type": "corridor", "link": 1, "label": "渡り廊下"}, {"x": 103.5, "y": 414.0, "w": 52.4, "h": 6.0, "type": "corridor", "link": 1, "label": "渡り廊下"}, {"x": 66.0, "y": 376.0, "w": 6.0, "h": 8.0, "type": "corridor", "link": 1}, {"x": 322.4, "y": 322.0, "w": 8.3, "h": 6.0, "type": "corridor", "link": 1}, {"x": 355.0, "y": 340.0, "w": 6.0, "h": 26.0, "type": "corridor", "link": 1}, {"x": 63.0, "y": 422.4, "w": 8.0, "h": 33.2, "type": "road", "link": 1, "label": "外に出る"}, {"x": 250.0, "y": 436.4, "w": 8.0, "h": 14.0, "type": "road", "link": 1, "label": "外に出る"}],
-    utils: [{"t":"WC","x":103.5,"y":466.0,"w":6.9,"h":6.0}, {"t":"WC","x":29.9,"y":436.0,"w":6.9,"h":14.0}, {"t":"WC","x":326.6,"y":376.0,"w":9.2,"h":12.0}, {"t":"WC","x":262.2,"y":376.0,"w":9.2,"h":12.0}, {"t":"WC","x":195.5,"y":422.0,"w":6.9,"h":12.0}, {"t":"WC","x":112.7,"y":408.0,"w":6.9,"h":10.0}, {"t":"WC","x":381.8,"y":298.0,"w":9.2,"h":12.0}, {"t":"WC","x":262.2,"y":428.0,"w":9.2,"h":12.0}, {"t":"WC","x":211.6,"y":292.0,"w":4.6,"h":14.0}, {"t":"WC","x":195.5,"y":370.0,"w":6.9,"h":12.0}, {"t":"WC","x":89.7,"y":436.0,"w":6.9,"h":14.0}, {"t":"WC","x":381.8,"y":318.0,"w":9.2,"h":12.0}, {"t":"WC","x":103.5,"y":460.0,"w":6.9,"h":6.0}, {"t":"WC","x":105.8,"y":408.0,"w":6.9,"h":10.0}],
+    zones: [
+      {"label":"電子機械科実習棟","x":67.8,"y":286.0},
+      {"label":"機械科実習棟","x":159.8,"y":286.0},
+      {"label":"材料技術科実習棟","x":267.9,"y":286.0},
+      {"label":"家庭科実習棟","x":357.6,"y":288.0},
+      {"label":"北教室棟","x":161.0,"y":382.0},
+      {"label":"土木科実習棟","x":299.0,"y":388.0},
+      {"label":"電気科実習棟","x":369.2,"y":388.0},
+      {"label":"南教室棟","x":161.0,"y":434.0},
+      {"label":"専攻科棟","x":304.8,"y":440.0},
+      {"label":"電子科実習棟","x":374.9,"y":440.0},
+      {"label":"本館","x":220.8,"y":498.0}
+    ],
+    struct: [
+      {"x":36.8,"y":292.0,"w":282.9,"h":44.0,"type":"bldg","zone":"電子機械科実習棟"},
+      {"x":333.5,"y":294.0,"w":57.5,"h":16.0,"type":"bldg","zone":"家庭科実習棟"},
+      {"x":216.2,"y":316.0,"w":103.5,"h":26.0,"type":"bldg"},
+      {"x":333.5,"y":318.0,"w":57.5,"h":16.0,"type":"bldg"},
+      {"x":4.6,"y":342.0,"w":11.5,"h":12.0,"type":"bldg"},
+      {"x":46.0,"y":344.0,"w":50.6,"h":26.0,"type":"bldg"},
+      {"x":124.2,"y":348.0,"w":50.6,"h":12.0,"type":"bldg"},
+      {"x":271.4,"y":348.0,"w":55.2,"h":18.0,"type":"bldg"},
+      {"x":335.8,"y":348.0,"w":66.7,"h":18.0,"type":"bldg"},
+      {"x":4.6,"y":358.0,"w":11.5,"h":12.0,"type":"bldg"},
+      {"x":216.2,"y":366.0,"w":20.7,"h":68.0,"type":"bldg"},
+      {"x":121.9,"y":370.0,"w":80.5,"h":12.0,"type":"bldg","zone":"北教室棟"},
+      {"x":262.2,"y":370.0,"w":140.3,"h":18.0,"type":"bldg","zone":"土木科実習棟"},
+      {"x":29.9,"y":384.0,"w":73.6,"h":36.0,"type":"bldg"},
+      {"x":271.4,"y":400.0,"w":69.0,"h":18.0,"type":"bldg"},
+      {"x":347.3,"y":400.0,"w":55.2,"h":40.0,"type":"bldg","zone":"電子科実習棟"},
+      {"x":121.9,"y":422.0,"w":80.5,"h":18.0,"type":"bldg","zone":"南教室棟"},
+      {"x":262.2,"y":422.0,"w":78.2,"h":18.0,"type":"bldg","zone":"専攻科棟"},
+      {"x":29.9,"y":436.0,"w":66.7,"h":14.0,"type":"bldg"},
+      {"x":216.2,"y":442.0,"w":20.7,"h":14.0,"type":"bldg"},
+      {"x":25.3,"y":458.0,"w":16.1,"h":36.0,"type":"bldg"},
+      {"x":46.0,"y":458.0,"w":64.4,"h":36.0,"type":"bldg"},
+      {"x":105.8,"y":458.0,"w":147.2,"h":38.0,"type":"bldg","zone":"本館"},
+      {"x":105.8,"y":408.0,"w":13.8,"h":10.0,"type":"bldg"},
+      {"x":216.2,"y":466.0,"w":4.6,"h":8.0,"type":"bldg"},
+      {"x":181.7,"y":448.0,"w":20.7,"h":8.0,"type":"bldg"},
+      {"x":266.8,"y":470.0,"w":11.5,"h":30.0,"type":"bldg"},
+      {"x":96.6,"y":314.0,"w":119.6,"h":4.0,"type":"corridor","link":1,"label":"廊下"},
+      {"x":216.2,"y":314.0,"w":103.5,"h":4.0,"type":"corridor","link":1},
+      {"x":319.7,"y":314.0,"w":13.8,"h":4.0,"type":"corridor","link":1},
+      {"x":333.5,"y":314.0,"w":57.5,"h":4.0,"type":"corridor","link":1},
+      {"x":391.0,"y":314.0,"w":4.6,"h":4.0,"type":"corridor","link":1},
+      {"x":124.2,"y":366.0,"w":50.6,"h":4.0,"type":"corridor","link":1},
+      {"x":174.8,"y":366.0,"w":27.6,"h":4.0,"type":"corridor","link":1},
+      {"x":202.4,"y":366.0,"w":13.8,"h":4.0,"type":"road","link":1},
+      {"x":216.2,"y":366.0,"w":20.7,"h":4.0,"type":"corridor","link":1},
+      {"x":236.9,"y":366.0,"w":25.3,"h":4.0,"type":"road","link":1,"label":"外に出る"},
+      {"x":262.2,"y":366.0,"w":9.2,"h":4.0,"type":"corridor","link":1},
+      {"x":271.4,"y":366.0,"w":55.2,"h":4.0,"type":"corridor","link":1},
+      {"x":326.6,"y":366.0,"w":9.2,"h":4.0,"type":"corridor","link":1},
+      {"x":335.8,"y":366.0,"w":59.8,"h":4.0,"type":"corridor","link":1,"label":"廊下"},
+      {"x":101.2,"y":418.0,"w":2.3,"h":4.0,"type":"corridor","link":1},
+      {"x":103.5,"y":418.0,"w":2.3,"h":4.0,"type":"road","link":1},
+      {"x":105.8,"y":418.0,"w":13.8,"h":4.0,"type":"corridor","link":1},
+      {"x":119.6,"y":418.0,"w":2.3,"h":4.0,"type":"road","link":1},
+      {"x":121.9,"y":418.0,"w":80.5,"h":4.0,"type":"corridor","link":1,"label":"廊下"},
+      {"x":202.4,"y":418.0,"w":13.8,"h":4.0,"type":"road","link":1},
+      {"x":216.2,"y":418.0,"w":20.7,"h":4.0,"type":"corridor","link":1},
+      {"x":236.9,"y":418.0,"w":25.3,"h":4.0,"type":"road","link":1,"label":"外に出る"},
+      {"x":262.2,"y":418.0,"w":9.2,"h":4.0,"type":"corridor","link":1},
+      {"x":271.4,"y":418.0,"w":69.0,"h":4.0,"type":"corridor","link":1},
+      {"x":340.4,"y":418.0,"w":6.9,"h":4.0,"type":"road","link":1},
+      {"x":347.3,"y":418.0,"w":48.3,"h":4.0,"type":"corridor","link":1},
+      {"x":128.8,"y":474.0,"w":85.1,"h":4.0,"type":"corridor","link":1},
+      {"x":211.6,"y":306.0,"w":4.6,"h":170.0,"type":"corridor","link":1},
+      {"x":115.0,"y":458.0,"w":138.0,"h":36.0,"type":"blocked","label":"本館1階（立入禁止）"}
+    ],
+    utils: [
+      {"t":"WC","x":211.6,"y":292.0,"w":4.6,"h":14.0},
+      {"t":"WC","x":381.8,"y":298.0,"w":9.2,"h":12.0},
+      {"t":"WC","x":381.8,"y":318.0,"w":9.2,"h":12.0},
+      {"t":"WC","x":195.5,"y":370.0,"w":6.9,"h":12.0},
+      {"t":"WC","x":262.2,"y":376.0,"w":9.2,"h":12.0},
+      {"t":"WC","x":326.6,"y":376.0,"w":9.2,"h":12.0},
+      {"t":"WC","x":105.8,"y":408.0,"w":6.9,"h":10.0},
+      {"t":"WC","x":112.7,"y":408.0,"w":6.9,"h":10.0},
+      {"t":"WC","x":195.5,"y":422.0,"w":6.9,"h":12.0},
+      {"t":"WC","x":262.2,"y":428.0,"w":9.2,"h":12.0},
+      {"t":"WC","x":29.9,"y":436.0,"w":6.9,"h":14.0},
+      {"t":"WC","x":89.7,"y":436.0,"w":6.9,"h":14.0},
+      {"t":"WC","x":103.5,"y":460.0,"w":6.9,"h":6.0},
+      {"t":"WC","x":204.7,"y":462.0,"w":6.9,"h":6.0},
+      {"t":"WC","x":103.5,"y":466.0,"w":6.9,"h":6.0},
+      {"t":"WC","x":216.2,"y":466.0,"w":4.6,"h":8.0},
+      {"t":"WC","x":204.7,"y":468.0,"w":6.9,"h":6.0}
+    ],
     rooms: [
       {"x":36.8,"y":292.0,"w":23.0,"h":22.0,"id":"1F-01","nm":"FA実習室","z":"電子機械科実習棟"},
       {"x":59.8,"y":292.0,"w":32.2,"h":44.0,"id":"1F-02","nm":"機械加工実習室","z":"電子機械科実習棟"},
@@ -1794,16 +1865,16 @@ const FLOOR_PLAN = {
       {"x":269.1,"y":316.0,"w":16.1,"h":20.0,"id":"1F-19","nm":"セラミック室","z":"材料技術科実習棟"},
       {"x":285.2,"y":316.0,"w":11.5,"h":20.0,"id":"1F-20","nm":"電子顕微鏡室","z":"材料技術科実習棟"},
       {"x":296.7,"y":316.0,"w":11.5,"h":20.0,"id":"1F-21","nm":"高分子材料室","z":"材料技術科実習棟"},
-      {"x":308.2,"y":316.0,"w":11.5,"h":20.0,"id":"1F-22","nm":"材料物性室","z":"家庭科実習棟"},
-      {"x":333.5,"y":318.0,"w":48.3,"h":16.0,"id":"1F-23","nm":"食物実習室","z":"家庭科実習棟"},
+      {"x":308.2,"y":316.0,"w":11.5,"h":20.0,"id":"1F-22","nm":"材料物性室","z":"材料技術科実習棟"},
+      {"x":333.5,"y":318.0,"w":48.3,"h":16.0,"id":"1F-23","nm":"食物実習室"},
       {"x":36.8,"y":324.0,"w":23.0,"h":12.0,"id":"1F-24","nm":"制御実習室","z":"電子機械科実習棟"},
-      {"x":4.6,"y":342.0,"w":11.5,"h":12.0,"id":"1F-25","nm":"記念館"},
+      {"x":4.6,"y":342.0,"w":11.5,"h":12.0,"id":"1F-58","nm":"記念館"},
       {"x":46.0,"y":344.0,"w":50.6,"h":26.0,"id":"1F-26","nm":"柔剣道場"},
-      {"x":271.4,"y":348.0,"w":36.8,"h":18.0,"id":"1F-27","nm":"材料試験室","z":"土木科実習棟"},
-      {"x":308.2,"y":348.0,"w":18.4,"h":18.0,"id":"1F-28","nm":"施工実習室","z":"土木科実習棟"},
-      {"x":335.8,"y":348.0,"w":29.9,"h":18.0,"id":"1F-29","nm":"工作工事実習室","z":"電気科実習棟"},
-      {"x":374.9,"y":348.0,"w":27.6,"h":18.0,"id":"1F-30","nm":"製図実習室","z":"電気科実習棟"},
-      {"x":4.6,"y":358.0,"w":11.5,"h":12.0,"id":"1F-31","nm":"北桜会館"},
+      {"x":271.4,"y":348.0,"w":36.8,"h":18.0,"id":"1F-25","nm":"材料試験室"},
+      {"x":308.2,"y":348.0,"w":18.4,"h":18.0,"id":"1F-28","nm":"施工実習室"},
+      {"x":335.8,"y":348.0,"w":29.9,"h":18.0,"id":"1F-29","nm":"工作工事実習室"},
+      {"x":374.9,"y":348.0,"w":27.6,"h":18.0,"id":"1F-30","nm":"製図実習室"},
+      {"x":4.6,"y":358.0,"w":11.5,"h":12.0,"id":"1F-59","nm":"北桜会館"},
       {"x":216.2,"y":366.0,"w":16.1,"h":16.0,"id":"1F-32","nm":"北棟昇降口"},
       {"x":121.9,"y":370.0,"w":18.4,"h":12.0,"id":"1F-33","nm":"電子機３","z":"北教室棟"},
       {"x":140.3,"y":370.0,"w":18.4,"h":12.0,"id":"1F-34","nm":"機械３","z":"北教室棟"},
@@ -1815,34 +1886,120 @@ const FLOOR_PLAN = {
       {"x":365.7,"y":370.0,"w":25.3,"h":18.0,"id":"1F-40","nm":"電気機器実習室","z":"電気科実習棟"},
       {"x":391.0,"y":370.0,"w":11.5,"h":18.0,"id":"1F-41","nm":"高圧実験室","z":"電気科実習棟"},
       {"x":39.1,"y":384.0,"w":64.4,"h":30.0,"id":"1F-42","nm":"第一体育館"},
-      {"x":285.2,"y":400.0,"w":18.4,"h":18.0,"id":"1F-43","nm":"合成化学実習室","z":"土木科実習棟"},
-      {"x":303.6,"y":400.0,"w":23.0,"h":18.0,"id":"1F-44","nm":"工作実習室①","z":"土木科実習棟"},
-      {"x":326.6,"y":400.0,"w":13.8,"h":18.0,"id":"1F-45","nm":"工作実習室②","z":"土木科実習棟"},
-      {"x":347.3,"y":400.0,"w":27.6,"h":18.0,"id":"1F-46","nm":"電気磁気実習室②","z":"電気科実習棟"},
-      {"x":374.9,"y":400.0,"w":27.6,"h":18.0,"id":"1F-47","nm":"通信実習室②","z":"電気科実習棟"},
+      {"x":271.4,"y":400.0,"w":13.8,"h":18.0,"id":"1F-27","nm":"薬品器材室"},
+      {"x":285.2,"y":400.0,"w":18.4,"h":18.0,"id":"1F-43","nm":"合成化学実習室"},
+      {"x":303.6,"y":400.0,"w":23.0,"h":18.0,"id":"1F-44","nm":"工作実習室①"},
+      {"x":326.6,"y":400.0,"w":13.8,"h":18.0,"id":"1F-45","nm":"工作実習室②"},
+      {"x":347.3,"y":400.0,"w":27.6,"h":18.0,"id":"1F-46","nm":"電気磁気実習室②","z":"電子科実習棟"},
+      {"x":374.9,"y":400.0,"w":27.6,"h":18.0,"id":"1F-47","nm":"通信実習室②","z":"電子科実習棟"},
       {"x":216.2,"y":418.0,"w":16.1,"h":16.0,"id":"1F-48","nm":"南棟昇降口"},
       {"x":158.7,"y":422.0,"w":18.4,"h":12.0,"id":"1F-49","nm":"選択③","z":"南教室棟"},
       {"x":177.1,"y":422.0,"w":18.4,"h":12.0,"id":"1F-50","nm":"ＤＸルーム","z":"南教室棟"},
-      {"x":278.3,"y":422.0,"w":27.6,"h":18.0,"id":"1F-51","nm":"計測実習室","z":"専攻科棟"},
+      {"x":278.3,"y":422.0,"w":27.6,"h":18.0,"id":"1F-31","nm":"計測実習室","z":"専攻科棟"},
       {"x":312.8,"y":422.0,"w":13.8,"h":18.0,"id":"1F-52","nm":"自動制御実習室①","z":"専攻科棟"},
       {"x":326.6,"y":422.0,"w":13.8,"h":18.0,"id":"1F-53","nm":"自動制御実習室②","z":"専攻科棟"},
       {"x":347.3,"y":422.0,"w":25.3,"h":18.0,"id":"1F-54","nm":"電子機器室②","z":"電子科実習棟"},
       {"x":372.6,"y":422.0,"w":29.9,"h":18.0,"id":"1F-55","nm":"計測室②","z":"電子科実習棟"},
       {"x":25.3,"y":458.0,"w":16.1,"h":36.0,"id":"1F-56","nm":"ボクシング場"},
       {"x":46.0,"y":458.0,"w":57.5,"h":36.0,"id":"1F-57","nm":"第二体育館"},
+      {"x":140.3,"y":462.0,"w":18.4,"h":12.0,"id":"1F-51","nm":"進路指導室","z":"本館"}
     ],
-    hidden: [{"x":294.4,"y":370.0,"w":9.2,"h":18.0,"id":"1X-01","nm":"測量・土質準備室","z":"土木科実習棟"}, {"x":186.3,"y":478.0,"w":11.5,"h":14.0,"id":"1X-02","nm":"玄関","z":"本館"}, {"x":124.2,"y":348.0,"w":50.6,"h":12.0,"id":"1X-03","nm":"北棟外部非常階段","z":"北教室棟"}, {"x":216.2,"y":442.0,"w":20.7,"h":14.0,"id":"1X-04","nm":"ボイラー 室","z":"専攻科棟"}, {"x":211.6,"y":478.0,"w":13.8,"h":14.0,"id":"1X-05","nm":"校長室","z":"本館"}, {"x":121.9,"y":422.0,"w":18.4,"h":12.0,"id":"1X-06","nm":"体育準備室","z":"南教室棟"}, {"x":133.4,"y":478.0,"w":20.7,"h":14.0,"id":"1X-07","nm":"保健室","z":"本館"}, {"x":36.8,"y":436.0,"w":52.9,"h":14.0,"id":"1X-08","nm":"部室","z":"南教室棟"}, {"x":92.0,"y":316.0,"w":9.2,"h":20.0,"id":"1X-09","nm":"機械科準備室","z":"電子機械科実習棟"}, {"x":140.3,"y":316.0,"w":9.2,"h":20.0,"id":"1X-10","nm":"製図準備室","z":"機械科実習棟"}, {"x":133.4,"y":462.0,"w":6.9,"h":12.0,"id":"1X-11","nm":"更衣室","z":"南教室棟"}, {"x":197.8,"y":478.0,"w":13.8,"h":14.0,"id":"1X-12","nm":"事務室","z":"本館"}, {"x":271.4,"y":422.0,"w":6.9,"h":18.0,"id":"1X-13","nm":"計測準備室","z":"専攻科棟"}, {"x":225.4,"y":470.0,"w":27.6,"h":22.0,"id":"1X-14","nm":"普通科職員室","z":"本館"}, {"x":384.1,"y":418.0,"w":18.4,"h":4.0,"id":"1X-15","nm":"磁気シールド","z":"電子科実習棟"}, {"x":154.1,"y":478.0,"w":23.0,"h":14.0,"id":"1X-16","nm":"中会議室","z":"本館"}, {"x":271.4,"y":400.0,"w":13.8,"h":18.0,"id":"1X-17","nm":"薬品器材室","z":"土木科実習棟"}, {"x":365.7,"y":348.0,"w":9.2,"h":18.0,"id":"1X-18","nm":"工作工事準備室","z":"電気科実習棟"}, {"x":140.3,"y":422.0,"w":18.4,"h":12.0,"id":"1X-19","nm":"物品庫","z":"南教室棟"}, {"x":184.0,"y":462.0,"w":11.5,"h":12.0,"id":"1X-20","nm":"応接室","z":"本館"}, {"x":333.5,"y":294.0,"w":11.5,"h":16.0,"id":"1X-21","nm":"準備室","z":"家庭科実習棟"}, {"x":174.8,"y":316.0,"w":11.5,"h":14.0,"id":"1X-22","nm":"鋳造準備室","z":"機械科実習棟"}, {"x":195.5,"y":462.0,"w":9.2,"h":12.0,"id":"1X-23","nm":"給湯室","z":"本館"}, {"x":216.2,"y":382.0,"w":20.7,"h":36.0,"id":"1X-24","nm":"工業科職員室","z":"土木科実習棟"}, {"x":305.9,"y":422.0,"w":6.9,"h":18.0,"id":"1X-25","nm":"自動制御準備室","z":"専攻科棟"}, {"x":167.9,"y":462.0,"w":6.9,"h":12.0,"id":"1X-26","nm":"書庫","z":"南教室棟"}, {"x":158.7,"y":462.0,"w":9.2,"h":12.0,"id":"1X-27","nm":"進路指導応接室","z":"南教室棟"}, {"x":140.3,"y":462.0,"w":18.4,"h":12.0,"id":"1X-28","nm":"進路指導室","z":"南教室棟"}, {"x":174.8,"y":462.0,"w":9.2,"h":8.0,"id":"1X-29","nm":"耐火書庫","z":"南教室棟"}, {"x":225.4,"y":462.0,"w":9.2,"h":8.0,"id":"1X-30","nm":"ＰＴＡ同窓会","z":"本館"}, {"x":354.2,"y":370.0,"w":11.5,"h":18.0,"id":"1X-31","nm":"電気機器準備室","z":"電気科実習棟"}, {"x":29.9,"y":410.0,"w":9.2,"h":10.0,"id":"1X-32","nm":"体育科職員室","z":"南教室棟"}, {"x":246.1,"y":320.0,"w":6.9,"h":16.0,"id":"1X-33","nm":"準備室","z":"材料技術科実習棟"}, {"x":177.1,"y":478.0,"w":9.2,"h":14.0,"id":"1X-34","nm":"ロッカー","z":"本館"}]
+    hidden: [
+      {"x":333.5,"y":294.0,"w":11.5,"h":16.0,"id":"1X-21","nm":"準備室","z":"家庭科実習棟"},
+      {"x":92.0,"y":316.0,"w":9.2,"h":20.0,"id":"1X-09","nm":"機械科準備室","z":"電子機械科実習棟"},
+      {"x":140.3,"y":316.0,"w":9.2,"h":20.0,"id":"1X-10","nm":"製図準備室","z":"機械科実習棟"},
+      {"x":174.8,"y":316.0,"w":11.5,"h":14.0,"id":"1X-22","nm":"鋳造準備室","z":"機械科実習棟"},
+      {"x":246.1,"y":320.0,"w":6.9,"h":16.0,"id":"1X-17","nm":"準備室","z":"材料技術科実習棟"},
+      {"x":124.2,"y":348.0,"w":50.6,"h":12.0,"id":"1X-03","nm":"北棟外部非常階段"},
+      {"x":365.7,"y":348.0,"w":9.2,"h":18.0,"id":"1X-18","nm":"工作工事準備室"},
+      {"x":294.4,"y":370.0,"w":9.2,"h":18.0,"id":"1X-01","nm":"測量・土質準備室","z":"土木科実習棟"},
+      {"x":354.2,"y":370.0,"w":11.5,"h":18.0,"id":"1X-31","nm":"電気機器準備室","z":"電気科実習棟"},
+      {"x":216.2,"y":382.0,"w":20.7,"h":36.0,"id":"1X-24","nm":"工業科職員室"},
+      {"x":29.9,"y":410.0,"w":9.2,"h":10.0,"id":"1X-32","nm":"体育科職員室"},
+      {"x":384.1,"y":418.0,"w":18.4,"h":4.0,"id":"1X-15","nm":"磁気シールド","z":"電子科実習棟"},
+      {"x":121.9,"y":422.0,"w":18.4,"h":12.0,"id":"1X-06","nm":"体育準備室","z":"南教室棟"},
+      {"x":140.3,"y":422.0,"w":18.4,"h":12.0,"id":"1X-19","nm":"物品庫","z":"南教室棟"},
+      {"x":271.4,"y":422.0,"w":6.9,"h":18.0,"id":"1X-13","nm":"計測準備室","z":"専攻科棟"},
+      {"x":305.9,"y":422.0,"w":6.9,"h":18.0,"id":"1X-25","nm":"自動制御準備室","z":"専攻科棟"},
+      {"x":36.8,"y":436.0,"w":52.9,"h":14.0,"id":"1X-08","nm":"部室"},
+      {"x":216.2,"y":442.0,"w":20.7,"h":14.0,"id":"1X-04","nm":"ボイラー 室"},
+      {"x":133.4,"y":462.0,"w":6.9,"h":12.0,"id":"1X-11","nm":"更衣室","z":"本館"},
+      {"x":158.7,"y":462.0,"w":9.2,"h":12.0,"id":"1X-27","nm":"進路指導応接室","z":"本館"},
+      {"x":167.9,"y":462.0,"w":6.9,"h":12.0,"id":"1X-26","nm":"書庫","z":"本館"},
+      {"x":174.8,"y":462.0,"w":9.2,"h":8.0,"id":"1X-29","nm":"耐火書庫","z":"本館"},
+      {"x":184.0,"y":462.0,"w":11.5,"h":12.0,"id":"1X-20","nm":"応接室","z":"本館"},
+      {"x":195.5,"y":462.0,"w":9.2,"h":12.0,"id":"1X-23","nm":"給湯室","z":"本館"},
+      {"x":225.4,"y":462.0,"w":9.2,"h":8.0,"id":"1X-30","nm":"ＰＴＡ同窓会","z":"本館"},
+      {"x":225.4,"y":470.0,"w":27.6,"h":22.0,"id":"1X-14","nm":"普通科職員室","z":"本館"},
+      {"x":133.4,"y":478.0,"w":20.7,"h":14.0,"id":"1X-07","nm":"保健室","z":"本館"},
+      {"x":154.1,"y":478.0,"w":23.0,"h":14.0,"id":"1X-16","nm":"中会議室","z":"本館"},
+      {"x":177.1,"y":478.0,"w":9.2,"h":14.0,"id":"1X-34","nm":"ロッカー","z":"本館"},
+      {"x":186.3,"y":478.0,"w":11.5,"h":14.0,"id":"1X-02","nm":"玄関","z":"本館"},
+      {"x":197.8,"y":478.0,"w":13.8,"h":14.0,"id":"1X-12","nm":"事務室","z":"本館"},
+      {"x":211.6,"y":478.0,"w":13.8,"h":14.0,"id":"1X-05","nm":"校長室","z":"本館"}
+    ]
   },
   2: {
-    zones: [{"label":"■ 本館","x":197.8,"y":280.0}, {"label":"■ 専攻科棟","x":280.6,"y":228.0}, {"label":"■ 土木科実習棟","x":276.0,"y":178.0}, {"label":"■ 南教室棟","x":144.9,"y":222.0}, {"label":"■ 電子科実習棟","x":345.0,"y":178.0}, {"label":"■ 北教室棟","x":144.9,"y":172.0}],
-    struct: [{"x":268.6,"y":127.6,"w":60.7,"h":44.8,"type":"bldg","zone":"土木科実習棟"}, {"x":271.4,"y":148.0,"w":55.2,"h":4.0,"type":"corridor","label":""}, {"x":333.0,"y":127.6,"w":72.2,"h":44.8,"type":"bldg","zone":"電子科実習棟"}, {"x":335.8,"y":148.0,"w":66.7,"h":4.0,"type":"corridor","label":""}, {"x":119.1,"y":149.6,"w":79.1,"h":22.8,"type":"bldg","zone":"北教室棟"}, {"x":121.9,"y":164.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":268.6,"y":177.6,"w":74.5,"h":44.8,"type":"bldg","zone":"専攻科棟"}, {"x":271.4,"y":198.0,"w":69.0,"h":4.0,"type":"corridor","label":""}, {"x":119.1,"y":199.6,"w":79.1,"h":22.8,"type":"bldg","zone":"南教室棟"}, {"x":121.9,"y":214.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":130.6,"y":239.6,"w":42.3,"h":34.8,"type":"bldg","zone":"本館"}, {"x":133.4,"y":254.0,"w":36.8,"h":4.0,"type":"corridor","label":""}, {"x":222.6,"y":239.6,"w":33.1,"h":16.8,"type":"bldg","zone":""}, {"x":181.2,"y":255.6,"w":37.7,"h":18.8,"type":"bldg","zone":"本館"}, {"x": 198.2, "y": 160.0, "w": 70.4, "h": 6.0, "type": "corridor", "link": 1, "label": "渡り廊下"}, {"x": 329.3, "y": 148.0, "w": 3.7, "h": 4.0, "type": "corridor", "link": 1}, {"x": 295.0, "y": 172.4, "w": 6.0, "h": 5.2, "type": "corridor", "link": 1}, {"x": 186.0, "y": 172.4, "w": 6.0, "h": 27.2, "type": "corridor", "link": 1}, {"x": 198.2, "y": 214.0, "w": 70.4, "h": 6.0, "type": "corridor", "link": 1, "label": "渡り廊下"}, {"x": 150.0, "y": 222.4, "w": 6.0, "h": 17.2, "type": "corridor", "link": 1}],
-    utils: [{"t":"WC","x":204.7,"y":242.0,"w":6.9,"h":6.0}, {"t":"WC","x":195.5,"y":152.0,"w":6.9,"h":12.0}, {"t":"WC","x":195.5,"y":202.0,"w":6.9,"h":12.0}, {"t":"WC","x":326.6,"y":158.0,"w":9.2,"h":12.0}, {"t":"WC","x":262.2,"y":208.0,"w":9.2,"h":12.0}, {"t":"WC","x":262.2,"y":158.0,"w":9.2,"h":12.0}, {"t":"WC","x":204.7,"y":248.0,"w":6.9,"h":6.0}],
+    zones: [
+      {"label":"北教室棟","x":163.3,"y":164.0},
+      {"label":"土木科実習棟","x":299.0,"y":170.0},
+      {"label":"電子科実習棟","x":369.1,"y":170.0},
+      {"label":"南教室棟","x":163.3,"y":214.0},
+      {"label":"専攻科棟","x":304.8,"y":220.0},
+      {"label":"本館","x":219.7,"y":272.0}
+    ],
+    struct: [
+      {"x":271.4,"y":130.0,"w":55.2,"h":18.0,"type":"bldg"},
+      {"x":335.8,"y":126.0,"w":66.7,"h":22.0,"type":"bldg"},
+      {"x":121.9,"y":152.0,"w":80.5,"h":12.0,"type":"bldg","zone":"北教室棟"},
+      {"x":216.2,"y":152.0,"w":13.8,"h":12.0,"type":"bldg"},
+      {"x":262.2,"y":152.0,"w":140.3,"h":18.0,"type":"bldg","zone":"土木科実習棟"},
+      {"x":271.4,"y":180.0,"w":69.0,"h":18.0,"type":"bldg"},
+      {"x":121.9,"y":202.0,"w":80.5,"h":12.0,"type":"bldg","zone":"南教室棟"},
+      {"x":216.2,"y":202.0,"w":13.8,"h":12.0,"type":"bldg"},
+      {"x":262.2,"y":202.0,"w":78.2,"h":18.0,"type":"bldg","zone":"専攻科棟"},
+      {"x":133.4,"y":226.0,"w":78.2,"h":28.0,"type":"bldg"},
+      {"x":225.4,"y":242.0,"w":27.6,"h":12.0,"type":"bldg"},
+      {"x":133.4,"y":258.0,"w":115.0,"h":18.0,"type":"bldg","zone":"本館"},
+      {"x":133.4,"y":134.0,"w":43.7,"h":8.0,"type":"bldg"},
+      {"x":124.2,"y":148.0,"w":9.2,"h":4.0,"type":"corridor","link":1},
+      {"x":133.4,"y":148.0,"w":43.7,"h":4.0,"type":"corridor","link":1},
+      {"x":177.1,"y":148.0,"w":25.3,"h":4.0,"type":"corridor","link":1},
+      {"x":202.4,"y":148.0,"w":13.8,"h":4.0,"type":"corridor","link":1},
+      {"x":216.2,"y":148.0,"w":13.8,"h":4.0,"type":"corridor","link":1},
+      {"x":230.0,"y":148.0,"w":32.2,"h":4.0,"type":"corridor","link":1},
+      {"x":262.2,"y":148.0,"w":9.2,"h":4.0,"type":"corridor","link":1},
+      {"x":271.4,"y":148.0,"w":55.2,"h":4.0,"type":"corridor","link":1},
+      {"x":326.6,"y":148.0,"w":9.2,"h":4.0,"type":"corridor","link":1},
+      {"x":335.8,"y":148.0,"w":59.8,"h":4.0,"type":"corridor","link":1,"label":"廊下"},
+      {"x":124.2,"y":198.0,"w":78.2,"h":4.0,"type":"corridor","link":1,"label":"廊下"},
+      {"x":202.4,"y":198.0,"w":13.8,"h":4.0,"type":"corridor","link":1},
+      {"x":216.2,"y":198.0,"w":13.8,"h":4.0,"type":"corridor","link":1},
+      {"x":230.0,"y":198.0,"w":32.2,"h":4.0,"type":"corridor","link":1},
+      {"x":262.2,"y":198.0,"w":9.2,"h":4.0,"type":"corridor","link":1},
+      {"x":271.4,"y":198.0,"w":69.0,"h":4.0,"type":"corridor","link":1},
+      {"x":340.4,"y":198.0,"w":4.6,"h":4.0,"type":"corridor","link":1},
+      {"x":124.2,"y":254.0,"w":9.2,"h":4.0,"type":"corridor","link":1},
+      {"x":133.4,"y":254.0,"w":78.2,"h":4.0,"type":"corridor","link":1,"label":"廊下"},
+      {"x":211.6,"y":254.0,"w":13.8,"h":4.0,"type":"corridor","link":1},
+      {"x":225.4,"y":254.0,"w":4.6,"h":4.0,"type":"corridor","link":1},
+      {"x":211.6,"y":148.0,"w":4.6,"h":110.0,"type":"corridor","link":1}
+    ],
+    utils: [
+      {"t":"WC","x":195.5,"y":152.0,"w":6.9,"h":12.0},
+      {"t":"WC","x":262.2,"y":158.0,"w":9.2,"h":12.0},
+      {"t":"WC","x":326.6,"y":158.0,"w":9.2,"h":12.0},
+      {"t":"WC","x":195.5,"y":202.0,"w":6.9,"h":12.0},
+      {"t":"WC","x":262.2,"y":208.0,"w":9.2,"h":12.0},
+      {"t":"WC","x":204.7,"y":242.0,"w":6.9,"h":6.0},
+      {"t":"WC","x":204.7,"y":248.0,"w":6.9,"h":6.0}
+    ],
     rooms: [
-      {"x":271.4,"y":130.0,"w":36.8,"h":18.0,"id":"2F-01","nm":"土木情報実習室","z":"土木科実習棟"},
-      {"x":308.2,"y":130.0,"w":18.4,"h":18.0,"id":"2F-02","nm":"CAD実習室","z":"土木科実習棟"},
-      {"x":335.8,"y":130.0,"w":20.7,"h":18.0,"id":"2F-03","nm":"通信実習室","z":"電子科実習棟"},
-      {"x":361.1,"y":130.0,"w":20.7,"h":18.0,"id":"2F-04","nm":"電子機器室","z":"電子科実習棟"},
-      {"x":381.8,"y":130.0,"w":20.7,"h":18.0,"id":"2F-05","nm":"電気磁気室","z":"電子科実習棟"},
+      {"x":271.4,"y":130.0,"w":36.8,"h":18.0,"id":"2F-01","nm":"土木情報実習室"},
+      {"x":308.2,"y":130.0,"w":18.4,"h":18.0,"id":"2F-02","nm":"CAD実習室"},
+      {"x":335.8,"y":130.0,"w":20.7,"h":18.0,"id":"2F-03","nm":"通信実習室"},
+      {"x":361.1,"y":130.0,"w":20.7,"h":18.0,"id":"2F-04","nm":"電子機器室"},
+      {"x":381.8,"y":130.0,"w":20.7,"h":18.0,"id":"2F-05","nm":"電気磁気室"},
       {"x":121.9,"y":152.0,"w":18.4,"h":12.0,"id":"2F-06","nm":"電子機２","z":"北教室棟"},
       {"x":140.3,"y":152.0,"w":18.4,"h":12.0,"id":"2F-07","nm":"機械２","z":"北教室棟"},
       {"x":158.7,"y":152.0,"w":18.4,"h":12.0,"id":"2F-08","nm":"材料２","z":"北教室棟"},
@@ -1851,26 +2008,64 @@ const FLOOR_PLAN = {
       {"x":308.2,"y":152.0,"w":18.4,"h":18.0,"id":"2F-11","nm":"情報応用室","z":"土木科実習棟"},
       {"x":335.8,"y":152.0,"w":23.0,"h":18.0,"id":"2F-12","nm":"計測実習室","z":"電子科実習棟"},
       {"x":368.0,"y":152.0,"w":34.5,"h":18.0,"id":"2F-13","nm":"電子計算機室","z":"電子科実習棟"},
-      {"x":271.4,"y":180.0,"w":20.7,"h":18.0,"id":"2F-14","nm":"電気実習室","z":"土木科実習棟"},
-      {"x":303.6,"y":180.0,"w":16.1,"h":18.0,"id":"2F-15","nm":"制御実習室","z":"土木科実習棟"},
-      {"x":319.7,"y":180.0,"w":20.7,"h":18.0,"id":"2F-16","nm":"専攻科１年","z":"土木科実習棟"},
+      {"x":271.4,"y":180.0,"w":20.7,"h":18.0,"id":"2F-14","nm":"電気実習室"},
+      {"x":303.6,"y":180.0,"w":16.1,"h":18.0,"id":"2F-15","nm":"制御実習室"},
+      {"x":319.7,"y":180.0,"w":20.7,"h":18.0,"id":"2F-16","nm":"専攻科１年"},
       {"x":121.9,"y":202.0,"w":18.4,"h":12.0,"id":"2F-17","nm":"電気３","z":"南教室棟"},
       {"x":140.3,"y":202.0,"w":18.4,"h":12.0,"id":"2F-18","nm":"電子３","z":"南教室棟"},
       {"x":158.7,"y":202.0,"w":18.4,"h":12.0,"id":"2F-19","nm":"選択②","z":"南教室棟"},
       {"x":177.1,"y":202.0,"w":18.4,"h":12.0,"id":"2F-20","nm":"選択①","z":"南教室棟"},
       {"x":287.5,"y":202.0,"w":18.4,"h":18.0,"id":"2F-21","nm":"専攻科２年","z":"専攻科棟"},
       {"x":312.8,"y":202.0,"w":27.6,"h":18.0,"id":"2F-22","nm":"化学分析実習室","z":"専攻科棟"},
-      {"x":142.6,"y":242.0,"w":27.6,"h":12.0,"id":"2F-23","nm":"理科教室","z":"南教室棟"},
-      {"x":225.4,"y":242.0,"w":27.6,"h":12.0,"id":"2F-24","nm":"図書室","z":"本館"},
+      {"x":142.6,"y":242.0,"w":27.6,"h":12.0,"id":"2F-23","nm":"理科教室"},
+      {"x":181.7,"y":242.0,"w":23.0,"h":12.0,"id":"2F-27","nm":"会議室"},
+      {"x":225.4,"y":242.0,"w":27.6,"h":12.0,"id":"2F-24","nm":"図書室"},
       {"x":133.4,"y":258.0,"w":32.2,"h":14.0,"id":"2F-25","nm":"化学実験室","z":"本館"},
-      {"x":184.0,"y":258.0,"w":32.2,"h":14.0,"id":"2F-26","nm":"物理実験室","z":"本館"},
+      {"x":184.0,"y":258.0,"w":32.2,"h":14.0,"id":"2F-26","nm":"物理実験室","z":"本館"}
     ],
-    hidden: [{"x":174.8,"y":258.0,"w":9.2,"h":14.0,"id":"2X-01","nm":"物理準備室","z":"本館"}, {"x":133.4,"y":242.0,"w":9.2,"h":12.0,"id":"2X-02","nm":"教育支援談室","z":"南教室棟"}, {"x":363.4,"y":152.0,"w":4.6,"h":18.0,"id":"2X-03","nm":"電子磁気準備室","z":"電子科実習棟"}, {"x":170.2,"y":242.0,"w":11.5,"h":12.0,"id":"2X-04","nm":"更衣室","z":"本館"}, {"x":271.4,"y":202.0,"w":16.1,"h":18.0,"id":"2X-05","nm":"専攻科職員室","z":"専攻科棟"}, {"x":216.2,"y":202.0,"w":13.8,"h":12.0,"id":"2X-06","nm":"生徒会室","z":"南教室棟"}, {"x":181.7,"y":242.0,"w":23.0,"h":12.0,"id":"2X-07","nm":"会議室","z":"本館"}, {"x":356.5,"y":130.0,"w":4.6,"h":18.0,"id":"2X-08","nm":"通信準備室","z":"電子科実習棟"}, {"x":305.9,"y":202.0,"w":6.9,"h":18.0,"id":"2X-09","nm":"化学分析準備室","z":"専攻科棟"}, {"x":225.4,"y":258.0,"w":11.5,"h":14.0,"id":"2X-10","nm":"司書室","z":"本館"}, {"x":292.1,"y":180.0,"w":11.5,"h":18.0,"id":"2X-11","nm":"資料室","z":"土木科実習棟"}, {"x":216.2,"y":152.0,"w":13.8,"h":12.0,"id":"2X-12","nm":"無線部室","z":"北教室棟"}, {"x":165.6,"y":258.0,"w":9.2,"h":14.0,"id":"2X-13","nm":"化学準備室","z":"本館"}, {"x":358.8,"y":152.0,"w":4.6,"h":18.0,"id":"2X-14","nm":"暗室","z":"電子科実習棟"}, {"x":216.2,"y":258.0,"w":9.2,"h":14.0,"id":"2X-15","nm":"書庫","z":"本館"}]
+    hidden: [
+      {"x":356.5,"y":130.0,"w":4.6,"h":18.0,"id":"2X-08","nm":"通信準備室"},
+      {"x":216.2,"y":152.0,"w":13.8,"h":12.0,"id":"2X-12","nm":"無線部室"},
+      {"x":358.8,"y":152.0,"w":4.6,"h":18.0,"id":"2X-14","nm":"暗室","z":"電子科実習棟"},
+      {"x":363.4,"y":152.0,"w":4.6,"h":18.0,"id":"2X-03","nm":"電子磁気準備室","z":"電子科実習棟"},
+      {"x":292.1,"y":180.0,"w":11.5,"h":18.0,"id":"2X-11","nm":"資料室"},
+      {"x":216.2,"y":202.0,"w":13.8,"h":12.0,"id":"2X-06","nm":"生徒会室"},
+      {"x":271.4,"y":202.0,"w":16.1,"h":18.0,"id":"2X-05","nm":"専攻科職員室","z":"専攻科棟"},
+      {"x":305.9,"y":202.0,"w":6.9,"h":18.0,"id":"2X-09","nm":"化学分析準備室","z":"専攻科棟"},
+      {"x":133.4,"y":242.0,"w":9.2,"h":12.0,"id":"2X-02","nm":"教育支援談室"},
+      {"x":170.2,"y":242.0,"w":11.5,"h":12.0,"id":"2X-04","nm":"更衣室"},
+      {"x":165.6,"y":258.0,"w":9.2,"h":14.0,"id":"2X-13","nm":"化学準備室","z":"本館"},
+      {"x":174.8,"y":258.0,"w":9.2,"h":14.0,"id":"2X-01","nm":"物理準備室","z":"本館"},
+      {"x":216.2,"y":258.0,"w":9.2,"h":14.0,"id":"2X-15","nm":"書庫","z":"本館"},
+      {"x":225.4,"y":258.0,"w":11.5,"h":14.0,"id":"2X-10","nm":"司書室","z":"本館"}
+    ]
   },
   3: {
-    zones: [{"label":"■ 北教室棟","x":144.9,"y":36.0}, {"label":"■ 南教室棟","x":144.9,"y":72.0}, {"label":"■ 本館","x":200.1,"y":118.0}],
-    struct: [{"x":119.1,"y":7.6,"w":79.1,"h":22.8,"type":"bldg","zone":"北教室棟"}, {"x":121.9,"y":22.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":119.1,"y":43.6,"w":79.1,"h":22.8,"type":"bldg","zone":"南教室棟"}, {"x":121.9,"y":58.0,"w":73.6,"h":6.0,"type":"corridor","label":"廊下"}, {"x":130.6,"y":77.6,"w":125.1,"h":34.8,"type":"bldg","zone":"本館"}, {"x":220.8,"y":80.0,"w":4.6,"h":30.0,"type":"corridor","label":""}, {"x": 186.0, "y": 30.4, "w": 6.0, "h": 13.2, "type": "corridor", "link": 1}, {"x": 186.0, "y": 66.4, "w": 6.0, "h": 11.2, "type": "corridor", "link": 1}],
-    utils: [{"t":"WC","x":202.4,"y":80.0,"w":6.9,"h":12.0}, {"t":"WC","x":195.5,"y":10.0,"w":6.9,"h":12.0}, {"t":"WC","x":195.5,"y":46.0,"w":6.9,"h":12.0}],
+    zones: [
+      {"label":"北教室棟","x":163.3,"y":28.0},
+      {"label":"南教室棟","x":163.3,"y":64.0},
+      {"label":"本館","x":219.7,"y":110.0}
+    ],
+    struct: [
+      {"x":121.9,"y":10.0,"w":80.5,"h":18.0,"type":"bldg","zone":"北教室棟"},
+      {"x":121.9,"y":46.0,"w":80.5,"h":18.0,"type":"bldg","zone":"南教室棟"},
+      {"x":133.4,"y":70.0,"w":82.8,"h":22.0,"type":"bldg"},
+      {"x":133.4,"y":80.0,"w":119.6,"h":30.0,"type":"bldg","zone":"本館"},
+      {"x":119.6,"y":6.0,"w":2.3,"h":4.0,"type":"corridor","link":1},
+      {"x":121.9,"y":6.0,"w":80.5,"h":4.0,"type":"corridor","link":1,"label":"廊下"},
+      {"x":202.4,"y":6.0,"w":2.3,"h":4.0,"type":"corridor","link":1},
+      {"x":119.6,"y":42.0,"w":2.3,"h":4.0,"type":"corridor","link":1},
+      {"x":121.9,"y":42.0,"w":80.5,"h":4.0,"type":"corridor","link":1,"label":"廊下"},
+      {"x":202.4,"y":42.0,"w":2.3,"h":4.0,"type":"corridor","link":1},
+      {"x":119.6,"y":92.0,"w":13.8,"h":4.0,"type":"corridor","link":1},
+      {"x":133.4,"y":92.0,"w":82.8,"h":4.0,"type":"corridor","link":1,"label":"廊下"},
+      {"x":216.2,"y":92.0,"w":11.5,"h":4.0,"type":"corridor","link":1}
+    ],
+    utils: [
+      {"t":"WC","x":195.5,"y":10.0,"w":6.9,"h":12.0},
+      {"t":"WC","x":195.5,"y":46.0,"w":6.9,"h":12.0},
+      {"t":"WC","x":202.4,"y":80.0,"w":6.9,"h":12.0}
+    ],
     rooms: [
       {"x":121.9,"y":10.0,"w":18.4,"h":12.0,"id":"3F-01","nm":"電子機１","z":"北教室棟"},
       {"x":140.3,"y":10.0,"w":18.4,"h":12.0,"id":"3F-02","nm":"機械１","z":"北教室棟"},
@@ -1880,12 +2075,18 @@ const FLOOR_PLAN = {
       {"x":140.3,"y":46.0,"w":18.4,"h":12.0,"id":"3F-06","nm":"電子２","z":"南教室棟"},
       {"x":158.7,"y":46.0,"w":18.4,"h":12.0,"id":"3F-07","nm":"電気１","z":"南教室棟"},
       {"x":177.1,"y":46.0,"w":18.4,"h":12.0,"id":"3F-08","nm":"電子１","z":"南教室棟"},
-      {"x":172.5,"y":80.0,"w":29.9,"h":12.0,"id":"3F-09","nm":"美術室","z":"南教室棟"},
+      {"x":172.5,"y":80.0,"w":29.9,"h":12.0,"id":"3F-09","nm":"美術室","z":"本館"},
       {"x":225.4,"y":80.0,"w":27.6,"h":24.0,"id":"3F-10","nm":"視聴覚室","z":"本館"},
       {"x":133.4,"y":96.0,"w":39.1,"h":14.0,"id":"3F-11","nm":"音楽室","z":"本館"},
-      {"x":172.5,"y":96.0,"w":48.3,"h":14.0,"id":"3F-12","nm":"CAI教室","z":"本館"},
+      {"x":172.5,"y":96.0,"w":48.3,"h":14.0,"id":"3F-12","nm":"CAI教室","z":"本館"}
     ],
-    hidden: [{"x":220.8,"y":104.0,"w":32.2,"h":6.0,"id":"3X-01","nm":"CAI準備室 視聴覚準備室","z":"本館"}, {"x":158.7,"y":80.0,"w":6.9,"h":12.0,"id":"3X-02","nm":"更衣室","z":"南教室棟"}, {"x":165.6,"y":80.0,"w":6.9,"h":12.0,"id":"3X-03","nm":"美術準備室","z":"南教室棟"}, {"x":133.4,"y":80.0,"w":25.3,"h":12.0,"id":"3X-04","nm":"資料室","z":"南教室棟"}, {"x":209.3,"y":80.0,"w":6.9,"h":10.0,"id":"3X-05","nm":"暗室","z":"本館"}]
+    hidden: [
+      {"x":133.4,"y":80.0,"w":25.3,"h":12.0,"id":"3X-04","nm":"資料室","z":"本館"},
+      {"x":158.7,"y":80.0,"w":6.9,"h":12.0,"id":"3X-02","nm":"更衣室","z":"本館"},
+      {"x":165.6,"y":80.0,"w":6.9,"h":12.0,"id":"3X-03","nm":"美術準備室","z":"本館"},
+      {"x":209.3,"y":80.0,"w":6.9,"h":10.0,"id":"3X-05","nm":"暗室","z":"本館"},
+      {"x":220.8,"y":104.0,"w":32.2,"h":6.0,"id":"3X-01","nm":"CAI準備室 視聴覚準備室","z":"本館"}
+    ]
   }
 };
 // floor=2 のブースが来た場合に割り当てる予備スロット
@@ -1923,8 +2124,6 @@ const S = {
   sort: 'free',
   q: '',
   stamps: new Set(),
-  watch: new Set(),       // 空いたら知らせてほしいブース
-  watchLv: {},            // 登録した時点の混み具合（これより空いたら知らせる）
   assigned: new Set(),
   isAdmin: false,
   draftWait: {},        // 送信前の待ち人数（自動同期で消さないため）
@@ -2075,7 +2274,6 @@ async function sync(manual){
     S.fetchedAt = Date.now();
     S.online = true; S.failures = 0;
     store('kuroko_cache_v2', { booths, notice: S.notice, updatedAt: S.updatedAt, fetchedAt: S.fetchedAt });
-    checkWatch();
     renderAll();
     // QRで来たが最初の同期に失敗していた場合、ここで拾い直す
     if (S.pendingLink && S.pendingLink()) S.pendingLink = null;
@@ -2199,28 +2397,38 @@ function utilLabel(u){
     return `<g class="wc-icon">${g(-1.7, 1.35)}${g(1.7, 1.7)}</g>`;
   }
   if (t.length <= 3){
-    const size = Math.max(2.8, Math.min((u.w - 1) / (t.length * 0.98), u.h * 0.7, 7));
+    const size = Math.min((u.w - 1) / (t.length * 0.98), u.h * 0.7, 7);
+    // 画面の上で4.2pxに届かない字は出さない（読めないうえ地図が汚れる）。拡大すれば出る
+    if (size * mapScale() < 4.2) return '';
     return `<text x="${cx.toFixed(1)}" y="${(cy + size * 0.36).toFixed(1)}" text-anchor="middle"
               class="util" font-size="${size.toFixed(1)}">${esc(t)}</text>`;
   }
-  return fitTextSvg(t, u.x, u.y, u.w, u.h, 'util', 6);
+  return fitTextSvg(t, u.x, u.y, u.w, u.h, 'util', 6, 4.2);
 }
 
 /** 「ここから外に出る」道の札。屋内の通路と取り違えると外に出られず迷う。 */
 function outLabel(st){
+  // 札は1本の道につき1つだけ（データ側で label を付けた区間のみ）。
+  // 全部の区間に付けると、札だけが並んで部屋名も棟名も読めなくなる。
+  if (!st.label) return '';
   const horiz = st.w >= st.h;
   const cx = st.x + st.w / 2, cy = st.y + st.h / 2;
   const t = st.label || '外に出る';
-  const w = t.length * 5.4 + 6;
+  // 「いったん外に出る」は道案内の要。等倍で 4.6px しかなく読めなかったので大きくする。
+  // 拡大したときは倍率で割って、画面上の大きさを一定に保つ（棟の名札と同じ扱い）。
+  const zk = Math.max(1, Math.min(5, mapScale() / (366 / 400)));
+  const fs = 6.6 / zk, bh = 11.4 / zk;
+  const w = (t.length * 7.0 + 7) / zk;
   // 縦の道は幅が8しかない。札を道の上に載せると文字が潰れるので、
   // 道の始まり（建物を出るところ）の脇に置く。
   // 縦の道は、始まり（建物を出るところ）の右脇に置く。
   // 真上に置くと建物の中の「廊下」の字とぶつかる。
   const tx = horiz ? cx : cx + w / 2 + st.w / 2 + 1;
-  const ty = horiz ? cy : st.y + 5;
-  return `<g class="out-tag"><rect x="${(tx - w / 2).toFixed(1)}" y="${(ty - 4.5).toFixed(1)}"
-      width="${w.toFixed(1)}" height="9" rx="4.5"/>
-    <text x="${tx.toFixed(1)}" y="${(ty + 2.2).toFixed(1)}" text-anchor="middle">${esc(t)}</text></g>`;
+  const ty = horiz ? cy : st.y + bh / 2 + 1;
+  return `<g class="out-tag"><rect x="${(tx - w / 2).toFixed(1)}" y="${(ty - bh / 2).toFixed(1)}"
+      width="${w.toFixed(1)}" height="${bh.toFixed(1)}" rx="${(bh / 2).toFixed(1)}"/>
+    <text x="${tx.toFixed(1)}" y="${(ty + fs * 0.36).toFixed(1)}" text-anchor="middle"
+      font-size="${fs.toFixed(2)}">${esc(t)}</text></g>`;
 }
 
 function corridorMark(st){
@@ -2235,10 +2443,18 @@ function corridorMark(st){
     : `M${cx.toFixed(1)} ${st.y.toFixed(1)}V${(st.y + st.h).toFixed(1)}`;
   let out = `<path class="corridor-line" d="${d}"/>`;
   // 文字は、点線を消してでも入れる価値があるだけの余白があるときだけ
-  const label = st.label || '廊下';
-  if (horiz && thick >= 5.4 && long >= (st.link ? 34 : 46)){
-    out += `<text x="${cx.toFixed(1)}" y="${(cy + 1.7).toFixed(1)}" text-anchor="middle"
-              class="corridor-t">${esc(label)}</text>`;
+  // 字は1本につき1つだけ（データ側で label を付けた区間のみ）。
+  // 全部の区間に出すと「廊下」が10個並んで、部屋名が読めなくなる。
+  // 「廊下」の字は、画面の上で実際に読める大きさになるときだけ出す。
+  // 等倍だと廊下の太さは3.7px しかなく、字を入れても点線が汚れて見えるだけだった。
+  // 拡大すれば出る（部屋の名前と同じ考え方）。
+  const label = st.label;
+  const k = mapScale();
+  if (label && horiz && long >= 20 && thick * k >= 9){
+    // 拡大しても字だけは同じ大きさに保つ。倍率なりに大きくすると廊下からはみ出す。
+    const fs = Math.min(thick * 0.62, 6.6 / Math.max(1, k / (366 / 400)));
+    out += `<text x="${cx.toFixed(1)}" y="${(cy + fs * 0.36).toFixed(1)}" text-anchor="middle"
+              class="corridor-t" font-size="${fs.toFixed(2)}">${esc(label)}</text>`;
   }
   return out;
 }
@@ -2281,6 +2497,7 @@ function isEntrance(nm){ return /昇降口|玄関/.test(String(nm || '')); }
 function renderDeptLegend(floorNum){
   const box = $('#dept-legend');
   if (!box) return;
+  setTimeout(() => markScrollEdges(box), 0);
   const plan = FLOOR_PLAN[floorNum];
   const seen = [];
   (plan.rooms || []).forEach(r => {
@@ -2359,9 +2576,12 @@ function fitText(text, w, h, maxSize){
 }
 
 /** fitText の結果を <text> に起こす */
-function fitTextSvg(text, x, y, w, h, cls, maxSize){
+function fitTextSvg(text, x, y, w, h, cls, maxSize, minPx){
   const f = fitText(text, w, h, maxSize);
   if (!f.lines.length) return '';
+  // 画面の上で minPx より小さくなる字は描かない。
+  // 3px の字はどう頑張っても読めず、地図が汚れて見えるだけ。拡大すれば出る。
+  if (minPx && f.size * mapScale() < minPx) return '';
   const cx = x + w / 2, cy = y + h / 2;
   const step = f.size * 1.18;
   const top = cy - (f.lines.length - 1) * step / 2 + f.size * 0.36;
@@ -2406,7 +2626,7 @@ function fingerprint(extra){
   return extra + '|' + S.booths.map(b =>
     [b.id, b.status, b.wait, b.name, b.note, b.category, b.floor, b.time, b.stale].join('~')
   ).join(';') + '|' + Array.from(S.stamps).sort().join(',')
-    + '|' + Array.from(S.watch).sort().join(',');
+;
 }
 
 /**
@@ -2537,25 +2757,29 @@ function floorOfBooth(b){
   const f = Number(b.floor);
   return [0,1,2,3].indexOf(f) >= 0 ? f : 1;
 }
-/** この階に表示するフロア一覧（?mode=layout も使う） */
+/** この階に表示するフロア一覧 */
 const FLOORS = [
   { n:0, label:'屋外' }, { n:1, label:'1F' }, { n:2, label:'2F' }, { n:3, label:'3F' }
 ];
 
-function planViewBox(floorNum){
+function planViewBox(floorNum, tagRects){
   const plan = FLOOR_PLAN[floorNum];
+  // 名札は上にも下にも逃げるので、置き場所を決めてからでないと範囲が出せない。
+  // drawFloor は実際に置いた矩形を渡してくる。渡ってこないとき（印刷・ボード）だけ
+  // 上下に余裕をとった見積もりを使う。見積もりのままだと下に大きな余白ができる。
+  const zoneBox = (tagRects && tagRects.length)
+    ? tagRects.map(t => [t.x, t.y, t.w, t.h])
+    : plan.zones.map(z => {
+        const nm = String(z.label || '').replace(/^[■●▪\s]+/, '');
+        const w = nm.length * 6.9 + 17;
+        const host = plan.struct.find(st => st.zone === nm);
+        const hy = host ? host.y : z.y, hh = host ? host.h : 0;
+        return [z.x - w / 2, hy - 26, w, hh + 52];
+      });
   const boxes = []
     .concat(plan.struct.map(s => [s.x, s.y, s.w, s.h]))
     .concat(plan.utils.map(u => [u.x, u.y, u.w, u.h]))
-    .concat(plan.zones.map(z => {
-      // 名札は z.x を中心に置くので、左右にはみ出す分もふくめて範囲に入れる。
-      // ここを見落とすと、いちばん上の棟の名札が画面の外で切れる。
-      const nm = String(z.label || '').replace(/^[■●▪\s]+/, '');
-      const w = nm.length * 6.4 + 13;
-      const host = plan.struct.find(st => st.zone === nm);
-      const top = (host ? host.y : z.y) - 26;      // 逃がした分の余白も見込む
-      return [z.x - w / 2, top, w, 40];
-    }));
+    .concat(zoneBox);
   plan.rooms.forEach(s => boxes.push([s.x, s.y, s.w, s.h]));
   if (!boxes.length) return '0 0 400 500';
   const pad = 10;
@@ -2632,10 +2856,10 @@ function drawFloor(floorNum){
             class="${cls}${zd ? ' tinted' : ''}"/>
       ${st.type === 'road' ? roadLine(st) + (st.link ? outLabel(st) : '') : ''}
       ${st.type === 'corridor' ? corridorMark(st) : ''}
-      ${st.label && st.type !== 'corridor' ? (st.type === 'road'
-            ? fitTextSvg(st.label, st.x, st.y, st.w, st.h, 'road-t', 5)
+      ${st.label && st.type !== 'corridor' && !(st.type === 'road' && st.link) ? (st.type === 'road'
+            ? fitTextSvg(st.label, st.x, st.y, st.w, st.h, 'road-t', 5, 4.2)
             : fitTextSvg(st.label, st.x, st.y - (enter ? 14 : 0), st.w, st.h,
-                         st.type === 'blocked' ? 'blocked-t' : 'util', 11)) : ''}
+                         st.type === 'blocked' ? 'blocked-t' : 'util', 11, 4.2)) : ''}
       ${enter ? `<text x="${st.x + st.w / 2}" y="${st.y + st.h / 2 + 12}" text-anchor="middle" class="util" font-size="8">タップで中の地図へ</text>` : ''}
     </g>`;
   });
@@ -2651,20 +2875,35 @@ function drawFloor(floorNum){
   // 名札を置くときに避ける相手。名札どうしだけでなく、
   // 廊下の字やトイレの記号ともぶつからないようにする。
   const tagBoxes = plan.struct
-    .filter(st => st.type === 'corridor' && st.w >= st.h && st.h >= 5.4 && st.w >= 46)
+    .filter(st => st.type === 'corridor' && st.w >= st.h && st.h >= 3.5 && st.w >= 34)
     .map(st => ({ x: st.x + st.w / 2 - 9, y: st.y - 2, w: 18, h: st.h + 4 }))
     .concat(plan.utils.map(u => ({ x: u.x, y: u.y, w: u.w, h: u.h })))
     .concat(plan.rooms.map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h })));
+  // 図面そのものの左右の端。名札がここを飛び出すと、地図全体が縮んで小さくなる。
+  const bodyB = [].concat(plan.struct, plan.utils, plan.rooms);
+  const bodyX0 = Math.min(...bodyB.map(o => o.x));
+  const bodyX1 = Math.max(...bodyB.map(o => o.x + o.w));
+  const tagRects = [];
   plan.zones.forEach(z => {
     // ラベルは「■ 北教室棟」の形。飾りの記号を外した名前で科と建物を照合する
     const name = String(z.label || '').replace(/^[■●▪\s]+/, '');
     const d = DEPT_BY_ZONE[name];
     const fs = 6.6 / zk, h = 11 / zk, r = 3 / zk;
-    const w = (name.length * 6.4 + (d ? 13 : 7)) / zk;
-    const x = z.x - w / 2;
+    // 札の幅＝字の幅＋左右の余白。全角は約1em（6.6）＋字間で 6.9 とみて、
+    // 左は科の丸のぶん 12／無ければ 5、右は 5。6.4 で見ていたころは
+    // 「土木科実習棟」のように長い名前で字が札からはみ出していた。
+    const w = (name.length * 6.9 + (d ? 17 : 10)) / zk;
     // 名札は必ず建物の外（上）に出す。建物に重ねると、
     // 中の「廊下」やトイレの表示と字がぶつかって両方読めなくなる。
     const host = plan.struct.find(st => st.zone === name);
+    // 横位置は xlsx の文字セルの位置をそのまま使う。ただし
+    // 「記念館」のように札だけ建物の左どなりに浮くことがあるので、
+    // 建物があるときは必ずその建物の真上・真下に来るまで引き寄せる。
+    // 建物の中央に揃えてしまうと、1棟の中に2科ある所（土木科／電気科）で札が重なる。
+    // さらに図面の左右からはみ出さないよう内側へ寄せる（はみ出すと地図全体が縮む）。
+    let x = z.x - w / 2;
+    if (host) x = Math.max(host.x - w * 0.25, Math.min(host.x + host.w - w * 0.75, x));
+    x = Math.max(bodyX0, Math.min(bodyX1 - w, x));
     // 建物のすぐ上・すぐ下を候補にし、ぶつかる面積がいちばん小さい所へ置く。
     // 上へ何段も積み上げると、名札が建物から離れてどの棟のものか分からなくなるので、
     // 逃がすのは1段までにする。
@@ -2687,6 +2926,7 @@ function drawFloor(floorNum){
       if (v === 0) break;
     }
     tagBoxes.push({ x, y: top, w, h });
+    tagRects.push({ x, y: top, w, h });     // 実際の位置を viewBox の計算にも渡す
     void best;
     const off = d && S.dept && S.dept !== d.z;
     zoneTags += `<g class="zone-tag${off ? ' faded' : ''}"${d ? ` style="--dept:${d.c}"` : ''}>
@@ -2740,7 +2980,7 @@ function drawFloor(floorNum){
     const off = S.dept === '__fac' ? !isEntrance(r.nm)
               : S.dept ? (!d || d.z !== S.dept) : false;
     // 名前は入るときだけ。入らないなら描かない（読めない字を重ねても邪魔なだけ）
-    const label = fitsName(r) ? fitTextSvg(r.nm, r.x, r.y, r.w, r.h, 'bg-nm', 6.2) : '';
+    const label = fitsName(r) ? fitTextSvg(r.nm, r.x, r.y, r.w, r.h, 'bg-nm', 6.2, 4.2) : '';
     html += `<g class="room-bg${off ? ' faded' : ''}${ent ? ' entrance' : ''}${spot ? ' spot' : ''}"${d ? ` style="--dept:${d.c}"` : ''}>`
           + `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="4"${d && !ent ? ' class="dept"' : ''}/>`
           + (d ? `<rect class="dept-bar" x="${r.x}" y="${r.y}" width="${Math.min(3.4, r.w / 6)}" height="${r.h}" rx="1.7"/>` : '')
@@ -2800,6 +3040,11 @@ function drawFloor(floorNum){
     let extra = '';
     const no = S.numbers.get(b.id);
     const onRoute = routeIds && routeIds.includes(b.id);
+    // 訪問済みの✓は部屋の右上に出る。名前をそこまで伸ばすと字と✓が重なるので、
+    // 先に✓の大きさを決めておいて、名前の幅から引いておく。
+    const mkR = Math.max(3.4, Math.min(6.5, Math.min(s.w, s.h) * 0.26));
+    const roomyMark = showNm ? (s.w >= 20 && s.h >= 16) : (s.w >= mkR * 5 && s.h >= mkR * 3.4);
+    const markW = (S.stamps.has(b.id) && roomyMark) ? mkR * 2 + 2 : 0;
 
     if (showNm){
       // 番号バッジは左上に置き、そのぶん名前の場所を右へずらす。
@@ -2807,14 +3052,28 @@ function drawFloor(floorNum){
       const br = Math.min(5.5, s.h * 0.22, s.w * 0.16);
       const bx = s.x + br + 1.5, by = s.y + br + 1.5;
       const padL = no && !onRoute ? br * 2 + 3 : 2;
-      const nmTop = s.y + 1.5;
-      const nmH = Math.max(7, s.h * (showSt ? 0.55 : 0.82));
-      t += fitTextSvg(b.name, s.x + padL, nmTop, s.w - padL - 2, nmH, 'nm', 8);
+      // 状態は必ず1行で出す。3行に折る前提で大きさを決めていたため、
+      // 狭い部屋で「22人待ち」が枠から飛び出して隣の部屋にかぶっていた。
+      // 全角=1・半角=0.58 で見た目の幅を見積もり、入る大きさを直接求める。
+      let stTxt = '', stSize = 0;
       if (showSt){
-        const stTxt = `${L.icon} ${stLabel}`;
-        const stF = fitText(stTxt, s.w - 4, Math.max(6, s.h * 0.26), 6);
+        const vw = t2 => [...String(t2)].reduce((n, ch) => n + (/[\x20-\x7E]/.test(ch) ? 0.58 : 1), 0);
+        const room = s.w - 4, band = Math.max(4, s.h * 0.3);
+        const cand = [`${L.icon} ${stLabel}`, `${L.icon}${String(stLabel).replace(/人待ち|待ち/, '')}`, L.icon];
+        for (const c2 of cand){
+          const sz = Math.min(6, room / vw(c2), band);
+          if (sz >= 4.2){ stTxt = c2; stSize = sz; break; }
+        }
+      }
+      // 名前の高さは「部屋の高さ − 状態の行に要る高さ」から決める。
+      // 割合（0.55）で決めていたときは、拡大すると名前と状態が数px重なっていた。
+      const nmTop = s.y + 1.5;
+      const stBand = stTxt ? stSize * 1.75 + 1 : 1.5;
+      const nmH = Math.max(7, s.h - 1.5 - stBand);
+      t += fitTextSvg(b.name, s.x + padL, nmTop, s.w - padL - 2 - markW, nmH, 'nm', 8);
+      if (stTxt){
         t += `<text x="${cx}" y="${(s.y + s.h - 2.5).toFixed(1)}" text-anchor="middle" class="st"
-                font-size="${Math.max(4.2, stF.size)}">${esc(stTxt)}</text>`;
+                font-size="${stSize.toFixed(2)}">${esc(stTxt)}</text>`;
       }
       if (no && !onRoute){
         // 番号の輪を科の色にする。部屋の塗りは混雑度で埋まるので、
@@ -2838,7 +3097,7 @@ function drawFloor(floorNum){
     }
     // 「まもなく」「訪問済み」「コースの順番」は、部屋の大きさに合わせて置く。
     // 固定の大きさで描くと、小さい部屋では番号もろとも塗りつぶしてしまう。
-    const mk = Math.max(3.4, Math.min(6.5, Math.min(s.w, s.h) * 0.26));   // 印の半径
+    const mk = mkR;                                                       // 印の半径
     const rx = s.x + s.w - mk - 1.5, ry = s.y + mk + 1.5;                 // 右上
     const evl = eventLabel(b);
     if (evl && s.w >= 26){
@@ -2851,7 +3110,7 @@ function drawFloor(floorNum){
     // 訪問済みの印。小さい部屋に無理やり足すと番号と重なって
     // どちらも読めなくなるので、その場合は番号の輪を緑にして表す。
     // ✓ を置いても番号とぶつからない大きさかどうか
-    const roomy = showNm ? (s.w >= 20 && s.h >= 16) : (s.w >= mk * 5 && s.h >= mk * 3.4);
+    const roomy = roomyMark;
     if (S.stamps.has(b.id)){
       if (roomy){
         extra += `<circle class="stamp-mark" cx="${rx.toFixed(1)}" cy="${ry.toFixed(1)}" r="${mk.toFixed(1)}"/>
@@ -2890,12 +3149,12 @@ function drawFloor(floorNum){
   });
 
   if (!placed.length){
-    const vb = planViewBox(floorNum).split(' ').map(Number);
+    const vb = planViewBox(floorNum, tagRects).split(' ').map(Number);
     html += `<text x="${vb[0] + vb[2] / 2}" y="${vb[1] + vb[3] / 2}" text-anchor="middle"
               class="util">この階にはブースがありません（上のボタンで階をえらべます）</text>`;
   }
   html += zoneTags;                       // 棟の名札はいちばん手前
-  svg.setAttribute('viewBox', planViewBox(floorNum));
+  svg.setAttribute('viewBox', planViewBox(floorNum, tagRects));
   svg.classList.toggle('has-booth', placed.length > 0);
   renderDeptLegend(floorNum);
   svg.innerHTML = html;
@@ -3091,16 +3350,17 @@ function renderSheet(){
   if (!b){ closeSheet(); return; }
   // 中身が変わっていなければ描き直さない（20秒ごとの同期でフォーカスが飛ぶのを防ぐ）
   const fp = [b.id, b.status, b.wait, b.time, b.note, b.image,
-              S.stamps.has(b.id), S.watch.has(b.id),
+              S.stamps.has(b.id),
               S.booths.filter(x => lvOf(x).lv === 0).map(x => x.id).join(','),
               (b.history || []).length, Math.floor(Date.now() / 60000)].join('|');
   if (renderSheet._fp === fp) return;
   renderSheet._fp = fp;
   const L = lvOf(b);
   const got = S.stamps.has(b.id);
-  const watching = S.watch.has(b.id);
-  const canWatch = L.lv > 0 && L.lv < 3;
   const showWait = b.wait !== null && b.wait !== undefined && L.lv >= 0 && L.lv < 3;
+  // 一覧から開いたときに「一覧で見る」を出しても何も起きない。開いた側と逆へ渡す
+  const fromList = S.view === 'list';
+  const jumpLabel = fromList ? '地図で見る' : '一覧で見る';
 
   $('#bsh-body').innerHTML = `
     <div class="bsh-head">
@@ -3111,7 +3371,6 @@ function renderSheet(){
     <div class="bsh-tags">
       <span class="tag">${esc(b.category)}</span>
       <span class="tag">${esc(flLabel(b))}</span>
-      ${got ? '<span class="tag">✓ 訪問済み</span>' : ''}
       ${(() => { const r = roomLabel(b); return r ? `<span class="tag">📍 ${esc(r)}</span>` : ''; })()}
     </div>
     <div class="bsh-st" data-lv="${L.lv}">
@@ -3127,10 +3386,7 @@ function renderSheet(){
     <p class="bsh-upd">更新 ${esc(ago(b.time))}</p>
     <div class="bsh-acts">
       <button data-act="stamp" aria-pressed="${got}">${got ? '✓ 訪問済み' : 'スタンプを押す'}</button>
-      ${canWatch
-        ? `<button class="watch" data-act="watch" aria-pressed="${watching}"><span aria-hidden="true">🔔</span> ${watching ? '通知オン' : '空いたら知らせる'}</button>`
-        : `<button data-act="list">一覧で見る</button>`}
-      ${canWatch ? `<button class="wide" data-act="list">一覧で見る</button>` : ''}
+      <button data-act="jump">${jumpLabel}</button>
     </div>`;
 
   $('#bsh-x').addEventListener('click', () => closeSheet());
@@ -3139,8 +3395,13 @@ function renderSheet(){
   $$('#bsh-body [data-act]').forEach(el => el.addEventListener('click', () => {
     const a = el.dataset.act;
     if (a === 'stamp') toggleStamp(b.id);
-    else if (a === 'watch') toggleWatch(b.id);
-    else {
+    else if (fromList){
+      // 一覧から開いていたら地図へ。「そこへどう行くか」は地図でしか分からない
+      const st = history.state;
+      closeSheet(true);
+      if (st && st.sheet){ try{ history.replaceState({ v:'map' }, '', '#map'); }catch(e){} }
+      showPlace(b.id);
+    } else {
       // シート用に積んだ履歴を「一覧」で置き換える。history.back() と競合させない
       const st = history.state;
       closeSheet(true);
@@ -3198,10 +3459,17 @@ function zoomApply(animate){
     store('kuroko_zoom_hint', true);
     toast('指でなぞると地図を動かせます（2本指でも拡大縮小できます）');
   }
-  const zi = $('#zoom-in'), zo = $('#zoom-out'), zr = $('#zoom-reset');
+  const zi = $('#zoom-in'), zo = $('#zoom-out'), zr = $('#zoom-reset'), zb = $('#zoom-booth');
+  const atMin = z.k <= z.min + .01;
   if (zi) zi.disabled = z.k >= z.max - .01;
-  if (zo) zo.disabled = z.k <= z.min + .01;
-  if (zr) zr.disabled = z.k <= z.min + .01;
+  if (zo) zo.disabled = atMin;
+  if (zr) zr.disabled = atMin;
+  // 「全体を見る」は拡大していないときは押せない＝ずっと灰色のまま置いてあった。
+  // 意味のあるほうだけを出す。ボタンが1つ減って、残りが押しやすくなる。
+  if (zr) zr.classList.toggle('hide', atMin);
+  if (zb) zb.classList.toggle('hide', !atMin);
+  // 「−」も等倍では押せない。灰色のまま置くより、出さないほうが迷わない
+  if (zo) zo.classList.toggle('hide', atMin);
   const lb = $('#zoom-lv');
   if (lb){
     lb.textContent = '×' + (Math.round(z.k * 10) / 10);
@@ -3640,9 +3908,9 @@ function renderCats(){
 }
 
 function sparkline(hist){
-  if (!hist || hist.length < 2){
-    return `<span class="trend-lb">推移</span><span class="trend">記録待ち</span>`;
-  }
+  // 記録が無いときは何も出さない。「推移 記録待ち」だけで1行使うと、
+  // カードが縦に伸びて画面に入るブースが減る（中身はゼロなのに）。
+  if (!hist || hist.length < 2) return '';
   const bars = hist.map(h => {
     const w = (h.w === 0 || h.w) ? `・${h.w}人` : '';
     return `<i data-lv="${Number(h.lv)}" title="${esc((h.t || '') + w)}"></i>`;
@@ -3702,75 +3970,37 @@ function renderList(){
           <h3 class="booth-nm"><span class="no">${S.numbers.get(b.id) || '-'}</span>${esc(b.name)}
             <span class="tag">${esc(b.category)}</span><span class="tag">${esc(flLabel(b))}</span></h3>
           ${(() => { const r = roomLabel(b); return r ? `<p class="booth-room"><span aria-hidden="true">📍</span> ${esc(r)}</p>` : ''; })()}
-          <p class="booth-meta">${esc(waitText(b))}${
-            waitMin(b) != null ? `（約${waitMin(b)}分）` : ''}・更新 ${esc(ago(b.time))}</p>
+          <p class="booth-meta">${(() => {
+            // 待ち人数は右のバッジに出ている。ここで繰り返すと同じことが2回書いてあって
+            // かえって読みにくい。時間の目安だけ、意味が出る長さ（5分以上）のときに足す。
+            const m = waitMin(b);
+            return (m != null && m >= 5) ? `待ち時間 約${m}分・` : '';
+          })()}更新 ${esc(ago(b.time))}</p>
           ${b.note ? `<p class="booth-note">${eventLabel(b)
               ? `<span class="ev-badge" data-kind="${eventState(b).kind}">${esc(eventLabel(b))}</span>` : '<span aria-hidden="true">📌</span>'} ${esc(b.note)}</p>` : ''}
         </div>
-        <span class="pill" data-lv="${L.lv}"><span aria-hidden="true">${L.icon}</span> ${esc(L.short)}${
-          b.wait > 0 && L.lv >= 0 && L.lv < 3 ? `・<b>${b.wait}</b>人待ち` : ''}</span>
+        <div class="booth-side">
+          <span class="pill" data-lv="${L.lv}"><span aria-hidden="true">${L.icon}</span> ${esc(L.short)}${
+            b.wait > 0 && L.lv >= 0 && L.lv < 3 ? `・<b>${b.wait}</b>人待ち` : ''}</span>
+          <button class="mini-btn" data-stamp="${esc(b.id)}" aria-pressed="${got}">${got ? '✓ スタンプ済' : '＋ スタンプ'}</button>
+        </div>
       </div>
-      <div class="booth-foot">
-        ${sparkline(b.history)}
-        ${L.lv > 0 && L.lv < 3
-          ? `<button class="mini-btn watch" data-watch="${esc(b.id)}" aria-pressed="${S.watch.has(b.id)}"
-              ><span aria-hidden="true">🔔</span> ${S.watch.has(b.id) ? '通知オン' : '空いたら知らせる'}</button>`
-          : ''}
-        <button class="mini-btn" data-stamp="${esc(b.id)}" aria-pressed="${got}">${got ? '✓ スタンプ済' : '＋ スタンプ'}</button>
-      </div>
+      ${(() => {
+        // 下の帯は「中身があるとき」だけ出す。スタンプのボタンだけのために
+        // 帯を1本足すと、カードが倍の高さになって画面に入るブースが半分になる。
+        const sp = sparkline(b.history);
+        return sp ? `<div class="booth-foot">${sp}</div>` : '';
+      })()}
     </article>`;
   }).join('');
 
   $$('[data-stamp]', box).forEach(el => el.addEventListener('click', () => toggleStamp(el.dataset.stamp)));
-  $$('[data-watch]', box).forEach(el => el.addEventListener('click', () => toggleWatch(el.dataset.watch)));
+  refreshScrollEdges();
 }
 
 /* =====================================================================
    スタンプラリー
    ===================================================================== */
-/**
- * 「空いたら知らせる」。混んでいるブースを登録しておくと、
- * 空いた時点で画面に知らせる（アプリを開いている間だけ動く簡易版）。
- */
-function toggleWatch(id){
-  if (S.watch.has(id)){
-    S.watch.delete(id); delete S.watchLv[id];
-  } else {
-    S.watch.add(id);
-    // 登録したときの混み具合を覚えておく。
-    // 「空いています」になるまで待つ設計だと、全体が混んでいる時間帯は永遠に鳴らない。
-    S.watchLv[id] = lvOf(S.booths.find(x => x.id === id) || {}).lv;
-  }
-  store('kuroko_watch_v1', Array.from(S.watch));
-  store('kuroko_watch_lv', S.watchLv);
-  renderList();
-  if (S.sheetId) renderSheet();
-  const b = S.booths.find(x => x.id === id);
-  toast(S.watch.has(id)
-    ? `「${b ? b.name : ''}」が空いたら、この画面で知らせます`
-    : '知らせるのをやめました');
-}
-
-/** 同期のたびに、見張り中のブースが空いていないか確かめる */
-function checkWatch(){
-  if (!S.watch.size) return;
-  // 「空いた」＝ lv0 だけでなく「登録したときより空いた」も知らせる
-  const freed = S.booths.filter(b => {
-    if (!S.watch.has(b.id)) return false;
-    const lv = lvOf(b).lv;
-    if (lv < 0 || lv === 3) return false;
-    const base = S.watchLv[b.id];
-    return lv === 0 || (base != null && lv < base);
-  });
-  if (!freed.length) return;
-  freed.forEach(b => { S.watch.delete(b.id); delete S.watchLv[b.id]; });
-  store('kuroko_watch_v1', Array.from(S.watch));
-  store('kuroko_watch_lv', S.watchLv);
-  const names = freed.map(b => b.name).join('・');
-  toast(`🔔 「${names}」が空いてきました`);
-  try{ navigator.vibrate && navigator.vibrate([120, 60, 120]); }catch(e){}
-}
-
 function toggleStamp(id){
   const adding = !S.stamps.has(id);
   S.justStamp = adding ? id : null;
@@ -4328,6 +4558,8 @@ function renderBoardMaps(){
   if (renderBoardMaps._fp === fp) return;
   renderBoardMaps._fp = fp;
 
+  // 階が3つ以上のときだけ2列。2つまでは縦に積んだ方が1枚が大きく見える
+  box.className = 'board-maps' + (floors.length >= 3 ? ' m2' : '');
   box.innerHTML = floors.map(f => {
     const plan = FLOOR_PLAN[f.n];
     const here = S.booths.filter(b => floorOfBooth(b) === f.n);
@@ -4564,7 +4796,7 @@ function hoursMessage(){
 function renderHours(){
   const el = $('#banner-hours');
   if (!el) return;
-  const staff = ['auth','admin','qr','print','report','layout','board'].indexOf(S.view) >= 0;
+  const staff = ['auth','admin','qr','print','report','board'].indexOf(S.view) >= 0;
   const h = staff ? null : hoursMessage();
   // ふだんは状態行に短く出す。開場前だけは見落とすと困るのでバナーにも出す。
   const useBanner = !!h && openState().state === 'before';
@@ -4643,6 +4875,30 @@ function renderAll(){
  * @param {string} v
  * @param {boolean=} fromHistory 戻る操作から呼ばれたときは履歴を積み直さない
  */
+/**
+ * 横に並んだボタンの列（分類・並び替え・科の色）に「まだ続きがある」印を付ける。
+ * 幅の狭い端末では「イベント」が画面の外に隠れ、絞り込めることに気づかない人が出る。
+ * 端まで寄せたら印は消す（最後の項目が薄いままだと壊れて見える）。
+ */
+function markScrollEdges(el){
+  if (!el) return;
+  const upd = () => {
+    const more = el.scrollWidth - el.clientWidth - el.scrollLeft > 4;
+    el.classList.toggle('has-more', more);
+    el.classList.toggle('has-prev', el.scrollLeft > 4);
+  };
+  if (!el._edgeBound){
+    el._edgeBound = true;
+    el.addEventListener('scroll', upd, { passive:true });
+  }
+  upd();
+  return upd;
+}
+function refreshScrollEdges(){
+  $$('.chips, .dept-legend').forEach(markScrollEdges);
+}
+addEventListener('resize', () => refreshScrollEdges());
+
 function switchView(v, fromHistory){
   // タブを移るときは、開いていたシートの履歴エントリごと畳む。
   // 残すと「戻る」でシートだけがせり上がり、前のタブに戻れなくなる。
@@ -4655,16 +4911,17 @@ function switchView(v, fromHistory){
   }
   if (v !== 'map') zoomResetIfNeeded();
   S.view = v;
-  ['map','list','stamp','info','auth','admin','qr','print','report','layout','board'].forEach(k =>
+  ['map','list','stamp','info','auth','admin','qr','print','report','board'].forEach(k =>
     $('#v-' + k).classList.toggle('on', k === v));
   $$('#nav button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
-  const staff = ['auth','admin','qr','print','report','layout','board'].indexOf(v) >= 0;
+  const staff = ['auth','admin','qr','print','report','board'].indexOf(v) >= 0;
   $('#nav').classList.toggle('hide', staff);
   // 来場者向けの混雑アラートは係員画面では出さない（ノイズになる）
   // 一覧は「空いている順」に並んでいて先頭がその答えなので、同じ内容のバナーは出さない
   $('#banner-alert').classList.toggle('hide', v !== 'map' || !$('#banner-alert-text').textContent);
   if (v === 'qr' || v === 'board') $('#banner-notice').classList.add('hide'); else renderNotice();
   renderHours();
+  refreshScrollEdges();          // 画面ごとに「横に続きがある」印を付け直す
   window.scrollTo({ top:0, behavior: smoothBehavior() });
 
   // Androidの戻るボタンで、アプリごと閉じずに前のタブへ戻れるようにする
@@ -4829,6 +5086,9 @@ function renderAdmin(){
 
   const hint = `送信すると人数からステータスを自動判定します（0〜${S.waitTh.warn - 1}人=空き / ` +
                `${S.waitTh.warn}〜${S.waitTh.busy - 1}人=やや混雑 / ${S.waitTh.busy}人〜=混雑）`;
+  // 説明は上に1回だけ。カードごとに出すと40ブースで40回くり返される
+  const hintBox = $('#adm-rule');
+  if (hintBox) hintBox.textContent = hint;
 
   list.forEach(b => {
     let card = container.querySelector(`.adm-booth[data-id="${CSS.escape(b.id)}"]`);
@@ -4852,7 +5112,6 @@ function renderAdmin(){
           <button class="step" data-step="5" aria-label="5人増やす">＋5</button>
           <button class="send">送信</button>
         </div>
-        <p class="adm-hint"></p>
         <div class="adm-btns">
           ${LEVELS.slice(0, 3).map(l =>
             `<button data-lv="${l.lv}" data-key="${esc(l.key)}">${esc(l.short)}</button>`).join('')}
@@ -4878,7 +5137,8 @@ function renderAdmin(){
     elp.textContent = el; elp.dataset.fresh = cls;
     const pill = card.querySelector('.pill');
     pill.dataset.lv = L.lv; pill.textContent = `${L.icon} ${L.short}`;
-    card.querySelector('.adm-hint').textContent = hint;
+    // 自動判定の説明はカードごとに繰り返さない。40ブースあれば40回出て、
+    // 1枚につき2行ぶん（約60px）が説明で埋まっていた。上に1回だけ出す。
 
     // 入力途中の値は自動同期で上書きしない
     const out = card.querySelector('.adm-wait-n');
@@ -5335,7 +5595,7 @@ function renderQrSheet(){
       <figcaption>
         <span class="qr-cta">スマホのカメラで読み取ってください</span>
         <span>${esc(it.note)}</span>
-        <code>${esc(it.url)}</code>
+        ${it.top ? `<code>${esc(it.url)}</code>` : ''}
       </figcaption>
     </figure>`).join('');
   $('#qr-count').textContent = items.length;
@@ -5395,6 +5655,13 @@ function renderPrintSheet(){
   const planSvg = (floorNum) => {
     const plan = FLOOR_PLAN[floorNum];
     const here = S.booths.filter(b => floorOfBooth(b) === floorNum);
+    // 紙の上で1単位が何mmになるかを見積もる。横長は幅150mm、縦長は高さ84mmに収まる。
+    // これが分からないと「4.6単位なら読める」の判定が階ごとに大きく外れる
+    //（屋外は幅を絞るので、同じ4.6単位でも1.9ptにしかならない）。
+    const vb0 = planViewBox(floorNum).split(' ').map(Number);
+    const mmPer = (vb0[2] / vb0[3] < 1.1) ? 92 / vb0[3] : 150 / vb0[2];
+    const MIN_MM = 1.4;                       // ≒4pt。これを下回る字は紙で潰れて読めない
+    const readable = f => f && f.size * mmPer >= MIN_MM;
     let h = '';
     plan.struct.forEach(st => {
       const fill = st.type === 'corridor' ? '#e6ecf4'
@@ -5410,20 +5677,51 @@ function renderPrintSheet(){
         h += `<path d="${hz ? `M${st.x + 3} ${cy}H${st.x + st.w - 3}` : `M${cx} ${st.y + 3}V${st.y + st.h - 3}`}"
                 stroke="#fff" stroke-width="1.2" stroke-dasharray="5 5" fill="none"/>`;
       }
-      if (st.label) h += fitTextSvg(st.label, st.x, st.y, st.w, st.h, 'pl-st', st.type === 'blocked' ? 10 : 6)
-                          .replace(/class="pl-st"/g, `fill="${st.type === 'blocked' ? '#666' : '#777'}" font-weight="700"`);
+      // A4に載せると1単位=約0.37mm。4.6単位（≒4.8pt）を下回る字は紙で潰れて
+      // 黒い塊にしか見えないので、いっそ描かない。番号と下の一覧表で引ける。
+      // 枠が大きい所（屋外の競技場など）は字も大きくしてよい。上限6単位で固定していたため、
+      // 紙では2〜3ptにしかならず、読めないので消えるしかなかった。
+      const stMax = st.type === 'blocked' ? 10
+                  : Math.max(6, Math.min(15, Math.min(st.w, st.h) * 0.38));
+      const stF = st.label ? fitText(st.label, st.w, st.h, stMax) : null;
+      if (st.label && readable(stF))
+        h += fitTextSvg(st.label, st.x, st.y, st.w, st.h, 'pl-st', stMax)
+               .replace(/class="pl-st"/g, `fill="${st.type === 'blocked' ? '#666' : '#777'}" font-weight="700"`);
     });
     // 棟名は建物の外（上）に、白地の札にして置く。
     // そのまま文字を置くと部屋名や番号と重なって、紙では特に読めなくなる。
+    // 棟の名札は最後に重ねる。先に描くと部屋の枠に隠れて読めなくなる
+    // （紙では「土木科実習棟」「電気科実習棟」が番号の丸の下に潜っていた）。
+    let zoneH = '';
+    const placedTags = [];
+    const avoid = (plan.rooms || []).map(r => ({ x:r.x, y:r.y, w:r.w, h:r.h }))
+      .concat((plan.utils || []).map(u => ({ x:u.x, y:u.y, w:u.w, h:u.h })));
     plan.zones.forEach(z => {
       const nm = String(z.label || '').replace(/^[■●▪\s]+/, '');
       const host = plan.struct.find(st => st.zone === nm);
-      const w = nm.length * 6.2 + 6, x = z.x - w / 2;
-      const y = (host ? host.y : z.y) - 12;
-      h += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="10" rx="5"
+      const FS = 8.2;                                  // 紙で約5pt。6.4 では読めなかった
+      const w = nm.length * (FS * 1.06) + 12, th = FS * 1.6;
+      // 札は必ずその建物の真上に。図面の外へ出ると紙面が縮んで全体が小さくなる
+      let x = z.x - w / 2;
+      if (host) x = Math.max(host.x - w * 0.25, Math.min(host.x + host.w - w * 0.75, x));
+      // 札どうしだけでなく、部屋やトイレの上にも載せない。
+      // 前は札を後ろに描いていて番号に隠れ、前に出したら今度は番号を隠していた。
+      // 建物の上・下を候補にして、ぶつかる面積がいちばん小さい所へ置く。
+      const base = host ? host.y : z.y;
+      const bot = host ? host.y + host.h : z.y;
+      const cands = [base - 3 - th, bot + 3, base - 5 - th * 2, bot + 5 + th];
+      const area = ty => avoid.concat(placedTags).reduce((sum, t) => {
+        const ox = Math.min(x + w, t.x + t.w) - Math.max(x, t.x);
+        const oy = Math.min(ty + th, t.y + t.h) - Math.max(ty, t.y);
+        return sum + (ox > 0 && oy > 0 ? ox * oy : 0);
+      }, 0);
+      let y = cands[0], best = Infinity;
+      for (const ty of cands){ const v = area(ty); if (v < best){ best = v; y = ty; } if (!v) break; }
+      placedTags.push({ x, y, w, h: th });
+      zoneH += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${th.toFixed(1)}" rx="${(FS * 0.8).toFixed(1)}"
               fill="#fff" stroke="#bbb"/>
-            <text x="${(x + w / 2).toFixed(1)}" y="${(y + 7).toFixed(1)}" text-anchor="middle"
-              font-size="6.4" font-weight="bold" fill="#444">${esc(nm)}</text>`;
+            <text x="${(x + w / 2).toFixed(1)}" y="${(y + FS * 1.13).toFixed(1)}" text-anchor="middle"
+              font-size="${FS}" font-weight="bold" fill="#444">${esc(nm)}</text>`;
     });
     plan.utils.forEach(u => {
       h += `<rect x="${u.x}" y="${u.y}" width="${u.w}" height="${u.h}" rx="4" fill="#fff" stroke="#bbb"/>
@@ -5437,7 +5735,9 @@ function renderPrintSheet(){
       const d = deptOf(r);
       h += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="4" fill="#fff" stroke="#ccc"/>`
          + (d ? `<rect x="${r.x}" y="${r.y}" width="${Math.min(3, r.w / 6)}" height="${r.h}" rx="1.5" fill="${d.c}"/>` : '')
-         + fitTextSvg(r.nm, r.x, r.y, r.w, r.h, 'pl-bg', 5).replace(/class="pl-bg"/g, 'fill="#888" font-weight="600"');
+         + (readable(fitText(r.nm, r.w, r.h, 5))
+              ? fitTextSvg(r.nm, r.x, r.y, r.w, r.h, 'pl-bg', 5).replace(/class="pl-bg"/g, 'fill="#888" font-weight="600"')
+              : '');
     });
     here.forEach(b => {
       const s = plan.rooms.find(x => x.id === b.id);
@@ -5456,7 +5756,7 @@ function renderPrintSheet(){
             <text x="${cx2.toFixed(1)}" y="${(cy2 + br * 0.38).toFixed(1)}" text-anchor="middle"
               font-size="${(br * 1.2).toFixed(1)}" font-weight="bold" fill="#fff">${S.numbers.get(b.id)}</text>`;
     });
-    return `<svg viewBox="${planViewBox(floorNum)}" class="sheet-plan">${h}</svg>`;
+    return `<svg viewBox="${planViewBox(floorNum)}" class="sheet-plan">${h}${zoneH}</svg>`;
   };
 
   const rows = S.booths.map(b => `
@@ -5485,7 +5785,12 @@ function renderPrintSheet(){
           .map(f => {
             // 部屋が多い階と屋外は横1段ぶんを使う（半分の幅だと紙で字が読めない）
             const wide = (FLOOR_PLAN[f.n].rooms || []).length >= 40;
-            return `<div${wide ? ' class="wide"' : ''}>
+            // 縦長の図面（屋外）は幅いっぱいにすると左右が大きく空き、
+            // ページの1/3を空白が占めていた。高さで合わせて幅を絞る。
+            const vb = planViewBox(f.n).split(' ').map(Number);
+            const tall = vb[2] / vb[3] < 1.1;
+            const cls = [wide ? 'wide' : '', tall ? 'tall' : ''].filter(Boolean).join(' ');
+            return `<div${cls ? ` class="${cls}"` : ''}>
               <h2>${f.n === 0 ? '屋外' : f.n + '階'}</h2>${planSvg(f.n)}</div>`;
           }).join('')}
       </div>
@@ -5657,187 +5962,6 @@ async function renderReport(){
     </div>`;
 }
 
-/* =====================================================================
-   校舎配置エディタ（?mode=layout）
-   実際の校舎に合わせて座標を直す作業を、数値の手打ちからドラッグに変える。
-   結果は FLOOR_PLAN にそのまま貼れる形で出力する。
-   ===================================================================== */
-const LAY = { plan: null, floor: 1, sel: null, grid: true, drag: null };
-
-function layClone(){
-  return JSON.parse(JSON.stringify(FLOOR_PLAN));
-}
-
-function layDraw(){
-  const svg = $('#lay-svg');
-  const plan = LAY.plan[LAY.floor];
-  const names = new Map(S.booths.map(b => [b.id, b.name]));
-  // 図面の広さは階ごとに違うので、その階に合わせて表示範囲を決める
-  const all = [].concat(plan.struct, plan.utils, plan.rooms);
-  const pad = 14;
-  const vb = all.length
-    ? [Math.min(...all.map(o => o.x)) - pad, Math.min(...all.map(o => o.y)) - pad,
-       0, 0]
-    : [0, 0, 400, 500];
-  if (all.length){
-    vb[2] = Math.max(...all.map(o => o.x + o.w)) + pad - vb[0];
-    vb[3] = Math.max(...all.map(o => o.y + o.h)) + pad - vb[1];
-  }
-  svg.setAttribute('viewBox', vb.map(n => Math.round(n)).join(' '));
-  LAY.vb = vb;
-
-  let g = '';
-  if (LAY.grid){
-    const gx0 = Math.floor(vb[0] / 20) * 20, gy0 = Math.floor(vb[1] / 20) * 20;
-    for (let x = gx0; x <= vb[0] + vb[2]; x += 20)
-      g += `<line x1="${x}" y1="${vb[1]}" x2="${x}" y2="${vb[1] + vb[3]}" stroke="var(--border)" stroke-width="${x % 100 ? .4 : .9}"/>`;
-    for (let y = gy0; y <= vb[1] + vb[3]; y += 20)
-      g += `<line x1="${vb[0]}" y1="${y}" x2="${vb[0] + vb[2]}" y2="${y}" stroke="var(--border)" stroke-width="${y % 100 ? .4 : .9}"/>`;
-  }
-
-  const box = (kind, i, o, label) => {
-    const on = LAY.sel && LAY.sel.kind === kind && LAY.sel.i === i ? ' on' : '';
-    return `<g class="box${on}" data-kind="${kind}" data-i="${i}">
-      <rect x="${o.x}" y="${o.y}" width="${o.w}" height="${o.h}" rx="4"/>
-      <text x="${o.x + o.w / 2}" y="${o.y + o.h / 2 + 3}" text-anchor="middle">${esc(label)}</text>
-      <rect class="hnd" x="${o.x + o.w - 7}" y="${o.y + o.h - 7}" width="9" height="9" rx="2"
-            data-handle="1"/></g>`;
-  };
-
-  plan.struct.forEach((s, i) => { g += box('struct', i, s, s.label || '通路'); });
-  plan.utils.forEach((u, i) => { g += box('util', i, u, u.t); });
-  const slots = plan.rooms.length ? plan.rooms : [];
-  slots.forEach((r, i) => { g += box('room', i, r, names.get(r.id) || r.nm || ('id:' + r.id)); });
-  plan.zones.forEach((z, i) => {
-    g += `<g class="box" data-kind="zone" data-i="${i}">
-      <rect x="${z.x}" y="${z.y - 9}" width="110" height="11" rx="2" fill="transparent" stroke="var(--border)" stroke-dasharray="2 2"/>
-      <text x="${z.x + 3}" y="${z.y}" text-anchor="start">${esc(z.label)}</text></g>`;
-  });
-
-  svg.innerHTML = g;
-  $$('.box', svg).forEach(el => el.addEventListener('pointerdown', layDown));
-}
-
-function layPoint(e){
-  const svg = $('#lay-svg');
-  const r = svg.getBoundingClientRect();
-  const vb = svg.getAttribute('viewBox').split(' ').map(Number);
-  return { x: vb[0] + (e.clientX - r.left) / r.width * vb[2],
-           y: vb[1] + (e.clientY - r.top) / r.height * vb[3] };
-}
-
-function layTarget(kind, i){
-  const plan = LAY.plan[LAY.floor];
-  if (kind === 'room') return plan.rooms[i];
-  if (kind === 'struct') return plan.struct[i];
-  if (kind === 'util') return plan.utils[i];
-  return plan.zones[i];
-}
-
-/*
- * 移動・大きさ変更の受け口。
- * 描き直すとSVGの中身を作り直すので、動きの追跡は window 側で受ける
- * （要素に付けると、最初の描き直しで listener ごと消えてしまう）。
- */
-function layDown(e){
-  e.preventDefault();
-  const g = e.currentTarget;
-  const kind = g.dataset.kind, i = Number(g.dataset.i);
-  const o = layTarget(kind, i);
-  const p = layPoint(e);
-  LAY.sel = { kind, i };
-  LAY.drag = {
-    o, mode: e.target.dataset.handle ? 'size' : 'move',
-    dx: p.x - o.x, dy: p.y - o.y, w: o.w || 0, h: o.h || 0, px: p.x, py: p.y
-  };
-  window.addEventListener('pointermove', layMove);
-  window.addEventListener('pointerup', layUp);
-  window.addEventListener('pointercancel', layUp);
-  layDraw(); laySel();
-}
-
-function layMove(e){
-  if (!LAY.drag) return;
-  e.preventDefault();
-  const p = layPoint(e);
-  const d = LAY.drag, o = d.o;
-  const snap = v => LAY.grid ? Math.round(v / 2) * 2 : Math.round(v);
-  if (d.mode === 'move'){
-    o.x = snap(Math.max(0, Math.min(400 - (o.w || 20), p.x - d.dx)));
-    o.y = snap(Math.max(0, Math.min(500 - (o.h || 10), p.y - d.dy)));
-  } else if (o.w !== undefined){
-    o.w = snap(Math.max(16, Math.min(400 - o.x, d.w + (p.x - d.px))));
-    o.h = snap(Math.max(12, Math.min(500 - o.y, d.h + (p.y - d.py))));
-  }
-  layDraw(); laySel();
-}
-
-function layUp(){
-  LAY.drag = null;
-  window.removeEventListener('pointermove', layMove);
-  window.removeEventListener('pointerup', layUp);
-  window.removeEventListener('pointercancel', layUp);
-}
-
-function laySel(){
-  const el = $('#lay-sel');
-  if (!LAY.sel){ el.textContent = '枠を選ぶと、ここに数値が出ます'; return; }
-  const o = layTarget(LAY.sel.kind, LAY.sel.i);
-  const label = { room:'ブース', struct:'通路・屋外', util:'設備', zone:'見出し' }[LAY.sel.kind];
-  el.textContent = o.w !== undefined
-    ? `${label}：x=${o.x} y=${o.y} 幅=${o.w} 高さ=${o.h}`
-    : `${label}：x=${o.x} y=${o.y}`;
-}
-
-/** FLOOR_PLAN にそのまま貼れる形で書き出す */
-/**
- * 編集した配置を FLOOR_PLAN の形で書き出す。
- * 手で項目を並べると、後から足した項目（科の色 z、控えの部屋 hidden）が
- * こぼれ落ちて、貼り直した瞬間に消える。丸ごと写して出す。
- */
-function layCode(){
-  const line = o => '      ' + JSON.stringify(o);
-  const arr = (key, list) =>
-    `    ${key}: [${list && list.length ? '\n' + list.map(line).join(',\n') + '\n    ' : ''}],`;
-  const one = f => {
-    const p = LAY.plan[f];
-    return `  ${f}: {\n` + arr('zones', p.zones) + '\n' + arr('struct', p.struct) + '\n' +
-           arr('utils', p.utils) + '\n' + arr('rooms', p.rooms) + '\n' +
-           `    hidden: [${(p.hidden || []).length ? '\n' + (p.hidden || []).map(line).join(',\n') + '\n    ' : ''}]\n  }`;
-  };
-  return `const FLOOR_PLAN = {\n${FLOORS.map(f => one(f.n)).join(',\n')}\n};`;
-}
-
-function initLayout(){
-  LAY.plan = layClone();
-  layDraw();
-  const setF = n => {
-    LAY.floor = n; LAY.sel = null;
-    FLOORS.forEach(f => $('#lay-f' + f.n).setAttribute('aria-pressed', String(n === f.n)));
-    layDraw(); laySel();
-  };
-  FLOORS.forEach(f => $('#lay-f' + f.n).addEventListener('click', () => setF(f.n)));
-  $('#lay-grid').addEventListener('click', () => {
-    LAY.grid = !LAY.grid;
-    $('#lay-grid').setAttribute('aria-pressed', String(LAY.grid));
-    layDraw();
-  });
-  $('#lay-reset').addEventListener('click', () => {
-    if (!confirm('編集内容を捨てて元に戻しますか？')) return;
-    LAY.plan = layClone(); LAY.sel = null; layDraw(); laySel();
-  });
-  $('#lay-out').addEventListener('click', () => {
-    $('#lay-code').value = layCode();
-    $('#lay-code-box').classList.remove('hide');
-    $('#lay-code-box').scrollIntoView({ behavior: smoothBehavior() });
-  });
-  $('#lay-copy').addEventListener('click', async () => {
-    const ta = $('#lay-code');
-    try{ await navigator.clipboard.writeText(ta.value); toast('コピーしました'); }
-    catch(e){ ta.select(); toast('選択しました。長押しでコピーしてください'); }
-  });
-}
-
 /**
  * ボードは映しっぱなしにするので、時計を毎分進め、画面が消えないようにする。
  */
@@ -5916,8 +6040,6 @@ function init(){
   initNotice();
   requestAnimationFrame(() => fitMapBox(S.floor));
   S.stamps   = new Set(load('kuroko_stamps_v2', []));
-  S.watch    = new Set(load('kuroko_watch_v1', []));
-  S.watchLv  = load('kuroko_watch_lv', {}) || {};
   S.assigned = new Set(load('kuroko_assigned_v2', []));
 
   // 前回の内容を先に出して待ち時間を減らす。
@@ -5958,13 +6080,6 @@ function init(){
     S.stamps.clear(); store('kuroko_stamps_v2', []); store('kuroko_cert_at', undefined);
     renderAll(); toast('記録をリセットしました');
   });
-  // 初回だけ使い方のヒントを出す
-  if (!load('kuroko_tips_seen', false)) $('#tips').classList.remove('hide');
-  $('#tips-close').addEventListener('click', () => {
-    $('#tips').classList.add('hide');
-    store('kuroko_tips_seen', true);
-  });
-
   $('#build-id').textContent = CONFIG.BUILD;
   $('#btn-print').addEventListener('click', () => window.print());
   $('#btn-print2').addEventListener('click', () => window.print());
@@ -5997,10 +6112,9 @@ function init(){
   } else if (mode === 'print'){
     switchView('print');
   } else if (mode === 'report'){
+    document.body.classList.add('wide-mode');   // 振り返りはPCで見る画面
     switchView('report');
     renderReport();
-  } else if (mode === 'layout'){
-    switchView('layout');
   } else if (mode === 'board'){
     switchView('board');
     initBoard();
@@ -6053,7 +6167,6 @@ function init(){
     if (mode === 'qr'){ renderQrSheet(); return; }
     if (mode === 'print'){ renderPrintSheet(); return; }
     if (mode === 'report') return;
-    if (mode === 'layout'){ initLayout(); return; }
     if (mode === 'board'){ renderBoard(); return; }
     if (!applyDeepLink()) S.pendingLink = applyDeepLink;
   });
@@ -6219,7 +6332,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // 当日、現地で状態を確認できるようにしておく（開発者コンソールから参照可能）
 window.KUROKO = {
-  S, CONFIG, sync, hardReload, QR, checkWatch, LAY,
+  S, CONFIG, sync, hardReload, QR,
   redraw(){ drawFloor._fp = renderList._fp = null; renderAll(); }
 };
 </script>

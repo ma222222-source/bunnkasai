@@ -13,8 +13,15 @@
  * =============================================================================
  */
 
-// スプレッドシートのID（URLの /d/ と /edit の間）
-var SPREADSHEET_ID = '1TEoB1b5sn6qGBdtg5NHg2w2CoKdq0W9ob1C_k9s5HA8';
+// スプレッドシートのIDはコードに書かない（公開リポジトリにそのまま載ってしまうため）。
+// このスクリプトはシートに紐づいている（拡張機能 → Apps Script から開いたもの）ので、
+// ふだんは getActiveSpreadsheet() だけで開ける。
+// 別のシートを指したいときだけ、プロジェクトの設定 → スクリプト プロパティに
+// SPREADSHEET_ID を入れる。入っていなくても動く。
+function spreadsheetId_() {
+  try { return PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || ''; }
+  catch (e) { return ''; }
+}
 
 var SHEET_MAIN     = 'ブース';
 var SHEET_LOG      = '履歴';
@@ -274,8 +281,9 @@ function ss_() {
   if (SS_CACHE_) return SS_CACHE_;
   var ss = null;
   try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) { ss = null; }
-  if (!ss) ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  if (!ss) throw new Error('スプレッドシートを開けません。SPREADSHEET_ID を確認してください');
+  if (!ss) { var id = spreadsheetId_(); if (id) ss = SpreadsheetApp.openById(id); }
+  if (!ss) throw new Error('スプレッドシートを開けません。Apps Script はスプレッドシートの'
+    + '「拡張機能 → Apps Script」から開いてください');
   SS_CACHE_ = ss;
   return ss;
 }
