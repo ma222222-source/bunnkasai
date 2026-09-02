@@ -297,11 +297,14 @@ main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direc
           box-shadow:inset 0 1px 3px rgba(16,24,40,.06)}
 [data-theme="cyber"] .map-wrap{box-shadow:inset 0 0 32px -14px var(--accent)}
 .svg-defs{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
-.map-view{position:relative;overflow:hidden}
+/* 地図の中でスクロールが外へ伝わらないようにする（端まで動かしてもページが跳ねない） */
+.map-view{position:relative;overflow:hidden;overscroll-behavior:contain;
+          -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .map-zoom{transform-origin:0 0;will-change:transform;touch-action:pan-y}
-.map-zoom.zoomed{touch-action:none;cursor:grab}
+/* 拡大中／指2本の操作中はページを動かさず、地図だけを動かす */
+.map-zoom.zoomed,.map-zoom.gesturing{touch-action:none;cursor:grab}
 .map-zoom.grabbing{cursor:grabbing}
-svg.plan{display:block;width:100%;height:auto;touch-action:manipulation}
+svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 .bldg{fill:transparent;stroke:var(--border-strong);stroke-width:1.4;pointer-events:all}
 /* 棟の地の色＝その棟を使う科の色。部屋の塗りは混雑度に使うので、
    「どこに何科があるか」は建物の背景で見せる */
@@ -1624,7 +1627,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-08-28a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-02a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // LIFF化するときだけ '1234567890-abcdEFGH' の形式で設定（空なら通常のWebとして動作）
@@ -3417,7 +3420,7 @@ function renderSheet(){
    拡大していないときは縦スクロールを邪魔しない（touch-action:pan-y）。
    ===================================================================== */
 const ZOOM = { k:1, x:0, y:0, min:1, max:4, el:null, wrap:null, pts:new Map(),
-               base:0, baseK:1, moved:false, lastTap:0, hideT:null,
+               base:0, baseK:1, pmid:null, moved:false, noClick:false, lastTap:0, hideT:null,
                // 実寸の控え。指でなぞるたびに測り直すと400要素超のSVGで毎フレーム固まる
                mW:0, mH:0, mNat:0 };
 
@@ -3526,8 +3529,10 @@ function initZoom(){
 
   z.el.addEventListener('pointerdown', e => {
     z.pts.set(e.pointerId, { x:e.clientX, y:e.clientY, sx:e.clientX, sy:e.clientY });
-    z.moved = false;
-    if (z.pts.size === 2){ z.base = dist(); z.baseK = z.k; }
+    z.moved = false; z.noClick = false;
+    if (z.pts.size === 2){ z.base = dist(); z.baseK = z.k; z.pmid = mid(); }
+    // マウスでは要素の外に出ても操作を続けられるようにする（指は自動で追従する）
+    try{ if (e.pointerType !== 'touch') z.el.setPointerCapture(e.pointerId); }catch(_){}
   });
 
   z.el.addEventListener('pointermove', e => {
@@ -3538,8 +3543,12 @@ function initZoom(){
 
     if (z.pts.size === 2 && z.base > 0){
       e.preventDefault();
+      z.moved = true;
       const m = mid();
       zoomTo(z.baseK * (dist() / z.base), m.x, m.y, false);
+      // 2本指を置いたまま地図をずらせる。指の中心が動いたぶんだけ平行移動する
+      if (z.pmid){ z.x += m.x - z.pmid.x; z.y += m.y - z.pmid.y; zoomApply(false); }
+      z.pmid = m;
     } else if (z.pts.size === 1 && z.k > 1.01){
       e.preventDefault();
       z.x += e.clientX - (p.px == null ? p.sx : p.px);
@@ -3553,7 +3562,13 @@ function initZoom(){
   const end = e => {
     z.pts.delete(e.pointerId);
     z.el.classList.remove('grabbing');
-    if (z.pts.size < 2) z.base = 0;
+    if (z.pts.size < 2){ z.base = 0; z.pmid = null; }
+    if (!z.pts.size) z.el.classList.remove('gesturing');
+    // 指を1本だけ離したときは、残った指の前回位置を捨てて飛びを防ぐ
+    for (const p2 of z.pts.values()){ p2.px = null; p2.py = null; p2.sx = p2.x; p2.sy = p2.y; }
+    // 地図を動かした指を離したところに部屋があると、詳細が勝手に開いてしまう。
+    // 「動かした操作」ではタップを無効にする
+    if (z.moved) z.noClick = true;
     // ダブルタップで拡大・縮小（指1本・動かしていないときだけ）
     if (!z.moved && z.pts.size === 0){
       const t = Date.now();
@@ -3565,6 +3580,36 @@ function initZoom(){
   };
   z.el.addEventListener('pointerup', end);
   z.el.addEventListener('pointercancel', end);
+
+  // 動かしたあとのタップを打ち消す（指を離した場所の部屋が開かないように）
+  z.el.addEventListener('click', e => {
+    if (!z.noClick) return;
+    z.noClick = false;
+    e.stopPropagation(); e.preventDefault();
+  }, true);
+
+  /* ここがスマホ操作の要。
+     pointermove の preventDefault ではブラウザのスクロールは止まらない
+     （タッチのスクロールは touch-action と touchstart/touchmove の
+      preventDefault でしか止められず、一度スクロールが始まると
+      pointercancel で操作が中断される）。
+     ・指2本 … touchstart の時点で必ず止める（等倍でもピンチできる）
+     ・指1本 … 拡大中だけ止める（等倍のときは今までどおりページを縦スクロール） */
+  const stop = e => { if (e.cancelable) e.preventDefault(); };
+  z.el.addEventListener('touchstart', e => {
+    if (e.touches.length >= 2){ z.el.classList.add('gesturing'); stop(e); }
+  }, { passive:false });
+  z.el.addEventListener('touchmove', e => {
+    if (e.touches.length >= 2 || z.k > 1.01) stop(e);
+  }, { passive:false });
+  const tend = e => { if (!e.touches.length) z.el.classList.remove('gesturing'); };
+  z.el.addEventListener('touchend', tend, { passive:true });
+  z.el.addEventListener('touchcancel', tend, { passive:true });
+  // iOS Safari は touch-action を無視してページ全体を拡大することがある
+  ['gesturestart','gesturechange','gestureend'].forEach(t =>
+    z.el.addEventListener(t, stop, { passive:false }));
+  // 拡大中の長押しで選択メニューが出ると操作が止まる
+  z.el.addEventListener('contextmenu', e => { if (z.k > 1.01) e.preventDefault(); });
 
   // PCではホイール（Ctrl不要）で拡大
   z.el.addEventListener('wheel', e => {
