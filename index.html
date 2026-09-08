@@ -1722,7 +1722,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-08c',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-08d',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3547,6 +3547,17 @@ function zoomMeasure(){
   z.mNat = z.el.offsetHeight;
 }
 
+/**
+ * 既定の見え方より拡大しているか。
+ * 既定倍率が1倍とはかぎらなくなったので、1.01 との比較では判定できない。
+ * 縦にはみ出している階では、指で縦にも動かせないと下端に届かないため真にする。
+ */
+function zoomedBeyondBase(){
+  const z = ZOOM;
+  const needV = z.mNat * z.k > z.mH + 2;
+  return z.k > (z.base0 || 1) + .01 || needV;
+}
+
 function zoomApply(animate){
   const z = ZOOM;
   if (!z.el) return;
@@ -3559,7 +3570,7 @@ function zoomApply(animate){
   else z.y = Math.min(0, Math.max(wh - h, z.y));
   z.el.style.transition = animate ? 'transform var(--t) var(--ease)' : 'none';
   z.el.style.transform = `translate(${z.x}px,${z.y}px) scale(${z.k})`;
-  z.el.classList.toggle('zoomed', z.k > 1.01);
+  z.el.classList.toggle('zoomed', zoomedBeyondBase());
   // 倍率が変われば、部屋に入れられる文字の量も変わる。
   // 指を離したあとにまとめて描き直す（拡大の途中で毎フレーム描くと重い）
   const step = Math.round(z.k * 2);
@@ -3669,7 +3680,7 @@ function initZoom(){
       // 2本指を置いたまま地図をずらせる。指の中心が動いたぶんだけ平行移動する
       if (z.pmid){ z.x += m.x - z.pmid.x; z.y += m.y - z.pmid.y; zoomApply(false); }
       z.pmid = m;
-    } else if (z.pts.size === 1 && z.k > 1.01){
+    } else if (z.pts.size === 1 && z.k > 1.01){   // 等倍より拡大していれば指でずらせる
       e.preventDefault();
       z.x += e.clientX - (p.px == null ? p.sx : p.px);
       z.y += e.clientY - (p.py == null ? p.sy : p.py);
@@ -3694,7 +3705,8 @@ function initZoom(){
       const t = Date.now();
       if (t - z.lastTap < 320){
         z.lastTap = 0;
-        z.k > 1.01 ? zoomReset() : zoomTo(2.2, e.clientX, e.clientY);
+        zoomedBeyondBase() ? zoomReset()
+                           : zoomTo((z.base0 || 1) * 2.2, e.clientX, e.clientY);
       } else z.lastTap = t;
     }
   };
@@ -3741,7 +3753,7 @@ function initZoom(){
       zoomTo(z.tBaseK * (tDist(e.touches) / z.tBase), m.x, m.y, false,
              z.tMid ? { dx:m.x - z.tMid.x, dy:m.y - z.tMid.y } : null);
       z.tMid = m; z.noClick = true;
-    } else if (z.k > 1.01) stop(e);
+    } else if (zoomedBeyondBase()) stop(e);
   }, { passive:false });
   const tend = e => {
     // 指が1本になったら、次に2本置き直すまで拡大の基準を捨てる（倍率の飛びを防ぐ）
@@ -6679,7 +6691,30 @@ function fitMapBox(floorNum){
   ZOOM.base0 = (ZOOM.mNat > 0)
     ? Math.min(ZOOM.max, Math.max(1, boxH / ZOOM.mNat))
     : 1;
-  zoomReset(false);
+  // 既定はブースが収まる位置に寄せる。
+  // 図面まるごとを左右の真ん中で出すと、端にあるブースが画面の外に隠れる。
+  // 「混雑しているブースが最初から見えない」のが一番困るので、
+  // 全体表示ではなく「その階のブースが全部入る」ところから始める。
+  // 散らばりすぎて寄せられないときは zoomToBooths が全体表示へ戻す。
+  const hasBooth = S.booths.some(b => floorOfBooth(b) === floorNum);
+  if (hasBooth) zoomToBooths(floorNum);
+  else zoomReset(false);
+
+  // ブースが横一列に並んでいる階では、寄せた結果が箱より低くなり、
+  // 上下に使われない余白が残る（1階で109px）。地図の大きさはそのままに、
+  // 箱だけを中身の高さまで詰めてページを短くする。
+  // ここで svg の max-height は触らない（触ると中身の高さ自体が変わって堂々巡りになる）
+  const need = Math.round(ZOOM.mNat * ZOOM.k);
+  const want = Math.max(150, Math.min(maxH, need));
+  if (need > 0 && Math.abs(want - ZOOM.mH) > 4){
+    view.style.height = want + 'px';
+    zoomMeasure();
+    ZOOM.base0 = ZOOM.mNat > 0 ? want / ZOOM.mNat : 1;   // 「全体を見る」で戻る先も合わせる
+    // ぴったり収まるなら原点。使える高さで足りず縦にはみ出す階だけ、
+    // 寄せた位置（ブースの中心）を活かして丸めは zoomApply にまかせる
+    if (need <= maxH) ZOOM.y = 0;
+    zoomApply(false);
+  }
 }
 function setSort(s){
   S.sort = s;
