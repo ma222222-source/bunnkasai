@@ -1713,7 +1713,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-02d',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-08a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3520,6 +3520,8 @@ function renderSheet(){
    ===================================================================== */
 const ZOOM = { k:1, x:0, y:0, min:1, max:4, el:null, wrap:null, pts:new Map(),
                base:0, baseK:1, pmid:null, moved:false, noClick:false, lastTap:0, hideT:null,
+               // 指2本の拡大用（TouchEvent 側で使う。PointerEvent の控えとは別に持つ）
+               tBase:0, tBaseK:1, tMid:null,
                // 実寸の控え。指でなぞるたびに測り直すと400要素超のSVGで毎フレーム固まる
                mW:0, mH:0, mNat:0 };
 
@@ -3580,7 +3582,7 @@ function zoomApply(animate){
 }
 
 /** 画面上の点 (cx,cy) を固定したまま倍率を to にする */
-function zoomTo(to, cx, cy, animate){
+function zoomTo(to, cx, cy, animate, pan){
   const z = ZOOM;
   to = Math.min(z.max, Math.max(z.min, to));
   const r = z.wrap.getBoundingClientRect();
@@ -3589,6 +3591,9 @@ function zoomTo(to, cx, cy, animate){
   const ratio = to / z.k;
   z.x = px - (px - z.x) * ratio;
   z.y = py - (py - z.y) * ratio;
+  // 指2本を置いたまま動かした分。拡大と一緒に足してから丸める。
+  // 別々に丸めると、端に寄ったときだけ地図が張り付いて動かなくなる
+  if (pan){ z.x += pan.dx; z.y += pan.dy; }
   z.k = to;
   if (z.k <= z.min + .01){ z.x = 0; z.y = 0; }
   zoomApply(animate !== false);
@@ -3640,7 +3645,7 @@ function initZoom(){
     p.x = e.clientX; p.y = e.clientY;
     if (Math.hypot(p.x - p.sx, p.y - p.sy) > 8) z.moved = true;
 
-    if (z.pts.size === 2 && z.base > 0){
+    if (z.pts.size === 2 && z.base > 0 && !z.tBase){
       e.preventDefault();
       z.moved = true;
       const m = mid();
@@ -3695,13 +3700,38 @@ function initZoom(){
      ・指2本 … touchstart の時点で必ず止める（等倍でもピンチできる）
      ・指1本 … 拡大中だけ止める（等倍のときは今までどおりページを縦スクロール） */
   const stop = e => { if (e.cancelable) e.preventDefault(); };
+  /* 指2本の拡大は TouchEvent から直接組み立てる。
+     PointerEvent だけに頼っていたのが、スマホで拡大できない一番の原因だった。
+     touch-action:pan-y のうちは、1本目の指が少し動いた時点でブラウザが
+     ページを縦に動かし始め、その指に pointercancel が飛ぶ。指を数えている
+     Map からそれが消えるので、2本目を置いても「指1本」としか数えられず、
+     ピンチが最後まで始まらない。e.touches は取り消されないので影響を受けない。 */
+  const tDist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  const tMid  = t => ({ x:(t[0].clientX + t[1].clientX) / 2, y:(t[0].clientY + t[1].clientY) / 2 });
   z.el.addEventListener('touchstart', e => {
-    if (e.touches.length >= 2){ z.el.classList.add('gesturing'); stop(e); }
+    if (e.touches.length >= 2){
+      z.el.classList.add('gesturing');
+      z.tBase = tDist(e.touches); z.tBaseK = z.k; z.tMid = tMid(e.touches);
+      z.moved = true;                       // 指を離したときに部屋が開かないように
+      stop(e);
+    }
   }, { passive:false });
   z.el.addEventListener('touchmove', e => {
-    if (e.touches.length >= 2 || z.k > 1.01) stop(e);
+    if (e.touches.length >= 2){
+      stop(e);
+      if (!z.tBase) return;
+      const m = tMid(e.touches);
+      // 拡大と、2本指の中心が動いた分の平行移動を、まとめて1回で反映する
+      zoomTo(z.tBaseK * (tDist(e.touches) / z.tBase), m.x, m.y, false,
+             z.tMid ? { dx:m.x - z.tMid.x, dy:m.y - z.tMid.y } : null);
+      z.tMid = m; z.noClick = true;
+    } else if (z.k > 1.01) stop(e);
   }, { passive:false });
-  const tend = e => { if (!e.touches.length) z.el.classList.remove('gesturing'); };
+  const tend = e => {
+    // 指が1本になったら、次に2本置き直すまで拡大の基準を捨てる（倍率の飛びを防ぐ）
+    if (e.touches.length < 2){ z.tBase = 0; z.tMid = null; }
+    if (!e.touches.length) z.el.classList.remove('gesturing');
+  };
   z.el.addEventListener('touchend', tend, { passive:true });
   z.el.addEventListener('touchcancel', tend, { passive:true });
   // iOS Safari は touch-action を無視してページ全体を拡大することがある
