@@ -1722,7 +1722,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-08d',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-08e',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3525,8 +3525,12 @@ function renderSheet(){
    指2本のピンチ・ダブルタップ・ボタンの3通りで拡大できるようにする。
    拡大していないときは縦スクロールを邪魔しない（touch-action:pan-y）。
    ===================================================================== */
-const ZOOM = { k:1, x:0, y:0, min:1, max:4, el:null, wrap:null, pts:new Map(),
-               base:0, baseK:1, pmid:null, moved:false, noClick:false, lastTap:0, hideT:null,
+const ZOOM = { k:1, x:0, y:0, min:1, max:4, el:null, wrap:null,
+               // 動かしている指は常に1本だけ覚える。指の数を数えて拡大か移動かを
+               // 決めるのはやめた（pointerup を1つ取りこぼすと「指1本なのに2本」と
+               // 数えられ、1本で動かしただけで拡大が始まってしまうため）
+               panId:null, px:0, py:0, sx:0, sy:0,
+               moved:false, noClick:false, hideT:null,
                // 指2本の拡大用（TouchEvent 側で使う。PointerEvent の控えとは別に持つ）
                tBase:0, tBaseK:1, tMid:null,
                // 既定の倍率。図面を箱の高さまで大きくして見せるための倍率で、
@@ -3649,66 +3653,39 @@ function initZoom(){
     }
   });
 
-  const dist = () => {
-    const a = Array.from(z.pts.values());
-    return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y);
-  };
-  const mid = () => {
-    const a = Array.from(z.pts.values());
-    return { x:(a[0].x + a[1].x) / 2, y:(a[0].y + a[1].y) / 2 };
-  };
-
+  /* 指1本＝動かす、指2本＝拡大縮小。役割をきっぱり分ける。
+     PointerEvent は「動かす」だけを担当し、拡大には一切関わらない。
+     拡大は TouchEvent（e.touches）だけが担当する。 */
   z.el.addEventListener('pointerdown', e => {
-    z.pts.set(e.pointerId, { x:e.clientX, y:e.clientY, sx:e.clientX, sy:e.clientY });
-    z.moved = false; z.noClick = false;
-    if (z.pts.size === 2){ z.base = dist(); z.baseK = z.k; z.pmid = mid(); }
+    z.noClick = false;
+    if (z.tBase) return;                 // 指2本で拡大している間は動かさない
+    z.panId = e.pointerId;               // 常に上書きする。古い指が残っていても影響しない
+    z.px = z.sx = e.clientX;
+    z.py = z.sy = e.clientY;
+    z.moved = false;
     // マウスでは要素の外に出ても操作を続けられるようにする（指は自動で追従する）
     try{ if (e.pointerType !== 'touch') z.el.setPointerCapture(e.pointerId); }catch(_){}
   });
 
   z.el.addEventListener('pointermove', e => {
-    const p = z.pts.get(e.pointerId);
-    if (!p) return;
-    p.x = e.clientX; p.y = e.clientY;
-    if (Math.hypot(p.x - p.sx, p.y - p.sy) > 8) z.moved = true;
-
-    if (z.pts.size === 2 && z.base > 0 && !z.tBase){
+    if (z.panId !== e.pointerId || z.tBase) return;
+    if (Math.hypot(e.clientX - z.sx, e.clientY - z.sy) > 8) z.moved = true;
+    if (z.k > 1.01){                     // 動かせる余地があるときだけ
       e.preventDefault();
-      z.moved = true;
-      const m = mid();
-      zoomTo(z.baseK * (dist() / z.base), m.x, m.y, false);
-      // 2本指を置いたまま地図をずらせる。指の中心が動いたぶんだけ平行移動する
-      if (z.pmid){ z.x += m.x - z.pmid.x; z.y += m.y - z.pmid.y; zoomApply(false); }
-      z.pmid = m;
-    } else if (z.pts.size === 1 && z.k > 1.01){   // 等倍より拡大していれば指でずらせる
-      e.preventDefault();
-      z.x += e.clientX - (p.px == null ? p.sx : p.px);
-      z.y += e.clientY - (p.py == null ? p.sy : p.py);
+      z.x += e.clientX - z.px;
+      z.y += e.clientY - z.py;
       zoomApply(false);
       z.el.classList.add('grabbing');
     }
-    p.px = e.clientX; p.py = e.clientY;
+    z.px = e.clientX; z.py = e.clientY;
   });
 
   const end = e => {
-    z.pts.delete(e.pointerId);
+    if (z.panId === e.pointerId) z.panId = null;
     z.el.classList.remove('grabbing');
-    if (z.pts.size < 2){ z.base = 0; z.pmid = null; }
-    if (!z.pts.size) z.el.classList.remove('gesturing');
-    // 指を1本だけ離したときは、残った指の前回位置を捨てて飛びを防ぐ
-    for (const p2 of z.pts.values()){ p2.px = null; p2.py = null; p2.sx = p2.x; p2.sy = p2.y; }
     // 地図を動かした指を離したところに部屋があると、詳細が勝手に開いてしまう。
     // 「動かした操作」ではタップを無効にする
     if (z.moved) z.noClick = true;
-    // ダブルタップで拡大・縮小（指1本・動かしていないときだけ）
-    if (!z.moved && z.pts.size === 0){
-      const t = Date.now();
-      if (t - z.lastTap < 320){
-        z.lastTap = 0;
-        zoomedBeyondBase() ? zoomReset()
-                           : zoomTo((z.base0 || 1) * 2.2, e.clientX, e.clientY);
-      } else z.lastTap = t;
-    }
   };
   z.el.addEventListener('pointerup', end);
   z.el.addEventListener('pointercancel', end);
@@ -3731,9 +3708,10 @@ function initZoom(){
   /* 指2本の拡大は TouchEvent から直接組み立てる。
      PointerEvent だけに頼っていたのが、スマホで拡大できない一番の原因だった。
      touch-action:pan-y のうちは、1本目の指が少し動いた時点でブラウザが
-     ページを縦に動かし始め、その指に pointercancel が飛ぶ。指を数えている
-     Map からそれが消えるので、2本目を置いても「指1本」としか数えられず、
-     ピンチが最後まで始まらない。e.touches は取り消されないので影響を受けない。 */
+     ページを縦に動かし始め、その指に pointercancel が飛ぶ。以前は指の数を
+     数えて拡大か移動かを決めていたので、2本目を置いても「指1本」としか
+     数えられずピンチが始まらなかった。逆に離した指が残ってしまうと、
+     1本で動かしただけで拡大が始まった。e.touches はこの影響を受けない。 */
   const tDist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
   const tMid  = t => ({ x:(t[0].clientX + t[1].clientX) / 2, y:(t[0].clientY + t[1].clientY) / 2 });
   z.el.addEventListener('touchstart', e => {
@@ -3757,7 +3735,9 @@ function initZoom(){
   }, { passive:false });
   const tend = e => {
     // 指が1本になったら、次に2本置き直すまで拡大の基準を捨てる（倍率の飛びを防ぐ）
-    if (e.touches.length < 2){ z.tBase = 0; z.tMid = null; }
+    // 指が1本残っていても、そのまま動かすと拡大前の位置から一気に飛ぶ。
+    // 動かす指は捨てて、置き直してもらう
+    if (e.touches.length < 2){ z.tBase = 0; z.tMid = null; z.panId = null; }
     if (!e.touches.length) z.el.classList.remove('gesturing');
   };
   z.el.addEventListener('touchend', tend, { passive:true });
