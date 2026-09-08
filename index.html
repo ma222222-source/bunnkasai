@@ -152,6 +152,81 @@ p{margin:0}
   content:"";position:absolute;left:-30%;top:-120%;width:60%;height:300%;pointer-events:none;
   background:radial-gradient(closest-side,rgba(255,255,255,.22),transparent);
 }
+/* ===================== 追加テーマ =====================
+   色だけでなく、文字の大きさ・角の丸み・地図の素材感まで各テーマで持つ。
+   共通の骨格（階層・図と地）は素のCSS側にあり、テーマはその上の化粧。
+   ==================================================== */
+
+/* ---- 端正：生成りの紙と製図。既定に近い落ち着きで、骨格をはっきりさせた版 ---- */
+:root[data-theme="paper"]{
+  --bg:#e6e2d9; --surface:#fbfaf6; --surface-2:#f4f1ea; --surface-3:#eae6dc;
+  --border:#d8d2c4; --border-strong:#ada494;
+  --text:#191815; --text-dim:#514d45; --text-mute:#5a554c;
+  --accent:#9a1b22; --accent-2:#6b1015; --on-accent:#ffffff;
+  --free:#1d6b4f; --warn:#8a5a12; --busy:#a81f2b;
+  --free-soft:#dfeae1; --warn-soft:#f2e9d2; --busy-soft:#f4e0e0;
+  --busy-ink:#8c1a24;
+  --corridor-fill:#dfe6ec; --corridor-ink:#42556b;
+  --road-fill:#e4e0d6; --road-line:#fbfaf6;
+  --shadow:0 1px 1px rgba(40,34,24,.06), 0 16px 30px -22px rgba(40,34,24,.5);
+  --shadow-lg:0 22px 50px -20px rgba(40,34,24,.42);
+  --r-sm:3px; --r:5px; --r-lg:7px;
+  --head-size:21px; --head-track:.1em;
+}
+[data-theme="paper"] .head{background:linear-gradient(180deg,#22201c 0%,#141310 100%);
+  box-shadow:inset 0 -2px 0 var(--accent)}
+[data-theme="paper"] .head::before{opacity:.05}
+[data-theme="paper"] .head::after{background:radial-gradient(closest-side,rgba(255,255,255,.08),transparent)}
+[data-theme="paper"] .icon-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.10)}
+[data-theme="paper"] .map-wrap{background:#fdfcf9;border-color:#ded8ca}
+/* 地図の下に方眼を敷き、「図面」として見せる */
+[data-theme="paper"] .map-view{background-color:#fdfcf9;
+  background-image:repeating-linear-gradient(0deg,rgba(120,110,90,.10) 0 1px,transparent 1px 24px),
+                   repeating-linear-gradient(90deg,rgba(120,110,90,.10) 0 1px,transparent 1px 24px)}
+[data-theme="paper"] .bldg{fill:rgba(255,255,255,.72);stroke:#8f8676;stroke-width:1.1}
+[data-theme="paper"] .room-bg rect{fill:#ffffff;stroke:#b9b1a1;stroke-width:.7}
+[data-theme="paper"] .nav{background:#fbfaf6;border-top:1px solid #ded8ca}
+[data-theme="paper"] .seg button[aria-pressed="true"]{background:#fff;box-shadow:0 1px 2px rgba(40,34,24,.14)}
+
+/* ---- 重厚：黒地に赤。角を斜めに落とした板が形の言語 ---- */
+:root[data-theme="heavy"]{
+  --bg:#0b0d11; --surface:#151920; --surface-2:#1b2028; --surface-3:#232a35;
+  --border:#2b323e; --border-strong:#414b5c;
+  --text:#f4f7fb; --text-dim:#b3bdcb; --text-mute:#a3aebd;
+  --accent:#e4142a; --accent-2:#8d0d1b; --on-accent:#ffffff;
+  --free:#2ecc71; --warn:#f0a020; --busy:#ff2f47; --unknown:#5b6577; --closed:#6b7688;
+  --free-soft:#0d2a1a; --warn-soft:#332508; --busy-soft:#3b0e16;
+  --busy-ink:#ff8b99; --on-status:#0b0d11;
+  --corridor-fill:#1d2836; --corridor-ink:#8ba2bc;
+  --road-fill:#191d24; --road-line:#39414f;
+  --room-label:#ffffff; --label-stroke:rgba(0,0,0,.85);
+  --shadow:0 2px 0 rgba(0,0,0,.55), 0 22px 44px -24px #000;
+  --shadow-lg:0 30px 70px -24px #000;
+  --r-sm:2px; --r:3px; --r-lg:4px;
+  --head-size:23px; --head-track:-.02em;
+}
+[data-theme="heavy"] body{background:var(--bg)}
+[data-theme="heavy"] .head{background:linear-gradient(100deg,#08090c 0%,#15181e 52%,#2e0a11 100%);
+  box-shadow:inset 0 -3px 0 var(--accent)}
+[data-theme="heavy"] .head::before{opacity:.10}
+[data-theme="heavy"] .head::after{background:radial-gradient(closest-side,rgba(228,20,42,.30),transparent)}
+[data-theme="heavy"] .icon-btn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}
+[data-theme="heavy"] .sync{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09)}
+/* 角を斜めに落とした板。硬い印象をつくる */
+[data-theme="heavy"] .card{border-radius:0;
+  clip-path:polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px))}
+[data-theme="heavy"] .card-t{color:var(--accent)}
+[data-theme="heavy"] .seg{background:#10141a;border:1px solid #262d38}
+[data-theme="heavy"] .seg button[aria-pressed="true"]{background:var(--accent);color:#fff;
+  box-shadow:0 0 18px -4px var(--accent)}
+[data-theme="heavy"] .map-wrap{background:#080a0d;border-color:#242b36}
+[data-theme="heavy"] .bldg{fill:#131820;stroke:#3a4453;stroke-width:1.4}
+[data-theme="heavy"] .room-bg rect{fill:#0e1218;stroke:#2b3340;stroke-width:.85}
+[data-theme="heavy"] .nav{background:#0c0f14;border-top:1px solid #232a35;
+  box-shadow:0 -2px 0 rgba(228,20,42,.55)}
+[data-theme="heavy"] .banner{border-radius:0}
+[data-theme="heavy"] .zoom-lv{background:rgba(0,0,0,.8);border-color:#3a4453;color:#fff}
+
 [data-theme="cyber"] body,body[data-x]{}
 [data-theme="cyber"] .app::before{
   content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
@@ -164,7 +239,9 @@ p{margin:0}
 [data-theme="cyber"] .head{background:linear-gradient(135deg,#08131f,#0d2033);
   color:var(--text);border-bottom:1px solid var(--accent);box-shadow:0 0 24px -8px var(--accent)}
 .head-row{display:flex;align-items:center;gap:10px}
-.head h1{font-size:15.5px;font-weight:900;letter-spacing:.01em}
+/* 見出しは画面の骨格。テーマごとに大きさと字間を差し替えられるようにする */
+.head h1{font-size:var(--head-size,18px);font-weight:900;letter-spacing:var(--head-track,.01em);
+         line-height:1.15}
 .head .sub{font-size:10px;opacity:.75;letter-spacing:.08em}
 .head-actions{margin-left:auto;display:flex;align-items:center;gap:6px}
 .icon-btn{
@@ -442,6 +519,7 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
            line-height:1.5;color:var(--text-dim);background:var(--surface-2);
            border:1px solid var(--border);border-radius:10px;padding:9px 13px;
            pointer-events:none}
+.ic-svg{width:1.05em;height:1.05em;vertical-align:-.17em;flex:none}
 .util{font-weight:700;fill:var(--text-dim);pointer-events:none}
 text.util:not([font-size]){font-size:7.5px}
 .util-box{fill:var(--surface-3);stroke:var(--border);stroke-width:1}
@@ -757,7 +835,11 @@ text.util:not([font-size]){font-size:7.5px}
    vertical-align:top;line-height:1.45}
 .tt th{font-size:10px;color:var(--text-mute);font-weight:800;letter-spacing:.05em}
 .tt td:first-child{font-weight:800;white-space:nowrap;color:var(--accent)}
-.help{display:flex;gap:9px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px}
+.help{display:flex;gap:11px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--border);font-size:12px}
+/* アイコンは小さな板に乗せる。字より前に「印」として認識させたい */
+.help-ic{display:grid;place-items:center;width:32px;height:32px;flex:none;border-radius:10px;
+         background:var(--surface-3);border:1px solid var(--border);color:var(--text-dim)}
+.help-ic .ic-svg{width:18px;height:18px;vertical-align:0}
 .help:last-child{border-bottom:none}
 .help b{display:block;font-size:12px}
 .help span{font-size:11px;color:var(--text-dim)}
@@ -1402,12 +1484,12 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
         <div class="route-steps hide" id="route-steps"></div>
         <div class="card-t" style="padding:10px 0 0">おすすめの回りかた（おすと順番が地図に出ます）</div>
         <div class="chips" style="padding:8px 0 12px">
-          <button class="chip" data-route="auto" aria-pressed="false"><span aria-hidden="true">🚩</span> 短い道で一周</button>
-          <button class="chip" data-route="free" aria-pressed="false"><span aria-hidden="true">🍃</span> 空いている順</button>
+          <button class="chip" data-route="auto" aria-pressed="false"><i class="ic" data-ic="flag"></i> 短い道で一周</button>
+          <button class="chip" data-route="free" aria-pressed="false"><i class="ic" data-ic="leaf"></i> 空いている順</button>
           <button class="chip" data-route="flat" aria-pressed="false"><span aria-hidden="true">♿</span> 階段なしで回る</button>
-          <button class="chip" data-route="denshi" aria-pressed="false"><span aria-hidden="true">🤖</span> 電子科をたっぷり</button>
-          <button class="chip" data-route="all" aria-pressed="false"><span aria-hidden="true">🏫</span> 校舎ぜんぶ</button>
-          <button class="chip" data-route="food" aria-pressed="false"><span aria-hidden="true">🍜</span> 食べ歩き</button>
+          <button class="chip" data-route="denshi" aria-pressed="false"><i class="ic" data-ic="chip"></i> 電子科をたっぷり</button>
+          <button class="chip" data-route="all" aria-pressed="false"><i class="ic" data-ic="school"></i> 校舎ぜんぶ</button>
+          <button class="chip" data-route="food" aria-pressed="false"><i class="ic" data-ic="food"></i> 食べ歩き</button>
         </div>
       </div>
     </section>
@@ -1722,7 +1804,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-08f',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-08g',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -1779,15 +1861,46 @@ const CONFIG = {
       ['15:00', '閉会・完全撤収']
     ],
     help: [
-      ['🏥','救護室','本館1階 保健室。体調が悪くなったら、近くの係員に声をかけてください'],
-      ['🚻','トイレ','各棟の1階・2階／体育館入口'],
-      ['🎒','落とし物','受付・本部で預かっています'],
-      ['📢','迷子・呼び出し','はぐれたら受付・本部へ。小さいお子さんとは、先に「はぐれたら本部に集合」と決めておくと安心です'],
-      ['♿','車椅子・ベビーカーの方','本校にエレベーターはありません。2階・3階へは階段のみです。1階と屋外は段差なしで回れます。「階段なしで回る」コースもお使いください'],
-      ['🚭','喫煙・飲酒','校内は全面禁止です']
+      ['aid','救護室','本館1階 保健室。体調が悪くなったら、近くの係員に声をかけてください'],
+      ['wc','トイレ','各棟の1階・2階／体育館入口'],
+      ['bag','落とし物','受付・本部で預かっています'],
+      ['call','迷子・呼び出し','はぐれたら受付・本部へ。小さいお子さんとは、先に「はぐれたら本部に集合」と決めておくと安心です'],
+      ['access','車椅子・ベビーカーの方','本校にエレベーターはありません。2階・3階へは階段のみです。1階と屋外は段差なしで回れます。「階段なしで回る」コースもお使いください'],
+      ['nosmoke','喫煙・飲酒','校内は全面禁止です']
     ]
   }
 };
+
+/* =====================================================================
+   アイコン
+   絵文字は端末ごとに絵柄も色も変わり、書体とも揃わない。
+   20x20 の同じグリッド・同じ線幅で引いた線画に統一する。
+   色は currentColor なので、テーマを変えても勝手に追従する。
+   ※スタンプの称号（👑🔥🌱）や獲得の🎉はごほうびの演出なので絵文字のまま残す。
+     ここを線画にすると急に冷たくなる。
+   ===================================================================== */
+const ICON = (() => {
+  const w = d => `<svg class="ic-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor"`
+    + ` stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  return {
+    pin:    w('<path d="M10 17.5s5.5-5 5.5-9a5.5 5.5 0 1 0-11 0c0 4 5.5 9 5.5 9Z"/><circle cx="10" cy="8.4" r="2.1"/>'),
+    wc:     w('<circle cx="6.4" cy="4.3" r="1.6"/><path d="M4.2 16.5V10a2.2 2.2 0 0 1 4.4 0v6.5"/>'
+              + '<circle cx="13.6" cy="4.3" r="1.6"/><path d="M11.3 16.5 12.4 9.6h2.4l1.1 6.9"/>'),
+    aid:    w('<circle cx="10" cy="10" r="7"/><path d="M10 6.6v6.8M6.6 10h6.8"/>'),
+    bag:    w('<rect x="3.6" y="6.8" width="12.8" height="9.6" rx="1.6"/><path d="M7.2 6.8V5.4a2.8 2.8 0 0 1 5.6 0v1.4"/>'),
+    call:   w('<path d="M3.6 8.2v3.6h3l5.6 3.4V4.8L6.6 8.2H3.6Z"/><path d="M15.2 7.9a3.4 3.4 0 0 1 0 4.2"/>'),
+    access: w('<circle cx="11.4" cy="3.9" r="1.6"/><path d="M10.2 6.9v4.4h3.6l2.4 4.8"/><path d="M12.4 11.9a4.4 4.4 0 1 1-4.6-1.3"/>'),
+    nosmoke:w('<circle cx="10" cy="10" r="7"/><path d="M5 15 15 5"/><path d="M6 11.4h5.6"/>'),
+    flag:   w('<path d="M5.2 17.2V3.4"/><path d="M5.2 4.4h9.4l-2.1 3 2.1 3H5.2"/>'),
+    leaf:   w('<path d="M16 4.2C8.4 3.7 4 7.7 4 12.2c0 2 1.4 3.6 3.4 3.6C12 15.8 16.4 11.8 16 4.2Z"/><path d="M7 14.2 14 7.2"/>'),
+    chip:   w('<rect x="5.8" y="5.8" width="8.4" height="8.4" rx="1.4"/>'
+              + '<path d="M8.4 3.2v2.6M11.6 3.2v2.6M8.4 14.2v2.6M11.6 14.2v2.6'
+              + 'M3.2 8.4h2.6M3.2 11.6h2.6M14.2 8.4h2.6M14.2 11.6h2.6"/>'),
+    school: w('<path d="M2.8 17h14.4"/><path d="M4.8 17V7.2L10 4.2l5.2 3V17"/><path d="M8.2 17v-3.8h3.6V17"/>'),
+    food:   w('<path d="M5 3v5.4a1.9 1.9 0 0 0 3.8 0V3"/><path d="M6.9 8.4V17"/>'
+              + '<path d="M14.6 3c-1.6.9-2.3 2.6-2.3 4.6s.9 3.3 2.3 3.3V17"/>')
+  };
+})();
 
 /* =====================================================================
    ステータス定義（色だけに頼らない多重符号化）
@@ -2621,7 +2734,7 @@ function renderDeptLegend(floorNum){
   const hasEnt = (plan.rooms || []).some(r => isEntrance(r.nm));
   box.innerHTML =
     ((hasWc || hasEnt) ? `<button class="fac" data-dept="__fac" aria-pressed="${S.dept === '__fac'}"
-        >🚻 トイレ・出入口</button>` : '') +
+        >${ICON.wc} トイレ・出入口</button>` : '') +
     seen.map(d =>
     `<button data-dept="${esc(d.z)}" aria-pressed="${S.dept === d.z}"
        ><i style="background:${d.c}"></i>${esc(d.s)}</button>`).join('') +
@@ -3446,7 +3559,7 @@ function altSuggest(b){
   const sameFloor = floorOfBooth(pick) === f;
   const free = lvOf(pick).lv === 0;
   return `<button class="bsh-alt" data-alt="${esc(pick.id)}">
-      <span class="ic">🍃</span>
+      <span class="ic">${ICON.leaf}</span>
       <span class="tx"><b>${free ? 'いま空いているのは' : 'こちらの方が空いています'}「${esc(pick.name)}」</b>
         <small>${sameFloor ? '同じ' + esc(flLabel(pick)) : esc(flLabel(pick)) + 'です'}${
           pick.wait ? '・' + pick.wait + '人待ち' : '・待ちなし'}</small></span>
@@ -3480,7 +3593,7 @@ function renderSheet(){
     <div class="bsh-tags">
       <span class="tag">${esc(b.category)}</span>
       <span class="tag">${esc(flLabel(b))}</span>
-      ${(() => { const r = roomLabel(b); return r ? `<span class="tag">📍 ${esc(r)}</span>` : ''; })()}
+      ${(() => { const r = roomLabel(b); return r ? `<span class="tag">${ICON.pin} ${esc(r)}</span>` : ''; })()}
     </div>
     <div class="bsh-st" data-lv="${L.lv}">
       <span class="ico" aria-hidden="true">${esc(L.icon)}</span>
@@ -4153,7 +4266,7 @@ function renderList(){
         <div class="booth-main">
           <h3 class="booth-nm"><span class="no">${S.numbers.get(b.id) || '-'}</span>${esc(b.name)}
             <span class="tag">${esc(b.category)}</span><span class="tag">${esc(flLabel(b))}</span></h3>
-          ${(() => { const r = roomLabel(b); return r ? `<p class="booth-room"><span aria-hidden="true">📍</span> ${esc(r)}</p>` : ''; })()}
+          ${(() => { const r = roomLabel(b); return r ? `<p class="booth-room">${ICON.pin} ${esc(r)}</p>` : ''; })()}
           <p class="booth-meta">${(() => {
             // 待ち人数は右のバッジに出ている。ここで繰り返すと同じことが2回書いてあって
             // かえって読みにくい。時間の目安だけ、意味が出る長さ（5分以上）のときに足す。
@@ -4606,13 +4719,13 @@ function renderInfo(){
       return `<tr${on ? ' class="tt-now"' : ''}>
         <td>${esc(t)}</td>
         <td>${on ? '<b>▶ ' + esc(v) + '</b>' : esc(v)}
-          ${room ? `<button class="tt-go" data-go="${esc(where)}">📍 ${esc(room.nm)}を地図で見る</button>` : ''}
+          ${room ? `<button class="tt-go" data-go="${esc(where)}">${ICON.pin} ${esc(room.nm)}を地図で見る</button>` : ''}
         </td></tr>`;
     }).join('');
   $$('[data-go]', $('#tt-body')).forEach(el =>
     el.addEventListener('click', () => showPlace(el.dataset.go)));
   $('#help-list').innerHTML = CONFIG.INFO.help
-    .map(([i, t, d]) => `<div class="help"><span style="font-size:18px">${i}</span>
+    .map(([i, t, d]) => `<div class="help"><span class="help-ic">${ICON[i] || ''}</span>
       <span><b>${esc(t)}</b><span>${esc(d)}</span></span></div>`).join('');
 }
 
@@ -6322,19 +6435,43 @@ function initFontSize(){
   }));
 }
 
+/* 選べる見た目。押すたびに順に切り替わる。
+   選んだものは端末に残るので、来場者は自分の好みで回れる。 */
+const THEMES = [
+  { id:'light', name:'ふつう' },
+  { id:'paper', name:'落ち着き' },
+  { id:'heavy', name:'重厚' },
+  { id:'cyber', name:'サイバー' }
+];
+
 function initTheme(){
   const saved = load('kuroko_theme', null);
-  const t = saved || 'light';
+  const ok = THEMES.some(x => x.id === saved);
+  let t = ok ? saved : 'light';
   document.documentElement.setAttribute('data-theme', t);
-  $('#btn-theme').addEventListener('click', () => {
-    const now = document.documentElement.getAttribute('data-theme') === 'cyber' ? 'light' : 'cyber';
-    document.documentElement.setAttribute('data-theme', now);
-    store('kuroko_theme', now);
-    toast(now === 'cyber' ? 'サイバーテーマ' : 'ライトテーマ');
+  const label = () => (THEMES.find(x => x.id === t) || THEMES[0]).name;
+  const btn = $('#btn-theme');
+  btn.setAttribute('aria-label', '見た目を変える（いま：' + label() + '）');
+  btn.addEventListener('click', () => {
+    const i = THEMES.findIndex(x => x.id === t);
+    t = THEMES[(i + 1) % THEMES.length].id;
+    document.documentElement.setAttribute('data-theme', t);
+    store('kuroko_theme', t);
+    btn.setAttribute('aria-label', '見た目を変える（いま：' + label() + '）');
+    toast('見た目：' + label());
+    // 地図の線の太さや塗りがテーマで変わるので、描き直して測り直す
+    drawFloor._fp = null; drawFloor(S.floor);
+    fitMapBox._key = null; fitMapBox(S.floor);
   });
 }
 
+/** 静的HTMLに置いた <i data-ic="..."> をアイコンで埋める */
+function hydrateIcons(){
+  $$('[data-ic]').forEach(el => { el.innerHTML = ICON[el.dataset.ic] || ''; });
+}
+
 function init(){
+  hydrateIcons();
   initTheme();
   initFontSize();
   initSound();
