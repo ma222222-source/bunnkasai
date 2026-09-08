@@ -520,6 +520,7 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
            border:1px solid var(--border);border-radius:10px;padding:9px 13px;
            pointer-events:none}
 .ic-svg{width:1.05em;height:1.05em;vertical-align:-.17em;flex:none}
+.mk-svg{width:1.15em;height:1.15em;vertical-align:-.2em;flex:none}
 .util{font-weight:700;fill:var(--text-dim);pointer-events:none}
 text.util:not([font-size]){font-size:7.5px}
 .util-box{fill:var(--surface-3);stroke:var(--border);stroke-width:1}
@@ -814,7 +815,8 @@ text.util:not([font-size]){font-size:7.5px}
 .rank-chip.top{background:var(--free);border-color:var(--free);color:var(--on-status)}
 .cert{text-align:center;border:2px solid var(--accent);background:
       linear-gradient(180deg,color-mix(in srgb,var(--accent) 8%,var(--surface)),var(--surface))}
-.cert-badge{font-size:44px;line-height:1}
+.cert-badge{font-size:44px;line-height:1;color:var(--accent)}
+.cert-badge .mk-svg{width:44px;height:44px;vertical-align:0}
 .cert h3{font-size:17px;font-weight:900;margin-top:4px;letter-spacing:.06em}
 .cert p{font-size:11.5px;color:var(--text-dim);font-weight:700;margin-top:4px}
 .cert .cert-date{font-size:10px;color:var(--text-mute);margin-top:6px;
@@ -1545,7 +1547,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
       </div>
 
       <div class="card cert hide" id="stamp-cert">
-        <div class="cert-badge">🏆</div>
+        <div class="cert-badge" data-mk="trophy"></div>
         <h3>全ブース制覇</h3>
         <p id="cert-sub"></p>
         <p class="cert-date" id="cert-date"></p>
@@ -1602,7 +1604,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
     <section class="view" id="v-auth">
       <div class="card" style="text-align:center;display:flex;flex-direction:column;gap:12px">
         <div>
-          <h2 style="font-size:15px;font-weight:900">🔧 係員ログイン</h2>
+          <h2 style="font-size:15px;font-weight:900"><i data-ic="tool"></i> 係員ログイン</h2>
           <p style="font-size:11px;color:var(--text-mute);font-weight:700;margin-top:4px">パスワードは係員に配布されたものを入力</p>
         </div>
         <input class="field" type="password" id="pw" placeholder="パスワード" autocomplete="current-password" inputmode="text">
@@ -1658,7 +1660,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
       <div id="adm-warn" class="hide" style="margin-bottom:8px;line-height:1.6"></div>
       <div id="admin-list" style="display:flex;flex-direction:column;gap:9px"></div>
       <details class="card notice-card" id="notice-card">
-        <summary class="chk-sum">📣 お知らせを出す
+        <summary class="chk-sum"><i data-ic="call"></i> お知らせを出す
           <span class="card-note" id="notice-now">いまは出ていません</span></summary>
         <div style="padding-top:10px">
           <p style="font-size:11px;color:var(--text-mute);font-weight:700;margin-bottom:8px">
@@ -1804,7 +1806,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-08g',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-09a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -1876,8 +1878,8 @@ const CONFIG = {
    絵文字は端末ごとに絵柄も色も変わり、書体とも揃わない。
    20x20 の同じグリッド・同じ線幅で引いた線画に統一する。
    色は currentColor なので、テーマを変えても勝手に追従する。
-   ※スタンプの称号（👑🔥🌱）や獲得の🎉はごほうびの演出なので絵文字のまま残す。
-     ここを線画にすると急に冷たくなる。
+   ごほうび（称号・完走）は線画ではなく塗りのマーク（下の MARK）で描き分ける。
+   実用の印と報酬の印を、同じグリッドのまま太さで区別する。
    ===================================================================== */
 const ICON = (() => {
   const w = d => `<svg class="ic-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor"`
@@ -1898,9 +1900,40 @@ const ICON = (() => {
               + 'M3.2 8.4h2.6M3.2 11.6h2.6M14.2 8.4h2.6M14.2 11.6h2.6"/>'),
     school: w('<path d="M2.8 17h14.4"/><path d="M4.8 17V7.2L10 4.2l5.2 3V17"/><path d="M8.2 17v-3.8h3.6V17"/>'),
     food:   w('<path d="M5 3v5.4a1.9 1.9 0 0 0 3.8 0V3"/><path d="M6.9 8.4V17"/>'
-              + '<path d="M14.6 3c-1.6.9-2.3 2.6-2.3 4.6s.9 3.3 2.3 3.3V17"/>')
+              + '<path d="M14.6 3c-1.6.9-2.3 2.6-2.3 4.6s.9 3.3 2.3 3.3V17"/>'),
+    note:   w('<path d="M7.2 3.6h5.6l-.9 4.6 2.4 2.4H5.7l2.4-2.4z"/><path d="M10 10.6v5.8"/>'),
+    tool:   w('<path d="M12.4 3.6a4.3 4.3 0 0 0-5.1 5.5l-3.8 3.8a1.7 1.7 0 0 0 2.4 2.4l3.8-3.8a4.3 4.3 0 0 0 5.5-5.1l-2.5 2.5-2.3-2.3z"/>')
   };
 })();
+
+/* ごほうび（称号・完走）のマークは塗り。機能アイコンの線画と描き分けることで、
+   同じグリッドに乗せたまま「これは実用ではなく報酬だ」と伝わる。
+   パスは1本だけ持ち、画面では SVG、共有画像では Path2D で同じ形を描く。
+   ＝ 絵文字と違って端末で絵柄が変わらず、書体とも喧嘩しない。 */
+const MARK = {
+  crown:  'M2.6 15.6 1.3 6.1l4.8 3.3L10 3.4l3.9 6 4.8-3.3-1.3 9.5zM3.3 17h13.4v1.7H3.3z',
+  flame:  'M10 1.8c2.7 3.1 1.2 4.8 2.7 5.8 1-.4 1.4-1.7 1.4-1.7 2.1 2.5 2.1 4.6 2.1 5.4 0 3.5-2.8 6.4-6.2 6.4S3.8 14.8 3.8 11.3c0-2.7 1.7-5.2 3.5-6.9.5 1.3.9 2.9 1.4 3.4.6-1.9.8-4.1 1.3-6z',
+  pack:   'M6.3 5.2a3.7 3.7 0 0 1 7.4 0V6h1a2.5 2.5 0 0 1 2.5 2.5v7A2.5 2.5 0 0 1 14.7 18H5.3a2.5 2.5 0 0 1-2.5-2.5v-7A2.5 2.5 0 0 1 5.3 6h1zM8.1 6h3.8v-.8a1.9 1.9 0 0 0-3.8 0zM7.4 10.6h5.2v3.2H7.4z',
+  walk:   'M12.4 3.5a1.75 1.75 0 1 1-3.5 0 1.75 1.75 0 0 1 3.5 0zM10.9 6.3 7.9 8.1l-1.8 3.7 1.8.9 1.4-2.9 1.3-.7-.7 3.3 2.8 4.8 1.7-1-2.3-4 1-4.6z',
+  sprout: 'M9.1 18v-4.4C5.6 13.4 3 10.8 3 7.2c3.6 0 6.2 2.5 6.4 6V18zM10.9 18v-2.3c.2-3.5 2.8-6 6.4-6 0 3.6-2.6 6.2-6.1 6.4V18z',
+  trophy: 'M5.8 2.8h8.4v4.7a4.2 4.2 0 0 1-8.4 0zM5 4.1H2.9a3.2 3.2 0 0 0 3.2 3.2zM15 4.1h2.1a3.2 3.2 0 0 1-3.2 3.2zM8.9 12.2h2.2v3.1H8.9zM6.1 16.5h7.8v1.8H6.1z',
+  star:   'M10 2 11.9 6.9 16.8 8.8 11.9 10.7 10 15.6 8.1 10.7 3.2 8.8 8.1 6.9z'
+};
+/** 画面用：塗りのマークをSVGで返す */
+function mark(name, cls){
+  const d = MARK[name]; if (!d) return '';
+  return `<svg class="mk-svg${cls ? ' ' + cls : ''}" viewBox="0 0 20 20" fill="currentColor"`
+    + ` aria-hidden="true"><path d="${d}"/></svg>`;
+}
+/** 共有画像用：同じパスを canvas に描く */
+function drawMark(g, name, x, y, size, color){
+  const d = MARK[name]; if (!d || typeof Path2D === 'undefined') return;
+  g.save();
+  g.translate(x, y); g.scale(size / 20, size / 20);
+  if (color) g.fillStyle = color;
+  g.fill(new Path2D(d));
+  g.restore();
+}
 
 /* =====================================================================
    ステータス定義（色だけに頼らない多重符号化）
@@ -3602,7 +3635,7 @@ function renderSheet(){
     </div>
     ${b.image ? `<img class="bsh-img" src="${esc(b.image)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : ''}
     ${b.note ? `<p class="bsh-note">${eventLabel(b)
-        ? `<span class="ev-badge" data-kind="${eventState(b).kind}">${esc(eventLabel(b))}</span>` : '<span aria-hidden="true">📌</span>'} ${esc(b.note)}</p>` : ''}
+        ? `<span class="ev-badge" data-kind="${eventState(b).kind}">${esc(eventLabel(b))}</span>` : ICON.note} ${esc(b.note)}</p>` : ''}
     ${altSuggest(b)}
     ${(() => { const sp = sparkline(b.history); return sp ? `<div class="bsh-foot">${sp}</div>` : ''; })()}
     <p class="bsh-upd">更新 ${esc(ago(b.time))}</p>
@@ -4274,7 +4307,7 @@ function renderList(){
             return (m != null && m >= 5) ? `待ち時間 約${m}分・` : '';
           })()}更新 ${esc(ago(b.time))}</p>
           ${b.note ? `<p class="booth-note">${eventLabel(b)
-              ? `<span class="ev-badge" data-kind="${eventState(b).kind}">${esc(eventLabel(b))}</span>` : '<span aria-hidden="true">📌</span>'} ${esc(b.note)}</p>` : ''}
+              ? `<span class="ev-badge" data-kind="${eventState(b).kind}">${esc(eventLabel(b))}</span>` : ICON.note} ${esc(b.note)}</p>` : ''}
         </div>
         <div class="booth-side">
           <span class="pill" data-lv="${L.lv}"><span aria-hidden="true">${L.icon}</span> ${esc(L.short)}${
@@ -4380,11 +4413,11 @@ function earnStamp(id){
  * 「もう少し回ってみようか」と思えるくらいの軽い遊びとして置いている。
  */
 const RANKS = [
-  { at:1.00, icon:'👑', name:'黒工マスター' },
-  { at:0.75, icon:'🔥', name:'あと少し' },
-  { at:0.50, icon:'🎒', name:'黒工ツウ' },
-  { at:0.25, icon:'🚶', name:'散策中' },
-  { at:0.01, icon:'🌱', name:'探検スタート' }
+  { at:1.00, mark:'crown',  name:'黒工マスター' },
+  { at:0.75, mark:'flame',  name:'あと少し' },
+  { at:0.50, mark:'pack',   name:'黒工ツウ' },
+  { at:0.25, mark:'walk',   name:'散策中' },
+  { at:0.01, mark:'sprout', name:'探検スタート' }
 ];
 function stampRank(got, total){
   if (!total || !got) return null;
@@ -4415,12 +4448,13 @@ function renderStamps(){
   const chip = $('#stamp-rank');
   chip.classList.toggle('hide', !rk);
   chip.classList.toggle('top', !!done);
-  if (rk) chip.textContent = `${rk.icon} ${rk.name}`;
+  if (rk) chip.innerHTML = mark(rk.mark) + ' ' + esc(rk.name);
 
-  $('#stamp-msg').textContent = done ? '🎉 ぜんぶ回りました！'
+  const stMsg = done ? 'ぜんぶ回りました！'
     : got === 0 ? 'まずは1つ回ってみよう'
     : got >= total - 1 ? 'あと1か所！'
     : `あと${total - got}か所`;
+  $('#stamp-msg').innerHTML = (done ? mark('star') + ' ' : '') + esc(stMsg);
 
   // 取得・使える・交換済みの内訳。「あと何個で交換できるか」をここで見せる
   const need = Math.max(1, CONFIG.PRIZE_COST | 0);
@@ -4582,7 +4616,9 @@ function stampCardCanvas(){
   const rk = stampRank(got, total);
   if (rk){
     g.font = F(26, 900); g.globalAlpha = .95;
-    g.fillText(`${rk.icon} ${rk.name}`, PAD + 6, 296 - 8); g.globalAlpha = 1;
+    // 画面と同じ形。絵文字だと端末や書体で絵柄が変わり、画像の見た目が安定しない
+    drawMark(g, rk.mark, PAD + 6, 296 - 8 - 22, 25, g.fillStyle);
+    g.fillText(rk.name, PAD + 6 + 32, 296 - 8); g.globalAlpha = 1;
   }
   g.font = F(30, 900);
   const badge = done ? '全 制 覇 ！' : `あと ${total - got}`;
@@ -5047,7 +5083,7 @@ function renderBoard(){
   renderBoardMaps();
 
   const foot = $('#board-foot');
-  foot.textContent = S.notice && S.notice.text ? '📣 ' + S.notice.text : '';
+  foot.innerHTML = S.notice && S.notice.text ? ICON.call + ' ' + esc(S.notice.text) : '';
   foot.classList.toggle('hide', !(S.notice && S.notice.text));
 }
 
@@ -6044,7 +6080,7 @@ function renderQrSheet(){
       <ol class="staff-steps">
         <li><b>当日チェックリスト</b>（画面いちばん上）で開場前・開場後・閉場後の確認をする</li>
         <li>開場したら <b>「開場：全ブースを空いています」</b> を1回押す</li>
-        <li>落とし物・ステージ開始などは <b>「📣 お知らせを出す」</b> から。
+        <li>落とし物・ステージ開始などは <b>「お知らせを出す」</b> から。
             来場者全員の画面の上に出ます（「注意（赤）」も選べます）</li>
         <li>受付では <b>来場者カウンタ</b> で入場者数を記録する</li>
         <li>大画面に映すときは <b>「本部用の大画面ボード」</b>。混雑と地図が同時に見えます</li>
@@ -6468,6 +6504,7 @@ function initTheme(){
 /** 静的HTMLに置いた <i data-ic="..."> をアイコンで埋める */
 function hydrateIcons(){
   $$('[data-ic]').forEach(el => { el.innerHTML = ICON[el.dataset.ic] || ''; });
+  $$('[data-mk]').forEach(el => { el.innerHTML = mark(el.dataset.mk); });
 }
 
 function init(){
@@ -6640,7 +6677,7 @@ function init(){
       } else {
         if (earnStamp(b)){
           renderAll();
-          setTimeout(() => toast(`🏅 「${nm}」のスタンプを獲得しました`), 400);
+          setTimeout(() => toast(`「${nm}」のスタンプを獲得しました`), 400);
         }
         setHere(b);                     // 読んだ場所＝いまいる場所
         setTimeout(() => openSheet(b), 500);
