@@ -504,6 +504,7 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 .map-tools button.dim{opacity:.32;pointer-events:none}
 .map-tools button:active{transform:scale(.97)}
 .zoom-lv{position:absolute;left:8px;top:8px;z-index:3;font-size:10px;font-weight:900;
+   font-variant-numeric:tabular-nums;min-width:34px;text-align:center;
    padding:4px 8px;border-radius:8px;background:color-mix(in srgb,var(--surface) 88%,transparent);
    border:1px solid var(--border);color:var(--text-dim);
    opacity:0;transition:opacity var(--t) var(--ease);pointer-events:none}
@@ -1660,7 +1661,8 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
         <p class="redeem-msg" id="redeem-msg"></p>
         <button class="btn" id="redeem-open">お菓子と交換する</button>
         <div class="redeem-pad hide" id="redeem-pad">
-          <label for="staff-code">係員の画面に出ている<b>4桁の番号</b>を入れてもらってください</label>
+          <label for="staff-code">係員の画面に出ている<b>いまの4桁</b>を入れてもらってください<br>
+            <small style="font-weight:700;color:var(--text-mute)">番号は1分ごとに変わります（少し前のものでも通ります）</small></label>
           <div class="redeem-row">
             <input id="staff-code" class="field" type="text" inputmode="numeric" pattern="[0-9]*"
                    maxlength="4" autocomplete="off" placeholder="0000">
@@ -1829,7 +1831,8 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
         <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg> QRコード印刷シート</div>
         <p style="font-size:11.5px;color:var(--text-dim);font-weight:600;line-height:1.7">
           各ブースの入口に貼るQRです。読み取ると そのブースの詳細が開き、スタンプが自動で入ります。<br>
-          A4に貼れるサイズで出力されます（<span id="qr-count">0</span>枚）。
+          A4に貼れるサイズで出力されます。<span id="qr-count"></span><br>
+          <b>ブース名や場所を変えたあとは刷り直してください。</b>QRには部屋IDが入っています。
         </p>
         <button class="btn" id="btn-print" style="margin-top:10px">印刷する</button>
       </div>
@@ -1974,7 +1977,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-09k',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-09l',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4140,7 +4143,7 @@ function renderSheet(){
      発動して倍率が変わるため廃止した）
    拡大していないときは縦スクロールを邪魔しない（touch-action:pan-y）。
    ===================================================================== */
-const ZOOM = { k:1, x:0, y:0, min:1, max:4, el:null, wrap:null,
+const ZOOM = { k:1, x:0, y:0, min:1, max:6, el:null, wrap:null,
                // 動かしている指は常に1本だけ覚える。指の数を数えて拡大か移動かを
                // 決めるのはやめた（pointerup を1つ取りこぼすと「指1本なのに2本」と
                // 数えられ、1本で動かしただけで拡大が始まってしまうため）
@@ -4961,6 +4964,15 @@ function renderStamps(){
     open.disabled = !canGet;
     open.textContent = canGet ? 'お菓子と交換する' : `あと${need - (left % need)}個で交換できます`;
   }
+  // 交換パッドを開いたまま条件を失うと、係員の前で4桁を打ってから
+  // 「足りません」と言われることになる。開く前の状態へ戻す
+  const padEl = $('#redeem-pad');
+  if (padEl && !padEl.classList.contains('hide') && !canGet){
+    padEl.classList.add('hide');
+    $('#redeem-err').classList.add('hide');
+    $('#staff-code').value = '';
+    if (open) open.classList.remove('hide');
+  }
   if (log){
     log.classList.toggle('hide', !spentN);
     log.textContent = `これまでにスタンプ${spentN}個分（お菓子${Math.floor(spentN / need)}個）を交換しました`;
@@ -4971,8 +4983,10 @@ function renderStamps(){
     const g = S.stamps.has(b.id);
     const u = g && spentSet.has(b.id);
     const no = S.numbers.get(b.id) || '';
-    // idごとに傾きを固定して、手で押したような不揃いさを出す
-    const tilt = ((Number(b.id) * 37) % 13) - 6;
+    // idごとに傾きを固定して、手で押したような不揃いさを出す。
+    // Number(id) では「1F-02」のような部屋IDが NaN になり、割り当てを入れた
+    // 途端に全部のスタンプから傾きが消える。文字列のまま数に変える。
+    const tilt = (hash32(String(b.id)) % 13) - 6;
     return `<button class="stamp ${g ? 'got' : ''}${u ? ' used' : ''}${S.justStamp === b.id ? ' just' : ''}"
                  style="--tilt:${tilt}deg" data-sid="${esc(b.id)}"
                  aria-label="${esc(b.name)}${u ? ' 交換に使用済み' : g ? ' 訪問済み' : ''} の詳細をひらく">
@@ -6546,11 +6560,20 @@ function renderQrSheet(){
       return {
         name: b.name,
         url: ext(`${base}?booth=${encodeURIComponent(b.id)}&qr=1&k=${sigOf(b.id)}`),
-        where: `${flLabel(b)}${sl && sl.nm ? '　' + sl.nm : ''}　の入口へ`,
+        // 部屋が決まっていないと「1階　の入口へ」と場所が空になり、
+        // 刷ったあとで貼り先が分からなくなる。IDだけでも必ず出す
+        where: sl && sl.nm ? `${flLabel(b)}　${sl.nm}（${b.id}）の入口へ`
+                           : `${flLabel(b)}　${b.id} の入口へ`,
         note: 'スタンプがたまります'
       };
     })
   ];
+  const qn = $('#qr-count');
+  if (qn) qn.textContent = `全${items.length}枚（入口の案内1枚＋ブース${items.length - 1}枚）。`;
+  // 割り当て前に刷ろうとすると案内1枚だけが出る。気づかず刷ってしまわないよう言う
+  if (!S.booths.length && qn){
+    qn.textContent = 'ブースがまだ1件もありません。先に「地図でブースを割り当てる」で決めてください。';
+  }
   $('#qr-grid').innerHTML = items.map(it => `
     <figure class="qr-card${it.top ? ' top' : ''}">
       <div class="qr-where">${esc(it.where)}</div>
@@ -6562,7 +6585,7 @@ function renderQrSheet(){
         ${it.top ? `<code>${esc(base)}</code>` : ''}
       </figcaption>
     </figure>`).join('');
-  $('#qr-count').textContent = items.length;
+  // 枚数はこの関数の先頭で内訳つきに出している。ここで数字だけに上書きしない
 
   // 係員に配る手順カード。掲示物ではないので必ず別ページに送る
   const adminUrl = ext(base + '?mode=admin');
@@ -7123,7 +7146,7 @@ function init(){
     closePad();
     renderStamps(); renderList(); drawFloor(S.floor);
     ding('done');
-    toast(`スタンプ${n}個分を消費しました。お菓子を1個お渡しください`);
+    toast(`スタンプ${n}個分を使いました。お菓子を1個受け取ってください`);
   });
 
   setInterval(tickCode, 15000);
