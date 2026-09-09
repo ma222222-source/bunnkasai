@@ -575,6 +575,14 @@ body.editing #dept-legend,
 body.editing #map-card .legend{display:none !important}
 /* まだブースでない部屋。押せることが分かるよう、点線で縁取る */
 .room-bg.editable rect{stroke-dasharray:3 2.4;stroke:var(--accent);stroke-width:1.1;cursor:pointer}
+/* 現在地をえらぶ最中。押せる場所であることを示す */
+.room-bg.pickable rect{stroke-dasharray:3 2.4;stroke:var(--accent);stroke-width:1.1;cursor:pointer}
+body.picking .map-view{outline:3px solid var(--accent);outline-offset:-3px}
+/* 現在地が分からない人への問いかけ。ふだんの「いまここ」より静かに置く */
+.here-bar.ask{border-color:var(--border-strong)}
+.here-bar button{flex:none;min-height:40px;padding:0 12px;border-radius:9px;font-size:11.5px;
+  font-weight:900;background:var(--surface-3);color:var(--text);border:1px solid var(--border)}
+.here-bar.ask button{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
 .room-bg.editable:hover rect{fill:color-mix(in srgb,var(--accent) 12%,var(--surface))}
 
 /* パネルを開いている間、背面のページが一緒に動くと、閉じたときに
@@ -1968,7 +1976,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-09f',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-09g',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -2544,6 +2552,7 @@ const S = {
   spent: [],               // お菓子と交換して消費したブースid（取った順に消える）
   assigned: new Set(),
   edit: false,          // 係員の「地図で割り当て」モード
+  picking: false,       // 現在地を地図でえらんでいる最中
   editId: null,         // いま開いている部屋
   editCat: '展示',
   isAdmin: false,
@@ -3422,6 +3431,11 @@ function drawFloor(floorNum){
           + ` data-room="${esc(r.id)}" data-nm="${esc(r.nm || '')}"${d ? ` style="--dept:${d.c}"` : ''}>`
           + `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="4"${d && !ent ? ' class="dept"' : ''}/>`
           + (d ? `<rect class="dept-bar" x="${r.x}" y="${r.y}" width="${Math.min(3.4, r.w / 6)}" height="${r.h}" rx="1.7"/>` : '')
+          // 現在地はブースとはかぎらない。廊下や教室を選んだときも同じ印を出す
+          + (r.id === hereId()
+              ? `<rect class="here-halo" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="7"/>`
+                + `<text class="here-tag" x="${(r.x + r.w / 2).toFixed(1)}" y="${(r.y + 2.4).toFixed(1)}"`
+                + ` text-anchor="middle">いまここ</text>` : '')
           + label + `</g>`;
   });
 
@@ -3614,21 +3628,22 @@ function drawFloor(floorNum){
 
   $$('.room', svg).forEach(g => {
     const id = g.dataset.id;
-    const go = () => (S.edit ? openEditor(id) : openSheet(id));
+    const go = () => S.picking ? pickHere(id) : (S.edit ? openEditor(id) : openSheet(id));
     g.addEventListener('click', go);
     g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
   });
 
   // 編集モードのときだけ、まだブースでない部屋も押せるようにする。
   // ふだんの来場者画面では、押しても何も起きない部屋を押させない
-  if (S.edit){
+  if (S.edit || S.picking){
     $$('[data-room]', svg).forEach(g => {
       const rid = g.dataset.room;
       if (!rid || S.booths.some(b => b.id === rid)) return;   // 既にブースなら .room 側で拾う
-      g.classList.add('editable');
+      g.classList.add(S.picking ? 'pickable' : 'editable');
       g.setAttribute('role', 'button');
       g.setAttribute('tabindex', '0');
-      const go = () => openEditor(rid, g.dataset.nm || '');
+      const go = () => S.picking ? pickHere(rid) : openEditor(rid, g.dataset.nm || '');
+      g.style.cursor = 'pointer';
       g.addEventListener('click', go);
       g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } });
     });
@@ -3774,18 +3789,72 @@ function hereId(){
   if (Date.now() - h.at > HERE_TTL_MS){ store('kuroko_here_v1', undefined); return null; }
   return h.id;
 }
+/**
+ * 現在地をえらぶモード。地図の部屋をおすと、そこを現在地にする。
+ * GPSは使わない。校舎内では誤差が部屋の大きさを超えるので、
+ * 自信ありげに間違った場所を指すぶん、何も出さないより有害になる。
+ */
+function pickHere(id){
+  setPickMode(false);
+  setHere(id);
+  toast(`いまここ：${placeName(id)}`);
+}
+
+function setPickMode(on){
+  S.picking = !!on;
+  document.body.classList.toggle('picking', S.picking);
+  drawFloor._fp = null; drawFloor(S.floor);
+  if (S.picking) toast('いまいる場所を地図でおしてください');
+}
+
 function clearHere(){
   store('kuroko_here_v1', undefined);
   renderHere(); drawFloor(S.floor); recommend();
   toast('現在地の表示を消しました');
 }
 
+/** 部屋IDから表示名を引く。ブースならブース名、そうでなければ図面の部屋名 */
+function placeName(id){
+  const b = S.booths.find(x => x.id === id);
+  if (b) return b.name;
+  for (const f of FLOORS){
+    const r = ((FLOOR_PLAN[f.n] || {}).rooms || []).find(x => x.id === id);
+    if (r) return r.nm || id;
+  }
+  return id;
+}
+
 function renderHere(){
   const bar = $('#here-bar');
   if (!bar) return;
   const id = hereId();
-  const b = id ? S.booths.find(x => x.id === id) : null;
-  if (!b){ bar.classList.add('hide'); bar.innerHTML = ''; return; }
+
+  // 現在地が分からないままだと、地図を見ても自分の位置が掴めない。
+  // QRを読んでいない人にも、地図をおして教えてもらえるようにする。
+  if (!id){
+    if (S.view !== 'map' || !S.booths.length){ bar.classList.add('hide'); bar.innerHTML=''; return; }
+    bar.classList.remove('hide');
+    bar.classList.add('ask');
+    bar.innerHTML = `<span class="tx">いまどこにいますか？
+      <small>教えてもらえると、近くて空いているブースを出せます</small></span>
+      <button data-here-pick="1">地図でえらぶ</button>`;
+    $('[data-here-pick]', bar).addEventListener('click', () => setPickMode(true));
+    return;
+  }
+  bar.classList.remove('ask');
+  const b = S.booths.find(x => x.id === id);
+  if (!b){
+    // ブースでない部屋（廊下・教室）を現在地にした場合
+    bar.classList.remove('hide');
+    bar.innerHTML = `<span class="dot" aria-hidden="true"></span>
+      <span class="tx">いまここ：${esc(placeName(id))}
+        <small>地図でえらんだ場所です</small></span>
+      <button data-here-pick="1">えらび直す</button>
+      <button data-here-x="1" aria-label="現在地の表示を消す">消す</button>`;
+    $('[data-here-pick]', bar).addEventListener('click', () => setPickMode(true));
+    $('[data-here-x]', bar).addEventListener('click', clearHere);
+    return;
+  }
 
   // 同じ階の空いているブースを1つだけ提案する（歩く距離が短い順の代わり）
   const near = S.booths
@@ -5677,6 +5746,7 @@ function switchView(v, fromHistory){
   $('#banner-alert').classList.toggle('hide', v !== 'map' || !$('#banner-alert-text').textContent);
   if (v === 'qr' || v === 'board') $('#banner-notice').classList.add('hide'); else renderNotice();
   renderHours();
+  renderHere();                  // 現在地の問いかけはマップのときだけ出す
   refreshScrollEdges();          // 画面ごとに「横に続きがある」印を付け直す
   window.scrollTo({ top:0, behavior: smoothBehavior() });
 
