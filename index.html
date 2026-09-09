@@ -2,7 +2,9 @@
 <html lang="ja" data-theme="light">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!-- 地図の外でページ全体が拡大すると、地図の操作と喧嘩して何が動いているのか
+     分からなくなる。文字を大きくしたい人には、アプリ内の「文字サイズ」を用意している。 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>黒工文化祭 校内マップ｜リアルタイム混雑案内</title>
 <meta name="description" content="岩手県立黒沢尻工業高等学校 文化祭の校内マップとリアルタイム混雑状況。">
 <!-- LINEやSNSで共有したときのプレビュー -->
@@ -178,9 +180,9 @@ p{margin:0}
 [data-theme="paper"] .head::before{opacity:.05}
 [data-theme="paper"] .head::after{background:radial-gradient(closest-side,rgba(255,255,255,.08),transparent)}
 [data-theme="paper"] .icon-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.10)}
-[data-theme="paper"] .map-wrap{background:#fdfcf9;border-color:#ded8ca}
 /* 地図の下に方眼を敷き、「図面」として見せる */
-[data-theme="paper"] .map-view{background-color:#fdfcf9;
+[data-theme="paper"] .map-view{background-color:#fdfcf9;border-color:#c3b9a5;
+  box-shadow:inset 0 2px 10px -6px rgba(60,50,32,.5),inset 0 0 0 1px rgba(255,255,255,.6);
   background-image:repeating-linear-gradient(0deg,rgba(120,110,90,.10) 0 1px,transparent 1px 24px),
                    repeating-linear-gradient(90deg,rgba(120,110,90,.10) 0 1px,transparent 1px 24px)}
 [data-theme="paper"] .bldg{fill:rgba(255,255,255,.72);stroke:#8f8676;stroke-width:1.1}
@@ -219,7 +221,8 @@ p{margin:0}
 [data-theme="heavy"] .seg{background:#10141a;border:1px solid #262d38}
 [data-theme="heavy"] .seg button[aria-pressed="true"]{background:var(--accent);color:#fff;
   box-shadow:0 0 18px -4px var(--accent)}
-[data-theme="heavy"] .map-wrap{background:#080a0d;border-color:#242b36}
+[data-theme="heavy"] .map-view{background:#080a0d;border-color:#39424f;
+  box-shadow:inset 0 2px 14px -6px #000,inset 0 0 0 1px rgba(255,255,255,.05)}
 [data-theme="heavy"] .bldg{fill:#131820;stroke:#3a4453;stroke-width:1.4}
 [data-theme="heavy"] .room-bg rect{fill:#0e1218;stroke:#2b3340;stroke-width:.85}
 [data-theme="heavy"] .nav{background:#0c0f14;border-top:1px solid #232a35;
@@ -378,14 +381,23 @@ main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direc
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
 [data-theme="cyber"] .seg button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
 
-.map-wrap{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r);
-          overflow:hidden;position:relative;
-          box-shadow:inset 0 1px 3px rgba(16,24,40,.06)}
-[data-theme="cyber"] .map-wrap{box-shadow:inset 0 0 32px -14px var(--accent)}
+.map-wrap{background:transparent;border:none;border-radius:var(--r);
+          overflow:visible;position:relative;padding:0}
+[data-theme="cyber"] .map-view{box-shadow:inset 0 0 32px -14px var(--accent)}
 .svg-defs{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
 /* 地図の中でスクロールが外へ伝わらないようにする（端まで動かしてもページが跳ねない） */
 .map-view{position:relative;overflow:hidden;overscroll-behavior:contain;
-          -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+          -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+          /* ここが「動かせる面」だと分かるように、周りのカードから一段へこませる。
+             境界が曖昧だと、どこを触れば地図が動くのか分からない */
+          background:var(--map-ground,var(--surface-2));
+          border:1px solid var(--border-strong);border-radius:var(--r-sm);
+          box-shadow:inset 0 2px 10px -6px rgba(16,24,40,.45),
+                     inset 0 0 0 1px rgba(255,255,255,.5)}
+/* 地図以外はスクロールだけ。指2本を広げてもページは拡大しない
+   （iOS は user-scalable=no を無視するので、touch-action と gesture 系の
+     両方で塞ぐ必要がある） */
+.app{touch-action:pan-x pan-y}
 .map-zoom{transform-origin:0 0;will-change:transform;touch-action:pan-y}
 /* 拡大中／指2本の操作中はページを動かさず、地図だけを動かす */
 .map-zoom.zoomed,.map-zoom.gesturing{touch-action:none;cursor:grab}
@@ -1806,7 +1818,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-09a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-09b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3682,6 +3694,10 @@ const ZOOM = { k:1, x:0, y:0, min:1, max:4, el:null, wrap:null,
                // 既定の倍率。図面を箱の高さまで大きくして見せるための倍率で、
                // 「全体を見る」で戻る先でもある（等倍＝図面まるごとは min のまま）
                base0:1,
+               // 自分で拡大・移動したか。スマホはスクロールでURLバーが伸縮すると
+               // innerHeight が変わって resize が飛ぶ。そのたびに見え方を戻すと
+               // 「触るたび元の大きさに戻る」ことになるので、触った後は保つ
+               touched:false,
                // 実寸の控え。指でなぞるたびに測り直すと400要素超のSVGで毎フレーム固まる
                mW:0, mH:0, mNat:0 };
 
@@ -3785,15 +3801,16 @@ function initZoom(){
   z.el = $('#map-zoom'); z.wrap = z.el.parentElement;
   if (!z.el) return;
 
-  $('#zoom-in').addEventListener('click', () => zoomTo(z.k * 1.6));
-  $('#zoom-out').addEventListener('click', () => zoomTo(z.k / 1.6));
+  $('#zoom-in').addEventListener('click', () => { z.touched = true; zoomTo(z.k * 1.6); });
+  $('#zoom-out').addEventListener('click', () => { z.touched = true; zoomTo(z.k / 1.6); });
   $('#zoom-reset').addEventListener('click', () => {
-    zoomReset(false); fitMapBox(S.floor); toast('地図を全体表示に戻しました');
+    z.touched = false; zoomReset(false); fitMapBox(S.floor); toast('地図を全体表示に戻しました');
   });
   $('#zoom-booth').addEventListener('click', () => {
     const n = S.booths.filter(b => floorOfBooth(b) === S.floor).length;
     if (!n){ toast('この階にはブースがありません'); return; }
     const before = z.k;
+    z.touched = true;
     zoomToBooths(S.floor);
     // 端から端まで散らばっているときは寄せようがないので、その旨を伝える
     if (Math.abs(z.k - before) < 0.03 && z.k <= 1.02){
@@ -3820,6 +3837,7 @@ function initZoom(){
     if (Math.hypot(e.clientX - z.sx, e.clientY - z.sy) > 8) z.moved = true;
     if (z.k > 1.01){                     // 動かせる余地があるときだけ
       e.preventDefault();
+      z.touched = true;
       z.x += e.clientX - z.px;
       z.y += e.clientY - z.py;
       zoomApply(false);
@@ -3865,7 +3883,7 @@ function initZoom(){
   z.el.addEventListener('touchstart', e => {
     if (e.touches.length >= 2){
       z.el.classList.add('gesturing');
-      z.tBase = tDist(e.touches); z.tBaseK = z.k; z.tMid = tMid(e.touches);
+      z.tBase = tDist(e.touches); z.tBaseK = z.k; z.tMid = tMid(e.touches); z.touched = true;
       z.moved = true;                       // 指を離したときに部屋が開かないように
       stop(e);
     }
@@ -3901,6 +3919,7 @@ function initZoom(){
     if (Math.abs(e.deltaY) < 1) return;
     if (z.k <= 1.01 && e.deltaY > 0) return;   // 縮小しきっていたらページのスクロールに任せる
     e.preventDefault();
+    z.touched = true;
     zoomTo(z.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12), e.clientX, e.clientY, false);
   }, { passive:false });
 
@@ -6476,8 +6495,7 @@ function initFontSize(){
 const THEMES = [
   { id:'light', name:'ふつう' },
   { id:'paper', name:'落ち着き' },
-  { id:'heavy', name:'重厚' },
-  { id:'cyber', name:'サイバー' }
+  { id:'heavy', name:'重厚' }
 ];
 
 function initTheme(){
@@ -6508,6 +6526,10 @@ function hydrateIcons(){
 }
 
 function init(){
+  // iOS Safari は user-scalable=no を無視する。ページ全体の拡大はここで止める。
+  // 地図の拡大は自前の TouchEvent 処理なので影響を受けない。
+  ['gesturestart','gesturechange','gestureend'].forEach(t =>
+    document.addEventListener(t, e => e.preventDefault(), { passive:false }));
   hydrateIcons();
   initTheme();
   initFontSize();
@@ -6791,6 +6813,7 @@ function setFloor(n){
     $('#plan-' + f.n).classList.toggle('hide', n !== f.n);
   });
   drawFloor(n);
+  ZOOM.touched = false;          // 階が変われば、その階のブースに寄せ直す
   zoomReset(false);
   requestAnimationFrame(() => fitMapBox(n));
 }
@@ -6807,7 +6830,10 @@ function fitMapBox(floorNum){
   // 同じ条件なら測り直さない。図面のSVGは400要素を超えるので、
   // getBoundingClientRect を呼ぶたびに安い端末で数十msの引っかかりになる。
   const vb = svg.getAttribute('viewBox') || '';
-  const key = floorNum + '|' + vb + '|' + window.innerWidth + 'x' + window.innerHeight;
+  // 高さは 100px 刻みに丸める。スマホのURLバーの伸縮（50〜60px程度）では
+  // キーが変わらず、地図を組み直さない
+  const key = floorNum + '|' + vb + '|' + window.innerWidth
+            + 'x' + Math.round(window.innerHeight / 100);
   if (fitMapBox._key === key && view.style.height){ if (!ZOOM.mNat) zoomMeasure(); zoomApply(false); return; }
 
   // 「画面の何割」ではなく「実際に空いている高さ」から決める。
@@ -6852,6 +6878,11 @@ function fitMapBox(floorNum){
   // 「混雑しているブースが最初から見えない」のが一番困るので、
   // 全体表示ではなく「その階のブースが全部入る」ところから始める。
   // 散らばりすぎて寄せられないときは zoomToBooths が全体表示へ戻す。
+  if (ZOOM.touched){
+    // 自分で決めた見え方は壊さない。箱の寸法だけ測り直して、はみ出しを丸める
+    zoomApply(false);
+    return;
+  }
   const hasBooth = S.booths.some(b => floorOfBooth(b) === floorNum);
   if (hasBooth) zoomToBooths(floorNum);
   else zoomReset(false);
