@@ -95,23 +95,6 @@
   --glow:none;
   --safe-b:env(safe-area-inset-bottom, 0px);
 }
-[data-theme="cyber"]{
-  --bg:#05070d; --surface:#0d1320; --surface-2:#111a2b; --surface-3:#16223a;
-  --border:#1f2d47; --border-strong:#2c3f61;
-  --text:#dbe7f7; --text-dim:#8ea3c0; --text-mute:#7f97b6;
-  --accent:#00e5ff; --accent-2:#00b8d4; --on-accent:#04141a;
-  --free:#22e39a; --warn:#ffc857; --busy:#ff4d6d; --unknown:#3d4d6b; --closed:#41506b;
-  --free-soft:#08301f; --warn-soft:#33270a; --busy-soft:#3a0f1a;
-  --corridor-fill:#12314f; --corridor-ink:#7ea8d6;
-  --road-fill:#101b2c;     --road-line:#31506f;
-  --busy-ink:#ff8095;
-  --on-status:#04121c;   /* サイバーテーマは色が明るいので文字は暗くする */
-  --corridor:#111c30; --outdoor:#0b1a16; --room-label:#04121c; --label-stroke:rgba(255,255,255,.5);
-  --shadow:0 0 0 1px rgba(0,229,255,.06), 0 8px 30px -14px rgba(0,229,255,.35);
-  --shadow-lg:0 0 40px -10px rgba(0,229,255,.35);
-  --glow:drop-shadow(0 0 6px currentColor);
-}
-
 *,*::before,*::after{box-sizing:border-box}
 /* 絵文字は端末ごとに絵柄が変わるので、UIの記号は自前のSVGで統一する */
 .ic{width:1.05em;height:1.05em;flex:none;display:inline-block;vertical-align:-.16em}
@@ -236,17 +219,6 @@ p{margin:0}
 [data-theme="heavy"] .banner{border-radius:0}
 [data-theme="heavy"] .zoom-lv{background:rgba(0,0,0,.8);border-color:#3a4453;color:#fff}
 
-[data-theme="cyber"] body,body[data-x]{}
-[data-theme="cyber"] .app::before{
-  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
-  background:
-    radial-gradient(1200px 600px at 50% -10%,rgba(0,229,255,.10),transparent 70%),
-    repeating-linear-gradient(0deg,rgba(0,229,255,.045) 0 1px,transparent 1px 44px),
-    repeating-linear-gradient(90deg,rgba(0,229,255,.045) 0 1px,transparent 1px 44px);
-}
-[data-theme="cyber"] .app > *{position:relative;z-index:1}
-[data-theme="cyber"] .head{background:linear-gradient(135deg,#08131f,#0d2033);
-  color:var(--text);border-bottom:1px solid var(--accent);box-shadow:0 0 24px -8px var(--accent)}
 .head-row{display:flex;align-items:center;gap:10px}
 /* 見出しは画面の骨格。テーマごとに大きさと字間を差し替えられるようにする */
 .head h1{font-size:var(--head-size,18px);font-weight:900;letter-spacing:var(--head-track,.01em);
@@ -257,7 +229,6 @@ p{margin:0}
   width:44px;height:44px;border-radius:12px;display:grid;place-items:center;
   background:rgba(255,255,255,.16);font-size:15px;transition:.15s;
 }
-[data-theme="cyber"] .icon-btn{background:var(--surface-2);border:1px solid var(--border)}
 .icon-btn{transition:transform var(--t-fast) var(--ease),background var(--t) var(--ease)}
 .icon-btn:active{transform:scale(.9)}
 .icon-btn:hover{background:rgba(255,255,255,.26)}
@@ -267,7 +238,6 @@ p{margin:0}
   font-size:10.5px;font-weight:700;letter-spacing:.03em;
   background:rgba(0,0,0,.16);border-radius:999px;padding:4px 10px;width:fit-content;
 }
-[data-theme="cyber"] .sync{background:var(--surface-2);border:1px solid var(--border)}
 .dot{width:7px;height:7px;border-radius:50%;background:#4ade80;flex:none}
 .dot.stale{background:#fbbf24}
 .dot.down{background:#f87171;animation:blink 1s steps(2) infinite}
@@ -344,7 +314,6 @@ main{flex:1;padding:14px 12px calc(88px + var(--safe-b));display:flex;flex-direc
 .banner.hours{background:var(--surface-3);color:var(--text);border:1px solid var(--border-strong)}
 .banner.notice{background:var(--accent);color:var(--on-accent);border:1px solid var(--accent)}
 .banner.notice[data-level="alert"]{background:var(--busy);border-color:var(--busy);color:#fff}
-[data-theme="cyber"] .banner.notice{box-shadow:0 0 20px -6px var(--accent)}
 .hide{display:none !important}
 /* 画面には出さず、読み上げにだけ渡すための箱 */
 .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
@@ -400,11 +369,8 @@ main{flex:1;padding:14px 12px calc(88px + var(--safe-b));display:flex;flex-direc
 .seg button{font-size:11px;font-weight:800;padding:0 12px;min-height:44px;border-radius:8px;
   color:var(--text-dim);white-space:nowrap;display:inline-flex;align-items:center;justify-content:center}
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
-[data-theme="cyber"] .seg button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
-
 .map-wrap{background:transparent;border:none;border-radius:var(--r);
           overflow:visible;position:relative;padding:0}
-[data-theme="cyber"] .map-view{box-shadow:inset 0 0 32px -14px var(--accent)}
 .svg-defs{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
 /* 地図の中でスクロールが外へ伝わらないようにする（端まで動かしてもページが跳ねない） */
 .map-view{position:relative;overflow:hidden;overscroll-behavior:contain;
@@ -429,7 +395,6 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
    「どこに何科があるか」は建物の背景で見せる */
 .bldg.tinted{fill:color-mix(in srgb,var(--dept) 13%,transparent);
              stroke:color-mix(in srgb,var(--dept) 55%,var(--border-strong))}
-[data-theme="cyber"] .bldg.tinted{fill:color-mix(in srgb,var(--dept) 22%,transparent)}
 .faded .bldg.tinted{fill:none;stroke:var(--border)}
 
 /* 廊下は「歩ける道」だと分かる見た目にする。細い帯を塗るだけでは伝わらない */
@@ -467,7 +432,6 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
                    stroke:color-mix(in srgb,var(--dept) 42%,var(--border))}
 .dept-bar{fill:var(--dept);opacity:.85;pointer-events:none}
 .dept-bar.on{opacity:1;fill:var(--dept)}
-[data-theme="cyber"] .room-bg rect.dept{fill:color-mix(in srgb,var(--dept) 22%,#0d1320)}
 .legend.marks{border-top:1px dashed var(--border);gap:10px}
 .legend.marks span{gap:5px}
 .legend.marks b{display:inline-grid;place-items:center;font-weight:900;flex:none}
@@ -521,7 +485,6 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 .tt-go u{color:var(--accent);text-decoration:none}
 .tt-go:hover{text-decoration:underline}
 .dept-legend i{width:9px;height:9px;border-radius:2.5px;flex:none}
-[data-theme="cyber"] .room-bg rect{fill:rgba(22,34,58,.55)}
 /* 地図の上には何も重ねない。ボタンで隠れた場所に何があるか分からなくなるため、
    拡大・縮小・寄せる・全体はすべて地図の下の1列にまとめる */
 /* 拡大ボタンは地図に重ねるが、寄せる／全体は地図の外に置く。
@@ -549,6 +512,22 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 /* 「ブースがありません」は地図(SVG)の中に描くと拡大で一緒に引き伸ばされ、
    既定の倍率でも文の両端が画面の外へ出てしまう。地図の上に重ねて出す */
 /* ========================= 地図で割り当て（係員） ========================= */
+/* 係員向けの画面（ログイン・QR・紙マップ・振り返り・本部モニタ）は
+   下のタブを隠すので、戻る手段が無いとURLを打ち直すしかなくなる。
+   タブがあった場所に、共通の戻り口を必ず置く。 */
+.staff-back{position:fixed;bottom:0;left:50%;transform:translateX(-50%);z-index:60;
+            width:100%;max-width:520px;box-sizing:border-box;
+            padding:8px 12px calc(8px + var(--safe-b));
+            background:color-mix(in srgb,var(--surface) 92%,transparent);
+            -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+            border-top:1px solid var(--border)}
+.staff-back button{width:100%;min-height:46px;border-radius:var(--r-sm);font-size:13px;
+                   font-weight:900;background:var(--surface-2);color:var(--text);
+                   border:1.5px solid var(--border-strong)}
+/* 本部モニタは全画面で使うので、隅に小さく置いて画面を邪魔しない */
+body.board-mode .staff-back{max-width:220px;left:auto;right:12px;transform:none;
+                            border-radius:12px 12px 0 0;border:1px solid var(--border)}
+
 /* 割り当て中は下のタブの代わりに置く。スクロールしても「やめる」に手が届く */
 .edit-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);z-index:50;
           width:100%;max-width:520px;box-sizing:border-box;
@@ -1062,8 +1041,6 @@ text.util:not([font-size]){font-size:7.5px}
                    transition:width var(--t) var(--ease)}
 .nav button[aria-pressed="true"]::after{width:34px}
 .nav button{position:relative}
-[data-theme="cyber"] .nav button[aria-pressed="true"]{filter:var(--glow)}
-
 /* ========================= トースト ========================= */
 .toast-act{margin-left:12px;padding:4px 10px;border-radius:8px;font-size:11px;font-weight:900;
            background:var(--bg);color:var(--text);border:1px solid var(--text-mute)}
@@ -1906,6 +1883,9 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
     </footer>
   </main>
 
+  <div class="staff-back hide no-print" id="staff-back">
+    <button id="staff-back-btn"></button>
+  </div>
   <div class="edit-bar hide" id="edit-bar">
     <b>地図で割り当て中</b>
     <span>部屋をおすと名前などを変えられます</span>
@@ -1976,7 +1956,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-09g',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-09h',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4045,7 +4025,9 @@ function renderSheet(){
 
 /* =====================================================================
    地図の拡大・移動 — 実際の校舎図は文字が小さくなりがちなので、
-   指2本のピンチ・ダブルタップ・ボタンの3通りで拡大できるようにする。
+   指2本のピンチと ＋− ボタンの2通りで拡大できるようにする。
+   （指1本は移動だけ。ダブルタップ拡大は、動かしている最中に意図せず
+     発動して倍率が変わるため廃止した）
    拡大していないときは縦スクロールを邪魔しない（touch-action:pan-y）。
    ===================================================================== */
 const ZOOM = { k:1, x:0, y:0, min:1, max:4, el:null, wrap:null,
@@ -5376,13 +5358,16 @@ function renderBoardMaps(){
   const box = $('#board-maps');
   if (!box) return;
   const floors = FLOORS.filter(f => S.booths.some(b => floorOfBooth(b) === f.n));
-  const fp = 'bm|' + floors.map(f => f.n).join(',') + '|' +
+  // 画面の向きで並べ方が変わるので、指紋にも入れて組み直す
+  const wide = window.innerWidth > window.innerHeight;
+  const fp = 'bm|' + floors.map(f => f.n).join(',') + '|' + wide + '|' +
              S.booths.map(b => b.id + lvOf(b).lv + b.wait).join(',');
   if (renderBoardMaps._fp === fp) return;
   renderBoardMaps._fp = fp;
 
-  // 階が3つ以上のときだけ2列。2つまでは縦に積んだ方が1枚が大きく見える
-  box.className = 'board-maps' + (floors.length >= 3 ? ' m2' : '');
+  // 図面は横長なので、横長のモニタに縦積みすると1枚が「帯」になり、
+  // 左右に大きな余白が残る。横長の画面では2枚から横に並べる。
+  box.className = 'board-maps' + ((floors.length >= 3 || (floors.length === 2 && wide)) ? ' m2' : '');
   box.innerHTML = floors.map(f => {
     const plan = FLOOR_PLAN[f.n];
     const here = S.booths.filter(b => floorOfBooth(b) === f.n);
@@ -5741,6 +5726,19 @@ function switchView(v, fromHistory){
   // 割り当て中は地図だけを見せる。一覧・スタンプ・インフォへ移る場面ではないし、
   // 誤って移ると「どこを直していたか」を見失う
   $('#nav').classList.toggle('hide', staff || S.edit);
+  // 戻り口。係員としてログイン済みなら係員コンソールへ、そうでなければマップへ。
+  // 割り当て中は専用のバーが出ているので重ねない
+  const back = $('#staff-back');
+  if (back){
+    const show = staff && v !== 'admin' && !S.edit;
+    back.classList.toggle('hide', !show);
+    document.body.classList.toggle('board-mode', v === 'board');
+    if (show){
+      const toAdmin = S.isAdmin && v !== 'auth';
+      $('#staff-back-btn').textContent = toAdmin ? '← 係員コンソールへもどる' : '← マップへもどる';
+      $('#staff-back-btn').dataset.to = toAdmin ? 'admin' : 'map';
+    }
+  }
   // 来場者向けの混雑アラートは係員画面では出さない（ノイズになる）
   // 一覧は「空いている順」に並んでいて先頭がその答えなので、同じ内容のバナーは出さない
   $('#banner-alert').classList.toggle('hide', v !== 'map' || !$('#banner-alert-text').textContent);
@@ -7011,6 +7009,7 @@ function init(){
   $('#btn-report-png').addEventListener('click', exportReportPng);
   $('#btn-hardreload').addEventListener('click', hardReload);
   $('#btn-login').addEventListener('click', login);
+  $('#staff-back-btn').addEventListener('click', () => switchView($('#staff-back-btn').dataset.to || 'map'));
   $('#btn-edit-map').addEventListener('click', () => { switchView('map'); setEditMode(true); });
   $('#edit-off').addEventListener('click', () => setEditMode(false));
   $('#ed-close').addEventListener('click', closeEditor);
