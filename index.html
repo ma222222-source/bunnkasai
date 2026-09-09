@@ -1284,9 +1284,9 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
           margin:2px auto 12px;cursor:grab}
 .bsh-head{display:flex;align-items:flex-start;gap:9px}
 .bsh-head h2{font-size:19px;font-weight:900;line-height:1.35;flex:1;letter-spacing:.01em}
-.bsh-no{flex:none;min-width:26px;height:26px;border-radius:8px;background:var(--accent);
-        color:var(--on-accent);font-size:13px;font-weight:900;
-        display:grid;place-items:center;margin-top:2px}
+.bsh-no{flex:none;width:28px;height:28px;border-radius:50%;background:var(--surface);
+        border:2px solid var(--accent);color:var(--text);font-size:13px;font-weight:900;
+        display:grid;place-items:center;margin-top:2px;font-variant-numeric:tabular-nums}
 .bsh-x{flex:none;width:44px;height:44px;border-radius:50%;border:1px solid var(--border);
        background:var(--surface-2);color:var(--text-mute);font-size:17px;line-height:1;
        cursor:pointer;transition:background var(--t-fast) var(--ease)}
@@ -1349,8 +1349,11 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 .sheet-table{width:100%;border-collapse:collapse;font-size:10px}
 .sheet-table td{border-bottom:1px solid #e5e5e5;padding:4px 5px;vertical-align:top}
 .sheet-table td:nth-child(3),.sheet-table td:nth-child(4){white-space:nowrap}
-.sheet-table td.no{width:20px;text-align:center;font-weight:900;color:#fff;background:#b91c1c;
-                   border-radius:50%;padding:2px;font-variant-numeric:tabular-nums}
+/* セルごと丸めると行の高さに引きずられて楕円になる。中身を丸にする */
+.sheet-table td.no{width:22px;text-align:center;padding:2px 0}
+.sheet-table td.no span{display:inline-grid;place-items:center;width:17px;height:17px;
+                        border-radius:50%;background:#b91c1c;color:#fff;
+                        font-size:9px;font-weight:900;font-variant-numeric:tabular-nums}
 .sheet-note{margin-top:8px;font-size:9px;color:#444;line-height:1.7;
             border-left:3px solid #b91c1c;padding-left:8px}
 .sheet-table td.tm{width:44px;font-weight:900;color:#b91c1c;white-space:nowrap}
@@ -2020,7 +2023,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-10a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-10b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -6857,7 +6860,7 @@ function renderPrintSheet(){
 
   const rows = S.booths.map(b => `
     <tr>
-      <td class="no">${S.numbers.get(b.id)}</td>
+      <td class="no"><span>${S.numbers.get(b.id)}</span></td>
       <td><b>${esc(b.name)}</b></td>
       <td>${esc(b.category)}</td>
       <td>${esc(flLabel(b))}</td>
