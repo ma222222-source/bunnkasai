@@ -560,7 +560,10 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 .room-bg.editable rect{stroke-dasharray:3 2.4;stroke:var(--accent);stroke-width:1.1;cursor:pointer}
 .room-bg.editable:hover rect{fill:color-mix(in srgb,var(--accent) 12%,var(--surface))}
 
-.edit-sheet{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-end;justify-content:center;
+/* パネルを開いている間、背面のページが一緒に動くと、閉じたときに
+   どこを見ていたのか分からなくなる */
+body.sheet-open{overflow:hidden}
+.edit-sheet{position:fixed;inset:0;z-index:80;overscroll-behavior:contain;display:flex;align-items:flex-end;justify-content:center;
             background:rgba(10,14,20,.45);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
 .edit-in{width:100%;max-width:520px;background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;
          padding:14px 14px calc(16px + var(--safe-b));box-shadow:var(--shadow-lg);
@@ -571,7 +574,9 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
                   background:var(--surface-3);color:var(--text-dim)}
 .edit-room{font-size:11px;font-weight:800;color:var(--text-mute);margin-bottom:10px}
 .edit-l{display:block;font-size:11px;font-weight:800;color:var(--text-dim);margin:12px 0 5px}
-.edit-i{width:100%;min-height:46px;padding:0 12px;border-radius:10px;font-size:14px;font-weight:700;
+/* 16px 未満だと iOS が入力のたびに画面を寄せる。ページ拡大を止めている以上、
+   ここで拡大されると戻す手段が無いので、入力欄は必ず16px以上にする */
+.edit-i{width:100%;min-height:46px;padding:0 12px;border-radius:10px;font-size:16px;font-weight:700;
         border:1.5px solid var(--border-strong);background:var(--surface-2);color:var(--text)}
 .edit-i:focus{outline:none;border-color:var(--accent)}
 .edit-cats{display:flex;flex-wrap:wrap;gap:6px}
@@ -719,7 +724,11 @@ text.util:not([font-size]){font-size:7.5px}
 .search{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);
         border-radius:var(--r);padding:0 12px;box-shadow:var(--shadow)}
 .search input{border:none;outline:none;background:none;color:var(--text);
-              padding:0;min-height:44px;width:100%;font-size:13px}
+              padding:0;min-height:44px;width:100%;font-size:16px}
+/* 端末の標準の消去ボタンは出ないことも小さすぎることもある。自前で指の大きさを確保する */
+.search input::-webkit-search-cancel-button{display:none}
+.q-clear{flex:none;width:36px;height:36px;margin-right:-6px;border-radius:50%;
+         font-size:17px;font-weight:900;color:var(--text-mute);background:var(--surface-3)}
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
 /* 分類と並び替えは行を分ける。1行にまとめると、横スクロールの外に
    「空いている順」が隠れてしまい、いちばん使う操作に手が届かなくなる。 */
@@ -774,6 +783,8 @@ text.util:not([font-size]){font-size:7.5px}
 .bm-sep{display:inline-block;width:3px;height:3px;border-radius:50%;margin:0 6px;
         background:currentColor;opacity:.45;vertical-align:2px}
 .bm-sep:first-child{display:none}
+/* 人数は1桁と2桁を行き来する。等幅にしないと、更新のたびに文字が横に跳ねる */
+.pill,.rs-st,.bt-age,.bsh-st{font-variant-numeric:tabular-nums}
 .pill{font-size:11.5px;font-weight:900;padding:6px 11px;border-radius:999px;white-space:nowrap;
       display:flex;align-items:center;gap:5px;flex:none;
       transition:background var(--t) var(--ease),color var(--t) var(--ease)}
@@ -832,7 +843,12 @@ text.util:not([font-size]){font-size:7.5px}
   background:var(--busy-soft);color:var(--busy-ink);font-size:12px;font-weight:800;line-height:1.6}
 .adm-code{margin-top:9px;padding:11px 13px;border-radius:var(--r-sm);
   background:var(--surface-3);border:1px solid var(--border)}
-.adm-code b{font-size:30px;font-weight:900;letter-spacing:.22em;font-variant-numeric:tabular-nums}
+/* 4桁コードだけを大きくする。以前は .adm-code b としていたため、
+   説明文の中の強調（「スタンプ画面」「係員が入力」）まで30pxになり、
+   手順の文章が読めないほど崩れていた */
+#adm-code{display:block;font-size:30px;font-weight:900;letter-spacing:.22em;
+          font-variant-numeric:tabular-nums;line-height:1.2;margin:2px 0 4px}
+.adm-code b{font-weight:900;color:var(--text)}
 .adm-code i{font-style:normal;font-size:12px;font-weight:800;color:var(--text-mute);
   font-variant-numeric:tabular-nums}
 /* 係員だけが押すボタン。来場者の目には「自分向けではない」と分かる見た目にする */
@@ -993,6 +1009,8 @@ text.util:not([font-size]){font-size:7.5px}
 .field:focus{border-color:var(--accent)}
 .btn{width:100%;padding:14px;border-radius:var(--r);background:var(--accent);color:var(--on-accent);
      font-weight:900;font-size:13px;box-shadow:var(--shadow)}
+/* 準備の作業。当日いちばん押すのは状況更新なので、そちらより一段引く */
+.btn-sub{background:var(--surface-2);color:var(--text);border:1.5px solid var(--border-strong)}
 .btn.ghost{background:var(--surface);color:var(--text-dim);border:1px solid var(--border);box-shadow:none}
 .btn:active{transform:scale(.985)}
 /* 押せないボタンを赤いままにすると「押せるのに反応しない」と誤解される */
@@ -1592,7 +1610,9 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
     <section class="view" id="v-list">
       <div class="search">
         <svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
-        <input id="q" type="search" placeholder="ブース名・部屋名・科で検索" aria-label="ブース検索" autocomplete="off">
+        <input id="q" type="search" placeholder="ブース名・部屋名・科で検索" aria-label="ブース検索"
+               autocomplete="off" enterkeyhint="search" autocapitalize="off" spellcheck="false">
+        <button id="q-clear" class="q-clear hide" type="button" aria-label="検索をやめる">×</button>
       </div>
       <div class="chips" id="cat-chips"></div>
       <div class="chips">
@@ -1709,7 +1729,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
       <div class="card">
         <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5a4.5 4.5 0 0 0 5.6 5.6L11 19.7a2.4 2.4 0 1 1-3.4-3.4z"/><circle cx="18" cy="6" r="1"/></svg> 係員コンソール</div>
         <div class="chips" id="assign-chips"></div>
-        <button class="btn" id="btn-edit-map" style="margin-top:10px">
+        <button class="btn btn-sub" id="btn-edit-map" style="margin-top:10px">
           地図でブースを割り当てる
         </button>
         <p class="card-note" style="margin-top:6px">
@@ -1928,7 +1948,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-09d',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-09e',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -2693,10 +2713,25 @@ function ago(ts){
   const t = ts ? new Date(ts).getTime() : NaN;
   if (!isFinite(t)) return '未取得';        // 不正な日付で「NaN時間前」を出さない
   const m = Math.floor((Date.now() - t) / 60000);
+  if (m < 0) return 'たった今';              // 端末の時計が進んでいても未来を出さない
   if (m < 1) return 'たった今';
   if (m < 60) return m + '分前';
-  return Math.floor(m / 60) + '時間前';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + '時間前';
+  // 「813時間前」は読み取れない。前日以前は日で言う（準備日に入れた値がそう出る）
+  const d = Math.floor(h / 24);
+  return d < 2 ? '昨日' : d + '日前';
 }
+/** 経過「分」を読める言い方にする。係員画面は分で持っているので別に用意する */
+function agoMin(m){
+  if (m < 1) return 'たった今';
+  if (m < 60) return m + '分前';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + '時間前';
+  const d = Math.floor(h / 24);
+  return d < 2 ? '昨日' : d + '日前';
+}
+
 function renderSyncState(){
   const dot = $('#sync-dot'), txt = $('#sync-text');
   const age = Date.now() - S.fetchedAt;
@@ -3623,11 +3658,13 @@ function openEditor(id, roomNm){
     : 'ここはまだ教室です。名前を入れて保存するとブースになります。';
   renderEditCats();
   $('#edit-sheet').classList.remove('hide');
+  document.body.classList.add('sheet-open');
   setTimeout(() => $('#ed-name').focus(), 60);
 }
 
 function closeEditor(){
   $('#edit-sheet').classList.add('hide');
+  document.body.classList.remove('sheet-open');
   S.editId = null;
 }
 
@@ -3982,7 +4019,7 @@ function zoomApply(animate){
   // 初回だけ「動かせる」ことを伝える
   if (z.k > 1.01 && !load('kuroko_zoom_hint', false)){
     store('kuroko_zoom_hint', true);
-    toast('指でなぞると地図を動かせます（2本指でも拡大縮小できます）');
+    toast('指1本で動かせます。2本指で拡大・縮小できます');
   }
   const zi = $('#zoom-in'), zo = $('#zoom-out'), zr = $('#zoom-reset'), zb = $('#zoom-booth');
   const atMin = z.k <= (z.base0 || 1) + .01;
@@ -5329,7 +5366,7 @@ function renderBoard(){
         <span class="bt-loc">${esc(flLabel(b))}${(() => { const r = roomLabel(b);
           return r ? '・' + r : ''; })()}</span></span>
         <span class="bt-big">${big}</span>
-        <span class="bt-age">${m >= NEVER ? '未更新' : m < 1 ? 'たった今' : m + '分前'}</span>
+        <span class="bt-age">${m >= NEVER ? '未更新' : agoMin(m)}</span>
       </div>`;
     }).join('');
   }
@@ -5826,7 +5863,7 @@ function renderAdmin(){
     const L = lvOf(b);
     const m = elapsedMin(b);
     const cls = m >= CONFIG.ADMIN_DANGER_MIN ? 'danger' : m >= CONFIG.ADMIN_WARN_MIN ? 'warn' : 'ok';
-    const el = m >= NEVER ? '未更新' : m < 1 ? 'たった今' : m + '分前';
+    const el = m >= NEVER ? '未更新' : agoMin(m);
 
     card.dataset.fresh = cls;
     card.querySelector('.adm-nm').textContent = b.name;
@@ -6806,7 +6843,15 @@ function init(){
       if (fl.size > 1) toast('このコースは階をまたぎます。行き先は地図の下に並んでいます');
     }
   }));
-  $('#q').addEventListener('input', e => { S.q = e.target.value.trim(); renderList(); });
+  $('#q').addEventListener('input', e => {
+    S.q = e.target.value.trim(); renderList();
+    $('#q-clear').classList.toggle('hide', !e.target.value);
+  });
+  // 端末によっては type=search の消去ボタンが出ない・小さすぎる。自前で置く
+  $('#q-clear').addEventListener('click', () => {
+    const q = $('#q'); q.value = ''; S.q = ''; renderList();
+    $('#q-clear').classList.add('hide'); q.focus();
+  });
   $('#sort-free').addEventListener('click', () => setSort('free'));
   $('#sort-name').addEventListener('click', () => setSort('name'));
   $('#stamp-share').addEventListener('click', shareStamps);
