@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja" data-theme="light">
+<html lang="ja" data-theme="paper">
 <head>
 <meta charset="UTF-8">
 <!-- 地図の外でページ全体が拡大すると、地図の操作と喧嘩して何が動いているのか
@@ -130,6 +130,12 @@ button{font:inherit;color:inherit;cursor:pointer;border:none;background:none}
 input{font:inherit}
 /* キーボード操作時だけ枠を出す（タップでは出さない） */
 :focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+/* 動きが苦手な人・乗り物酔いしやすい人の設定に、画面全体で従う。
+   個別のアニメーションだけ止めても、切替や色の遷移が残っていると意味がない */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;
+                       transition-duration:.001ms !important;scroll-behavior:auto !important}
+}
 .room:focus-visible .fill{stroke:var(--accent);stroke-width:3}
 h1,h2,h3{margin:0;line-height:1.3}
 p{margin:0}
@@ -267,8 +273,10 @@ p{margin:0}
 .dot.down{background:#f87171;animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:.25}}
 
-main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direction:column;gap:12px}
-.view{display:none;flex-direction:column;gap:12px}
+/* すべて等間隔だと、どこで話題が変わったのか分からない。
+   かたまり同士は広く、かたまりの中は詰める。 */
+main{flex:1;padding:14px 12px calc(88px + var(--safe-b));display:flex;flex-direction:column;gap:16px}
+.view{display:none;flex-direction:column;gap:16px}
 .view.on{display:flex;animation:view-in var(--t) var(--ease)}
 /* scale を混ぜると図面SVG(400要素超)を毎フレーム描き直すことになるので、
    合成だけで済む opacity と translate に留める（安い端末での切替の重さ対策） */
@@ -302,7 +310,13 @@ main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direc
 
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
       box-shadow:var(--shadow);padding:12px;
-      transition:box-shadow var(--t) var(--ease),border-color var(--t) var(--ease)}
+      transition:box-shadow var(--t) var(--ease),border-color var(--t) var(--ease),
+                 background var(--t) var(--ease)}
+/* 混雑度が変わったときの色は、画面のどこでも同じ速さ・同じ曲線で動かす。
+   要素ごとにばらばらだと、変化が「気のせい」に見える */
+.pill,.booth-bar,.rs-st,.bsh-st,.legend i,.map-tools button,.chip,.seg button{
+  transition:background var(--t) var(--ease),color var(--t) var(--ease),
+             border-color var(--t) var(--ease)}
 .card-t{font-size:11.5px;font-weight:800;color:var(--text-dim);letter-spacing:.06em;
         display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap}
 .card-note{font-size:9.5px;font-weight:700;color:var(--text-mute);letter-spacing:0}
@@ -315,6 +329,13 @@ main{flex:1;padding:12px 12px calc(84px + var(--safe-b));display:flex;flex-direc
   overflow:hidden}
 .banner .retry{-webkit-line-clamp:none}
 .banner.alert{background:var(--busy-soft);color:var(--busy-ink);border:1px solid var(--busy)}
+/* 混雑のお知らせは「いま知りたいこと」そのもの。他と同じ声の大きさで並べると
+   目の行き先が決まらないので、ここだけ一段強くして画面の焦点にする。 */
+.banner.alert{font-size:13.5px;line-height:1.5;padding:13px 14px;
+              border-width:0 0 0 5px;border-left-style:solid;
+              border-radius:var(--r-sm) var(--r) var(--r) var(--r-sm);
+              box-shadow:var(--shadow)}
+.banner.alert b,.banner.alert strong{font-weight:900}
 .banner.info{background:var(--surface-3);color:var(--text-dim);border:1px solid var(--border)}
 .retry{margin-left:auto;flex:none;font-size:11px;font-weight:900;padding:0 14px;min-height:44px;
        border-radius:8px;display:inline-flex;align-items:center;
@@ -512,6 +533,8 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
   transition:transform var(--t-fast) var(--ease)}
 .map-tools button.sq{flex:none;width:46px;font-size:18px;font-weight:900}
 .map-tools button:disabled{opacity:.45}
+/* 押せないボタンも場所は空けておく（消すと列が詰まって指の下から逃げる） */
+.map-tools button.dim{opacity:.32;pointer-events:none}
 .map-tools button:active{transform:scale(.97)}
 .zoom-lv{position:absolute;left:8px;top:8px;z-index:3;font-size:10px;font-weight:900;
    padding:4px 8px;border-radius:8px;background:color-mix(in srgb,var(--surface) 88%,transparent);
@@ -634,8 +657,11 @@ text.util:not([font-size]){font-size:7.5px}
           font-size:10px;font-weight:800;color:var(--warn)}
 .unplaced button{background:var(--surface);border:1px solid var(--warn);color:var(--warn);
                  border-radius:7px;padding:5px 10px;font-size:10.5px;font-weight:800}
+/* 凡例と注記は「調べたいときに読む」もの。常時強く出ていると本文と競合するので、
+   彩度と大きさを一段落として背面へ送る */
 .legend{display:flex;flex-wrap:wrap;gap:8px;padding:9px 10px;border-top:1px solid var(--border);
-        background:var(--surface);font-size:10px;font-weight:700;color:var(--text-dim)}
+        background:var(--surface);font-size:10px;font-weight:700;color:var(--text-mute);
+        opacity:.9}
 .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;
           vertical-align:-2px}
 .lg-free{background:var(--free)}
@@ -700,6 +726,11 @@ text.util:not([font-size]){font-size:7.5px}
 .booth-note{font-size:11px;color:var(--text-dim);margin-top:5px;font-weight:600;
    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .booth-room{font-size:10.5px;color:var(--text-mute);font-weight:700;margin-top:2px}
+/* 補助情報は1行に畳んで、中黒ではなく小さな点で区切る */
+.bm-room{color:var(--text-dim)}
+.bm-sep{display:inline-block;width:3px;height:3px;border-radius:50%;margin:0 6px;
+        background:currentColor;opacity:.45;vertical-align:2px}
+.bm-sep:first-child{display:none}
 .pill{font-size:11.5px;font-weight:900;padding:6px 11px;border-radius:999px;white-space:nowrap;
       display:flex;align-items:center;gap:5px;flex:none;
       transition:background var(--t) var(--ease),color var(--t) var(--ease)}
@@ -1353,7 +1384,8 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
   .head .sub{display:none}
   .head h1{font-size:13px}
   .head-row{gap:8px}
-  .icon-btn{width:32px;height:32px;font-size:13px;border-radius:9px}
+  /* 狭い画面でも指で押す大きさは削らない。ここを縮めると押し損ねが増える */
+  .icon-btn{width:40px;height:40px;font-size:14px;border-radius:10px}
   .sync{margin-top:3px;padding:2px 8px;font-size:9.5px}
   main{padding:8px 8px calc(62px + var(--safe-b));gap:8px}
   .card{padding:9px}
@@ -1818,7 +1850,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-09b',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-09c',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3755,12 +3787,11 @@ function zoomApply(animate){
   if (zi) zi.disabled = z.k >= z.max - .01;
   if (zo) zo.disabled = atMin;
   if (zr) zr.disabled = atMin;
-  // 「全体を見る」は拡大していないときは押せない＝ずっと灰色のまま置いてあった。
-  // 意味のあるほうだけを出す。ボタンが1つ減って、残りが押しやすくなる。
-  if (zr) zr.classList.toggle('hide', atMin);
-  if (zb) zb.classList.toggle('hide', !atMin);
-  // 「−」も等倍では押せない。灰色のまま置くより、出さないほうが迷わない
-  if (zo) zo.classList.toggle('hide', atMin);
+  // 以前は押せないボタンを消していたが、消えるとその場で列が詰まり、
+  // 押そうとしたボタンが指の下から逃げる。場所は常に保ち、押せるかどうかだけ変える。
+  if (zr) zr.classList.toggle('dim', atMin);
+  if (zb) zb.classList.toggle('dim', !atMin);
+  if (zo) zo.classList.toggle('dim', atMin);
   const lb = $('#zoom-lv');
   if (lb){
     lb.textContent = '×' + (Math.round(z.k * 10) / 10);
@@ -3912,7 +3943,8 @@ function initZoom(){
   ['gesturestart','gesturechange','gestureend'].forEach(t =>
     z.el.addEventListener(t, stop, { passive:false }));
   // 拡大中の長押しで選択メニューが出ると操作が止まる
-  z.el.addEventListener('contextmenu', e => { if (z.k > 1.01) e.preventDefault(); });
+  // 長押しで選択・共有メニューが出ると操作が中断される。地図の上では常に抑える
+  z.el.addEventListener('contextmenu', e => e.preventDefault());
 
   // PCではホイール（Ctrl不要）で拡大
   z.el.addEventListener('wheel', e => {
@@ -4318,13 +4350,14 @@ function renderList(){
         <div class="booth-main">
           <h3 class="booth-nm"><span class="no">${S.numbers.get(b.id) || '-'}</span>${esc(b.name)}
             <span class="tag">${esc(b.category)}</span><span class="tag">${esc(flLabel(b))}</span></h3>
-          ${(() => { const r = roomLabel(b); return r ? `<p class="booth-room">${ICON.pin} ${esc(r)}</p>` : ''; })()}
           <p class="booth-meta">${(() => {
-            // 待ち人数は右のバッジに出ている。ここで繰り返すと同じことが2回書いてあって
-            // かえって読みにくい。時間の目安だけ、意味が出る長さ（5分以上）のときに足す。
+            // 部屋と更新時刻を別々の行に置くと、1枚が高くなって1画面に5件しか入らなかった。
+            // どちらも補助情報なので同じ行に畳む。
+            const r = roomLabel(b);
             const m = waitMin(b);
-            return (m != null && m >= 5) ? `待ち時間 約${m}分・` : '';
-          })()}更新 ${esc(ago(b.time))}</p>
+            return (r ? `<span class="bm-room">${ICON.pin} ${esc(r)}</span>` : '')
+                 + ((m != null && m >= 5) ? `<span class="bm-sep"></span>約${m}分待ち` : '');
+          })()}<span class="bm-sep"></span>${esc(ago(b.time))}</p>
           ${b.note ? `<p class="booth-note">${eventLabel(b)
               ? `<span class="ev-badge" data-kind="${eventState(b).kind}">${esc(eventLabel(b))}</span>` : ICON.note} ${esc(b.note)}</p>` : ''}
         </div>
@@ -6493,15 +6526,15 @@ function initFontSize(){
 /* 選べる見た目。押すたびに順に切り替わる。
    選んだものは端末に残るので、来場者は自分の好みで回れる。 */
 const THEMES = [
-  { id:'light', name:'ふつう' },
   { id:'paper', name:'落ち着き' },
   { id:'heavy', name:'重厚' }
 ];
 
 function initTheme(){
+  // 以前の light / cyber を選んでいた人も、消えた見た目に取り残されないよう既定へ寄せる
   const saved = load('kuroko_theme', null);
   const ok = THEMES.some(x => x.id === saved);
-  let t = ok ? saved : 'light';
+  let t = ok ? saved : THEMES[0].id;
   document.documentElement.setAttribute('data-theme', t);
   const label = () => (THEMES.find(x => x.id === t) || THEMES[0]).name;
   const btn = $('#btn-theme');
@@ -6841,7 +6874,8 @@ function fitMapBox(floorNum){
   const land = window.innerHeight < 560 && window.innerWidth > window.innerHeight;
   const top = view.getBoundingClientRect().top;
   const avail = window.innerHeight - top - 74;      // 74 = 下のタブ＋余白
-  const cap = Math.round(window.innerHeight * (land ? 0.72 : 0.62));
+  // 横向きは縦が狭いぶん、地図に回せる割合を上げないと地図が帯になる
+  const cap = Math.round(window.innerHeight * (land ? 0.82 : 0.62));
   // 横向きは縦が足りない。下限を下げないと、下のタブに地図が潜り込む
   const floorH = land ? 110 : 150;
   const maxH = Math.max(floorH, Math.min(560, cap, Math.round(avail)));
