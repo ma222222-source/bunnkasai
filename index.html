@@ -599,6 +599,8 @@ body.sheet-open{overflow:hidden}
 .edit-acts .edit-save{flex:1.4}
 .edit-del{background:var(--surface-2);border:1.5px solid var(--border-strong);color:var(--busy-ink)}
 .edit-save{background:var(--accent);color:var(--on-accent);border:none}
+.edit-len{font-size:10.5px;font-weight:700;color:var(--text-mute);margin-top:5px;line-height:1.5}
+.edit-len.warn{color:var(--warn)}
 .edit-hint{font-size:10.5px;font-weight:700;color:var(--text-mute);margin-top:9px;line-height:1.5}
 /* サーバーの版が古いことは、割り当てを始める前に分かっていないと意味がない */
 .srv-state{margin-top:8px;padding:9px 11px;border-radius:var(--r-sm);font-size:11px;
@@ -1086,7 +1088,9 @@ body.wide-mode .app{max-width:1100px}
   body.staff-wide .app{max-width:1000px}
   body.staff-wide .adm-btns{grid-template-columns:repeat(3,minmax(0,1fr))}
   /* 割り当て中は地図を主役にする。PCでは指より正確に押せるので大きいほど良い */
-  body.staff-wide.editing #map-card{max-width:900px;margin:0 auto}
+  /* 列方向の flex では margin:auto を付けると stretch が外れて内容幅まで縮む。
+     幅を明示したうえで align-self で中央に置く。 */
+  body.staff-wide.editing #map-card{width:100%;max-width:920px;align-self:center}
 }
 body.board-mode .head{display:none}
 /* ボードは1画面ぴったり。main に余白や他の要素の高さが残ると、
@@ -1954,6 +1958,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 
     <label class="edit-l" for="ed-name">ブース名（空にすると教室に戻ります）</label>
     <input id="ed-name" class="edit-i" type="text" maxlength="40" placeholder="例：電子科 ロボット実演">
+    <p class="edit-len" id="ed-len"></p>
 
     <span class="edit-l">分類</span>
     <div class="edit-cats" id="ed-cats"></div>
@@ -1977,7 +1982,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-09l',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-09m',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3630,6 +3635,9 @@ function drawFloor(floorNum){
 
   $$('.room', svg).forEach(g => {
     const id = g.dataset.id;
+    // 狭い部屋には名前が入りきらない。PCではカーソルを乗せれば全文が読める
+    const bb = S.booths.find(x => x.id === id);
+    if (bb) g.setAttribute('title', `${bb.name}（${id}）`);
     const go = () => S.picking ? pickHere(id) : (S.edit ? openEditor(id) : openSheet(id));
     g.addEventListener('click', go);
     g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
@@ -3723,6 +3731,7 @@ function openEditor(id, roomNm){
     ? '状態と待ち人数は、係員コンソールの「ブースの更新」で変えられます。'
     : 'ここはまだ教室です。名前を入れて保存するとブースになります。';
   renderEditCats();
+  renderNameFit();
   // パネルは画面の下半分を覆う。対象の部屋が隠れていると、
   // どこを直しているのか分からないまま名前を打つことになる
   const g = document.querySelector(`#plan-${S.floor} [data-room="${CSS.escape(id)}"],`
@@ -3737,6 +3746,29 @@ function closeEditor(){
   $('#edit-sheet').classList.add('hide');
   document.body.classList.remove('sheet-open');
   S.editId = null;
+}
+
+/**
+ * その部屋に名前が何文字くらい入るかを、打っている最中に知らせる。
+ * 狭い部屋に長い名前を付けると地図では「射的・ゴル…」のように切れる。
+ * 刷ったあと・貼ったあとで気づくより、打っている今のほうがいい。
+ */
+function renderNameFit(){
+  const el = $('#ed-len'); if (!el) return;
+  const id = S.editId;
+  const nm = ($('#ed-name').value || '').trim();
+  const r = id ? slotOf(id) : null;
+  if (!r || !nm){ el.textContent = ''; el.classList.remove('warn'); return; }
+  const per = 6.2;                                   // 1文字ぶんの目安（viewBox単位）
+  const cols = Math.max(1, Math.floor((r.w - 4) / per));
+  const rows = Math.max(1, Math.floor((r.h - 6) / (per * 1.2)));
+  const fit = cols * rows;
+  const over = nm.length > fit;
+  el.classList.toggle('warn', over);
+  el.textContent = over
+    ? `この部屋には ${fit} 文字くらいまでしか入りません（いま ${nm.length} 文字）。`
+      + '地図では途中で切れます。番号と一覧では全部出ます。'
+    : `${nm.length} 文字。この部屋なら地図にも収まります。`;
 }
 
 function renderEditCats(){
@@ -7167,6 +7199,7 @@ function init(){
   $('#ed-close').addEventListener('click', closeEditor);
   $('#ed-save').addEventListener('click', saveEditor);
   // PCでは名前を打ってそのまま確定したい。指のときも決定キーで進める
+  $('#ed-name').addEventListener('input', renderNameFit);
   $$('#ed-name, #ed-note').forEach(el => el.addEventListener('keydown', e => {
     if (e.key === 'Enter'){ e.preventDefault(); saveEditor(); }
   }));
