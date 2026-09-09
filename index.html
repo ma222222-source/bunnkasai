@@ -564,6 +564,8 @@ body.editing #dept-legend,
 body.editing #map-card .legend{display:none !important}
 /* まだブースでない部屋。押せることが分かるよう、点線で縁取る */
 .room-bg.editable rect{stroke-dasharray:3 2.4;stroke:var(--accent);stroke-width:1.1;cursor:pointer}
+/* 点線＝これから、実線の太枠＝割り当て済み。進み具合が地図の上で分かる */
+body.editing .room .fill{stroke:var(--text);stroke-width:1.6}
 /* 現在地をえらぶ最中。押せる場所であることを示す */
 .room-bg.pickable rect{stroke-dasharray:3 2.4;stroke:var(--accent);stroke-width:1.1;cursor:pointer}
 body.picking .map-view{outline:3px solid var(--accent);outline-offset:-3px}
@@ -1979,6 +1981,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 
     <label class="edit-l" for="ed-note">ひとこと（任意）</label>
     <input id="ed-note" class="edit-i" type="text" maxlength="120" placeholder="例：焼きそば・から揚げ">
+    <p class="edit-len">一覧では1行だけ出ます。20文字くらいまでが読みやすい長さです。</p>
 
     <div class="edit-acts">
       <button class="btn edit-del" id="ed-del">ブースをやめる</button>
@@ -1996,7 +1999,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-09n',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-09o',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3742,7 +3745,8 @@ function openEditor(id, roomNm){
   $('#ed-note').value = (b && b.note) || '';
   $('#ed-del').classList.toggle('hide', !b);
   $('#ed-hint').textContent = b
-    ? '状態と待ち人数は、係員コンソールの「ブースの更新」で変えられます。'
+    ? `いまの状況：${lvOf(b).short}${b.wait > 0 ? '・' + b.wait + '人待ち' : ''}`
+      + '（状態と待ち人数は係員コンソールの「ブースの更新」で変えます）'
     : 'ここはまだ教室です。名前を入れて保存するとブースになります。';
   renderEditCats();
   renderNameFit();
@@ -3753,13 +3757,27 @@ function openEditor(id, roomNm){
   if (g && g.scrollIntoView) g.scrollIntoView({ block:'center', behavior: smoothBehavior() });
   $('#edit-sheet').classList.remove('hide');
   document.body.classList.add('sheet-open');
+  document.addEventListener('keydown', trapEditTab);
   setTimeout(() => $('#ed-name').focus(), 60);
 }
 
-function closeEditor(){
+/** 開いたときの内容。閉じるときに変わっていれば「捨てていいか」を聞く */
+function editorDirty(){
+  const b = S.booths.find(x => x.id === S.editId);
+  const nm = ($('#ed-name').value || '').trim();
+  const nt = ($('#ed-note').value || '').trim();
+  return nm !== ((b && b.name) || '') || nt !== ((b && b.note) || '');
+}
+
+function closeEditor(force){
+  // 名前を打ったまま閉じると黙って消える。作業をやり直させない
+  if (!force && S.editId && editorDirty()
+      && !confirm('入力した内容は保存されていません。閉じますか？')) return false;
   $('#edit-sheet').classList.add('hide');
   document.body.classList.remove('sheet-open');
+  document.removeEventListener('keydown', trapEditTab);
   S.editId = null;
+  return true;
 }
 
 /**
@@ -3767,6 +3785,16 @@ function closeEditor(){
  * 狭い部屋に長い名前を付けると地図では「射的・ゴル…」のように切れる。
  * 刷ったあと・貼ったあとで気づくより、打っている今のほうがいい。
  */
+/** パネルを開いている間、Tab がパネルの外へ出ないようにする */
+function trapEditTab(e){
+  if (e.key !== 'Tab' || $('#edit-sheet').classList.contains('hide')) return;
+  const f = $$('#edit-sheet button, #edit-sheet input').filter(el => !el.disabled && el.offsetParent);
+  if (!f.length) return;
+  const first = f[0], last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+}
+
 function renderNameFit(){
   const el = $('#ed-len'); if (!el) return;
   const id = S.editId;
@@ -3819,7 +3847,7 @@ async function saveEditor(){
                        note: $('#ed-note').value.trim(),
                        floor: floorFromId(id), pass: pw() } });
     toast(`「${name}」を割り当てました`);
-    closeEditor();
+    closeEditor(true);
     renderEditProgress();
     await sync(true);
     // 地図を描き直せば、その部屋に番号と色が付いて結果が見える。
@@ -3839,7 +3867,7 @@ async function removeEditor(){
   try{
     await api({ body:{ action:'remove', id, pass: pw() } });
     toast('教室に戻しました');
-    closeEditor();
+    closeEditor(true);
     renderEditProgress();
     await sync(true);
   }catch(e){
@@ -4142,7 +4170,9 @@ function renderSheet(){
     <div class="bsh-tags">
       <span class="tag">${esc(b.category)}</span>
       <span class="tag">${esc(flLabel(b))}</span>
-      ${(() => { const r = roomLabel(b); return r ? `<span class="tag">${ICON.pin} ${esc(r)}</span>` : ''; })()}
+      ${(() => { const r = roomLabel(b);
+        // 図面に無いブースでもIDは出す。QR・紙のマップと突き合わせられる
+        return `<span class="tag">${ICON.pin} ${esc(r || b.id)}</span>`; })()}
     </div>
     <div class="bsh-st" data-lv="${L.lv}">
       <span class="ico" aria-hidden="true">${esc(L.icon)}</span>
@@ -4802,7 +4832,7 @@ function renderList(){
     items = items.filter(b => {
       const sl = slotOf(b.id);
       const dept = sl && sl.z ? (DEPT_BY_ZONE[sl.z] ? DEPT_BY_ZONE[sl.z].s : sl.z) : '';
-      const hay = b.name + b.category + b.note + (sl ? sl.nm : '') + dept + (sl ? sl.z : '');
+      const hay = b.id + b.name + b.category + b.note + (sl ? sl.nm : '') + dept + (sl ? sl.z : '');
       return normalizeQ(withYomi(hay)).includes(q);
     });
   }
@@ -7207,10 +7237,12 @@ function init(){
   $('#staff-back-btn').addEventListener('click', () => switchView($('#staff-back-btn').dataset.to || 'map'));
   $('#btn-edit-map').addEventListener('click', () => { switchView('map'); setEditMode(true); });
   $('#edit-off').addEventListener('click', () => {
+    // パネルを開いたまま抜けると、打ちかけの内容が黙って消える
+    if (!$('#edit-sheet').classList.contains('hide')){ if (!closeEditor()) return; }
     setEditMode(false);
     if (S.isAdmin) switchView('admin');   // 割り当てが終わったら作業の場所へ戻す
   });
-  $('#ed-close').addEventListener('click', closeEditor);
+  $('#ed-close').addEventListener('click', () => closeEditor());
   $('#ed-save').addEventListener('click', saveEditor);
   // PCでは名前を打ってそのまま確定したい。指のときも決定キーで進める
   $('#ed-name').addEventListener('input', renderNameFit);
@@ -7407,6 +7439,11 @@ function renderFloorCounts(){
 }
 
 function setFloor(n){
+  // 別の階へ移るのにパネルが開いたままだと、いま直している部屋が
+  // どの階のものか分からなくなる
+  if (S.editId && !$('#edit-sheet').classList.contains('hide')){
+    if (!closeEditor()) return;
+  }
   S.floor = n;
   store('kuroko_floor', n);
   FLOORS.forEach(f => {
