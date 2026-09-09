@@ -595,6 +595,11 @@ body.sheet-open{overflow:hidden}
 .edit-del{background:var(--surface-2);border:1.5px solid var(--border-strong);color:var(--busy-ink)}
 .edit-save{background:var(--accent);color:var(--on-accent);border:none}
 .edit-hint{font-size:10.5px;font-weight:700;color:var(--text-mute);margin-top:9px;line-height:1.5}
+/* サーバーの版が古いことは、割り当てを始める前に分かっていないと意味がない */
+.srv-state{margin-top:8px;padding:9px 11px;border-radius:var(--r-sm);font-size:11px;
+           font-weight:700;line-height:1.55;background:var(--busy-soft);color:var(--busy-ink);
+           border:1px solid var(--busy)}
+.srv-state.ok{background:var(--free-soft);color:var(--free);border-color:var(--free)}
 
 .map-empty{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
            /* left:50% だけだと、そこから右端までの幅で折り返して細長くなる */
@@ -1729,6 +1734,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
         <button class="btn btn-sub" id="btn-edit-map" style="margin-top:10px">
           地図でブースを割り当てる
         </button>
+        <p class="srv-state hide" id="srv-state"></p>
         <p class="card-note" style="margin-top:6px">
           地図の部屋をおして、名前・分類を決めます。教室とブースを先に分けておく必要はありません。
         </p>
@@ -1956,7 +1962,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-09h',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-09i',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3648,7 +3654,26 @@ function drawFloor(floorNum){
 const EDIT_CATS = ['展示', '食べ物', '体験', '受付', 'イベント'];
 
 /** 割り当てモードの入切。地図を描き直して、押せる部屋を作る／消す */
+/** 係員コンソールを開いたときに、サーバーの版を1回だけ確かめて出す */
+async function checkServer(){
+  const el = $('#srv-state');
+  if (!el || checkServer._done) return;
+  checkServer._done = true;
+  const r = await probeServer();
+  if (r === 'new'){
+    el.className = 'srv-state ok';
+    el.textContent = 'サーバーは新しい版です。地図からの割り当てを保存できます。';
+  } else if (r === 'old'){
+    el.className = 'srv-state';
+    el.textContent = 'サーバーが古い版のままです。このままだと割り当てを保存できません。' + DEPLOY_STEPS;
+  } else {
+    el.classList.add('hide'); return;   // 通信不能。ここで騒いでも仕方がない
+  }
+  el.classList.remove('hide');
+}
+
 function setEditMode(on){
+  if (on && S.picking) setPickMode(false);   // 現在地えらびと同時には動かさない
   S.edit = !!on;
   $('#edit-bar').classList.toggle('hide', !S.edit);
   // 下のタブを畳み、空いた場所に「やめる」を出す。
@@ -3701,7 +3726,20 @@ function renderEditCats(){
 async function saveEditor(){
   const id = S.editId; if (!id) return;
   const name = $('#ed-name').value.trim();
-  if (!name){ return removeEditor(); }
+  const already = S.booths.some(b => b.id === id);
+  if (!name){
+    // まだブースでない部屋で空のまま押されたら、消す相手がいない。
+    // 黙って何も起きないと「壊れている」と受け取られる
+    if (!already){ $('#ed-hint').textContent = 'ブース名を入れてください。'; $('#ed-name').focus(); return; }
+    return removeEditor();
+  }
+  // 別の部屋に同じ名前があると、一覧でどちらか分からなくなる
+  const dup = S.booths.find(b => b.id !== id && b.name.trim() === name);
+  if (dup && !confirm(`「${name}」は ${dup.id} にもあります。同じ名前で続けますか？`)) return;
+  if (!navigator.onLine){
+    $('#ed-hint').textContent = '通信できません。電波の届く場所でおしてください。';
+    return;
+  }
   const btn = $('#ed-save'); btn.disabled = true; btn.textContent = '保存中…';
   try{
     await api({ body:{ action:'upsert', id, name, category:S.editCat,
@@ -3710,6 +3748,7 @@ async function saveEditor(){
     toast(`「${name}」を割り当てました`);
     closeEditor();
     await sync(true);
+    showPlace && showPlace(id);      // 直したところを地図で光らせる
   }catch(e){
     $('#ed-hint').textContent = editError(e);
   }finally{ btn.disabled = false; btn.textContent = '保存する'; }
@@ -3717,6 +3756,8 @@ async function saveEditor(){
 
 async function removeEditor(){
   const id = S.editId; if (!id) return;
+  // 割り当てが消えるうえ、元には戻せない
+  if (!confirm(`${placeName(id)} をブースから外して教室に戻します。よろしいですか？`)) return;
   const btn = $('#ed-del'); btn.disabled = true;
   try{
     await api({ body:{ action:'remove', id, pass: pw() } });
@@ -3729,16 +3770,42 @@ async function removeEditor(){
 }
 
 /**
+ * サーバーが新しい操作を知っているか調べる。
+ * わざと通らないパスワードで1回だけ叩き、返事の種類で判定する。
+ *   unknown action … 公開版が古い（＝デプロイが要る）
+ *   unauthorized   … 操作は知っている（＝新しい版）
+ * 書き込みは起きない（パスワードの照合が先に落ちる）。
+ * @returns {Promise<'new'|'old'|'unknown'>}
+ */
+async function probeServer(){
+  try{
+    await api({ body:{ action:'upsert', id:'__probe__', name:'', pass:'--probe--' } });
+    return 'new';                     // 通ることは無いが、通ったなら新しい
+  }catch(e){
+    const m = String((e && e.message) || e);
+    if (/unknown action/i.test(m)) return 'old';
+    if (/unauthorized|locked|パスワード/i.test(m)) return 'new';
+    return 'unknown';                 // 通信不能など。判定しない
+  }
+}
+
+/** サーバーが古いときに出す手順。人が悩む前に、次にやることを名指しする */
+const DEPLOY_STEPS =
+  'Apps Script で Code.gs を新しい版に貼り替えたあと、'
+  + '「デプロイ」→「デプロイを管理」→ 鉛筆 →「バージョン」を「新バージョン」→「デプロイ」まで進めてください。'
+  + 'コードを保存しただけでは公開されている版は変わりません。';
+
+/**
  * 保存できないときの案内。
- * 一番ありがちなのは「Code.gs を貼り替えていない／再デプロイしていない」で、
- * この場合サーバーは新しい操作を知らないため必ず失敗する。原因を名指しする。
+ * 原因ごとに次の一手が違うので、まとめて「失敗しました」で終わらせない。
  */
 function editError(e){
   const m = String((e && e.message) || e);
-  if (/unknown|bad request|not supported|HTTP 4|API error/i.test(m)){
-    return '保存できませんでした。Code.gs を新しい版に貼り替えて、'
-         + '「デプロイを管理 → 編集 → 新バージョン」まで済ませてください。（' + m + '）';
-  }
+  if (/unknown action/i.test(m))  return 'サーバーがこの操作をまだ知りません。' + DEPLOY_STEPS;
+  if (/locked/i.test(m))          return 'パスワードを何度も間違えたため、少しの間ロックされています。時間をおいてください。';
+  if (/unauthorized/i.test(m))    return 'パスワードが違います。いったんログアウトして入り直してください。';
+  if (/timeout|abort|failed to fetch|networkerror/i.test(m))
+                                  return '通信できませんでした。電波の届く場所でもう一度おしてください。';
   return '保存できませんでした：' + m;
 }
 
@@ -3781,6 +3848,7 @@ function pickHere(id){
 }
 
 function setPickMode(on){
+  if (on && S.edit) setEditMode(false);      // 割り当てと同時には動かさない
   S.picking = !!on;
   document.body.classList.toggle('picking', S.picking);
   drawFloor._fp = null; drawFloor(S.floor);
@@ -5717,7 +5785,13 @@ function switchView(v, fromHistory){
       if (!fromHistory && st && st.sheet) history.replaceState({ v: st.v || S.view }, '', location.hash);
     }catch(e){}
   }
-  if (v !== 'map') zoomResetIfNeeded();
+  // 地図から離れるのに割り当て・現在地えらびが生きていると、
+  // 戻ってきたとき何のモードだったか分からなくなる
+  if (v !== 'map'){
+    if (S.picking) setPickMode(false);
+    if (S.edit && v !== 'admin') setEditMode(false);
+    zoomResetIfNeeded();
+  }
   S.view = v;
   ['map','list','stamp','info','auth','admin','qr','print','report','board'].forEach(k =>
     $('#v-' + k).classList.toggle('on', k === v));
@@ -7036,7 +7110,7 @@ function init(){
   const params = new URLSearchParams(location.search);
   const mode = params.get('mode');
   if (mode === 'admin'){
-    if (pw()){ S.isAdmin = true; renderAssign(); renderAdmin(); renderChecklist(); switchView('admin'); }
+    if (pw()){ S.isAdmin = true; renderAssign(); renderAdmin(); renderChecklist(); switchView('admin'); checkServer(); }
     else switchView('auth');
   } else if (mode === 'qr'){
     // 全ブースのQRが1枚に並ぶページ。誰でも開けると、画面のQRを片端から
@@ -7197,6 +7271,7 @@ function setFloor(n){
     $('#fl-' + f.n).setAttribute('aria-pressed', String(n === f.n));
     $('#plan-' + f.n).classList.toggle('hide', n !== f.n);
   });
+  drawFloor._fp = null;          // 割り当て中は押せる部屋を作り直す必要がある
   drawFloor(n);
   ZOOM.touched = false;          // 階が変われば、その階のブースに寄せ直す
   zoomReset(false);
