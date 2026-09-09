@@ -369,6 +369,10 @@ main{flex:1;padding:14px 12px calc(88px + var(--safe-b));display:flex;flex-direc
 .seg button{font-size:11px;font-weight:800;padding:0 12px;min-height:44px;border-radius:8px;
   color:var(--text-dim);white-space:nowrap;display:inline-flex;align-items:center;justify-content:center}
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+/* 階ごとのブース数。手つかずの階を探し回らずに済む */
+.fl-n{display:inline-grid;place-items:center;min-width:17px;height:17px;margin-left:5px;padding:0 4px;
+      border-radius:9px;background:var(--accent);color:var(--on-accent);
+      font-size:9.5px;font-weight:900;font-variant-numeric:tabular-nums}
 .map-wrap{background:transparent;border:none;border-radius:var(--r);
           overflow:visible;position:relative;padding:0}
 .svg-defs{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
@@ -1075,6 +1079,14 @@ body.board-mode .app{max-width:none;box-shadow:none}
 /* 校舎配置エディタと振り返りはPCで開く画面。スマホ幅（520px）のままだと
    図もグラフも小さすぎて、枠をつまむ操作も数字の読み取りもできない。 */
 body.wide-mode .app{max-width:1100px}
+/* 係員の作業はPCですることが多い（ブースの割り当て・一括更新）。
+   スマホ幅のままだと大きな画面の4割しか使えず、行き来が増える。 */
+@media (min-width:900px){
+  body.staff-wide .app{max-width:1000px}
+  body.staff-wide .adm-btns{grid-template-columns:repeat(3,minmax(0,1fr))}
+  /* 割り当て中は地図を主役にする。PCでは指より正確に押せるので大きいほど良い */
+  body.staff-wide.editing #map-card{max-width:900px;margin:0 auto}
+}
 body.board-mode .head{display:none}
 /* ボードは1画面ぴったり。main に余白や他の要素の高さが残ると、
    画面の下（1階の地図）が見切れてスクロールが必要になる。 */
@@ -1894,7 +1906,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
   </div>
   <div class="edit-bar hide" id="edit-bar">
     <b>地図で割り当て中</b>
-    <span>部屋をおすと名前などを変えられます</span>
+    <span id="edit-progress">部屋をおすと名前などを変えられます</span>
     <button id="edit-off">やめる</button>
   </div>
   <nav class="nav" id="nav">
@@ -1962,7 +1974,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-09j',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-09k',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -2541,6 +2553,7 @@ const S = {
   picking: false,       // 現在地を地図でえらんでいる最中
   editId: null,         // いま開いている部屋
   editCat: '展示',
+  lastCat: null,        // 続けて割り当てるときに引き継ぐ分類
   isAdmin: false,
   afterLogin: '',          // ?mode=qr で来てログインした後に戻る画面
   draftWait: {},        // 送信前の待ち人数（自動同期で消さないため）
@@ -3630,6 +3643,8 @@ function drawFloor(floorNum){
       g.setAttribute('tabindex', '0');
       const go = () => S.picking ? pickHere(rid) : openEditor(rid, g.dataset.nm || '');
       g.style.cursor = 'pointer';
+      // PCではカーソルを乗せただけで部屋名が分かると、押す前に見当がつく
+      if (g.dataset.nm) g.setAttribute('title', `${rid}　${g.dataset.nm}`);
       g.addEventListener('click', go);
       g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } });
     });
@@ -3679,6 +3694,8 @@ function setEditMode(on){
   // 下のタブを畳み、空いた場所に「やめる」を出す。
   // 地図と設定だけの画面にして、割り当てに集中できるようにする
   document.body.classList.toggle('editing', S.edit);
+  document.body.classList.toggle('staff-wide', S.edit || S.isAdmin);
+  renderEditProgress();
   $('#nav').classList.toggle('hide', S.edit);
   drawFloor._fp = null; drawFloor(S.floor);
   fitMapBox._key = null; fitMapBox(S.floor);   // タブが消えたぶん地図を測り直す
@@ -3693,7 +3710,8 @@ function setEditMode(on){
 function openEditor(id, roomNm){
   const b = S.booths.find(x => x.id === id);
   S.editId = id;
-  S.editCat = (b && b.category) || EDIT_CATS[0];
+  // 続けて割り当てると同じ分類が続くことが多い。前回選んだものを初期値にする
+  S.editCat = (b && b.category) || S.lastCat || EDIT_CATS[0];
   $('#ed-room').textContent = roomNm ? `${id}（${roomNm}）` : id;
   $('#ed-name').value = (b && b.name) || '';
   $('#ed-note').value = (b && b.note) || '';
@@ -3702,6 +3720,11 @@ function openEditor(id, roomNm){
     ? '状態と待ち人数は、係員コンソールの「ブースの更新」で変えられます。'
     : 'ここはまだ教室です。名前を入れて保存するとブースになります。';
   renderEditCats();
+  // パネルは画面の下半分を覆う。対象の部屋が隠れていると、
+  // どこを直しているのか分からないまま名前を打つことになる
+  const g = document.querySelector(`#plan-${S.floor} [data-room="${CSS.escape(id)}"],`
+                                 + ` #plan-${S.floor} .room[data-id="${CSS.escape(id)}"]`);
+  if (g && g.scrollIntoView) g.scrollIntoView({ block:'center', behavior: smoothBehavior() });
   $('#edit-sheet').classList.remove('hide');
   document.body.classList.add('sheet-open');
   setTimeout(() => $('#ed-name').focus(), 60);
@@ -3742,11 +3765,13 @@ async function saveEditor(){
   }
   const btn = $('#ed-save'); btn.disabled = true; btn.textContent = '保存中…';
   try{
+    S.lastCat = S.editCat;
     await api({ body:{ action:'upsert', id, name, category:S.editCat,
                        note: $('#ed-note').value.trim(),
                        floor: floorFromId(id), pass: pw() } });
     toast(`「${name}」を割り当てました`);
     closeEditor();
+    renderEditProgress();
     await sync(true);
     // 地図を描き直せば、その部屋に番号と色が付いて結果が見える。
     // 以前は showPlace() を呼んでいたが、あれは来場者向けの詳細シートを開くため、
@@ -3766,6 +3791,7 @@ async function removeEditor(){
     await api({ body:{ action:'remove', id, pass: pw() } });
     toast('教室に戻しました');
     closeEditor();
+    renderEditProgress();
     await sync(true);
   }catch(e){
     $('#ed-hint').textContent = editError(e);
@@ -3844,6 +3870,19 @@ function hereId(){
  * GPSは使わない。校舎内では誤差が部屋の大きさを超えるので、
  * 自信ありげに間違った場所を指すぶん、何も出さないより有害になる。
  */
+/** 割り当ての進み具合。階ごとに「何部屋のうち何件をブースにしたか」を出す */
+function renderEditProgress(){
+  const el = $('#edit-progress');
+  if (!el) return;
+  if (!S.edit){ el.textContent = ''; return; }
+  const parts = FLOORS.map(f => {
+    const n = S.booths.filter(b => floorOfBooth(b) === f.n).length;
+    return n ? `${f.n === 0 ? '屋外' : f.n + '階'} ${n}` : null;
+  }).filter(Boolean);
+  el.textContent = parts.length ? `割り当て済み：${parts.join('・')}（計${S.booths.length}件）`
+                                : 'まだ1件も割り当てていません';
+}
+
 function pickHere(id){
   setPickMode(false);
   setHere(id);
@@ -5810,6 +5849,8 @@ function switchView(v, fromHistory){
   // 割り当て中は地図だけを見せる。一覧・スタンプ・インフォへ移る場面ではないし、
   // 誤って移ると「どこを直していたか」を見失う
   $('#nav').classList.toggle('hide', staff || S.edit);
+  // 係員の作業画面（コンソール・割り当て中）はPCで広く使う
+  document.body.classList.toggle('staff-wide', staff || S.edit);
   // 戻り口。係員としてログイン済みなら係員コンソールへ、そうでなければマップへ。
   // 割り当て中は専用のバーが出ているので重ねない
   const back = $('#staff-back');
@@ -5829,6 +5870,7 @@ function switchView(v, fromHistory){
   if (v === 'qr' || v === 'board') $('#banner-notice').classList.add('hide'); else renderNotice();
   renderHours();
   renderHere();                  // 現在地の問いかけはマップのときだけ出す
+  renderFloorCounts();
   refreshScrollEdges();          // 画面ごとに「横に続きがある」印を付け直す
   window.scrollTo({ top:0, behavior: smoothBehavior() });
 
@@ -7095,9 +7137,16 @@ function init(){
   $('#btn-login').addEventListener('click', login);
   $('#staff-back-btn').addEventListener('click', () => switchView($('#staff-back-btn').dataset.to || 'map'));
   $('#btn-edit-map').addEventListener('click', () => { switchView('map'); setEditMode(true); });
-  $('#edit-off').addEventListener('click', () => setEditMode(false));
+  $('#edit-off').addEventListener('click', () => {
+    setEditMode(false);
+    if (S.isAdmin) switchView('admin');   // 割り当てが終わったら作業の場所へ戻す
+  });
   $('#ed-close').addEventListener('click', closeEditor);
   $('#ed-save').addEventListener('click', saveEditor);
+  // PCでは名前を打ってそのまま確定したい。指のときも決定キーで進める
+  $$('#ed-name, #ed-note').forEach(el => el.addEventListener('keydown', e => {
+    if (e.key === 'Enter'){ e.preventDefault(); saveEditor(); }
+  }));
   $('#ed-del').addEventListener('click', removeEditor);
   $('#edit-sheet').addEventListener('click', e => { if (e.target.id === 'edit-sheet') closeEditor(); });
   document.addEventListener('keydown', e => {
@@ -7272,6 +7321,19 @@ function initLiff(){
   };
   s.onerror = () => {};
   document.head.appendChild(s);
+}
+
+/** 階の切替に、その階のブース数を添える。手つかずの階が一目で分かる */
+function renderFloorCounts(){
+  FLOORS.forEach(f => {
+    const el = $('#fl-' + f.n);
+    if (!el) return;
+    const n = S.booths.filter(b => floorOfBooth(b) === f.n).length;
+    let tag = el.querySelector('.fl-n');
+    if (!tag){ tag = document.createElement('span'); tag.className = 'fl-n'; el.appendChild(tag); }
+    tag.textContent = n ? String(n) : '';
+    tag.classList.toggle('hide', !n);
+  });
 }
 
 function setFloor(n){
