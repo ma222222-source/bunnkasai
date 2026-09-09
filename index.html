@@ -550,6 +550,11 @@ body.editing main{padding-bottom:calc(76px + var(--safe-b))}
    来場者向けの案内（凡例・科の色・おすすめの回りかた・地図に無いブース）は
    ここでは判断材料にならず、押す場所を探しにくくするだけ */
 body.editing #v-map > *:not(#map-card){display:none !important}
+/* 混雑のお知らせも現在地の帯も、割り当てをする人には判断材料にならない。
+   スマホでは合わせて150px近くを占めるので、そのぶん地図に回す */
+body.editing #banner-alert,
+body.editing #banner-notice,
+body.editing #here-bar{display:none !important}
 body.editing #map-card .reco,
 body.editing #map-card .chips,
 body.editing #map-card .card-t,
@@ -577,6 +582,13 @@ body.sheet-open{overflow:hidden}
 .edit-in{width:100%;max-width:520px;background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;
          padding:14px 14px calc(16px + var(--safe-b));box-shadow:var(--shadow-lg);
          max-height:86dvh;overflow:auto}
+/* 背の低い端末ではパネルが画面の半分以上を占め、直している部屋が見えなくなる */
+@media (max-height:740px){
+  .edit-in{padding:11px 12px calc(12px + var(--safe-b))}
+  .edit-l{margin:9px 0 4px}
+  .edit-acts{margin-top:11px}
+  .edit-cats button{min-height:38px;padding:0 11px}
+}
 .edit-head{display:flex;align-items:center;gap:10px;margin-bottom:4px}
 .edit-head h2{font-size:15px;font-weight:900;flex:1}
 .edit-head button{width:40px;height:40px;border-radius:10px;font-size:18px;font-weight:900;
@@ -1063,6 +1075,8 @@ text.util:not([font-size]){font-size:7.5px}
        opacity:0;pointer-events:none;
        transition:opacity var(--t) var(--ease),transform var(--t) var(--ease-out-back)}
 .toast.on{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(-4px) scale(1)}
+/* パネルを開いている間は、その上に出さないと読めない */
+body.sheet-open .toast{z-index:90}
 
 .skel{background:linear-gradient(90deg,var(--surface-3) 25%,var(--surface-2) 37%,var(--surface-3) 63%);
       background-size:400% 100%;animation:sk 1.3s linear infinite;border-radius:var(--r);height:78px}
@@ -1982,7 +1996,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-09m',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-09n',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
