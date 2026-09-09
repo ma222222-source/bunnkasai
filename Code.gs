@@ -784,6 +784,26 @@ function doPost(e) {
       return json_({ ok: true, status: 'success', appliedStatus: status, updated: n });
     }
 
+    // ---------------------------------------------------------------
+    // ブースそのものの追加・書き換え・削除。
+    // 画面の地図から部屋をおして割り当てるために足した口。既存の update とは
+    // 別なので、この版を貼っていなくても従来の動作は一切変わらない
+    // （新しい口だけが「不明な操作」で失敗する）。
+    // ---------------------------------------------------------------
+    if (action === 'upsert') {
+      checkPass_(body.pass, body.cid);
+      var uid = String(body.id || '').trim();
+      if (!uid) throw new Error('bad request');
+      return json_(upsertBooth_(uid, body));
+    }
+
+    if (action === 'remove') {
+      checkPass_(body.pass, body.cid);
+      var rid = String(body.id || '').trim();
+      if (!rid) throw new Error('bad request');
+      return json_({ ok: true, removed: removeBooth_(rid) });
+    }
+
     // 本部からその場でお知らせを出す。スプレッドシートを開かずに流せるようにする。
     // 落とし物・ステージ開始・雨天対応など、当日は「すぐ出す」ことに価値がある
     if (action === 'notice') {
@@ -843,6 +863,74 @@ function doPost(e) {
  * wait: undefined = 触らない / null = 消す / 数値 = その値にする
  * @return {number} 更新した行数
  */
+/**
+ * ブースを1件、追加または書き換える。地図の部屋をおして割り当てるための入口。
+ * 渡されたキーだけを書き、渡していない列には触らない（人数や状態を巻き戻さない）。
+ * @param {string} id 部屋ID（例 1F-02）
+ * @param {Object} b  name / category / floor / note のうち変えたいものだけ
+ */
+function upsertBooth_(id, b) {
+  return withLock_(function () {
+    var sh = sheet_(SHEET_MAIN);
+    var idx = headerIndex_(sh);
+    requireCols_(idx, ['id', 'name', 'status', 'time']);
+    var last = sh.getLastRow();
+    var width = sh.getLastColumn();
+    var rows = last >= 2 ? sh.getRange(2, 1, last - 1, width).getValues() : [];
+
+    var at = -1;
+    for (var i = 0; i < rows.length; i++) {
+      if (String(rows[i][idx['id']] == null ? '' : rows[i][idx['id']]).trim() === id) { at = i; break; }
+    }
+
+    var row;
+    if (at >= 0) { row = rows[at]; }
+    else { row = []; for (var k = 0; k < width; k++) row.push(''); }
+
+    row[idx['id']] = id;
+    if ('name'     in b && idx['name']     != null) row[idx['name']]     = cut_(String(b.name || ''), 40);
+    if ('category' in b && idx['category'] != null) row[idx['category']] = cut_(String(b.category || ''), 20);
+    if ('note'     in b && idx['note']     != null) row[idx['note']]     = cut_(String(b.note || ''), 120);
+    if ('floor'    in b && idx['floor']    != null) row[idx['floor']]    = floorOf_(b.floor);
+
+    // 新しく作った行は「まだ状況が入っていない」状態にしておく。
+    // 適当な状態を入れると、係員が触っていないのに空き表示になってしまう
+    if (at < 0) {
+      if (idx['status'] != null) row[idx['status']] = '';
+      if (idx['time']   != null) row[idx['time']]   = '';
+      if (idx['wait']   != null) row[idx['wait']]   = '';
+    }
+
+    if (at >= 0) sh.getRange(2 + at, 1, 1, width).setValues([row]);
+    else         sh.getRange(last + 1, 1, 1, width).setValues([row]);
+
+    SpreadsheetApp.flush();
+    clearCache_();
+    return { ok: true, id: id, created: at < 0 };
+  });
+}
+
+/** ブースを1件消す。行ごと消すので、あとから見て残骸が残らない */
+function removeBooth_(id) {
+  return withLock_(function () {
+    var sh = sheet_(SHEET_MAIN);
+    var idx = headerIndex_(sh);
+    requireCols_(idx, ['id']);
+    var last = sh.getLastRow();
+    if (last < 2) return 0;
+    var ids = sh.getRange(2, idx['id'] + 1, last - 1, 1).getValues();
+    for (var i = ids.length - 1; i >= 0; i--) {
+      if (String(ids[i][0] == null ? '' : ids[i][0]).trim() === id) {
+        sh.deleteRow(2 + i);
+        SpreadsheetApp.flush();
+        clearCache_();
+        return 1;
+      }
+    }
+    return 0;
+  });
+}
+
 function writeBooth_(ids, status, wait) {
   return withLock_(function () {
     var sh = sheet_(SHEET_MAIN);
