@@ -92,7 +92,6 @@
   --t-fast:.16s; --t:.28s; --t-slow:.5s;
   --ease:cubic-bezier(.22,.61,.36,1);        /* 減速中心。UIの標準 */
   --ease-out-back:cubic-bezier(.34,1.4,.64,1); /* 少しだけ跳ねる。獲得・完了に使う */
-  --glow:none;
   --safe-b:env(safe-area-inset-bottom, 0px);
 }
 *,*::before,*::after{box-sizing:border-box}
@@ -449,10 +448,6 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 .mk-no{width:16px;height:16px;border-radius:50%;background:var(--surface);
         border:1.6px solid var(--accent);color:var(--text);font-size:9px;
         font-variant-numeric:tabular-nums}
-.mk-chk{width:15px;height:15px;border-radius:50%;background:var(--surface);
-        border:2px solid var(--free);color:var(--free);font-size:8px}
-.mk-ev{font-size:8.5px;padding:2px 6px;border-radius:999px;background:var(--warn);color:var(--on-status)}
-.mk-here{font-size:8.5px;padding:2px 6px;border-radius:999px;background:var(--accent);color:var(--on-accent)}
 .dept-legend{display:flex;gap:6px;padding:8px 10px;overflow-x:auto;
   border-top:1px solid var(--border);background:var(--surface-2);
   scrollbar-width:none;-webkit-overflow-scrolling:touch}
@@ -517,8 +512,6 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 .plan text{font-family:inherit}
 .struct{fill:var(--corridor)}
 .outdoor{fill:var(--outdoor)}
-.wall{fill:none;stroke:var(--border-strong);stroke-width:1.5}
-.zone-label{font-size:8.5px;font-weight:800;fill:var(--text-mute);letter-spacing:.08em}
 /* 「ブースがありません」は地図(SVG)の中に描くと拡大で一緒に引き伸ばされ、
    既定の倍率でも文の両端が画面の外へ出てしまう。地図の上に重ねて出す */
 /* ========================= 地図で割り当て（係員） ========================= */
@@ -823,7 +816,6 @@ text.util:not([font-size]){font-size:7.5px}
 .booth-meta{font-size:10.5px;color:var(--text-mute);font-weight:600;margin-top:2px}
 .booth-note{font-size:11px;color:var(--text-dim);margin-top:5px;font-weight:600;
    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.booth-room{font-size:10.5px;color:var(--text-mute);font-weight:700;margin-top:2px}
 /* 補助情報は1行に畳んで、中黒ではなく小さな点で区切る */
 .bm-room{color:var(--text-dim)}
 .bm-sep{display:inline-block;width:3px;height:3px;border-radius:50%;margin:0 6px;
@@ -842,7 +834,6 @@ text.util:not([font-size]){font-size:7.5px}
             border-top:1px dashed var(--border);background:var(--surface-2)}
 /* 状態バッジとスタンプは右側に縦に積む。別の帯に分けるとカードが倍の高さになる */
 .booth-side{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none;max-width:47%}
-.booth-side .mini-btn{margin-left:0}
 .spark{display:flex;align-items:flex-end;gap:2px;height:18px;flex:none}
 .spark i{width:4px;border-radius:1.5px;display:block;background:var(--unknown)}
 .spark i[data-lv="0"]{background:var(--free);height:5px}
@@ -852,11 +843,6 @@ text.util:not([font-size]){font-size:7.5px}
        overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .trend-lb{font-size:9px;font-weight:800;color:var(--text-mute);margin-right:2px;
           white-space:nowrap;flex:none}
-.mini-btn{margin-left:auto;font-size:11px;font-weight:800;padding:0 13px;min-height:44px;
-          border-radius:10px;display:inline-flex;align-items:center;
-          border:1px solid var(--border);background:var(--surface);color:var(--text-dim);
-          white-space:nowrap;flex:none}
-.mini-btn[aria-pressed="true"]{background:var(--free);border-color:var(--free);color:var(--on-status)}
 /* スタンプは「押せるボタン」ではなく「付いた印」。QRでしか付かないので押せる見た目にしない */
 .mini-tag{margin-left:auto;font-size:11px;font-weight:900;padding:5px 11px;border-radius:999px;
   background:var(--free-soft);color:var(--free);white-space:nowrap;align-self:center}
@@ -898,10 +884,6 @@ text.util:not([font-size]){font-size:7.5px}
 .adm-code i{font-style:normal;font-size:12px;font-weight:800;color:var(--text-mute);
   font-variant-numeric:tabular-nums}
 /* 係員だけが押すボタン。来場者の目には「自分向けではない」と分かる見た目にする */
-.staff-only{display:block;width:100%;margin-top:10px;min-height:44px;border-radius:var(--r-sm);
-  font-size:12px;font-weight:800;color:var(--text-mute);
-  background:var(--surface-2);border:1px dashed var(--border-strong)}
-.staff-only:disabled{opacity:.55;cursor:default}
 
 /* ========================= スタンプ ========================= */
 .stamp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
@@ -1452,7 +1434,6 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 [data-fs="xl"] .booth-nm{font-size:18px}
 [data-fs="xl"] .booth-meta{font-size:14.5px}
 [data-fs="xl"] .booth-note{font-size:15px}
-[data-fs="xl"] .booth-room{font-size:13.5px}
 [data-fs="xl"] .pill{font-size:15px;padding:8px 13px}
 [data-fs="xl"] .reco .nm{font-size:17px}
 [data-fs="xl"] .reco .why{font-size:13px}
@@ -1461,7 +1442,6 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 [data-fs="xl"] .help{font-size:15.5px}
 [data-fs="xl"] .help b{font-size:15.5px}
 [data-fs="xl"] .help span{font-size:14.5px}
-[data-fs="xl"] .mini-btn{font-size:13px;min-height:44px}
 [data-fs="xl"] .nav button{font-size:11.5px}
 [data-fs="xl"] .rs-nm{font-size:14px}
 [data-fs="xl"] .bsh-head h2{font-size:22px}
@@ -1496,7 +1476,6 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 [data-fs="lg"] .nav button{font-size:11px}
 [data-fs="lg"] .sum span{font-size:11px}
 [data-fs="lg"] .next-ev .tx{font-size:13.5px}
-[data-fs="lg"] .mini-btn{font-size:12.5px;min-height:42px}
 [data-fs="lg"] .search input{font-size:15px}
 [data-fs="lg"] .stamp .lb{font-size:11px}
 
@@ -2036,7 +2015,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-10c',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-10d',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
