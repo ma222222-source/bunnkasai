@@ -321,6 +321,9 @@ main{flex:1;padding:14px 12px calc(88px + var(--safe-b));display:flex;flex-direc
 .banner span:last-of-type{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
   overflow:hidden}
 .banner .retry{-webkit-line-clamp:none}
+/* ただし「注意（赤）」は雨天・落とし物・避難のような、最後まで読ませたい知らせ。
+   3行で黙って切ると、肝心のところが読めないまま終わる。全文を出す */
+#banner-notice[data-level="alert"] span:last-of-type{display:block;overflow:visible}
 .banner.alert{background:var(--busy-soft);color:var(--busy-ink);border:1px solid var(--busy)}
 .banner.alert b,.banner.alert strong{font-weight:900}
 /* 混雑のお知らせは「いま知りたいこと」そのもの。他と同じ声の大きさで並べると
@@ -2170,7 +2173,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-10v',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-10w',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4992,10 +4995,15 @@ function recommend(){
     // 全ブースが準備中（開場前・閉場後）のときに「取得中」と出すのは嘘になる。
     // 状況ごとに、いま何が起きているのかを書く。
     const st = openState().state;
+    // 当日以外に開いた人にも理由を出す。URLは前もって配るので、
+    // 前の週に開く人がいる。「おすすめできるブースがありません」だけだと
+    // 壊れているように見える
+    const hm = hoursMessage();
     const msg = !S.booths.length
       ? (S.online ? 'ブースの情報がまだ登録されていません。' : '混雑状況を取れませんでした。下の地図はそのまま見られます。')
       : st === 'before' ? '開場したら、ここに「いま空いているブース」が出ます。'
       : st === 'after'  ? '本日の一般公開は終了しました。'
+      : st === 'otherday' ? esc((hm && hm.long) || '当日はこの画面で混み具合が見られます。')
       : 'いまはおすすめできるブースがありません。<br>下の地図でようすを見てください。';
     box.innerHTML = `<p class="empty" style="padding:12px">${msg}</p>`;
     return;
@@ -6171,8 +6179,10 @@ function hoursMessage(){
              long: `本日の一般公開は ${H.close} で終了しました。ご来場ありがとうございました。` };
   }
   if (st.state === 'otherday' && H.date){
-    const d = H.date.replace(/^\d{4}-/, '').replace('-', '月');
-    return { short: `文化祭は ${d}日です`, long: `文化祭は ${d}日です。当日はこの画面で混み具合が見られます。` };
+    // 「11月03日」の 0 が残っていた。日付は人が読む形にする
+    const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(H.date);
+    const d = m ? `${Number(m[2])}月${Number(m[3])}日` : H.date;
+    return { short: `文化祭は ${d}です`, long: `文化祭は ${d}です。当日はこの画面で混み具合が見られます。` };
   }
   return null;
 }
