@@ -1259,6 +1259,14 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 .chk-row.on span{color:var(--text-mute);text-decoration:line-through}
 
 /* ========================= 来場者カウンタ ========================= */
+/* 担当ブースの選択だけは、横スクロールではなく折り返して全部見せる。
+   40ブースを横一列に並べると、自分の持ち場を探して端まで指でなぞることになる
+   （選ぶのは1回きりでも、その1回で詰まると係員が更新をあきらめる） */
+#assign-chips{flex-wrap:wrap;overflow-x:visible;row-gap:6px;-webkit-mask-image:none;mask-image:none}
+#assign-chips.picked{align-items:center;gap:8px}
+.as-now{font-size:12px;font-weight:800;color:var(--text-dim);min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.as-now b{color:var(--text);font-weight:900}
 .as-chip{display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;line-height:1.25}
 /* opacity で薄くすると白背景でコントラストが 3.1 まで落ちる。
    9px の小さい文字なので、薄くせず色で差をつける */
@@ -1851,7 +1859,8 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
         <div class="card">
           <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5a4.5 4.5 0 0 0 5.6 5.6L11 19.7a2.4 2.4 0 1 1-3.4-3.4z"/><circle cx="18" cy="6" r="1"/></svg> 係員コンソール</div>
           <div class="chips" id="assign-chips"></div>
-          <p style="font-size:10.5px;color:var(--text-mute);font-weight:700;margin-top:8px">
+          <!-- 選び終わった人にはもう要らない案内。選んでいるあいだだけ出す -->
+          <p id="assign-note" style="font-size:10.5px;color:var(--text-mute);font-weight:700;margin-top:8px">
             担当ブースを選ぶと、その分だけが表示されます（誤操作防止）。
           </p>
           <p class="adm-hint" id="adm-rule" style="margin-top:6px"></p>
@@ -2106,7 +2115,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-10k',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-10l',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4961,6 +4970,12 @@ function renderList(){
   renderList._fp = fp;
 
   const box = $('#booth-list');
+  // 一覧は「◯分前」を進めるために1分ごとに作り直す。カードは押せる（＝焦点が当たる）
+  // ようになったので、作り直すとキーボードで選んでいた場所が毎分どこかへ飛んでいた。
+  // どのブースを選んでいたかを覚えておいて、同じブースへ戻す。
+  const focusedId = (document.activeElement && document.activeElement.closest
+                     && document.activeElement.closest('#booth-list [data-sid]'))
+                    ? document.activeElement.closest('#booth-list [data-sid]').dataset.sid : null;
   let items = S.booths.slice();
   if (S.cat !== 'all') items = items.filter(b => b.category === S.cat);
   if (S.q){
@@ -5040,6 +5055,10 @@ function renderList(){
       if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openSheet(el.dataset.sid); }
     });
   });
+  if (focusedId){
+    const again = box.querySelector(`[data-sid="${CSS.escape(focusedId)}"]`);
+    if (again) again.focus({ preventScroll:true });
+  }
 
   refreshScrollEdges();
 }
@@ -5107,10 +5126,22 @@ function spendStamps(){
   return need;
 }
 
-/** 係員コードの照合。端末の時計が1分ずれていても通す */
+/** 係員コードの照合。端末の時計が2分ずれていても通す */
 function staffCodeOk(v){
   v = String(v || '').replace(/[^0-9]/g, '');
   return v.length === 4 && [0, -1, 1, -2, 2].some(o => redeemCode(o) === v);
+}
+/**
+ * 入れた4桁が「この端末の時計が何分ずれていれば合うか」を返す。合わなければ null。
+ * この番号は両方の端末の時計から作るので、来場者の端末の時計が数分ずれていると
+ * 正しく写しても必ず弾かれる。「番号が違います」とだけ出していたため、
+ * 引換所で係員も来場者も原因が分からないまま列が止まっていた。
+ */
+function codeSkewMin(v){
+  v = String(v || '').replace(/[^0-9]/g, '');
+  if (v.length !== 4) return null;
+  for (let o = -20; o <= 20; o++) if (redeemCode(o) === v) return o;
+  return null;
 }
 
 /** QRから読み取ったときだけ呼ぶ。画面の操作からは呼ばない */
@@ -6168,7 +6199,11 @@ async function login(){
   if (!v) return;
   $('#btn-login').disabled = true;
   try{
-    const r = await api({ body:{ action:'verify', pass:v } });
+    // 電波が細いと数秒かかる。黙っていると押せていないと思われて二度押しされる
+    const lb = $('#btn-login').textContent;
+    $('#btn-login').textContent = '確認中…';
+    const r = await api({ body:{ action:'verify', pass:v } })
+      .finally(() => { $('#btn-login').textContent = lb; });
     if (r && r.ok){
       // LINE内ブラウザやプライベートモードでは例外が出る。
       // 保存できなくてもログイン自体は成立させる（画面を閉じたら再入力になるだけ）
@@ -6192,17 +6227,41 @@ async function login(){
   }finally{ $('#btn-login').disabled = false; }
 }
 
+/**
+ * 担当ブースの選び直し。
+ * 選ぶのは端末ごとに1回きりなのに、全ブースのボタンを毎回出していた。
+ * 40ブースあると折り返しで600pxを超え、当日いちばん使う更新カードが
+ * そのぶん毎回下へ押し下げられる。選び終わっていれば1行に畳む。
+ */
 function renderAssign(){
-  $('#assign-chips').innerHTML =
-    `<button class="chip" data-as="__all" aria-pressed="${S.assigned.size === 0}">すべて表示</button>` +
-    S.booths.map(b => {
-      // 場所も出す。名前が似ていると、担当でないブースを選んでしまう
-      const r = roomLabel(b);
-      return `<button class="chip as-chip" data-as="${esc(b.id)}" aria-pressed="${S.assigned.has(b.id)}"
-        >${esc(b.name)}<small>${esc(flLabel(b))}${r ? '・' + esc(r) : ''}</small></button>`;
-    }).join('');
+  const box = $('#assign-chips');
+  const picked = S.booths.filter(b => S.assigned.has(b.id));
+  const open = S.assignOpen || !picked.length;
+  box.classList.toggle('picked', !open);
+  const note = $('#assign-note');
+  if (note) note.classList.toggle('hide', !open);
+  if (!open){
+    box.innerHTML =
+      `<span class="as-now">担当：<b>${picked.map(b => esc(b.name)).join('・')}</b></span>` +
+      `<button class="chip" data-as="__open">変える</button>`;
+  } else {
+    box.innerHTML =
+      `<button class="chip" data-as="__all" aria-pressed="${S.assigned.size === 0}">すべて表示</button>` +
+      S.booths.map(b => {
+        // 場所も出す。名前が似ていると、担当でないブースを選んでしまう
+        const r = roomLabel(b);
+        return `<button class="chip as-chip" data-as="${esc(b.id)}" aria-pressed="${S.assigned.has(b.id)}"
+          >${esc(b.name)}<small>${esc(flLabel(b))}${r ? '・' + esc(r) : ''}</small></button>`;
+      }).join('') +
+      (picked.length ? `<button class="chip" data-as="__done">えらび終わった</button>` : '');
+  }
   $$('#assign-chips .chip').forEach(el => el.addEventListener('click', () => {
     const v = el.dataset.as;
+    if (v === '__open'){ S.assignOpen = true; renderAssign(); return; }
+    if (v === '__done'){ S.assignOpen = false; renderAssign(); return; }
+    // 2つ以上を受け持つ人がいる。1つ選んだ時点で畳むと、2つ目が選べない。
+    // 開いたままにして、「えらび終わった」で畳んでもらう（次に開いたときは畳んだ状態）
+    S.assignOpen = true;
     if (v === '__all') S.assigned.clear();
     else S.assigned.has(v) ? S.assigned.delete(v) : S.assigned.add(v);
     store('kuroko_assigned_v2', Array.from(S.assigned));
@@ -7453,8 +7512,12 @@ function init(){
   rin.addEventListener('keydown', e => { if (e.key === 'Enter') $('#redeem-ok').click(); });
   $('#redeem-ok').addEventListener('click', () => {
     if (!staffCodeOk(rin.value)){
+      const sk = codeSkewMin(rin.value);
       rerr.classList.remove('hide');
-      rerr.textContent = '番号が違います。係員の画面に出ている今の4桁を入れてください';
+      rerr.textContent = sk != null
+        ? `番号は合っていますが、この端末の時計が約${Math.abs(sk)}分ずれています。`
+          + '端末の設定で日付と時刻を「自動」にしてから、もう一度お願いします'
+        : '番号が違います。係員の画面に出ている今の4桁を入れてください';
       rin.select();
       return;
     }
