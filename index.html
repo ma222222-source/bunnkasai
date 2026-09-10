@@ -488,7 +488,7 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 /* 「地図で見る」は行の中に混ぜず、予定の下に置く。
    44px の高さのボタンを文中に置くと、その行だけ行間が44pxに広がり、
    時刻と予定の高さが行ごとにバラバラになって読みにくかった。 */
-.tt-go{display:inline-flex;align-items:center;gap:5px;margin-top:5px;min-height:40px;
+.tt-go{display:flex;align-items:center;gap:5px;margin-top:5px;min-height:40px;
   width:fit-content;font-size:11px;font-weight:800;color:var(--accent);
   background:var(--surface-2);border:1px solid var(--border);border-radius:999px;
   padding:0 12px;cursor:pointer;text-align:left;
@@ -535,9 +535,16 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 .staff-back button{width:100%;min-height:46px;border-radius:var(--r-sm);font-size:13px;
                    font-weight:900;background:var(--surface-2);color:var(--text);
                    border:1.5px solid var(--border-strong)}
-/* 本部モニタは全画面で使うので、隅に小さく置いて画面を邪魔しない */
-body.board-mode .staff-back{max-width:220px;left:auto;right:12px;transform:none;
-                            border-radius:12px 12px 0 0;border:1px solid var(--border)}
+/* 本部モニタは映しっぱなしにする画面。この戻るボタンは一日に一度も押さないのに、
+   右下の校内図に重なって混雑を隠していた。中身の大きさまで縮め、ふだんは薄く置く
+   （近づいて操作するときだけ濃くなる） */
+body.board-mode .staff-back{width:auto;max-width:none;left:auto;right:10px;bottom:8px;
+                            transform:none;padding:0;background:none;border:none;
+                            backdrop-filter:none;-webkit-backdrop-filter:none;
+                            opacity:.32;transition:opacity var(--t) var(--ease)}
+body.board-mode .staff-back:hover,body.board-mode .staff-back:focus-within{opacity:1}
+body.board-mode .staff-back button{width:auto;min-height:32px;padding:0 12px;
+                            font-size:11px;border-radius:8px;border:1px solid var(--border)}
 
 /* 割り当て中は下のタブの代わりに置く。スクロールしても「やめる」に手が届く */
 .edit-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);z-index:50;
@@ -836,7 +843,12 @@ text.util:not([font-size]){font-size:7.5px}
               font-variant-numeric:tabular-nums}
 .tag{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:6px;
      background:var(--surface-3);color:var(--text-dim)}
-.booth-meta{font-size:10.5px;color:var(--text-mute);font-weight:600;margin-top:2px}
+/* 「約10分待ち」「4分前」が語の途中で折り返して「約10分待／ち」と割れていた。
+   ひとまとまりずつ折り返す */
+.booth-meta{font-size:10.5px;color:var(--text-mute);font-weight:600;margin-top:2px;
+  display:flex;flex-wrap:wrap;align-items:center}
+.booth-meta > span{white-space:nowrap}
+.booth-meta .bm-room{overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .booth-note{font-size:11px;color:var(--text-dim);margin-top:5px;font-weight:600;
    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 補助情報は1行に畳んで、中黒ではなく小さな点で区切る */
@@ -875,7 +887,7 @@ text.util:not([font-size]){font-size:7.5px}
 .bsh-todo{background:var(--surface-3);color:var(--text-mute)}
 /* 引換確認コード。係員が見比べる数字なので、いちばん大きく出す */
 /* 取得・使える・交換済みの内訳。ここを見れば「あと何個で交換できるか」が分かる */
-.tally{display:flex;gap:8px;margin-top:10px}
+.tally{display:flex;gap:8px;margin:10px 0}
 .tally div{flex:1;padding:8px 10px;border-radius:var(--r-sm);background:var(--surface-3);
   border:1px solid var(--border);text-align:center}
 .tally b{display:block;font-size:21px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1.2}
@@ -1730,12 +1742,12 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
           <span style="margin-left:auto;font-size:11px;font-weight:800;color:var(--free)" id="stamp-msg"></span>
         </div>
         <div class="progress"><i id="stamp-bar" style="width:0%"></i></div>
-        <div class="tally" id="stamp-tally"></div>
       </div>
 
       <div class="card">
         <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9z"/><path d="M3 5h18v4H3z"/><path d="M12 5v16"/><path d="M12 5S10.5 2 8.6 2.6 7.4 5.6 9 5.6zM12 5s1.5-3 3.4-2.4S16.6 5.6 15 5.6z"/></svg> お菓子と交換</div>
         <p class="redeem-msg" id="redeem-msg"></p>
+        <div class="tally" id="stamp-tally"></div>
         <button class="btn" id="redeem-open">お菓子と交換する</button>
         <div class="redeem-pad hide" id="redeem-pad">
           <label for="staff-code">係員の画面に出ている<b>いまの4桁</b>を入れてもらってください<br>
@@ -2092,7 +2104,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-10i',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-10j',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -2857,7 +2869,8 @@ document.addEventListener('visibilitychange', () => {
    ===================================================================== */
 function ago(ts){
   const t = ts ? new Date(ts).getTime() : NaN;
-  if (!isFinite(t)) return '未取得';        // 不正な日付で「NaN時間前」を出さない
+  // 「未取得」は係員向けの言い方で、来場者には何のことか分からない
+  if (!isFinite(t)) return 'まだ更新なし';   // 不正な日付で「NaN時間前」を出さない
   const m = Math.floor((Date.now() - t) / 60000);
   if (m < 0) return 'たった今';              // 端末の時計が進んでいても未来を出さない
   if (m < 1) return 'たった今';
@@ -4310,7 +4323,7 @@ function renderSheet(){
         ? `<span class="ev-badge" data-kind="${eventState(b).kind}">${esc(eventLabel(b))}</span>` : ICON.note} ${esc(b.note)}</p>` : ''}
     ${altSuggest(b)}
     ${(() => { const sp = sparkline(b.history); return sp ? `<div class="bsh-foot">${sp}</div>` : ''; })()}
-    <p class="bsh-upd">更新 ${esc(ago(b.time))}</p>
+    <p class="bsh-upd">${b.time ? '更新 ' + esc(ago(b.time)) : 'まだ係の人からの更新がありません'}</p>
     <div class="bsh-acts">
       ${got ? '<span class="bsh-got">✓ スタンプ済</span>'
             : '<span class="bsh-todo">入口のQRでスタンプ</span>'}
@@ -4997,8 +5010,9 @@ function renderList(){
             const r = roomLabel(b);
             const m = waitMin(b);
             return (r ? `<span class="bm-room">${ICON.pin} ${esc(r)}</span>` : '')
-                 + ((m != null && m >= 5) ? `<span class="bm-sep"></span>約${m}分待ち` : '');
-          })()}<span class="bm-sep"></span>${esc(ago(b.time))}</p>
+                 + ((m != null && m >= 5)
+                    ? `<span class="bm-sep"></span><span>約${m}分待ち</span>` : '');
+          })()}${b.time ? `<span class="bm-sep"></span><span>${esc(ago(b.time))}</span>` : ''}</p>
           ${b.note ? `<p class="booth-note">${eventLabel(b)
               ? `<span class="ev-badge" data-kind="${eventState(b).kind}">${esc(eventLabel(b))}</span>` : ICON.note} ${esc(b.note)}</p>` : ''}
         </div>
@@ -5149,22 +5163,22 @@ function renderStamps(){
     : `あと${total - got}か所`;
   $('#stamp-msg').innerHTML = (done ? mark('star') + ' ' : '') + esc(stMsg);
 
-  // 取得・使える・交換済みの内訳。「あと何個で交換できるか」をここで見せる
+  // 「使える／交換済み」の内訳。「集めた」は、そのすぐ上の「◯ / ◯ ブース」と
+  // 同じ数を二度出していたのでやめた
   const need = Math.max(1, CONFIG.PRIZE_COST | 0);
   const spentN = S.spent.length, left = stampsLeft();
   const tally = $('#stamp-tally');
   if (tally) tally.innerHTML =
-    `<div><b>${got}</b><span>集めた</span></div>` +
-    `<div class="${left >= need ? 'ok' : ''}"><b>${left}</b><span>使える</span></div>` +
+    `<div class="${left >= need ? 'ok' : ''}"><b>${left}</b><span>使えるスタンプ</span></div>` +
     `<div class="${spentN ? 'used' : ''}"><b>${spentN}</b><span>交換済み</span></div>`;
 
   const canGet = Math.floor(left / need);
   const msg = $('#redeem-msg'), open = $('#redeem-open'), log = $('#redeem-log');
+  // 「あと◯個」は下のボタンにも出る。説明文とボタンで同じことを二度言わない
   if (msg){
     msg.innerHTML = canGet
-      ? `スタンプ<b>${need}個</b>でお菓子<b>1個</b>と交換できます。いま<b>${canGet}個</b >受け取れます。`
-        .replace(' >', '>')
-      : `スタンプ<b>${need}個</b>でお菓子<b>1個</b>と交換できます。あと<b>${need - (left % need)}個</b>です。`;
+      ? `スタンプ<b>${need}個</b>でお菓子<b>1個</b>と交換できます。いま<b>${canGet}個</b>受け取れます。`
+      : `スタンプ<b>${need}個</b>でお菓子<b>1個</b>と交換できます。`;
   }
   if (open){
     open.disabled = !canGet;
@@ -5699,16 +5713,17 @@ function renderBoardMaps(){
   const box = $('#board-maps');
   if (!box) return;
   const floors = FLOORS.filter(f => S.booths.some(b => floorOfBooth(b) === f.n));
-  // 画面の向きで並べ方が変わるので、指紋にも入れて組み直す
-  const wide = window.innerWidth > window.innerHeight;
-  const fp = 'bm|' + floors.map(f => f.n).join(',') + '|' + wide + '|' +
+  // 並べ方は階の数だけで決まる（画面の向きでは変わらない）ので、指紋には入れない
+  const fp = 'bm|' + floors.map(f => f.n).join(',') + '|' +
              S.booths.map(b => b.id + lvOf(b).lv + b.wait).join(',');
   if (renderBoardMaps._fp === fp) return;
   renderBoardMaps._fp = fp;
 
-  // 図面は横長なので、横長のモニタに縦積みすると1枚が「帯」になり、
-  // 左右に大きな余白が残る。横長の画面では2枚から横に並べる。
-  box.className = 'board-maps' + ((floors.length >= 3 || (floors.length === 2 && wide)) ? ' m2' : '');
+  // 図面は横長（縦横比 約1.6）。地図はもともと画面の右側の列に入っているので、
+  // 2枚を横に並べると1枚が約270px幅にしかならず、上下に大きな余白が残っていた
+  // （実測：1366×768 で 270×169 の地図＋330pxの空白）。
+  // 2枚までは縦に積んで右の列の幅いっぱいに使い、3枚以上で初めて横に並べる。
+  box.className = 'board-maps' + (floors.length >= 3 ? ' m2' : '');
   box.innerHTML = floors.map(f => {
     const plan = FLOOR_PLAN[f.n];
     const here = S.booths.filter(b => floorOfBooth(b) === f.n);
