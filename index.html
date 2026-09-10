@@ -531,25 +531,32 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 /* 係員向けの画面（ログイン・QR・紙マップ・振り返り・本部モニタ）は
    下のタブを隠すので、戻る手段が無いとURLを打ち直すしかなくなる。
    タブがあった場所に、共通の戻り口を必ず置く。 */
-.staff-back{position:fixed;bottom:0;left:50%;transform:translateX(-50%);z-index:60;
-            width:100%;max-width:520px;box-sizing:border-box;
-            padding:8px 12px calc(8px + var(--safe-b));
-            background:color-mix(in srgb,var(--surface) 92%,transparent);
-            -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
-            border-top:1px solid var(--border)}
-.staff-back button{width:100%;min-height:46px;border-radius:var(--r-sm);font-size:13px;
-                   font-weight:900;background:var(--surface-2);color:var(--text);
-                   border:1.5px solid var(--border-strong)}
+.staff-back{position:sticky;top:var(--head-h,0px);z-index:30;
+            display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+            margin:-14px -12px 0;padding:8px 12px;
+            background:var(--bg);border-bottom:1px solid var(--border)}
+.staff-back > button{flex:none;min-height:44px;padding:0 14px;border-radius:var(--r-sm);
+                   font-size:12.5px;font-weight:900;background:var(--surface);color:var(--text);
+                   border:1.5px solid var(--border-strong);box-shadow:var(--shadow)}
+/* ほかの係員画面への行き先。1タップで移れれば、いちいちコンソールへ戻らずに済む */
+.staff-jump{display:flex;gap:6px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
+.staff-jump::-webkit-scrollbar{display:none}
+.staff-jump button{flex:none;min-height:44px;padding:0 12px;border-radius:999px;
+                   font-size:11.5px;font-weight:800;color:var(--text-dim);
+                   background:var(--surface);border:1px solid var(--border)}
+.staff-jump button[aria-current="page"]{background:var(--text);color:var(--surface);
+                   border-color:var(--text)}
 /* 本部モニタは映しっぱなしにする画面。この戻るボタンは一日に一度も押さないのに、
    右下の校内図に重なって混雑を隠していた。中身の大きさまで縮め、ふだんは薄く置く
    （近づいて操作するときだけ濃くなる） */
-body.board-mode .staff-back{width:auto;max-width:none;left:auto;right:10px;bottom:8px;
-                            transform:none;padding:0;background:none;border:none;
-                            backdrop-filter:none;-webkit-backdrop-filter:none;
+body.board-mode .staff-back{position:fixed;top:auto;right:10px;bottom:8px;left:auto;
+                            margin:0;padding:0;background:none;border:none;z-index:60;
                             opacity:.32;transition:opacity var(--t) var(--ease)}
 body.board-mode .staff-back:hover,body.board-mode .staff-back:focus-within{opacity:1}
-body.board-mode .staff-back button{width:auto;min-height:32px;padding:0 12px;
+body.board-mode .staff-back > button{min-height:32px;padding:0 12px;
                             font-size:11px;border-radius:8px;border:1px solid var(--border)}
+/* 大画面に映しっぱなしにする画面に、行き先の列は要らない */
+body.board-mode .staff-jump{display:none}
 
 /* 割り当て中は下のタブの代わりに置く。スクロールしても「やめる」に手が届く */
 .edit-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);z-index:50;
@@ -1643,6 +1650,13 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
   </header>
 
   <main>
+    <!-- 係員の画面（QR・紙マップ・振り返り・ボード）は下のタブを隠すので、
+         戻り口が無いとURLを打ち直すしかなくなる。画面の上に貼りつけて、
+         戻る先と、ほかの係員画面への行き先をいつでも出しておく。 -->
+    <div class="staff-back hide no-print" id="staff-back">
+      <button id="staff-back-btn"></button>
+      <nav class="staff-jump" id="staff-jump" aria-label="係員の画面"></nav>
+    </div>
     <div class="banner notice hide" id="banner-notice" role="status" aria-live="polite"><span id="banner-notice-icon"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l4.5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 8.5a5 5 0 0 1 0 7"/></svg></span><span id="banner-notice-text"></span></div>
     <div class="banner alert hide" id="banner-alert" role="status" aria-live="polite"><span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20.5h19z"/><path d="M12 9.5v5M12 17.5h.01"/></svg></span><span id="banner-alert-text"></span></div>
     <div class="banner info hide" id="banner-offline" role="status" aria-live="assertive"><span id="banner-offline-icon" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8.5a16 16 0 0 1 20 0M5 12.5a11 11 0 0 1 14 0M8.5 16.3a6 6 0 0 1 7 0"/><path d="M12 20h.01"/></svg></span><span id="banner-offline-text">通信できません。最後に取得した情報を表示しています。</span><button id="banner-retry" class="retry">再試行</button></div>
@@ -2040,9 +2054,6 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
     </footer>
   </main>
 
-  <div class="staff-back hide no-print" id="staff-back">
-    <button id="staff-back-btn"></button>
-  </div>
   <div class="edit-bar hide" id="edit-bar">
     <b>地図で割り当て中</b>
     <span id="edit-progress">部屋をおすと名前などを変えられます</span>
@@ -2120,7 +2131,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-10m',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-10n',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -6127,6 +6138,20 @@ function measureHead(){
 }
 addEventListener('resize', () => { refreshScrollEdges(); measureHead(); });
 
+/** 下のタブに出る来場者向けの画面 */
+const NAV_VIEWS   = ['map','list','stamp','info'];
+/** 係員向けの画面（下のタブを隠す） */
+const STAFF_VIEWS = ['auth','admin','qr','print','report','board'];
+/** 履歴に積む画面。係員の画面も積まないと「戻る」で一般の画面へ落ちる */
+const HIST_VIEWS  = NAV_VIEWS.concat(STAFF_VIEWS);
+/** 係員コンソールから開く、行き来する画面 */
+const STAFF_JUMP  = [
+  { v:'qr',     mode:'qr',     t:'QR' },
+  { v:'print',  mode:'print',  t:'紙マップ' },
+  { v:'report', mode:'report', t:'振り返り' },
+  { v:'board',  mode:'board',  t:'ボード' }
+];
+
 function switchView(v, fromHistory){
   // タブを移るときは、開いていたシートの履歴エントリごと畳む。
   // 残すと「戻る」でシートだけがせり上がり、前のタブに戻れなくなる。
@@ -6148,12 +6173,14 @@ function switchView(v, fromHistory){
   ['map','list','stamp','info','auth','admin','qr','print','report','board'].forEach(k =>
     $('#v-' + k).classList.toggle('on', k === v));
   $$('#nav button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
-  const staff = ['auth','admin','qr','print','report','board'].indexOf(v) >= 0;
+  const staff = STAFF_VIEWS.indexOf(v) >= 0;
   // 割り当て中は地図だけを見せる。一覧・スタンプ・インフォへ移る場面ではないし、
   // 誤って移ると「どこを直していたか」を見失う
   $('#nav').classList.toggle('hide', staff || S.edit);
   // 係員の作業画面（コンソール・割り当て中）はPCで広く使う
   document.body.classList.toggle('staff-wide', staff || S.edit);
+  // 振り返りだけ横に広い画面。画面を行き来できるようになったので、離れたら戻す
+  document.body.classList.toggle('wide-mode', v === 'report');
   // 戻り口。係員としてログイン済みなら係員コンソールへ、そうでなければマップへ。
   // 割り当て中は専用のバーが出ているので重ねない
   const back = $('#staff-back');
@@ -6163,10 +6190,30 @@ function switchView(v, fromHistory){
     document.body.classList.toggle('board-mode', v === 'board');
     if (show){
       const toAdmin = S.isAdmin && v !== 'auth';
-      $('#staff-back-btn').textContent = toAdmin ? '← 係員コンソールへもどる' : '← マップへもどる';
+      $('#staff-back-btn').textContent = toAdmin ? '← 係員画面' : '← マップ';
       $('#staff-back-btn').dataset.to = toAdmin ? 'admin' : 'map';
+      // 係員なら、ほかの係員画面へも1タップで移れるようにする。
+      // 毎回コンソールへ戻ってから開き直すのは、当日の忙しさでは踏めない手順
+      const jump = $('#staff-jump');
+      jump.innerHTML = (toAdmin && v !== 'auth')
+        ? STAFF_JUMP.map(x =>
+            `<button data-jump="${x.v}"${x.v === v ? ' aria-current="page"' : ''}>${x.t}</button>`).join('')
+        : '';
+      $$('button', jump).forEach(el => el.addEventListener('click', () => {
+        const to = el.dataset.jump;
+        if (to === S.view) return;
+        switchView(to);
+        if (to === 'qr') renderQrSheet();
+        else if (to === 'print') renderPrintSheet();
+        else if (to === 'report') renderReport();
+        else if (to === 'board'){ renderBoard(); initBoard(); }
+      }));
     }
   }
+  // 係員コンソールは、これまで ?mode=admin で入ったときにしか組み立てていなかった。
+  // QRシートから「← 係員画面」で戻ると、担当ブースの選択とチェックリストが
+  // 空のままのコンソールが出ていた。どの入口から来ても同じ状態にする。
+  if (v === 'admin' && S.isAdmin){ renderAssign(); renderAdmin(); renderChecklist(); }
   // 来場者向けの混雑アラートは係員画面では出さない（ノイズになる）
   // 一覧は「空いている順」に並んでいて先頭がその答えなので、同じ内容のバナーは出さない
   $('#banner-alert').classList.toggle('hide', v !== 'map' || !$('#banner-alert-text').textContent);
@@ -6177,9 +6224,10 @@ function switchView(v, fromHistory){
   refreshScrollEdges();          // 画面ごとに「横に続きがある」印を付け直す
   window.scrollTo({ top:0, behavior: smoothBehavior() });
 
-  // Androidの戻るボタンで、アプリごと閉じずに前のタブへ戻れるようにする
-  const TABS = ['map','list','stamp','info'];
-  if (!fromHistory && TABS.indexOf(v) >= 0){
+  // Androidの戻るボタン・iPhoneの横スワイプで、アプリごと閉じずに前の画面へ戻る。
+  // 係員の画面も履歴に積む。積んでいなかったため、コンソールやQRシートで
+  // 戻るを1回押しただけで、履歴に残っていた来場者の地図へ飛ばされていた。
+  if (!fromHistory && HIST_VIEWS.indexOf(v) >= 0){
     const st = history.state;
     if (!st || st.v !== v) history.pushState({ v }, '', '#' + v);
   }
@@ -6190,8 +6238,15 @@ window.addEventListener('popstate', e => {
   // シートが開いているときの「戻る」は、まずシートを閉じる（画面は動かさない）
   if (S.sheetId && !st.sheet){ closeSheet(true); return; }
   if (!S.sheetId && st.sheet){ openSheet(st.sheet, true); return; }
-  const v = st.v || 'map';
-  if (['map','list','stamp','info'].indexOf(v) >= 0) switchView(v, true);
+  let v = st.v;
+  if (!v){
+    // 履歴に行き先が入っていないとき、以前は無条件で来場者の地図へ落としていた。
+    // 係員が作業中なら係員の画面の中で完結させる（勝手に一般の画面へ移さない）。
+    v = STAFF_VIEWS.indexOf(S.view) >= 0 ? (S.isAdmin ? 'admin' : S.view) : 'map';
+  }
+  // ログインが切れている端末を、パスワードの要る画面へ戻さない
+  if ((v === 'admin' || v === 'qr') && !pw()) v = 'auth';
+  if (HIST_VIEWS.indexOf(v) >= 0 && v !== S.view) switchView(v, true);
 });
 
 /* =====================================================================
@@ -7336,6 +7391,9 @@ async function renderReport(){
  * ボードは映しっぱなしにするので、時計を毎分進め、画面が消えないようにする。
  */
 function initBoard(){
+  // 画面を行き来すると何度も呼ばれる。時計と再描画のタイマーが積み上がらないように
+  if (initBoard._done) return;
+  initBoard._done = true;
   document.body.classList.add('board-mode');
   setInterval(renderBoard, 20000);
   setInterval(() => {
@@ -7590,8 +7648,12 @@ function init(){
   //   ?mode=admin… 係員モード
   const params = new URLSearchParams(location.search);
   const mode = params.get('mode');
+  // パスワードが入っている端末は、どの入口から来ても係員として扱う。
+  // ?mode=qr などで直接開いたときに S.isAdmin を立てていなかったため、
+  // 戻り口が「← マップへもどる」になり、係員が一般の画面へ落とされていた。
+  if (pw()) S.isAdmin = true;
   if (mode === 'admin'){
-    if (pw()){ S.isAdmin = true; renderAssign(); renderAdmin(); renderChecklist(); switchView('admin'); checkServer(); }
+    if (pw()){ renderAssign(); renderAdmin(); renderChecklist(); switchView('admin'); checkServer(); }
     else switchView('auth');
   } else if (mode === 'qr'){
     // 全ブースのQRが1枚に並ぶページ。誰でも開けると、画面のQRを片端から
@@ -7601,8 +7663,7 @@ function init(){
   } else if (mode === 'print'){
     switchView('print');
   } else if (mode === 'report'){
-    document.body.classList.add('wide-mode');   // 振り返りはPCで見る画面
-    switchView('report');
+    switchView('report');                       // 振り返りはPCで見る画面（switchViewが幅を広げる）
     renderReport();
   } else if (mode === 'board'){
     switchView('board');
