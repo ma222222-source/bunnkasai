@@ -130,6 +130,15 @@ p{margin:0}
 .app{max-width:520px;margin:0 auto;min-height:100dvh;background:var(--bg);
      display:flex;flex-direction:column;position:relative;
      box-shadow:0 0 0 1px var(--border)}
+/* PCで開くと、520pxの帯の中に地図まで押し込まれていた。
+   1280pxの画面で地図は471px幅にしかならず、名前が出るのは14ブース中1件だけ。
+   広い画面では地図だけを広げる。文章の列は広げない（1行が長いと目が戻れない）。 */
+@media (min-width:900px){
+  .app{max-width:960px}
+  #v-map > *,#v-list > *,#v-stamp > *,#v-info > *{
+    width:100%;max-width:580px;align-self:center}
+  #v-map > #map-card{max-width:920px}
+}
 .head{
   position:sticky;top:0;z-index:40;
   background:linear-gradient(135deg,var(--accent),var(--accent-2));
@@ -676,11 +685,14 @@ text.util:not([font-size]){font-size:7.5px}
 /* 枠線を状況の色の「濃いほう」で引く。塗りだけだと隣の部屋と溶けて、
    どこが1ブースなのか分からなくなっていた */
 .room .fill{fill:var(--unknown);stroke:rgba(0,0,0,.18);stroke-width:1.1;transition:fill .4s}
-/* パターン塗りの上でも文字が読めるよう、文字に縁取りを付ける（可読性の要） */
+/* パターン塗りの上でも文字が読めるよう、文字に縁取りを付ける（可読性の要）。
+   太さは図面の単位で 2.6 に固定していた。字の大きさは部屋に合わせて 3〜8 まで
+   変わるので、小さい字では縁取りが字の 8 割の太さになり、字のまわりが黒く
+   塗りつぶされて「黒い箱」に見えていた。字の大きさに比例させる。 */
 .room .nm,.room .st{fill:var(--room-label);pointer-events:none;
-  paint-order:stroke fill;stroke:var(--label-stroke);stroke-width:2.6px;stroke-linejoin:round}
+  paint-order:stroke fill;stroke:var(--label-stroke);stroke-width:.24em;stroke-linejoin:round}
 .room .nm{font-weight:800}
-.room .st{font-weight:700;stroke-width:2.2px}
+.room .st{font-weight:700;stroke-width:.22em}
 .room[data-lv="0"] .fill{fill:var(--free-fill);stroke:var(--free-edge)}
 .room[data-lv="1"] .fill{fill:url(#pat-warn);stroke:var(--warn-edge)}
 .room[data-lv="2"] .fill{fill:url(#pat-busy);stroke:var(--busy-edge);stroke-width:1.6}
@@ -691,7 +703,7 @@ text.util:not([font-size]){font-size:7.5px}
 .room[data-lv="0"] .room-no.big text,.room[data-lv="1"] .room-no.big text,
 .room[data-lv="2"] .room-no.big text,.room[data-lv="3"] .room-no.big text{
   fill:var(--room-label);paint-order:stroke fill;
-  stroke:var(--label-stroke);stroke-width:2.4px;stroke-linejoin:round}
+  stroke:var(--label-stroke);stroke-width:.16em;stroke-linejoin:round}
 .room:active .fill{stroke:var(--accent);stroke-width:3}
 .room.flash .fill{stroke:var(--accent);stroke-width:3.5}
 .here-halo{fill:none;stroke:var(--accent);animation:hereHalo 2.1s ease-in-out infinite}
@@ -2131,7 +2143,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-10n',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-10o',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -2975,6 +2987,12 @@ function mapScale(){
   const w = view ? view.clientWidth : 366;
   return (w / 400) * (ZOOM.k || 1);
 }
+/**
+ * 部屋の名前に使ってよい、図面の単位での最小の字。
+ * 画面の上で約8pxを保てる大きさにする。拡大するほど小さい値になり、
+ * そのぶん多くの文字が入る（＝寄せれば読める、という当たり前の動きになる）。
+ */
+function labelMin(){ return Math.max(1.1, Math.min(3.4, 8 / mapScale())); }
 function fitsName(r){ const k = mapScale(); return r.w * k >= 46 && r.h * k >= 20; }
 function fitsStatus(r){ const k = mapScale(); return r.w * k >= 52 && r.h * k >= 34; }
 
@@ -3142,15 +3160,21 @@ function defs(){ return ''; }
  * 「入る大きさ」を計算してから描く。縦長の部屋は文字を縦に倒す。
  * 日本語は全角前提（1文字＝1em）で見積もる。
  */
-function fitText(text, w, h, maxSize){
+/**
+ * 図面の中に文字を収める。
+ * @param {number=} minSize 図面の単位での最小の字。既定 3.4。
+ *   拡大しているときは、同じ 1 単位が画面では何倍にもなるので、
+ *   ここを小さくすれば「拡大したぶんだけ文字が増える」ようにできる。
+ */
+function fitText(text, w, h, maxSize, minSize){
   const t = String(text || '');
   if (!t) return { lines:[], size:0, rot:false };
   // 2.2px まで縮めていたが、その大きさは誰にも読めない。
   // 読める下限を決めて、入りきらない名前は「…」で切る方が実用的。
-  const MAX = maxSize || 5.4, MIN = 3.4;
+  const MAX = maxSize || 5.4, MIN = minSize || 3.4;
   const best = (bw, bh) => {
     let r = null;
-    for (let L = 1; L <= 3; L++){
+    for (let L = 1; L <= 4; L++){
       const per = Math.ceil(t.length / L);
       // 幅と高さの両方から入る文字サイズを出し、小さい方を採る
       const size = Math.min(bw / per, bh / (L * 1.18), MAX);
@@ -3166,7 +3190,7 @@ function fitText(text, w, h, maxSize){
   // MIN まで縮めても入らない場合は、はみ出すのではなく末尾を「…」にする
   const bw = rot ? h - 3 : w - 3, bh = rot ? w - 3 : h - 3;
   const per = Math.max(1, Math.floor(bw / size));
-  const rows = Math.max(1, Math.min(3, Math.floor(bh / (size * 1.18))));
+  const rows = Math.max(1, Math.min(4, Math.floor(bh / (size * 1.18))));
   const cap = per * rows;
   const body = t.length > cap ? t.slice(0, Math.max(1, cap - 1)) + '…' : t;
   const nL = Math.min(rows, Math.ceil(body.length / per));
@@ -3179,8 +3203,8 @@ function fitText(text, w, h, maxSize){
 }
 
 /** fitText の結果を <text> に起こす */
-function fitTextSvg(text, x, y, w, h, cls, maxSize, minPx){
-  const f = fitText(text, w, h, maxSize);
+function fitTextSvg(text, x, y, w, h, cls, maxSize, minPx, minSize){
+  const f = fitText(text, w, h, maxSize, minSize);
   if (!f.lines.length) return '';
   // 画面の上で minPx より小さくなる字は描かない。
   // 3px の字はどう頑張っても読めず、地図が汚れて見えるだけ。拡大すれば出る。
@@ -3672,7 +3696,9 @@ function drawFloor(floorNum){
     if (showNm){
       // 番号バッジは左上に置き、そのぶん名前の場所を右へずらす。
       // 重ねるとどちらも読めなくなる（実際にそうなっていた）。
-      const br = Math.min(5.5, s.h * 0.22, s.w * 0.16);
+      // 番号バッジは画面の上で12pxもあれば読める。図面の単位で決め打ちしていたため、
+      // 拡大しても部屋の幅の1/6を占め続け、そのぶん名前の場所を奪っていた
+      const br = Math.min(5.5, s.h * 0.22, s.w * 0.16, Math.max(2, 12 / mapScale()));
       const bx = s.x + br + 1.5, by = s.y + br + 1.5;
       const padL = no && !onRoute ? br * 2 + 3 : 2;
       // 状態は必ず1行で出す。3行に折る前提で大きさを決めていたため、
@@ -3683,9 +3709,11 @@ function drawFloor(floorNum){
         const vw = t2 => [...String(t2)].reduce((n, ch) => n + (/[\x20-\x7E]/.test(ch) ? 0.58 : 1), 0);
         const room = s.w - 4, band = Math.max(4, s.h * 0.3);
         const cand = [`${L.icon} ${stLabel}`, `${L.icon}${String(stLabel).replace(/人待ち|待ち/, '')}`, L.icon];
+        // 下限を 4.2 に固定していたので、拡大しても印だけ（▲）のままだった
+        const floorSz = Math.max(2.4, Math.min(4.2, 9 / mapScale()));
         for (const c2 of cand){
           const sz = Math.min(6, room / vw(c2), band);
-          if (sz >= 4.2){ stTxt = c2; stSize = sz; break; }
+          if (sz >= floorSz){ stTxt = c2; stSize = sz; break; }
         }
       }
       // 名前の高さは「部屋の高さ − 状態の行に要る高さ」から決める。
@@ -3693,7 +3721,11 @@ function drawFloor(floorNum){
       const nmTop = s.y + 1.5;
       const stBand = stTxt ? stSize * 1.75 + 1 : 1.5;
       const nmH = Math.max(7, s.h - 1.5 - stBand);
-      t += fitTextSvg(b.name, s.x + padL, nmTop, s.w - padL - 2 - markW, nmH, 'nm', 8);
+      // 図面の単位での下限を、いまの倍率から決める。画面の上で約8pxを保つ。
+      // ここを 3.4 に固定していたため、いくら拡大しても
+      // 「射的・ゴルフ・イライラ棒」が「射…」のままだった（部屋の広さは倍率で変わらない）。
+      t += fitTextSvg(b.name, s.x + padL, nmTop, s.w - padL - 2 - markW, nmH, 'nm', 8,
+                      0, labelMin());
       if (stTxt){
         t += `<text x="${cx}" y="${(s.y + s.h - 2.5).toFixed(1)}" text-anchor="middle" class="st"
                 font-size="${stSize.toFixed(2)}">${esc(stTxt)}</text>`;
@@ -3858,6 +3890,9 @@ async function checkServer(){
 
 function setEditMode(on){
   if (on && S.picking) setPickMode(false);   // 現在地えらびと同時には動かさない
+  // 割り当てをやめるときは、開きっぱなしのパネルも畳む。
+  // 残すと、別の画面の上に部屋の設定パネルだけが浮いたままになる
+  if (!on && !$('#edit-sheet').classList.contains('hide')) closeEditor(true);
   S.edit = !!on;
   $('#edit-bar').classList.toggle('hide', !S.edit);
   // 下のタブを畳み、空いた場所に「やめる」を出す。
@@ -6166,7 +6201,10 @@ function switchView(v, fromHistory){
   // 戻ってきたとき何のモードだったか分からなくなる
   if (v !== 'map'){
     if (S.picking) setPickMode(false);
-    if (S.edit && v !== 'admin') setEditMode(false);
+    // 係員コンソールだけ例外にしていたため、割り当て中に端末の「戻る」を押すと
+    // コンソールの上に「地図で割り当て中／やめる」の帯が残ったまま、
+    // アプリは割り当て中のつもり、という状態になっていた。地図を離れたら必ず解く。
+    if (S.edit) setEditMode(false);
     zoomResetIfNeeded();
   }
   S.view = v;
