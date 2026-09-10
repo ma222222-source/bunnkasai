@@ -272,6 +272,8 @@ main{flex:1;padding:14px 12px calc(88px + var(--safe-b));display:flex;flex-direc
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 /* 出てくる演出は画面に入る最初の数件だけ。
    73件すべてを同時に動かすと、一覧タブを開いた瞬間に一拍もたつく。 */
+/* 件数は絞り込んでいるときだけ。ふだんは何も出さない */
+.list-count{font-size:10.5px;font-weight:800;color:var(--text-mute);margin:-4px 2px -2px}
 .stagger > *{animation:none}
 .stagger > *:nth-child(-n+8){animation:rise .34s var(--ease) both}
 .stagger > *:nth-child(1){animation-delay:.00s}
@@ -924,6 +926,10 @@ text.util:not([font-size]){font-size:7.5px}
 .tally div.ok b{color:var(--free)}
 .tally div.used{background:var(--busy-soft);border-color:var(--busy)}
 .tally div.used b{color:var(--busy-ink)}
+/* 200字の上限がある。打っている最中に残りが見えないと、長い案内を書いていて
+   途中で入力が止まり「壊れた」と思われる */
+.notice-len{font-size:10px;font-weight:800;color:var(--text-mute);text-align:right;margin-top:3px}
+.notice-len[data-low="1"]{color:var(--warn)}
 .redeem-msg{font-size:12px;color:var(--text-dim);font-weight:700;line-height:1.7;margin-bottom:9px}
 .redeem-pad{margin-top:10px;padding:11px;border-radius:var(--r-sm);
   background:var(--surface-3);border:1px dashed var(--border-strong)}
@@ -1762,6 +1768,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
         <button id="q-clear" class="q-clear hide" type="button" aria-label="検索をやめる">×</button>
       </div>
       <div class="chips" id="cat-chips"></div>
+      <p class="list-count hide" id="list-count"></p>
       <div class="chips">
         <button class="chip" id="sort-free" aria-pressed="true">空いている順</button>
         <button class="chip" id="sort-name" aria-pressed="false">番号順</button>
@@ -1955,6 +1962,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
               来場者全員の画面の上に出ます。落とし物・ステージ開始・雨天の案内などに。</p>
             <textarea class="field" id="notice-text" rows="2" maxlength="200"
               placeholder="例）12:00 から体育館でステージ発表があります。"></textarea>
+            <p class="notice-len" id="notice-len">あと200文字</p>
             <div class="seg" role="group" aria-label="お知らせの種類" style="width:fit-content;margin-top:8px">
               <button id="notice-info" aria-pressed="true">お知らせ</button>
               <button id="notice-alert" aria-pressed="false">注意（赤）</button>
@@ -2145,7 +2153,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-10p',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-10q',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3807,7 +3815,7 @@ function drawFloor(floorNum){
     const dimD = (S.dept === '__fac' || (S.dept && (!dp || dp.z !== S.dept))) ? ' dimmed' : '';
     html += `<g class="room${dim}${dimD}${isHere ? ' here' : ''}${isChanged(b.id) ? ' changed' : ''}" data-lv="${L.lv}" data-id="${esc(b.id)}" role="button" tabindex="0"
               ${dp ? `style="--dept:${dp.c}"` : ''}
-              aria-label="${esc(b.name)} ${esc(L.short)}${isHere ? '（いまここ）' : ''}">
+              aria-label="${no ? no + '番 ' : ''}${esc(b.name)} ${esc(L.short)}${isHere ? '（いまここ）' : ''}">
         <rect class="fill" x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="7"/>
         ${dp ? `<rect class="dept-bar on" x="${s.x}" y="${s.y}" width="${Math.min(3.6, s.w / 6)}" height="${s.h}" rx="1.8"/>` : ''}
         ${t}${extra}
@@ -4404,11 +4412,13 @@ function renderSheet(){
   $$('#bsh-body [data-act]').forEach(el => el.addEventListener('click', () => {
     const a = el.dataset.act;
     if (fromList){
-      // 一覧から開いていたら地図へ。「そこへどう行くか」は地図でしか分からない
+      // 一覧から開いていたら地図へ。「そこへどう行くか」は地図でしか分からない。
+      // showPlace() はブースなら 260ms 後にシートを開き直すので、
+      // ここで呼ぶと「地図で見る」を押したのに同じシートが地図をふさいでいた。
       const st = history.state;
       closeSheet(true);
       if (st && st.sheet){ try{ history.replaceState({ v:'map' }, '', '#map'); }catch(e){} }
-      showPlace(b.id);
+      spotBooth(b.id);
     } else {
       // シート用に積んだ履歴を「一覧」で置き換える。history.back() と競合させない
       const st = history.state;
@@ -5003,6 +5013,9 @@ function renderCats(){
   ).join('');
   $$('#cat-chips .chip').forEach(el => el.addEventListener('click', () => {
     S.cat = el.dataset.cat; renderCats(); renderList();
+    // 並びが総入れ替えになるのに、スクロールは途中のまま。
+    // どこを見ているのか分からなくなるので先頭へ戻す
+    scrollListTop();
   }));
 }
 
@@ -5032,6 +5045,12 @@ function renderList(){
   renderList._fp = fp;
 
   const box = $('#booth-list');
+  // 「ふわっと出る」演出は、開いた瞬間と絞り込みを変えたときだけ。
+  // 一覧は1分ごとに作り直すので、そのたびに上位8件が下から浮き上がり直し、
+  // 読んでいる最中に画面が動いていた（中身は同じなのに）。
+  const shape = `${S.cat}|${S.sort}|${S.q}`;
+  box.classList.toggle('stagger', renderList._shape !== shape);
+  renderList._shape = shape;
   // 一覧は「◯分前」を進めるために1分ごとに作り直す。カードは押せる（＝焦点が当たる）
   // ようになったので、作り直すとキーボードで選んでいた場所が毎分どこかへ飛んでいた。
   // どのブースを選んでいたかを覚えておいて、同じブースへ戻す。
@@ -5059,6 +5078,13 @@ function renderList(){
     ? (rank(a) - rank(b)) || a.id.localeCompare(b.id, 'ja', { numeric:true })
     : a.id.localeCompare(b.id, 'ja', { numeric:true }));
 
+  // 何件に絞られたのかを出す。1件しか出ないとき「壊れているのでは」と思わせない
+  const cnt = $('#list-count');
+  if (cnt){
+    const filtered = S.q || S.cat !== 'all';
+    cnt.textContent = filtered ? `${items.length}件 / 全${S.booths.length}件` : '';
+    cnt.classList.toggle('hide', !filtered);
+  }
   if (!items.length){
     box.innerHTML = `<p class="empty">さがしたブースは見つかりませんでした。<br>
       文字をけすか、上のボタンで「すべて」をえらんでください。</p>`;
@@ -5071,7 +5097,7 @@ function renderList(){
     return `
     <article class="booth${isChanged(b.id) ? ' changed' : ''}" id="booth-${esc(b.id)}"
       data-lv="${L.lv}" data-sid="${esc(b.id)}" role="button" tabindex="0"
-      aria-label="${esc(b.name)} ${esc(L.short)}${
+      aria-label="${S.numbers.get(b.id) ? S.numbers.get(b.id) + '番 ' : ''}${esc(b.name)} ${esc(L.short)}${
         b.wait > 0 && L.lv >= 0 && L.lv < 3 ? ` ${b.wait}人待ち` : ''}${
         got ? ' スタンプ済' : ''} の詳細をひらく">
       <div class="booth-top">
@@ -5302,7 +5328,16 @@ function renderStamps(){
   }
 
   const spentSet = new Set(S.spent);
-  $('#stamp-grid').innerHTML = S.booths.map(b => {
+  // 20秒ごとの自動同期のたびに40枚を作り直し、上位8枚が下から浮き上がり直していた。
+  // 中身が変わったときだけ作り直す（演出も、変わったときだけ）
+  const gridFp = S.booths.map(b => b.id + '~' + b.name).join(';')
+               + '|' + Array.from(S.stamps).sort().join(',')
+               + '|' + S.spent.join(',') + '|' + S.justStamp;
+  const gridChanged = renderStamps._gridFp !== gridFp;
+  const firstDraw = renderStamps._gridFp === undefined;
+  renderStamps._gridFp = gridFp;
+  $('#stamp-grid').classList.toggle('stagger', firstDraw);
+  if (gridChanged) $('#stamp-grid').innerHTML = S.booths.map(b => {
     const g = S.stamps.has(b.id);
     const u = g && spentSet.has(b.id);
     const no = S.numbers.get(b.id) || '';
@@ -5318,7 +5353,7 @@ function renderStamps(){
       <span class="lb">${esc(b.name)}</span></button>`;
   }).join('');
 
-  $$('[data-sid]', $('#stamp-grid')).forEach(el =>
+  if (gridChanged) $$('[data-sid]', $('#stamp-grid')).forEach(el =>
     el.addEventListener('click', () => openSheet(el.dataset.sid)));
 
   // 完走記録。達成した瞬間の時刻を保存し、以後は同じ時刻を表示する
@@ -5542,6 +5577,29 @@ async function shareStamps(){
  * 入っていなければ地図でその部屋を光らせるだけにする。
  * タイムテーブルの「体育館」から現物にたどり着けるようにするため。
  */
+/**
+ * 地図でそのブースの場所を示す。シートは開かない。
+ * 「地図で見る」を押した人が見たいのは地図なので、上に何もかぶせない。
+ */
+function spotBooth(id){
+  const b = S.booths.find(x => x.id === id);
+  if (!b) return;
+  // 図面に場所が無いブースで地図へ送っても、探しても見つからないだけ
+  if (!slotOf(id)){ toast('このブースは地図に場所が登録されていません'); return; }
+  switchView('map');
+  const f = floorOfBooth(b);
+  if (f != null && f !== S.floor) setFloor(f);
+  setTimeout(() => {
+    const g = document.querySelector(`#plan-${S.floor} .room[data-id="${CSS.escape(id)}"]`);
+    const card = $('#map-card');
+    if (card && card.scrollIntoView) card.scrollIntoView({ behavior: smoothBehavior(), block:'center' });
+    if (!g) return;
+    g.classList.add('flash');
+    setTimeout(() => g.classList.remove('flash'), 2400);
+  }, 180);
+  toast(`「${b.name}」の場所を地図で示しています`);
+}
+
 function showPlace(id){
   const room = slotOf(id);
   if (!room){ toast('その場所は地図に登録されていません'); return; }
@@ -6169,6 +6227,13 @@ function markScrollEdges(el){
   upd();
   return upd;
 }
+/** 絞り込みを変えたら一覧の先頭へ。並びが総入れ替えになるので位置を保っても意味がない */
+function scrollListTop(){
+  const box = $('#booth-list');
+  if (!box) return;
+  const top = box.getBoundingClientRect().top + window.scrollY - 120;
+  window.scrollTo({ top: Math.max(0, top), behavior: smoothBehavior() });
+}
 function refreshScrollEdges(){
   $$('.chips, .dept-legend').forEach(markScrollEdges);
 }
@@ -6198,7 +6263,13 @@ const STAFF_JUMP  = [
   { v:'board',  mode:'board',  t:'ボード' }
 ];
 
+/** タブごとに、どこまで見ていたかを覚えておく */
+const VIEW_SCROLL = {};
+
 function switchView(v, fromHistory){
+  // 一覧を下まで見てから地図を確かめて戻ると、毎回いちばん上に戻されていた。
+  // 40ブースあると、さっき見ていた場所まで指でなぞり直すことになる。
+  if (S.view && S.view !== v) VIEW_SCROLL[S.view] = window.scrollY;
   // タブを移るときは、開いていたシートの履歴エントリごと畳む。
   // 残すと「戻る」でシートだけがせり上がり、前のタブに戻れなくなる。
   if (S.sheetId){
@@ -6276,7 +6347,9 @@ function switchView(v, fromHistory){
   renderHere();                  // 現在地の問いかけはマップのときだけ出す
   renderFloorCounts();
   refreshScrollEdges();          // 画面ごとに「横に続きがある」印を付け直す
-  window.scrollTo({ top:0, behavior: smoothBehavior() });
+  // 覚えていた位置へ戻す。初めて開く画面と、係員の画面は先頭から。
+  const keepY = NAV_VIEWS.indexOf(v) >= 0 ? (VIEW_SCROLL[v] || 0) : 0;
+  window.scrollTo({ top: keepY, behavior:'auto' });
 
   // Androidの戻るボタン・iPhoneの横スワイプで、アプリごと閉じずに前の画面へ戻る。
   // 係員の画面も履歴に積む。積んでいなかったため、コンソールやQRシートで
@@ -6410,6 +6483,15 @@ function initNotice(){
     $('#notice-info').setAttribute('aria-pressed', String(v === 'info'));
     $('#notice-alert').setAttribute('aria-pressed', String(v === 'alert'));
   };
+  const nlen = () => {
+    const el = $('#notice-len'), ta = $('#notice-text');
+    if (!el || !ta) return;
+    const left = 200 - ta.value.length;
+    el.textContent = `あと${left}文字`;
+    if (left <= 30) el.dataset.low = '1'; else delete el.dataset.low;
+  };
+  $('#notice-text').addEventListener('input', nlen);
+  nlen();
   $('#notice-info').addEventListener('click', () => setLv('info'));
   $('#notice-alert').addEventListener('click', () => setLv('alert'));
 
@@ -7610,6 +7692,15 @@ function init(){
     S.q = e.target.value.trim(); renderList();
     $('#q-clear').classList.toggle('hide', !e.target.value);
   });
+  // PCでは Esc で検索をやめるのが当たり前の動き。効かないと×を探すことになる
+  $('#q').addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    const q = $('#q');
+    if (!q.value) return;
+    q.value = ''; S.q = ''; renderList();
+    $('#q-clear').classList.add('hide');
+  });
   // 端末によっては type=search の消去ボタンが出ない・小さすぎる。自前で置く
   $('#q-clear').addEventListener('click', () => {
     const q = $('#q'); q.value = ''; S.q = ''; renderList();
@@ -8016,6 +8107,7 @@ function setSort(s){
   $('#sort-free').setAttribute('aria-pressed', String(s === 'free'));
   $('#sort-name').setAttribute('aria-pressed', String(s === 'name'));
   renderList();
+  scrollListTop();          // 並びが総入れ替えになるので、途中の位置に留めない
 }
 
 // 何かの拍子に初期化が失敗しても真っ白にはせず、状況と復旧手段を出す
