@@ -1,8 +1,8 @@
 /* 黒工文化祭マップ Service Worker
    目的：校内Wi-Fiが不安定でも「アプリの外側」が必ず開くようにする。
    混雑データ(GAS)は絶対にキャッシュしない（古い混雑状況を見せないため）。 */
-const CACHE = 'kuroko-map-v108';
-const SHELL = ['./', './index.html', './manifest.json'];
+const CACHE = 'kuroko-map-v109';
+const SHELL = ['./', './index.html', './manifest.json', './apple-touch-icon.png'];
 
 // 回線が遅いときにネットワークを待ち続けない上限（ms）。
 // これを過ぎたら保存してある画面を先に出し、取得できた分は次回に反映する。
@@ -52,6 +52,17 @@ function isShell(request){
   return p.endsWith('/') || p.endsWith('.html');
 }
 
+/**
+ * アプリ本体は、引数が違っても中身は同じ1枚。
+ * ブースのQRは ?booth=1F-02&qr=1&k=... のように毎回ちがうURLになるので、
+ * URLそのままを鍵にしていると
+ *   ・読み取ったQRの数だけ同じ436KBの控えが増える
+ *   ・初めてのURLは「控えなし」扱いになり、回線が細いときに
+ *     2.5秒で切り上げられず、白い画面のまま待たされる
+ * という状態になっていた。本体はいつも同じ鍵で出し入れする。
+ */
+const SHELL_KEY = new URL('./index.html', self.location.href).href;
+
 /** 開いている画面すべてに「新しい版が届いた」と伝える。 */
 async function notifyUpdated(){
   const list = await self.clients.matchAll({ type: 'window' });
@@ -69,8 +80,9 @@ async function notifyUpdated(){
 async function handle(request){
   const cache = await caches.open(CACHE);
   const shell = isShell(request);
+  const key = shell ? SHELL_KEY : request;
 
-  const cached = await cache.match(request);
+  const cached = await cache.match(key);
   // 差分比較用に、返す前の中身を控えておく（HTMLのときだけ）
   let prevText = null;
   if (shell && cached){
@@ -84,10 +96,10 @@ async function handle(request){
     try{
       if (shell){
         const text = await res.clone().text();
-        await cache.put(request, res.clone());
+        await cache.put(key, res.clone());
         if (servedCache && prevText !== null && text !== prevText) notifyUpdated();
       }else{
-        await cache.put(request, res.clone());
+        await cache.put(key, res.clone());
       }
     }catch(e){ /* 保存に失敗しても表示は続ける */ }
     return res;
@@ -96,7 +108,7 @@ async function handle(request){
   if (!cached) {
     // 保存が無いときはネットワークを待つしかない
     try { return await network; }
-    catch (e) { return (await cache.match('./index.html')) || Response.error(); }
+    catch (e) { return (await cache.match(SHELL_KEY)) || Response.error(); }
   }
 
   // キャッシュがあるなら、ネットワークを少しだけ待って、遅ければ保存分を返す
