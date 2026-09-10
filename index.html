@@ -1202,8 +1202,6 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 .bm h3{font-size:clamp(11px,1vw,16px);font-weight:900;color:var(--text-dim);margin-bottom:6px}
 .bm svg{display:block;width:100%;height:100%;flex:1;min-height:0}
 .bm .bm-bg{fill:var(--surface-2);stroke:var(--border);stroke-width:.6}
-.bm text.bm-no{fill:var(--on-status);font-weight:900;paint-order:stroke fill;
-  stroke:rgba(0,0,0,.25);stroke-width:2px;stroke-linejoin:round}
 .bt-head{display:flex;flex-direction:column;gap:2px;min-width:0}
 .bt-loc{font-size:clamp(10px,.85vw,14px);font-weight:700;color:var(--text-mute);
         padding-left:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1346,7 +1344,6 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
                  background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease)}
 .bsh-acts button:active{transform:scale(.97)}
 .bsh-acts button.wide{grid-column:1 / -1}
-.bsh-acts button.pri{background:var(--free);border-color:var(--free);color:var(--on-status)}
 .bsh-acts button[aria-pressed="true"]{background:var(--free);border-color:var(--free);color:var(--on-status)}
 @media (prefers-reduced-motion:reduce){ .bsh{transition:none} .bsh-back{transition:none} }
 .sheet{background:#fff;color:#111;border:1px solid var(--border);border-radius:var(--r);padding:14px}
@@ -2084,7 +2081,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-10g',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-10h',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3381,15 +3378,28 @@ function eventLabel(b){
 }
 
 function drawFloor(floorNum){
-  // 倍率が変わると「文字を入れられる部屋」が変わるので、段階が変わったら描き直す
-  const lod = Math.round(mapScale() * 4);
-  const fp = fingerprint(`map:${floorNum}:${S.route}:${S.dept}:${S.spot}:${hereId()}:${lod}:${Math.floor(Date.now() / 60000)}`);
-  if (drawFloor._fp === fp) return;
-  drawFloor._fp = fp;
-
   const plan = FLOOR_PLAN[floorNum];
   const svg = $('#plan-' + floorNum);
   const boothsHere = S.booths.filter(b => floorOfBooth(b) === floorNum);
+
+  // 倍率が変わると「文字を入れられる部屋」が変わるので、段階が変わったら描き直す
+  const lod = Math.round(mapScale() * 4);
+  // 時刻で変わるのは「まもなく／開催中」の札だけ。指紋に「いまの分」を
+  // そのまま入れていたため、何ひとつ変わっていなくても毎分 SVG を作り直していた。
+  // 700要素を差し替えるので、ちょうど地図を触っていた人は指の下から要素が消える。
+  // 実際に出る文字だけを指紋に入れて、本当に変わったときだけ描き直す。
+  const evs = boothsHere.map(b => eventLabel(b)).join(',');
+  const fp = fingerprint(`map:${floorNum}:${S.route}:${S.dept}:${S.spot}:${hereId()}:${lod}:${evs}`);
+  if (drawFloor._fp === fp) return;
+  // 指を置いている最中に作り直すと、つかんでいた部屋ごと消えて操作が途切れる。
+  // 指が離れるまで待ってから描き直す（待っているあいだは指紋を進めない）。
+  if (ZOOM.panId != null || ZOOM.tBase){
+    clearTimeout(drawFloor._wait);
+    drawFloor._wait = setTimeout(() => drawFloor(floorNum), 400);
+    return;
+  }
+  drawFloor._fp = fp;
+
   let html = defs();
 
   plan.struct.forEach(st => {
@@ -3831,7 +3841,7 @@ function openEditor(id, roomNm){
   $('#ed-del').classList.toggle('hide', !b);
   $('#ed-hint').textContent = b
     ? `いまの状況：${lvOf(b).short}${b.wait > 0 ? '・' + b.wait + '人待ち' : ''}`
-      + '（状態と待ち人数は係員コンソールの「ブースの更新」で変えます）'
+      + '（状態と待ち人数は係員画面の「更新」タブで変えます）'
     : 'ここはまだ教室です。名前を入れて保存するとブースになります。';
   renderEditCats();
   renderNameFit();
@@ -4017,15 +4027,27 @@ function floorFromId(id){
    ===================================================================== */
 const HERE_TTL_MS = 40 * 60 * 1000;   // 40分で自動的に消す
 
-function setHere(id){
-  store('kuroko_here_v1', { id, at:Date.now() });
+/**
+ * 現在地を覚える。
+ * @param {string} id 部屋ID
+ * @param {'qr'|'pick'} [src] どうやって決めたか。表示の文言を変えるのに使う
+ *   （QRで入った場所に「地図でえらんだ場所です」と出ていた）
+ */
+function setHere(id, src){
+  store('kuroko_here_v1', { id, at:Date.now(), src: src === 'qr' ? 'qr' : 'pick' });
   renderHere(); drawFloor(S.floor); recommend();
 }
-function hereId(){
+function hereEntry(){
   const h = load('kuroko_here_v1', null);
   if (!h || !h.id) return null;
   if (Date.now() - h.at > HERE_TTL_MS){ store('kuroko_here_v1', undefined); return null; }
-  return h.id;
+  return h;
+}
+function hereId(){ const h = hereEntry(); return h ? h.id : null; }
+/** 現在地をどうやって決めたかの一言 */
+function hereFrom(){
+  const h = hereEntry();
+  return h && h.src === 'qr' ? 'QRを読んだ場所です' : '地図でえらんだ場所です';
 }
 /**
  * 現在地をえらぶモード。地図の部屋をおすと、そこを現在地にする。
@@ -4108,7 +4130,7 @@ function renderHere(){
     bar.classList.remove('hide');
     bar.innerHTML = `<span class="dot" aria-hidden="true"></span>
       <span class="tx">いまここ：${esc(placeName(id))}
-        <small>地図でえらんだ場所です</small></span>
+        <small>${esc(hereFrom())}</small></span>
       <button data-here-pick="1">えらび直す</button>
       <button data-here-x="1" aria-label="現在地の表示を消す">消す</button>`;
     $('[data-here-pick]', bar).addEventListener('click', () => setPickMode(true));
@@ -4125,7 +4147,7 @@ function renderHere(){
   bar.innerHTML = `
     <span class="dot" aria-hidden="true"></span>
     <span class="tx">いまここ：${esc(b.name)}
-      <small>${near ? `同じ${esc(flLabel(b))}の「${esc(near.name)}」がいま空いています` : 'QRを読んだ場所を表示しています'}</small></span>
+      <small>${near ? `同じ${esc(flLabel(b))}の「${esc(near.name)}」がいま空いています` : esc(hereFrom())}</small></span>
     ${near ? `<button data-here-go="${esc(near.id)}" aria-label="${esc(near.name)}のくわしい情報をひらく">見る</button>` : ''}
     <button data-here-x="1" aria-label="現在地の表示を消す">消す</button>`;
   const go = $('[data-here-go]', bar);
@@ -5783,7 +5805,7 @@ function animateNumber(el, to){
 const CHECKLIST = [
   ['開場前', [
     'GASの migrate と validate を実行して問題が出ないことを確認した',
-    'ブースの割り当てが全部終わっている（係員コンソール →「地図でブースを割り当てる」）',
+    'ブースの割り当てが全部終わっている（係員画面の「準備」タブ →「地図でブースを割り当てる」）',
     '割り当てを終えてから QR を刷った（QRには部屋IDが入っているので、'
       + 'あとから別の部屋に移すと刷り直しになる）',
     'ブース入口のQRを貼り終えた',
@@ -6836,7 +6858,11 @@ function renderQrSheet(){
         <div class="staff-qr">${QR.svgSafe(adminUrl, 150)}</div>
       </div>
 
-      <h4 class="staff-h">ブース担当</h4>
+      <p class="staff-note" style="margin-bottom:8px">
+        ログインすると、画面の上に <b>更新 ／ 受付 ／ 本部 ／ 準備</b> の4つのボタンが出ます。
+        自分の役目のボタンを1回おせば、その画面だけが出ます。</p>
+
+      <h4 class="staff-h">ブース担当（<b>更新</b>）</h4>
       <ol class="staff-steps">
         <li>左のQRを読み取り、開いたページをホーム画面に追加する</li>
         <li>配布されたパスワードを入力してログインする</li>
@@ -6846,17 +6872,25 @@ function renderQrSheet(){
             0〜${S.waitTh.warn - 1}人＝空き ／ ${S.waitTh.warn}〜${S.waitTh.busy - 1}人＝やや混雑 ／ ${S.waitTh.busy}人〜＝混雑</span></li>
         <li>数えられないときは下の3つのボタン（空き／やや混雑／混雑）でもよい</li>
         <li>押し間違えたら、直後に出る「元に戻す」で戻せる</li>
+        <li><b>更新</b> ボタンの右肩の数字が黄色になったら、しばらく送っていない印です</li>
       </ol>
 
-      <h4 class="staff-h">本部担当</h4>
+      <h4 class="staff-h">受付担当（<b>受付</b>）</h4>
       <ol class="staff-steps">
-        <li><b>当日チェックリスト</b>（画面いちばん上）で開場前・開場後・閉場後の確認をする</li>
+        <li><b>来場者カウンタ</b> で入場者数を記録する（押し間違えは −1 で戻す）</li>
+        <li>お菓子を渡すときは、来場者のスタンプ画面で「お菓子と交換する」を押してもらい、
+            同じ画面に出ている <b>4桁の交換コード</b> を係員が入力する<br>
+            <span class="staff-note">この4桁は来場者に教えないでください</span></li>
+      </ol>
+
+      <h4 class="staff-h">本部担当（<b>本部</b>）</h4>
+      <ol class="staff-steps">
+        <li><b>当日の流れ（チェックリスト）</b> で開場前・開場後・閉場後の確認をする</li>
         <li>開場したら <b>「開場：全ブースを空いています」</b> を1回押す</li>
         <li>落とし物・ステージ開始などは <b>「お知らせを出す」</b> から。
             来場者全員の画面の上に出ます（「注意（赤）」も選べます）</li>
-        <li>受付では <b>来場者カウンタ</b> で入場者数を記録する</li>
-        <li>大画面に映すときは <b>「本部用の大画面ボード」</b>。混雑と地図が同時に見えます</li>
         <li>閉場したら <b>「閉場：全ブースを準備中」</b> を1回押す</li>
+        <li>大画面に映すときは <b>準備</b> の「本部用の大画面ボード」。混雑と地図が同時に見えます</li>
       </ol>
 
       <p class="staff-warn">
@@ -7481,25 +7515,36 @@ function init(){
   function applyDeepLink(){
     const b = params.get('booth');
     if (!b) return true;
+    // QRから来た場合だけスタンプを付ける。署名が合わないURLでは付けない
+    // （?booth=1F-02&qr=1 を手で打っても無効。ブースは普通に見られる）
+    const fromQr = params.get('qr') === '1';
+    const signed = fromQr && params.get('k') === sigOf(b);
+
+    // スタンプを付ける処理は、署名の照合も保存も端末の中だけで終わる。
+    // それをブース一覧の到着まで待たせていたため、電波の弱い場所で読んだQRが
+    // 丸ごと無効になっていた（校内に人が集まる当日ほど起きやすい）。
+    // 先に付けてしまい、画面の表示だけをデータの到着まで待つ。
+    if (signed && !S.stamps.has(b)){
+      const nm0 = (S.booths.find(x => x.id === b) || {}).name || '';
+      earnStamp(b);
+      setHere(b, 'qr');                 // 読んだ場所＝いまいる場所
+      setTimeout(() => toast(nm0 ? `「${nm0}」のスタンプを獲得しました`
+                                 : 'スタンプを獲得しました'), 400);
+    }
+
     if (!S.booths.length) return false;                 // まだ届いていない＝保留
     if (!S.booths.some(x => x.id === b)){
       toast('そのブースは移動したか、終わった可能性があります。一覧からさがしてください');
       switchView('list');
       return true;
     }
-    // QRから来た場合だけスタンプを付ける。署名が合わないURLでは付けない
-    // （?booth=1F-02&qr=1 を手で打っても無効。ブースは普通に見られる）
-    if (params.get('qr') === '1'){
-      const nm = (S.booths.find(x => x.id === b) || {}).name || '';
-      if (params.get('k') !== sigOf(b)){
+    if (fromQr){
+      if (!signed){
         setTimeout(() => toast('このリンクではスタンプが付きません。ブース入口のQRを読み取ってください'), 400);
         openBooth(b);
       } else {
-        if (earnStamp(b)){
-          renderAll();
-          setTimeout(() => toast(`「${nm}」のスタンプを獲得しました`), 400);
-        }
-        setHere(b);                     // 読んだ場所＝いまいる場所
+        renderAll();
+        setHere(b, 'qr');
         setTimeout(() => openSheet(b), 500);
       }
     } else {
