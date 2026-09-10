@@ -306,13 +306,18 @@ main{flex:1;padding:14px 12px calc(88px + var(--safe-b));display:flex;flex-direc
   overflow:hidden}
 .banner .retry{-webkit-line-clamp:none}
 .banner.alert{background:var(--busy-soft);color:var(--busy-ink);border:1px solid var(--busy)}
+.banner.alert b,.banner.alert strong{font-weight:900}
 /* 混雑のお知らせは「いま知りたいこと」そのもの。他と同じ声の大きさで並べると
-   目の行き先が決まらないので、ここだけ一段強くして画面の焦点にする。 */
-.banner.alert{font-size:13.5px;line-height:1.5;padding:13px 14px;
-              border-width:0 0 0 5px;border-left-style:solid;
+   目の行き先が決まらないので、ここだけ一段強くして画面の焦点にする。
+   ただし混雑は異常ではない。全面を警告の赤にすると、本部からの本当のお知らせ
+   （落とし物・雨天）と同じ声の大きさになり、赤の意味が薄まる。
+   地はカードと同じにして、左の帯と印だけを混雑の色にする。 */
+#banner-alert{background:var(--surface);color:var(--text);
+              font-size:13.5px;line-height:1.5;padding:13px 14px;
+              border:1px solid var(--border);border-left:5px solid var(--busy-fill);
               border-radius:var(--r-sm) var(--r) var(--r) var(--r-sm);
               box-shadow:var(--shadow)}
-.banner.alert b,.banner.alert strong{font-weight:900}
+#banner-alert .ic{color:var(--busy-ink)}
 .banner.info{background:var(--surface-3);color:var(--text-dim);border:1px solid var(--border)}
 .retry{margin-left:auto;flex:none;font-size:11px;font-weight:900;padding:0 14px;min-height:44px;
        border-radius:8px;display:inline-flex;align-items:center;
@@ -2115,7 +2120,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-10l',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-10m',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -6394,7 +6399,7 @@ function renderAdmin(){
   if (noSlot.length) warn.push(
     `図面に無い id：${noSlot.slice(0, 4).map(b => b.id).join('・')}` +
     (noSlot.length > 4 ? ` ほか${noSlot.length - 4}件` : '') + '（一覧には出ますが地図に載りません）');
-  $('#adm-warn').innerHTML = warn.map(t => `<p class="stale-warn">⚠ ${esc(t)}</p>`).join('');
+  $('#adm-warn').innerHTML = warn.map(t => `<p class="stale-warn">${ICON_ALERT} ${esc(t)}</p>`).join('');
   $('#adm-warn').classList.toggle('hide', !warn.length);
 
   const ac = $('#adm-code');
@@ -6403,7 +6408,7 @@ function renderAdmin(){
   }
 
   $('#adm-summary').innerHTML = overdue
-    ? `<span class="stale-warn">⚠ ${overdue}件が${CONFIG.ADMIN_WARN_MIN}分以上未更新です。上から順に確認してください</span>`
+    ? `<span class="stale-warn">${ICON_ALERT} ${overdue}件が${CONFIG.ADMIN_WARN_MIN}分以上未更新です。上から順に確認してください</span>`
     : `<span style="color:var(--free);font-weight:800;font-size:11px">✓ すべて${CONFIG.ADMIN_WARN_MIN}分以内に更新されています</span>`;
 
   const hint = `送信すると人数からステータスを自動判定します（0〜${S.waitTh.warn - 1}人=空き / ` +
@@ -7197,7 +7202,7 @@ async function renderReport(){
     if (!r || r.ok === false) throw new Error(r && r.error || '取得に失敗しました');
     S.report = r;
   }catch(e){
-    box.innerHTML = `<div class="banner alert"><span>⚠️</span><span>
+    box.innerHTML = `<div class="banner alert"><span>${ICON_ALERT}</span><span>
       レポートを取得できませんでした（${esc(String(e.message || e))}）。<br>
       GASを最新版に差し替えているか確認してください。</span></div>`;
     return;
@@ -7882,7 +7887,7 @@ document.addEventListener('DOMContentLoaded', () => {
   catch(e){
     console.error(e);
     document.querySelector('main').innerHTML =
-      `<div class="banner alert"><span>⚠️</span><span>
+      `<div class="banner alert"><span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20.5h19z"/><path d="M12 9.5v5M12 17.5h.01"/></svg></span><span>
         画面の読み込みに失敗しました。下のボタンで保存データを消して読み直してください。<br>
         <small style="font-weight:600">${esc(String(e && e.message || e))}</small>
       </span></div>
