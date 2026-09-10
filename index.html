@@ -2015,7 +2015,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-10e',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-10f',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5712,10 +5712,13 @@ function animateNumber(el, to){
 const CHECKLIST = [
   ['開場前', [
     'GASの migrate と validate を実行して問題が出ないことを確認した',
+    'ブースの割り当てが全部終わっている（係員コンソール →「地図でブースを割り当てる」）',
+    '割り当てを終えてから QR を刷った（QRには部屋IDが入っているので、'
+      + 'あとから別の部屋に移すと刷り直しになる）',
+    'ブース入口のQRを貼り終えた',
     '全ブースを「準備中」にした（resetDaily でも可）',
     'お知らせシートの enabled が FALSE になっている',
     '係員全員がログインでき、担当ブースを設定した',
-    'ブース入口のQRを貼り終えた',
     '本部のPCで大画面ボードを開いた'
   ]],
   ['開場後すぐ', [
