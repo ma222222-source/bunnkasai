@@ -816,6 +816,7 @@ text.util:not([font-size]){font-size:7.5px}
 .lg-prep{background:var(--closed-fill);border-color:var(--closed-edge);
   background-image:repeating-linear-gradient(135deg,var(--closed-edge) 0 3px,transparent 3px 9px)}
 .lg-unk{background:var(--unknown)}
+.legend-tip b{font-weight:900;color:var(--text-dim)}
 .legend-tip{flex-basis:100%;color:var(--text-mute);font-weight:700;font-size:9.5px;
             border-top:1px dashed var(--border);padding-top:5px;margin-top:1px}
 
@@ -1758,7 +1759,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
             <span><b class="mk-way"></b>歩ける道</span>
             <span><b class="mk-out">外に出る</b>いったん外へ</span>
             <span><b class="mk-no">3</b>紙マップの番号</span>
-            <span class="legend-tip">数字をおすとくわしく出ます。ひろげると名前も出ます</span>
+            <span class="legend-tip">上の<b>科のボタン</b>をおすと、その棟に寄って名前が出ます。数字をおすとくわしく出ます</span>
           </div>
         </div>
         <div class="route-steps hide" id="route-steps"></div>
@@ -2173,7 +2174,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-10w',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-10x',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3180,10 +3181,17 @@ function renderDeptLegend(floorNum){
     const z = el.dataset.dept;
     S.dept = (S.dept === z || !z) ? null : z;
     drawFloor(S.floor);
-    if (S.dept === '__fac') toast('トイレと出入口を目立たせています');
-    else if (S.dept){
+    if (S.dept === '__fac'){ toast('トイレと出入口を目立たせています'); return; }
+    if (S.dept){
+      // 目立たせるだけでは、全体表示のままなので名前が1〜2文字しか出ない。
+      // その科の範囲まで寄せて、名前が読める大きさにする（これが本題）
       const d = DEPT_BY_ZONE[S.dept];
-      toast(`${d ? d.s : S.dept}だけを表示しています`);
+      const ok = zoomToDept(S.floor, S.dept);
+      toast(`${d ? d.s : S.dept}に寄せました（「全体を見る」でもどせます）`);
+      if (!ok) toast(`${d ? d.s : S.dept}だけを表示しています`);
+    } else {
+      // しぼり込みをやめたら全体へ戻す。寄ったままだと「解除したのに戻らない」
+      zoomReset(true);
     }
   }));
 }
@@ -3986,7 +3994,12 @@ function openEditor(id, roomNm){
   S.editId = id;
   // 続けて割り当てると同じ分類が続くことが多い。前回選んだものを初期値にする
   S.editCat = (b && b.category) || S.lastCat || EDIT_CATS[0];
-  $('#ed-room').textContent = roomNm ? `${id}（${roomNm}）` : id;
+  // どの棟（科）の部屋なのかを出す。来場者側は棟ごとに寄せて見るので、
+  // 同じ科のブースを同じ棟に固めるかどうかを、ここで判断できるようにする
+  const sl0 = slotOf(id);
+  const dp0 = sl0 ? deptOf(sl0) : null;
+  $('#ed-room').textContent = (roomNm ? `${id}（${roomNm}）` : id)
+    + (dp0 ? `・${dp0.s}` : '');
   $('#ed-name').value = (b && b.name) || '';
   $('#ed-note').value = (b && b.note) || '';
   $('#ed-del').classList.toggle('hide', !b);
@@ -4212,9 +4225,22 @@ function renderEditProgress(){
   if (!S.edit){ el.textContent = ''; return; }
   // 階ごとの件数は階タブのバッジが出している。同じことを2か所で言わない。
   // ここは合計だけにして、あとは操作の案内に使う
-  el.textContent = S.booths.length
-    ? `割り当て済み ${S.booths.length}件　部屋をおすと変えられます`
-    : 'まだ1件もありません。部屋をおして名前を付けてください';
+  if (!S.booths.length){
+    el.textContent = 'まだ1件もありません。部屋をおして名前を付けてください';
+    return;
+  }
+  // 棟ごとの内訳。来場者は棟をおして寄せて見るので、
+  // どこかに固まっているのか散っているのかが分かった方が決めやすい
+  const cnt = {};
+  S.booths.forEach(b => {
+    const sl = slotOf(b.id);
+    const d = sl ? deptOf(sl) : null;
+    const k = d ? d.s : 'そのほか';
+    cnt[k] = (cnt[k] || 0) + 1;
+  });
+  const top = Object.keys(cnt).sort((a, b2) => cnt[b2] - cnt[a]).slice(0, 3)
+    .map(k => `${k}${cnt[k]}`).join('・');
+  el.textContent = `割り当て済み ${S.booths.length}件（${top}）　部屋をおすと変えられます`;
 }
 
 function pickHere(id){
@@ -4754,30 +4780,38 @@ function zoomResetIfNeeded(){
  * 実際の校舎図は部屋が多く、全体表示だと文字が小さすぎて読めないので、
  * 「まずブースが読める状態」で見せて、全体は「全体」ボタンで戻せるようにする。
  */
-function zoomToBooths(floorNum){
+/**
+ * 指定した部屋の集まりが画面いっぱいになるように寄せる。
+ * @param {number} floorNum 階
+ * @param {Array} rooms 寄せたい部屋（図面の矩形）
+ * @param {{pad?:number,minRatio?:number,maxK?:number}=} opt
+ *   minRatio … 図面全体に対して最低これだけは見せる（寄りすぎ防止）
+ *   maxK     … 倍率の上限
+ */
+function zoomToRooms(floorNum, rooms, opt){
   const z = ZOOM;
-  if (!z.el || !z.wrap) return;
+  if (!z.el || !z.wrap) return false;
   const svg = $('#plan-' + floorNum);
   const plan = FLOOR_PLAN[floorNum];
-  if (!svg || !plan) return;
+  if (!svg || !plan) return false;
   const vb = (svg.getAttribute('viewBox') || '').split(' ').map(Number);
   const W = z.wrap.clientWidth, H = z.wrap.clientHeight;
-  if (vb.length < 4 || !W || !H || !vb[2]){ zoomReset(false); return; }
+  if (vb.length < 4 || !W || !H || !vb[2]){ zoomReset(false); return false; }
   const s0 = W / vb[2];                       // viewBox単位 → 画面px
+  const o = opt || {};
+  const pad = o.pad != null ? o.pad : 26;     // 周りの部屋も少し見えるように余白をとる
+  const minRatio = o.minRatio != null ? o.minRatio : 0.45;
+  const maxK = o.maxK != null ? o.maxK : 2.6;
 
-  // 合わせる範囲：ブースがあればその周り、無ければ図面全体
-  const ids = new Set(S.booths.filter(b => floorOfBooth(b) === floorNum).map(b => b.id));
-  // 部屋が少ない階（屋外など）は、寄せずに全体を見せた方が位置関係が分かる
-  const rs = plan.rooms.filter(r => ids.has(r.id));
   let bx, by, bw, bh;
+  const rs = rooms || [];
   if (rs.length){
-    const pad = 26;                           // 周りの部屋も少し見えるように余白をとる
     bx = Math.min(...rs.map(r => r.x)) - pad;
     by = Math.min(...rs.map(r => r.y)) - pad;
     bw = Math.max(...rs.map(r => r.x + r.w)) + pad - bx;
     bh = Math.max(...rs.map(r => r.y + r.h)) + pad - by;
-    // ブースが1つしか無い階でも寄りすぎないように、最低でも図面の45%は見せる
-    const minW = vb[2] * 0.45, minH = vb[3] * 0.45;
+    // 1部屋しか無いときに寄りすぎないよう、最低限の見える範囲を決めておく
+    const minW = vb[2] * minRatio, minH = vb[3] * minRatio;
     if (bw < minW){ bx -= (minW - bw) / 2; bw = minW; }
     if (bh < minH){ by -= (minH - bh) / 2; bh = minH; }
   } else {
@@ -4787,15 +4821,38 @@ function zoomToBooths(floorNum){
   const pxX = (bx - vb[0]) * s0, pxY = (by - vb[1]) * s0;
   const pxW = bw * s0, pxH = bh * s0;
   // 図面全体を出すときは、横は画面いっぱいのままなので縦の余白ぶんだけ拡大する。
-  // ブースに寄せるときは、縦横どちらも収まる大きさにする。
+  // 一部に寄せるときは、縦横どちらも収まる大きさにする。
   let k = Math.min(W / pxW, H / pxH);
-  if (!isFinite(k) || k <= 1.02){ zoomReset(false); return; }
-  k = Math.min(k, z.max, 2.6);
+  if (!isFinite(k) || k <= 1.02){ zoomReset(false); return false; }
+  k = Math.min(k, z.max, maxK);
 
   z.k = k;
   z.x = W / 2 - k * (pxX + pxW / 2);
   z.y = H / 2 - k * (pxY + pxH / 2);
+  z.touched = true;
   zoomApply(true);
+  return true;
+}
+
+function zoomToBooths(floorNum){
+  const plan = FLOOR_PLAN[floorNum];
+  if (!plan) return;
+  // 部屋が少ない階（屋外など）は、寄せずに全体を見せた方が位置関係が分かる
+  const ids = new Set(S.booths.filter(b => floorOfBooth(b) === floorNum).map(b => b.id));
+  zoomToRooms(floorNum, plan.rooms.filter(r => ids.has(r.id)));
+}
+
+/**
+ * 科（棟）ごとの固まりに寄せる。
+ * 全体表示だと1部屋が20px程度にしかならず、名前が1〜2文字しか入らない。
+ * その科の範囲まで寄せれば、同じ部屋が3倍以上になって名前が最後まで出る。
+ */
+function zoomToDept(floorNum, zone){
+  const plan = FLOOR_PLAN[floorNum];
+  if (!plan || !zone) return false;
+  const rs = (plan.rooms || []).filter(r => r.z === zone);
+  if (rs.length < 1) return false;
+  return zoomToRooms(floorNum, rs, { pad:14, minRatio:0.2, maxK:4 });
 }
 
 function initSheet(){
