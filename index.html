@@ -21,6 +21,13 @@
 <meta name="theme-color" content="#b91c1c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- 混雑データの取り先。GASは script.google.com から
+     script.googleusercontent.com へ転送されるので、2つとも先につないでおく。
+     電波の細い校内では、DNSとTLSのやりとりだけで数百ミリ秒かかる -->
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<link rel="dns-prefetch" href="https://script.google.com">
+<link rel="dns-prefetch" href="https://script.googleusercontent.com">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23b91c1c'/%3E%3Ctext x='32' y='45' font-size='38' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'%3E黒%3C/text%3E%3C/svg%3E">
 <!-- iOSの「ホーム画面に追加」はSVGのアイコンを読まない。SVGを指定していたので、
@@ -262,6 +269,9 @@ p{margin:0}
 .dot{width:7px;height:7px;border-radius:50%;background:#4ade80;flex:none}
 .dot.stale{background:#fbbf24}
 .dot.down{background:#f87171;animation:blink 1s steps(2) infinite}
+/* 取りに行っている最中。止まって見せないための印 */
+.dot.syncing{background:#93c5fd;animation:blink .9s steps(2) infinite}
+@media (prefers-reduced-motion:reduce){ .dot.syncing{animation:none} }
 @keyframes blink{50%{opacity:.25}}
 
 /* すべて等間隔だと、どこで話題が変わったのか分からない。
@@ -2179,7 +2189,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-10y',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-11a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -2896,6 +2906,10 @@ async function sync(manual){
   // 係員の送信中に取り込むと、送った値が古い値で上書きされて見える
   if (update._busy && !manual){ schedule(); return; }
   sync._busy = true;
+  sync._at = Date.now();
+  // 1秒たっても返ってこなければ「取りに行っています」を出す
+  clearTimeout(sync._slow);
+  sync._slow = setTimeout(() => { if (sync._busy) renderSyncState(); }, 1100);
   try{
     const raw = await api();
     const booths = normalize(raw);
@@ -2940,6 +2954,7 @@ async function sync(manual){
     renderSyncState();
   }finally{
     sync._busy = false;
+    clearTimeout(sync._slow);
     schedule();
   }
 }
@@ -3002,6 +3017,13 @@ function agoMin(m){
 function renderSyncState(){
   const dot = $('#sync-dot'), txt = $('#sync-text');
   const age = Date.now() - S.fetchedAt;
+  // GASの応答は実測で1.2〜4.5秒かかる。そのあいだ表示が止まって見えるので、
+  // 1秒を超えたら「取りに行っている」ことを出す（黙って固まらせない）
+  if (sync._busy && sync._at && Date.now() - sync._at > 1000){
+    dot.className = 'dot syncing';
+    txt.textContent = '最新の状況を取りに行っています…';
+    return;
+  }
   // 初回訪問（保存データなし）で通信できないときこそ、いちばん説明が要る。
   // 以前は !S.booths.length でバナーごと隠していたため、
   // 最も困る場面で灰色の枠だけが出て「壊れている」ようにしか見えなかった。
