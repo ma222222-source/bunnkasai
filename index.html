@@ -462,7 +462,7 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 .dept-legend::-webkit-scrollbar{display:none}
 .dept-legend button{display:inline-flex;align-items:center;gap:4px;flex:none;cursor:pointer;
   font-size:10px;font-weight:800;color:var(--text-dim);
-  padding:0 12px;min-height:40px;border-radius:999px;background:var(--surface);border:1px solid var(--border);
+  padding:0 12px;min-height:44px;border-radius:999px;background:var(--surface);border:1px solid var(--border);
   transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease),
              border-color var(--t-fast) var(--ease)}
 .dept-legend button[aria-pressed="true"]{background:var(--text);color:var(--surface);border-color:var(--text)}
@@ -488,7 +488,7 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 /* 「地図で見る」は行の中に混ぜず、予定の下に置く。
    44px の高さのボタンを文中に置くと、その行だけ行間が44pxに広がり、
    時刻と予定の高さが行ごとにバラバラになって読みにくかった。 */
-.tt-go{display:flex;align-items:center;gap:5px;margin-top:5px;min-height:40px;
+.tt-go{display:flex;align-items:center;gap:5px;margin-top:5px;min-height:44px;
   width:fit-content;font-size:11px;font-weight:800;color:var(--accent);
   background:var(--surface-2);border:1px solid var(--border);border-radius:999px;
   padding:0 12px;cursor:pointer;text-align:left;
@@ -584,7 +584,7 @@ body.editing .room .fill{stroke:var(--text);stroke-width:1.6}
 body.picking .map-view{outline:3px solid var(--accent);outline-offset:-3px}
 /* 現在地が分からない人への問いかけ。ふだんの「いまここ」より静かに置く */
 .here-bar.ask{border-color:var(--border-strong)}
-.here-bar button{flex:none;min-height:40px;padding:0 12px;border-radius:9px;font-size:11.5px;
+.here-bar button{flex:none;min-height:44px;padding:0 12px;border-radius:9px;font-size:11.5px;
   font-weight:900;background:var(--surface-3);color:var(--text);border:1px solid var(--border)}
 .here-bar.ask [data-here-pick]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
 /* 断るほうまで赤くすると、どちらが本命か分からなくなる */
@@ -652,12 +652,8 @@ body.sheet-open{overflow:hidden}
 .util{font-weight:700;fill:var(--text-dim);pointer-events:none}
 text.util:not([font-size]){font-size:7.5px}
 .util-box{fill:var(--surface-3);stroke:var(--border);stroke-width:1}
-.util-tap{cursor:pointer}
-.util-tap .util-box{stroke:var(--border-strong)}
-.util-tap:hover .util-box{stroke:var(--accent)}
 /* トイレは文字ではなく絵記号。狭い枠に「WC」を入れると必ずはみ出す */
 .wc-icon{fill:var(--text-mute);pointer-events:none}
-.util-tap:active .util-box{fill:var(--accent);fill-opacity:.15}
 
 /* データ待ちのあいだに出す、校舎の枠だけの下描き */
 .skel-room{fill:var(--surface-3);stroke:var(--border);stroke-width:1;
@@ -755,7 +751,7 @@ text.util:not([font-size]){font-size:7.5px}
           border-top:1px solid var(--border);background:var(--warn-soft);
           font-size:10px;font-weight:800;color:var(--warn)}
 .unplaced button{background:var(--surface);border:1px solid var(--warn);color:var(--warn);
-                 border-radius:7px;padding:5px 10px;font-size:10.5px;font-weight:800}
+                 border-radius:7px;padding:0 12px;min-height:44px;font-size:10.5px;font-weight:800}
 /* 凡例と注記は「調べたいときに読む」もの。常時強く出ていると本文と競合するので、
    彩度と大きさを一段落として背面へ送る */
 /* 5つの見本が1行に収まる大きさにしてある。2行に折れると、
@@ -806,7 +802,7 @@ text.util:not([font-size]){font-size:7.5px}
   -webkit-mask-image:linear-gradient(90deg,transparent,#000 26px,#000 calc(100% - 26px),transparent);
           mask-image:linear-gradient(90deg,transparent,#000 26px,#000 calc(100% - 26px),transparent)}
 /* 指で押しやすいよう、タップ領域は40px以上を確保する */
-.chip{flex:none;font-size:11.5px;font-weight:800;padding:0 14px;min-height:40px;border-radius:999px;
+.chip{flex:none;font-size:11.5px;font-weight:800;padding:0 14px;min-height:44px;border-radius:999px;
       display:inline-flex;align-items:center;
       background:var(--surface);border:1px solid var(--border);color:var(--text-dim);white-space:nowrap}
 .chip{transition:background var(--t) var(--ease),color var(--t) var(--ease),
@@ -816,12 +812,18 @@ text.util:not([font-size]){font-size:7.5px}
 
 /* ========================= ブースカード ========================= */
 .booth{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
-       box-shadow:var(--shadow);overflow:hidden;
+       box-shadow:var(--shadow);overflow:hidden;cursor:pointer;text-align:left;
+       transition:transform var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease);
        /* 画面外のカードは組版・描画を省く。安い端末で一覧タブの切替が体感で軽くなる。
           auto 96px は「まだ測っていない分の高さの見込み」。実測後はその値を覚える。 */
        content-visibility:auto;contain-intrinsic-size:auto 96px}
+/* 押した手ごたえ。カードが押せることは、押してみるまで分からない */
+.booth:active{transform:scale(.988)}
+.booth:hover{border-color:var(--border-strong)}
+.booth:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){ .booth{transition:none} .booth:active{transform:none} }
 /* 印刷と画像化のときは全部描かせる（省いたままだと白紙になる） */
-@media print{ .booth{content-visibility:visible} }
+@media print{ .booth{content-visibility:visible;cursor:auto} }
 .booth.flash{outline:3px solid var(--accent);outline-offset:-1px}
 .booth-top{display:flex;gap:10px;padding:10px 12px;align-items:flex-start}
 .booth-bar{width:5px;border-radius:3px;align-self:stretch;flex:none;background:var(--unknown)}
@@ -2104,7 +2106,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-10j',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-10k',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3526,11 +3528,12 @@ function drawFloor(floorNum){
             font-size="${fs.toFixed(2)}">${esc(name)}</text>
     </g>`;
   });
+  // トイレ・救護室は地図の記号。以前はタップでインフォへ飛ぶボタンにしていたが、
+  // 全体表示では 4x11px しかなく押せないうえ、地図を動かそうとした指が当たると
+  // 勝手に別のタブへ飛んでいた。行き先のインフォに載っているのは
+  // 「各棟の1階・2階」という文章で、地図そのものより粗い。押せる必要がない。
   plan.utils.forEach(u => {
-    // トイレ・救護室は場所を知りたい人が多いので、タップでインフォへ飛べるようにする
-    const jump = /救護|WC|トイレ/.test(u.t);
-    html += `<g class="${jump ? 'util-tap' : ''}" ${jump ? 'data-info="1" role="button" tabindex="0"' : ''}
-              ${jump ? `aria-label="${esc(u.t)}の案内を見る"` : ''}>
+    html += `<g>
              <rect x="${u.x}" y="${u.y}" width="${u.w}" height="${u.h}" rx="3"
                    class="util-box${S.dept === '__fac' ? ' hot' : ''}"/>
              ${utilLabel(u)}
@@ -3762,12 +3765,6 @@ function drawFloor(floorNum){
       `<button data-id="${esc(b.id)}">${esc(b.name)}</button>`).join('');
     $$('button', note).forEach(el => el.addEventListener('click', () => openSheet(el.dataset.id)));
   }
-
-  $$('[data-info]', svg).forEach(g => {
-    const go = () => { switchView('info'); toast('施設の案内はこちらです'); };
-    g.addEventListener('click', go);
-    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } });
-  });
 
   $$('.room', svg).forEach(g => {
     const id = g.dataset.id;
@@ -4995,7 +4992,11 @@ function renderList(){
     const L = lvOf(b);
     const got = S.stamps.has(b.id);
     return `
-    <article class="booth${isChanged(b.id) ? ' changed' : ''}" id="booth-${esc(b.id)}" data-lv="${L.lv}">
+    <article class="booth${isChanged(b.id) ? ' changed' : ''}" id="booth-${esc(b.id)}"
+      data-lv="${L.lv}" data-sid="${esc(b.id)}" role="button" tabindex="0"
+      aria-label="${esc(b.name)} ${esc(L.short)}${
+        b.wait > 0 && L.lv >= 0 && L.lv < 3 ? ` ${b.wait}人待ち` : ''}${
+        got ? ' スタンプ済' : ''} の詳細をひらく">
       <div class="booth-top">
         <span class="booth-bar"></span>
         ${b.image ? `<img class="booth-img" src="${esc(b.image)}" alt="" loading="lazy" decoding="async"
@@ -5030,6 +5031,15 @@ function renderList(){
       })()}
     </article>`;
   }).join('');
+
+  // 地図の部屋・スタンプと同じで、おすとブースの詳細が開く。
+  // 見た目はカードのままなので、押せることが分かるよう cursor と押し込みも付ける
+  $$('[data-sid]', box).forEach(el => {
+    el.addEventListener('click', () => openSheet(el.dataset.sid));
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openSheet(el.dataset.sid); }
+    });
+  });
 
   refreshScrollEdges();
 }
