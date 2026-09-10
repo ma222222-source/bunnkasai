@@ -77,13 +77,17 @@
   --text:#101828; --text-dim:#5b6779; --text-mute:#566270;
   --accent:#b91c1c; --accent-2:#7f1d1d; --on-accent:#ffffff;
   --free:#15803d; --warn:#b45309; --busy:#dc2626; --unknown:#94a3b8; --closed:#64748b;
+  /* 地図の塗り。文字色と分けることで、黄をきちんと黄に、赤をきちんと赤にできる。
+     -ink は柄（縞・網目）の線の色。塗りより濃くして、混むほど密に見せる */
+  --free-fill:#17914a; --warn-fill:#e8a300; --busy-fill:#d81f1f; --closed-fill:#7b8798;
+  --free-edge:#0d5c2c; --warn-edge:#8a5d00; --busy-edge:#8a1212; --closed-edge:#5a6675;
   --free-soft:#dcfce7; --warn-soft:#fef3c7; --busy-soft:#fee2e2;
   --corridor-fill:#cfe0f5; --corridor-ink:#42607f;   /* 廊下 */
   --road-fill:#dfe4ea;     --road-line:#ffffff;      /* 屋外の道 */
   /* 淡い背景の上に載せる文字色。--busy そのままだと 4:1 を切るため別に持つ */
   --busy-ink:#b91c1c;
   --on-status:#ffffff;   /* 混雑度の色を背景にしたときの文字色 */
-  --corridor:#e4e9f1; --outdoor:#e8f0e4; --room-label:#ffffff; --label-stroke:rgba(0,0,0,.5);
+  --corridor:#e4e9f1; --outdoor:#e8f0e4; --room-label:#ffffff; --label-stroke:rgba(0,0,0,.66);
   --shadow:0 1px 2px rgba(16,24,40,.05), 0 10px 26px -14px rgba(16,24,40,.28),
            inset 0 1px 0 rgba(255,255,255,.75);
   --shadow-lg:0 12px 40px -12px rgba(16,24,40,.35);
@@ -154,6 +158,8 @@ p{margin:0}
   --text:#191815; --text-dim:#514d45; --text-mute:#5a554c;
   --accent:#9a1b22; --accent-2:#6b1015; --on-accent:#ffffff;
   --free:#1d6b4f; --warn:#8a5a12; --busy:#a81f2b;
+  --free-fill:#2f8f61; --warn-fill:#d69c1c; --busy-fill:#bf2733; --closed-fill:#8b8a80;
+  --free-edge:#17573a; --warn-edge:#7d5709; --busy-edge:#7c1620; --closed-edge:#5f5f57;
   --free-soft:#dfeae1; --warn-soft:#f2e9d2; --busy-soft:#f4e0e0;
   --busy-ink:#8c1a24;
   --corridor-fill:#dfe6ec; --corridor-ink:#42556b;
@@ -185,6 +191,8 @@ p{margin:0}
   --text:#f4f7fb; --text-dim:#b3bdcb; --text-mute:#a3aebd;
   --accent:#e4142a; --accent-2:#8d0d1b; --on-accent:#ffffff;
   --free:#2ecc71; --warn:#f0a020; --busy:#ff2f47; --unknown:#5b6577; --closed:#6b7688;
+  --free-fill:#2ecc71; --warn-fill:#f5b027; --busy-fill:#ff2f47; --closed-fill:#6b7688;
+  --free-edge:#0e5c33; --warn-edge:#7a5406; --busy-edge:#8c0f1c; --closed-edge:#39404d;
   --free-soft:#0d2a1a; --warn-soft:#332508; --busy-soft:#3b0e16;
   --busy-ink:#ff8b99; --on-status:#0b0d11;
   --corridor-fill:#1d2836; --corridor-ink:#8ba2bc;
@@ -323,9 +331,9 @@ main{flex:1;padding:14px 12px calc(88px + var(--safe-b));display:flex;flex-direc
 .sum{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);
      padding:9px 4px;text-align:center;box-shadow:var(--shadow);position:relative;overflow:hidden}
 .sum::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--unknown)}
-.sum[data-lv="0"]::after{background:var(--free)}
-.sum[data-lv="1"]::after{background:var(--warn)}
-.sum[data-lv="2"]::after{background:var(--busy)}
+.sum[data-lv="0"]::after{background:var(--free-fill)}
+.sum[data-lv="1"]::after{background:var(--warn-fill)}
+.sum[data-lv="2"]::after{background:var(--busy-fill)}
 .sum[data-lv="x"]::after{background:var(--border-strong)}
 .sum b{display:block;font-size:19px;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
 .sum span{display:block;font-size:9.5px;font-weight:800;color:var(--text-mute);margin-top:2px}
@@ -650,19 +658,25 @@ text.util:not([font-size]){font-size:7.5px}
 @keyframes skel-pulse{50%{opacity:.55}}
 
 .room{cursor:pointer}
-.room .fill{fill:var(--unknown);stroke:rgba(0,0,0,.10);stroke-width:1;transition:fill .4s}
+/* 枠線を状況の色の「濃いほう」で引く。塗りだけだと隣の部屋と溶けて、
+   どこが1ブースなのか分からなくなっていた */
+.room .fill{fill:var(--unknown);stroke:rgba(0,0,0,.18);stroke-width:1.1;transition:fill .4s}
 /* パターン塗りの上でも文字が読めるよう、文字に縁取りを付ける（可読性の要） */
 .room .nm,.room .st{fill:var(--room-label);pointer-events:none;
   paint-order:stroke fill;stroke:var(--label-stroke);stroke-width:2.6px;stroke-linejoin:round}
 .room .nm{font-weight:800}
 .room .st{font-weight:700;stroke-width:2.2px}
-.room[data-lv="0"] .fill{fill:var(--free)}
-.room[data-lv="1"] .fill{fill:url(#pat-warn)}
-.room[data-lv="2"] .fill{fill:url(#pat-busy)}
-.room[data-lv="3"] .fill{fill:url(#pat-prep)}
-.room[data-lv="3"] .fill{fill:var(--closed)}
-.room[data-lv="2"] .fill{animation:breathe 2.4s ease-in-out infinite}
-@keyframes breathe{50%{opacity:.72}}
+.room[data-lv="0"] .fill{fill:var(--free-fill);stroke:var(--free-edge)}
+.room[data-lv="1"] .fill{fill:url(#pat-warn);stroke:var(--warn-edge)}
+.room[data-lv="2"] .fill{fill:url(#pat-busy);stroke:var(--busy-edge);stroke-width:1.6}
+.room[data-lv="3"] .fill{fill:url(#pat-prep);stroke:var(--closed-edge)}
+/* 番号だけを大きく出す狭い部屋では、白い丸が部屋いっぱいに広がって
+   混雑の色をほとんど隠していた。丸は輪郭だけにして、色を見せる */
+.room-no.big circle{fill:none}
+.room[data-lv="0"] .room-no.big text,.room[data-lv="1"] .room-no.big text,
+.room[data-lv="2"] .room-no.big text,.room[data-lv="3"] .room-no.big text{
+  fill:var(--room-label);paint-order:stroke fill;
+  stroke:var(--label-stroke);stroke-width:2.4px;stroke-linejoin:round}
 .room:active .fill{stroke:var(--accent);stroke-width:3}
 .room.flash .fill{stroke:var(--accent);stroke-width:3.5}
 .here-halo{fill:none;stroke:var(--accent);animation:hereHalo 2.1s ease-in-out infinite}
@@ -737,15 +751,20 @@ text.util:not([font-size]){font-size:7.5px}
                  border-radius:7px;padding:5px 10px;font-size:10.5px;font-weight:800}
 /* 凡例と注記は「調べたいときに読む」もの。常時強く出ていると本文と競合するので、
    彩度と大きさを一段落として背面へ送る */
-.legend{display:flex;flex-wrap:wrap;gap:8px;padding:9px 10px;border-top:1px solid var(--border);
-        background:var(--surface);font-size:10px;font-weight:700;color:var(--text-mute);
-        opacity:.9}
-.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;
-          vertical-align:-2px}
-.lg-free{background:var(--free)}
-.lg-warn{background:repeating-linear-gradient(45deg,var(--warn) 0 3px,rgba(255,255,255,.55) 3px 5px)}
-.lg-busy{background:var(--busy);background-image:radial-gradient(rgba(255,255,255,.7) 1px,transparent 1.2px);background-size:4px 4px}
-.lg-prep{background:repeating-linear-gradient(135deg,var(--closed) 0 3px,rgba(255,255,255,.5) 3px 6px)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 10px;padding:9px 10px;border-top:1px solid var(--border);
+        background:var(--surface);font-size:11px;font-weight:800;color:var(--text-dim)}
+/* 見本は地図とまったく同じ柄・同じ色にする。別々に作っていたため、
+   地図の柄と凡例の柄が一致しておらず、見比べても分からなかった */
+.legend i{display:inline-block;width:15px;height:15px;border-radius:3px;margin-right:5px;
+          vertical-align:-3px;border:1px solid rgba(0,0,0,.2)}
+.lg-free{background:var(--free-fill);border-color:var(--free-edge)}
+.lg-warn{background:var(--warn-fill);border-color:var(--warn-edge);
+  background-image:repeating-linear-gradient(45deg,var(--warn-edge) 0 3.2px,transparent 3.2px 8px)}
+.lg-busy{background:var(--busy-fill);border-color:var(--busy-edge);
+  background-image:repeating-linear-gradient(45deg,var(--busy-edge) 0 3px,transparent 3px 7px),
+                   repeating-linear-gradient(135deg,var(--busy-edge) 0 3px,transparent 3px 7px)}
+.lg-prep{background:var(--closed-fill);border-color:var(--closed-edge);
+  background-image:repeating-linear-gradient(135deg,var(--closed-edge) 0 3px,transparent 3px 9px)}
 .lg-unk{background:var(--unknown)}
 .legend-tip{flex-basis:100%;color:var(--text-mute);font-weight:700;font-size:9.5px;
             border-top:1px dashed var(--border);padding-top:6px;margin-top:2px}
@@ -795,9 +814,9 @@ text.util:not([font-size]){font-size:7.5px}
 .booth.flash{outline:3px solid var(--accent);outline-offset:-1px}
 .booth-top{display:flex;gap:10px;padding:10px 12px;align-items:flex-start}
 .booth-bar{width:5px;border-radius:3px;align-self:stretch;flex:none;background:var(--unknown)}
-.booth[data-lv="0"] .booth-bar{background:var(--free)}
-.booth[data-lv="1"] .booth-bar{background:var(--warn)}
-.booth[data-lv="2"] .booth-bar{background:var(--busy)}
+.booth[data-lv="0"] .booth-bar{background:var(--free-fill)}
+.booth[data-lv="1"] .booth-bar{background:var(--warn-fill)}
+.booth[data-lv="2"] .booth-bar{background:var(--busy-fill)}
 .booth-main{flex:1;min-width:0}
 /* 番号は行の頭に固定し、名前だけが折り返す。名前を裸のテキストで置くと
    長いときに行ごと折り返され、番号だけが1行目に取り残されていた */
@@ -836,9 +855,9 @@ text.util:not([font-size]){font-size:7.5px}
 .booth-side{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none;max-width:47%}
 .spark{display:flex;align-items:flex-end;gap:2px;height:18px;flex:none}
 .spark i{width:4px;border-radius:1.5px;display:block;background:var(--unknown)}
-.spark i[data-lv="0"]{background:var(--free);height:5px}
-.spark i[data-lv="1"]{background:var(--warn);height:11px}
-.spark i[data-lv="2"]{background:var(--busy);height:17px}
+.spark i[data-lv="0"]{background:var(--free-fill);height:5px}
+.spark i[data-lv="1"]{background:var(--warn-fill);height:11px}
+.spark i[data-lv="2"]{background:var(--busy-fill);height:17px}
 .trend{font-size:10px;font-weight:800;color:var(--text-mute);
        overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .trend-lb{font-size:9px;font-weight:800;color:var(--text-mute);margin-right:2px;
@@ -999,22 +1018,32 @@ text.util:not([font-size]){font-size:7.5px}
   border:1px dashed var(--border-strong);background:var(--surface-2);color:var(--text-dim)}
 .adm-btns2 button[data-sel="1"]{background:var(--closed);border-style:solid;
   border-color:var(--closed);color:#fff}
-/* 係員が最初に見るのは担当ブースの更新カード。並び順で先頭側へ寄せる */
-/* 係員が当日くり返すのは「担当ブースの待ち人数を送る」だけ。
-   準備用（QR印刷・紙マップ・振り返り・校舎配置・ボード）が上にあると、
-   更新のたびに900pxスクロールする羽目になる。並びは
-   担当選択 → ブースの更新 → 開場/閉場 → 来場者 → お知らせ → チェックリスト → 準備用 → ログアウト。 */
-#adm-warn{order:var(--o-warn)}
-#admin-list{order:var(--o-list)}
-#v-admin > .bulk-row{order:3}
-#v-admin .vis-card{order:var(--o-vis)}
-#v-admin .notice-card{order:var(--o-note)}
-#v-admin .chk-card{order:var(--o-chk)}
-#v-admin > a.btn{order:7}
-#v-admin > #btn-logout{order:8}
-/* 準備用のまとまりの手前に見出しを1本入れて、当日の操作と区切る */
-#v-admin > .adm-tools-t{order:6;font-size:10.5px;font-weight:800;color:var(--text-mute);
-  margin-top:6px;padding-top:9px;border-top:1px dashed var(--border)}
+/* 係員の画面は、全部を1枚にのせて上から並べていた。
+   当日いちばん多い「担当ブースの更新」まで毎回スクロールが要るうえ、
+   どこに何があるか覚えないと使えない。役目ごとにボタンで切り替える形にして、
+   1画面には1つの仕事だけを、大きく出す。 */
+.adm-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
+  position:sticky;top:var(--head-h,0px);z-index:6;padding:8px 0;background:var(--bg)}
+.adm-tabs button{min-height:52px;padding:6px 2px;border-radius:var(--r);
+  border:1.5px solid var(--border);background:var(--surface);color:var(--text-dim);
+  font-size:12.5px;font-weight:900;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  box-shadow:var(--shadow);transition:background var(--t-fast),color var(--t-fast)}
+.adm-tabs button .ic{width:17px;height:17px}
+.adm-tabs button[aria-selected="true"]{background:var(--accent);border-color:var(--accent);
+  color:var(--on-accent)}
+.adm-tabs button[aria-selected="true"] .ic{color:var(--on-accent)}
+/* 受け持ちの件数。未更新があるときは黄色にして、タブを開く前に気づけるようにする */
+.adm-tabs button{position:relative}
+.adm-tabs button b{position:absolute;top:4px;right:5px;min-width:17px;padding:0 4px;
+  height:17px;line-height:17px;border-radius:9px;font-size:10.5px;font-weight:900;
+  background:var(--surface-3);color:var(--text-mute)}
+.adm-tabs button b:empty{display:none}
+.adm-tabs button b[data-warn="1"]{background:var(--warn);color:var(--on-status)}
+.adm-tabs button[aria-selected="true"] b{background:rgba(255,255,255,.22);color:var(--on-accent)}
+.adm-tabs button[aria-selected="true"] b[data-warn="1"]{background:var(--warn);color:var(--on-status)}
+.adm-pane{display:none;flex-direction:column;gap:14px}
+.adm-pane.on{display:flex;animation:view-in var(--t) var(--ease)}
 .adm-booth[data-fresh="warn"]{border-color:var(--warn);box-shadow:inset 3px 0 0 var(--warn),var(--shadow)}
 .adm-booth[data-fresh="danger"]{border-color:var(--busy);box-shadow:inset 3px 0 0 var(--busy),var(--shadow)}
 .adm-elapsed{font-size:11px;font-weight:900;padding:3px 8px;border-radius:7px;
@@ -1196,7 +1225,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 /* ========================= 当日のチェックリスト ========================= */
 .chk-card{padding:0}
 .chk-sum{list-style:none;cursor:pointer;padding:12px;font-size:12px;font-weight:800;
-         color:var(--text-dim);display:flex;align-items:center}
+         color:var(--text-dim);display:flex;align-items:center;gap:6px}
 .chk-sum::-webkit-details-marker{display:none}
 .chk-sum::after{content:"▾";margin-left:auto;transition:transform var(--t) var(--ease)}
 .chk-card[open] .chk-sum::after{transform:rotate(180deg)}
@@ -1225,6 +1254,9 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 .vis-btns button:nth-child(1){color:var(--text-mute)}
 .vis-btns button:nth-child(n+2){background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .vis-btns button:active{transform:scale(.95)}
+/* 送信中であることを、押した本人に分かるようにする */
+.vis-card.sending{outline:2px solid var(--accent);outline-offset:-2px}
+.adm-booth .send[data-label]{background:var(--warn);color:var(--on-status)}
 .vis-btns button:disabled{opacity:.5}
 
 /* ========================= ブース写真 ========================= */
@@ -1365,10 +1397,11 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 .hm-cells i[data-lv="1"]{height:11px}
 .hm-cells i[data-lv="2"]{height:16px}
 .hm-cells i[data-lv="3"]{height:16px;
-  background:repeating-linear-gradient(135deg,var(--closed) 0 2px,rgba(255,255,255,.5) 2px 4px)}
-.hm-cells i[data-lv="0"]{background:var(--free)}
-.hm-cells i[data-lv="1"]{background:var(--warn)}
-.hm-cells i[data-lv="2"]{background:var(--busy)}
+  background:var(--closed-fill);
+  background-image:repeating-linear-gradient(135deg,var(--closed-edge) 0 2px,transparent 2px 5px)}
+.hm-cells i[data-lv="0"]{background:var(--free-fill)}
+.hm-cells i[data-lv="1"]{background:var(--warn-fill)}
+.hm-cells i[data-lv="2"]{background:var(--busy-fill)}
 .hm-cells i[data-lv="x"]{background:var(--surface-3)}
 .hm-max{width:34px;flex:none;text-align:right;font-size:9.5px;font-weight:800;color:var(--text-mute)}
 
@@ -1777,88 +1810,119 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
       </div>
     </section>
 
-    <section class="view" id="v-admin" style="--o-warn:1;--o-list:2;--o-vis:4;--o-note:5;--o-chk:6">
-      <div class="card">
-        <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5a4.5 4.5 0 0 0 5.6 5.6L11 19.7a2.4 2.4 0 1 1-3.4-3.4z"/><circle cx="18" cy="6" r="1"/></svg> 係員コンソール</div>
-        <div class="chips" id="assign-chips"></div>
-        <button class="btn btn-sub" id="btn-edit-map" style="margin-top:10px">
-          地図でブースを割り当てる
-        </button>
-        <p class="srv-state hide" id="srv-state"></p>
-        <p class="card-note" style="margin-top:6px">
-          地図の部屋をおして、名前・分類を決めます。教室とブースを先に分けておく必要はありません。
-        </p>
-        <p style="font-size:10.5px;color:var(--text-mute);font-weight:700;margin-top:8px">
-          担当ブースを選ぶと、その分だけが表示されます（誤操作防止）。
-        </p>
-        <p class="adm-hint" id="adm-rule" style="margin-top:6px"></p>
-        <div id="adm-summary" style="margin-top:9px;padding-top:9px;border-top:1px solid var(--border)"></div>
-        <div class="adm-code" id="adm-code-box">
-          <div style="font-size:11px;font-weight:800;color:var(--text-mute)">お菓子の交換コード（1分ごとに変わります）</div>
-          <b id="adm-code">----</b>
-          <div style="font-size:11px;font-weight:700;color:var(--text-dim);margin-top:5px;line-height:1.6">
-            お菓子を渡すとき、来場者の<b>スタンプ画面</b>で「お菓子と交換する」を押してもらい、
-            この4桁を<b>係員が入力</b>してください。スタンプが消費されて赤くなります。<br>
-            ※この番号は来場者に教えないでください。
-          </div>
-        </div>
+    <section class="view" id="v-admin">
+      <!-- 役目ごとに画面を分ける。1画面に1つの仕事だけを大きく出す。
+           全部を1枚に積むと、当日いちばん多い「更新」まで毎回スクロールが要る -->
+      <div class="adm-tabs" role="tablist" aria-label="係員の画面">
+        <button role="tab" id="admtab-update" aria-selected="true"  aria-controls="admpane-update"
+          data-tab="update"><i class="ic" data-ic="pin"></i>更新<b id="admtab-n"></b></button>
+        <button role="tab" id="admtab-recept" aria-selected="false" aria-controls="admpane-recept"
+          data-tab="recept"><i class="ic" data-ic="bag"></i>受付</button>
+        <button role="tab" id="admtab-hq"     aria-selected="false" aria-controls="admpane-hq"
+          data-tab="hq"><i class="ic" data-ic="call"></i>本部</button>
+        <button role="tab" id="admtab-setup"  aria-selected="false" aria-controls="admpane-setup"
+          data-tab="setup"><i class="ic" data-ic="tool"></i>準備</button>
       </div>
 
-      <!-- 係員が当日いちばん多くやるのは「担当ブースの更新」。
-           来場者カウンタやチェックリストが先にあると、更新まで毎回スクロールが要る。
-           並び順は 担当選択 → ブースの更新 → 来場者 → チェックリスト → お知らせ にする。 -->
-      <details class="card chk-card" id="chk-card">
-        <summary class="chk-sum">当日の流れ（本部用チェックリスト）<span id="chk-count"></span></summary>
-        <div id="chk-body"></div>
-        <p class="adm-hint">チェックは日付ごとに保存され、日が変われば自動でリセットされます。</p>
-      </details>
+      <!-- 更新：当日、係員がくり返す唯一の操作 -->
+      <div class="adm-pane on" id="admpane-update" role="tabpanel" aria-labelledby="admtab-update">
+        <div class="card">
+          <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5a4.5 4.5 0 0 0 5.6 5.6L11 19.7a2.4 2.4 0 1 1-3.4-3.4z"/><circle cx="18" cy="6" r="1"/></svg> 係員コンソール</div>
+          <div class="chips" id="assign-chips"></div>
+          <p style="font-size:10.5px;color:var(--text-mute);font-weight:700;margin-top:8px">
+            担当ブースを選ぶと、その分だけが表示されます（誤操作防止）。
+          </p>
+          <p class="adm-hint" id="adm-rule" style="margin-top:6px"></p>
+          <div id="adm-summary" style="margin-top:9px;padding-top:9px;border-top:1px solid var(--border)"></div>
+        </div>
 
-      <div class="card vis-card">
-        <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1.7a2 2 0 0 0 0 3.6v1.7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1.7a2 2 0 0 0 0-3.6z"/><path d="M14 6.5v11"/></svg> 来場者カウンタ（受付担当のみ）</div>
-        <div class="vis-row">
-          <span class="vis-n" id="vis-n">0</span>
-          <span class="vis-unit">人</span>
-          <span class="vis-time" id="vis-time"></span>
-        </div>
-        <div class="vis-btns">
-          <button data-n="-1">−1</button>
-          <button data-n="1">＋1</button>
-          <button data-n="5">＋5</button>
-          <button data-n="10">＋10</button>
-        </div>
-        <p class="adm-hint">押した分だけ加算されます。押し間違えたら −1 で戻せます。</p>
+        <div id="adm-warn" class="hide" style="margin-bottom:8px;line-height:1.6"></div>
+        <div id="admin-list" style="display:flex;flex-direction:column;gap:9px"></div>
       </div>
-      <div id="adm-warn" class="hide" style="margin-bottom:8px;line-height:1.6"></div>
-      <div id="admin-list" style="display:flex;flex-direction:column;gap:9px"></div>
-      <details class="card notice-card" id="notice-card">
-        <summary class="chk-sum"><i data-ic="call"></i> お知らせを出す
-          <span class="card-note" id="notice-now">いまは出ていません</span></summary>
-        <div style="padding-top:10px">
-          <p style="font-size:11px;color:var(--text-mute);font-weight:700;margin-bottom:8px">
-            来場者全員の画面の上に出ます。落とし物・ステージ開始・雨天の案内などに。</p>
-          <textarea class="field" id="notice-text" rows="2" maxlength="200"
-            placeholder="例）12:00 から体育館でステージ発表があります。"></textarea>
-          <div class="seg" role="group" aria-label="お知らせの種類" style="width:fit-content;margin-top:8px">
-            <button id="notice-info" aria-pressed="true">お知らせ</button>
-            <button id="notice-alert" aria-pressed="false">注意（赤）</button>
-          </div>
-          <div class="bulk-row" style="margin-top:9px">
-            <button class="btn" id="notice-send">この内容で出す</button>
-            <button class="btn ghost" id="notice-clear">お知らせを消す</button>
-          </div>
-        </div>
-      </details>
 
-      <div class="bulk-row">
-        <button class="btn ghost" id="btn-bulk" data-st="空いています">開場：全ブースを「空いています」に</button>
-        <button class="btn ghost" id="btn-bulk-close" data-st="準備中">閉場：全ブースを「準備中」に</button>
+      <!-- 受付：受付・引換所の担当だけが使う -->
+      <div class="adm-pane" id="admpane-recept" role="tabpanel" aria-labelledby="admtab-recept" hidden>
+        <div class="card vis-card">
+          <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1.7a2 2 0 0 0 0 3.6v1.7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1.7a2 2 0 0 0 0-3.6z"/><path d="M14 6.5v11"/></svg> 来場者カウンタ（受付担当のみ）</div>
+          <div class="vis-row">
+            <span class="vis-n" id="vis-n">0</span>
+            <span class="vis-unit">人</span>
+            <span class="vis-time" id="vis-time"></span>
+          </div>
+          <div class="vis-btns">
+            <button data-n="-1">−1</button>
+            <button data-n="1">＋1</button>
+            <button data-n="5">＋5</button>
+            <button data-n="10">＋10</button>
+          </div>
+          <p class="adm-hint">押した分だけ加算されます。押し間違えたら −1 で戻せます。</p>
+        </div>
+        <div class="card code-card">
+          <div class="adm-code" id="adm-code-box">
+            <div style="font-size:11px;font-weight:800;color:var(--text-mute)">お菓子の交換コード（1分ごとに変わります）</div>
+            <b id="adm-code">----</b>
+            <div style="font-size:11px;font-weight:700;color:var(--text-dim);margin-top:5px;line-height:1.6">
+              お菓子を渡すとき、来場者の<b>スタンプ画面</b>で「お菓子と交換する」を押してもらい、
+              この4桁を<b>係員が入力</b>してください。スタンプが消費されて赤くなります。<br>
+              ※この番号は来場者に教えないでください。
+            </div>
+          </div>
+        </div>
+
       </div>
-      <p class="adm-tools-t">ここから下は準備・本部用（当日の更新には使いません）</p>
-      <a class="btn ghost" href="?mode=qr" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg> QRコード印刷シートを開く</a>
-      <a class="btn ghost" href="?mode=print" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg> 配布用の紙マップを開く</a>
-      <a class="btn ghost" href="?mode=report" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M8 17V10M13 17V6M18 17v-4"/></svg> 混雑の振り返りを見る</a>
-      <a class="btn ghost" href="?mode=board" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5h20v12H2z"/><path d="M8.5 20.5h7M12 16.5v4"/></svg> 本部用の大画面ボードを開く</a>
-      <button class="btn ghost" id="btn-logout">ログアウト</button>
+
+      <!-- 本部：全体に向けた操作。ふつうの係員はさわらない -->
+      <div class="adm-pane" id="admpane-hq" role="tabpanel" aria-labelledby="admtab-hq" hidden>
+        <details class="card chk-card" id="chk-card">
+          <summary class="chk-sum">当日の流れ（本部用チェックリスト）<span id="chk-count"></span></summary>
+          <div id="chk-body"></div>
+          <p class="adm-hint">チェックは日付ごとに保存され、日が変われば自動でリセットされます。</p>
+        </details>
+
+        <div class="bulk-row">
+          <button class="btn ghost" id="btn-bulk" data-st="空いています">開場：全ブースを「空いています」に</button>
+          <button class="btn ghost" id="btn-bulk-close" data-st="準備中">閉場：全ブースを「準備中」に</button>
+        </div>
+        <details class="card notice-card" id="notice-card">
+          <summary class="chk-sum"><i data-ic="call"></i> お知らせを出す
+            <span class="card-note" id="notice-now" style="margin-left:2px">いまは出ていません</span></summary>
+          <div style="padding-top:10px">
+            <p style="font-size:11px;color:var(--text-mute);font-weight:700;margin-bottom:8px">
+              来場者全員の画面の上に出ます。落とし物・ステージ開始・雨天の案内などに。</p>
+            <textarea class="field" id="notice-text" rows="2" maxlength="200"
+              placeholder="例）12:00 から体育館でステージ発表があります。"></textarea>
+            <div class="seg" role="group" aria-label="お知らせの種類" style="width:fit-content;margin-top:8px">
+              <button id="notice-info" aria-pressed="true">お知らせ</button>
+              <button id="notice-alert" aria-pressed="false">注意（赤）</button>
+            </div>
+            <div class="bulk-row" style="margin-top:9px">
+              <button class="btn" id="notice-send">この内容で出す</button>
+              <button class="btn ghost" id="notice-clear">お知らせを消す</button>
+            </div>
+          </div>
+        </details>
+
+      </div>
+
+      <!-- 準備：前日までの作業と、紙もの -->
+      <div class="adm-pane" id="admpane-setup" role="tabpanel" aria-labelledby="admtab-setup" hidden>
+        <details class="card setup-card">
+          <summary class="chk-sum">準備：地図でブースを割り当てる</summary>
+          <div style="padding:0 12px 12px">
+            <button class="btn btn-sub" id="btn-edit-map">地図でブースを割り当てる</button>
+            <p class="srv-state hide" id="srv-state"></p>
+            <p class="card-note" style="margin-top:6px">
+              地図の部屋をおして、名前・分類を決めます。教室とブースを先に分けておく必要はありません。
+            </p>
+          </div>
+        </details>
+
+        <a class="btn ghost" href="?mode=qr" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg> QRコード印刷シートを開く</a>
+        <a class="btn ghost" href="?mode=print" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg> 配布用の紙マップを開く</a>
+        <a class="btn ghost" href="?mode=report" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M8 17V10M13 17V6M18 17v-4"/></svg> 混雑の振り返りを見る</a>
+        <a class="btn ghost" href="?mode=board" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5h20v12H2z"/><path d="M8.5 20.5h7M12 16.5v4"/></svg> 本部用の大画面ボードを開く</a>
+        <button class="btn ghost" id="btn-logout">ログアウト</button>
+      </div>
     </section>
 
     <!-- ============ QR印刷 ============ -->
@@ -1963,17 +2027,22 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 </aside>
 
 <svg class="svg-defs" aria-hidden="true" focusable="false"><defs>
-    <pattern id="pat-warn" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <rect width="7" height="7" fill="var(--warn)"/>
-      <rect width="3" height="7" fill="rgba(255,255,255,.55)"/>
+    <!-- 混むほど「柄が密になる」ようにそろえてある。
+         空き＝無地、やや混雑＝斜めの縞、混雑＝斜めの網目、準備中＝薄い斜線。
+         以前は白を重ねて柄を作っていたため、混雑ほど色が薄く見えていた。
+         柄の線は塗りより濃い色にして、密度と重さが混雑度と同じ向きになるようにした。 -->
+    <pattern id="pat-warn" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="8" height="8" fill="var(--warn-fill)"/>
+      <rect width="3.2" height="8" fill="var(--warn-edge)" opacity=".72"/>
     </pattern>
-    <pattern id="pat-busy" width="6" height="6" patternUnits="userSpaceOnUse">
-      <rect width="6" height="6" fill="var(--busy)"/>
-      <circle cx="3" cy="3" r="1.3" fill="rgba(255,255,255,.75)"/>
+    <pattern id="pat-busy" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="7" height="7" fill="var(--busy-fill)"/>
+      <rect width="3" height="7" fill="var(--busy-edge)" opacity=".8"/>
+      <rect width="7" height="3" fill="var(--busy-edge)" opacity=".8"/>
     </pattern>
-    <pattern id="pat-prep" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(135)">
-      <rect width="8" height="8" fill="var(--closed)"/>
-      <rect width="3" height="8" fill="rgba(255,255,255,.5)"/>
+    <pattern id="pat-prep" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(135)">
+      <rect width="9" height="9" fill="var(--closed-fill)"/>
+      <rect width="3" height="9" fill="var(--closed-edge)" opacity=".55"/>
     </pattern>
     <pattern id="pat-blocked" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
       <rect width="9" height="9" fill="var(--surface-3)"/>
@@ -2015,7 +2084,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-10f',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-10g',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5447,7 +5516,9 @@ function exportReportPng(){
   const g = cv.getContext('2d');
   g.scale(dpr, dpr);
 
-  const C = { free:'#15803d', warn:'#b45309', busy:'#dc2626', prep:'#64748b',
+  // 画面の地図・一覧と同じ色にそろえる（別の色だと、同じ日の同じ状況が
+  //  紙とスマホで違う色に見える）。刷ったときに黄が茶に沈まない明るさにしてある
+  const C = { free:'#17914a', warn:'#e8a300', busy:'#d81f1f', prep:'#7b8798',
               none:'#e2e8f0', ink:'#101828', dim:'#5b6779', mute:'#8b97a8', accent:'#b91c1c' };
   const F = (px, w) => `${w || 700} ${px}px "Hiragino Kaku Gothic ProN","Noto Sans CJK JP",sans-serif`;
 
@@ -5773,6 +5844,8 @@ async function addVisitors(n){
   renderVisitors();
   const btns = $$('.vis-btns button');
   btns.forEach(b => b.disabled = true);
+  const visCard = $('.vis-card');
+  if (visCard) visCard.classList.add('sending');
   try{
     const r = await api({ body:{ action:'visitor', n, pass: pw() } });
     if (r && r.visitors) S.visitors = r.visitors;
@@ -5782,7 +5855,10 @@ async function addVisitors(n){
   }catch(e){
     S.visitors.today = prev; renderVisitors();
     if (!authFailed(e)) toast('記録できませんでした');
-  }finally{ btns.forEach(b => b.disabled = false); }
+  }finally{
+    btns.forEach(b => b.disabled = false);
+    if (visCard) visCard.classList.remove('sending');
+  }
 }
 
 /**
@@ -5943,7 +6019,17 @@ function markScrollEdges(el){
 function refreshScrollEdges(){
   $$('.chips, .dept-legend').forEach(markScrollEdges);
 }
-addEventListener('resize', () => refreshScrollEdges());
+/**
+ * 見出しは position:sticky で画面の上に貼りついている。
+ * その下にもう一段貼りつくもの（係員のタブ）を置くので、実測した高さを渡す。
+ * 端末の切り欠き（safe-area）ぶんで高さが変わるため、決め打ちにはできない。
+ */
+function measureHead(){
+  const h = $('.head');
+  if (!h) return;
+  document.documentElement.style.setProperty('--head-h', h.offsetHeight + 'px');
+}
+addEventListener('resize', () => { refreshScrollEdges(); measureHead(); });
 
 function switchView(v, fromHistory){
   // タブを移るときは、開いていたシートの履歴エントリごと畳む。
@@ -6127,6 +6213,43 @@ function renderNoticeState(){
   if (ta && !ta.value && n) ta.value = n;
 }
 
+/**
+ * 係員の画面を、役目ごとの4枚に切り替える。
+ * 全部を1枚に積むと、当日いちばん多い「担当ブースの更新」まで毎回スクロールが要り、
+ * さらに「開場：全ブースを空きに」のような戻せない操作がそのすぐ横に並んでしまう。
+ * 選んだタブは端末に覚えさせる。受付の人は毎回「受付」から始められる。
+ */
+function setAdmTab(name){
+  const tabs = $$('.adm-tabs button');
+  if (!tabs.length) return;
+  if (!tabs.some(t => t.dataset.tab === name)) name = 'update';
+  tabs.forEach(t => {
+    const on = t.dataset.tab === name;
+    t.setAttribute('aria-selected', on ? 'true' : 'false');
+    const pane = $('#admpane-' + t.dataset.tab);
+    if (pane){ pane.classList.toggle('on', on); pane.hidden = !on; }
+  });
+  S.admTab = name;
+  try{ localStorage.setItem('kuroko_adm_tab', name); }catch(_){}
+  // 切り替えた先の先頭を見せる。前のタブのスクロール位置のまま出すと
+  // 「何も出ていない」ように見える
+  const sec = $('#v-admin');
+  if (sec && sec.classList.contains('on')) window.scrollTo({ top:0, behavior:'auto' });
+}
+/**
+ * 更新タブの右肩に件数を出す。未更新があるときはその件数を黄色で出し、
+ * 別のタブを開いていても「戻って更新する必要がある」と分かるようにする。
+ */
+function renderAdmTabCount(n, overdue){
+  const b = $('#admtab-n');
+  if (!b) return;
+  b.textContent = overdue ? String(overdue) : (n ? String(n) : '');
+  if (overdue) b.dataset.warn = '1'; else delete b.dataset.warn;
+  const tab = $('#admtab-update');
+  if (tab) tab.setAttribute('aria-label',
+    overdue ? `更新（${overdue}件が未更新）` : `更新（担当${n}件）`);
+}
+
 function renderAdmin(){
   const container = $('#admin-list');
   let list = S.assigned.size ? S.booths.filter(b => S.assigned.has(b.id)) : S.booths;
@@ -6144,6 +6267,7 @@ function renderAdmin(){
   }
 
   const overdue = list.filter(b => elapsedMin(b) >= CONFIG.ADMIN_WARN_MIN).length;
+  renderAdmTabCount(list.length, overdue);
   renderNoticeState();
   const warn = [];
   if (S.dupIds.length) warn.push(`id が重なっています：${S.dupIds.join('・')}（後の行は無視しました）`);
@@ -6301,6 +6425,10 @@ async function update(id, status, wait){
 
   const btns = $$(`.adm-booth[data-id="${CSS.escape(id)}"] button`);
   btns.forEach(x => x.disabled = true);
+  // 電波が悪いと数秒かかる。黙っていると「押せていない」と思われて
+  // もう一度押される。送っていることを言葉で出す
+  const sendBtn = $(`.adm-booth[data-id="${CSS.escape(id)}"] .send`);
+  if (sendBtn){ sendBtn.dataset.label = sendBtn.textContent; sendBtn.textContent = '送信中…'; }
   update._busy = (update._busy || 0) + 1;                   // 送信中は自動同期を待たせる
   try{
     // wait は常に送る。null なら人数を消す指示になる
@@ -6328,6 +6456,8 @@ async function update(id, status, wait){
   }finally{
     update._busy--;
     $$(`.adm-booth[data-id="${CSS.escape(id)}"] button`).forEach(x => x.disabled = false);
+    const sb = $(`.adm-booth[data-id="${CSS.escape(id)}"] .send`);
+    if (sb && sb.dataset.label){ sb.textContent = sb.dataset.label; delete sb.dataset.label; }
   }
 }
 
@@ -6963,7 +7093,7 @@ async function renderReport(){
   let bars = '';
   r.overall.forEach((o, i) => {
     const x = pad + i * colW;
-    const stack = [[o.busy, 'var(--busy)'], [o.warn, 'var(--warn)'], [o.free, 'var(--free)']];
+    const stack = [[o.busy, 'var(--busy-fill)'], [o.warn, 'var(--warn-fill)'], [o.free, 'var(--free-fill)']];
     let y = H - 18;
     stack.forEach(([c, col]) => {
       const h = total ? (c / total) * (H - 30) : 0;
@@ -7058,7 +7188,7 @@ async function renderReport(){
       <p style="font-size:9.5px;color:var(--text-mute);font-weight:600;margin-top:8px">
         右端の数字はその日の最大待ち人数です。
         <span style="display:inline-block;width:9px;height:9px;border-radius:2px;
-              background:var(--closed);vertical-align:-1px"></span> は準備中、
+              background:var(--closed-fill);vertical-align:-1px"></span> は準備中、
         <span style="display:inline-block;width:9px;height:9px;border-radius:2px;
               background:var(--surface-3);border:1px solid var(--border);vertical-align:-1px"></span>
         は記録がない時間帯です。
@@ -7300,6 +7430,13 @@ function init(){
     b.addEventListener('click', () => bulkReset(b)));
   $$('.vis-btns button').forEach(b =>
     b.addEventListener('click', () => addVisitors(Number(b.dataset.n))));
+  measureHead();
+  $$('.adm-tabs button').forEach(t =>
+    t.addEventListener('click', () => setAdmTab(t.dataset.tab)));
+  let savedTab = 'update';
+  try{ savedTab = localStorage.getItem('kuroko_adm_tab') || 'update'; }catch(_){}
+  setAdmTab(savedTab);
+
   $('#btn-logout').addEventListener('click', () => {
     try{ sessionStorage.removeItem('kuroko_pw'); }catch(_){}
     S.isAdmin = false; setEditMode(false); switchView('map'); toast('ログアウトしました');
