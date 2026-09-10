@@ -427,9 +427,11 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
           stroke-width:.7}
 .corridor-line{stroke:var(--corridor-ink);stroke-width:1.1;stroke-dasharray:3.5 3.5;
                stroke-linecap:round;fill:none;opacity:.75}
+/* 縁取りは字の大きさに比例させる。図面の単位で固定していると、
+   小さい字のときに字より太い縁取りになって塊に見える（ブース名で起きていた） */
 .corridor-t{fill:var(--corridor-ink);font-weight:900;letter-spacing:.2em;
             pointer-events:none;paint-order:stroke fill;
-            stroke:var(--corridor-fill);stroke-width:2.4px;stroke-linejoin:round}
+            stroke:var(--corridor-fill);stroke-width:.3em;stroke-linejoin:round}
 /* 「ここから外に出る」道。屋内の通路と同じ見た目だと、外に出られず迷う */
 .out-tag rect{fill:var(--warn-soft);stroke:var(--warn);stroke-width:.7}
 .out-tag text{font-weight:900;fill:var(--warn-ink,var(--text));letter-spacing:.02em}
@@ -2143,7 +2145,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-10o',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-10p',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -2874,6 +2876,15 @@ async function sync(manual){
     S.online = true; S.failures = 0;
     store('kuroko_cache_v2', { booths, notice: S.notice, updatedAt: S.updatedAt, fetchedAt: S.fetchedAt });
     renderAll();
+    // 印刷ページは開いたときに1回組み立てるだけだった。最初の同期が
+    // 遅れたり失敗したりすると、ブースの載っていない紙マップ・
+    // QRの無いQRシートが出たまま二度と直らない（そのまま刷られる）。
+    // ブースの数が変わったときだけ組み直す。
+    if (S.view === 'print' && renderPrintSheet._n !== S.booths.length){
+      renderPrintSheet._n = S.booths.length; renderPrintSheet();
+    } else if (S.view === 'qr' && pw() && renderQrSheet._n !== S.booths.length){
+      renderQrSheet._n = S.booths.length; renderQrSheet();
+    }
     // QRで来たが最初の同期に失敗していた場合、ここで拾い直す
     if (S.pendingLink && S.pendingLink()) S.pendingLink = null;
     if (manual) toast('最新の状況に更新しました');
@@ -6252,6 +6263,11 @@ function switchView(v, fromHistory){
   // QRシートから「← 係員画面」で戻ると、担当ブースの選択とチェックリストが
   // 空のままのコンソールが出ていた。どの入口から来ても同じ状態にする。
   if (v === 'admin' && S.isAdmin){ renderAssign(); renderAdmin(); renderChecklist(); }
+  // 刷る画面は、最初の同期（最大12秒）が返るまで組み立てられない。
+  // そのあいだボタンは押せるままだったので、中身が空の紙が刷れてしまっていた。
+  // 画面に入った時点で止めておき、ブースが届いたら開ける。
+  if (v === 'print') setPrintReady('#btn-print2', S.booths.length > 0);
+  if (v === 'qr')    setPrintReady('#btn-print',  S.booths.length > 0);
   // 来場者向けの混雑アラートは係員画面では出さない（ノイズになる）
   // 一覧は「空いている順」に並んでいて先頭がその答えなので、同じ内容のバナーは出さない
   $('#banner-alert').classList.toggle('hide', v !== 'map' || !$('#banner-alert-text').textContent);
@@ -6998,6 +7014,7 @@ const QR = (() => {
    QR印刷ページ（?mode=qr）
    ===================================================================== */
 function renderQrSheet(){
+  renderQrSheet._n = S.booths.length;
   const base = location.origin + location.pathname.replace(/[^/]*$/, '');
   /* LINEのQRリーダーで読まれると「LINEアプリ内ブラウザ」で開いてしまう。
      アプリ内ブラウザは端末のSafari/Chromeとは保存場所が別なので、
@@ -7024,10 +7041,16 @@ function renderQrSheet(){
   ];
   const qn = $('#qr-count');
   if (qn) qn.textContent = `全${items.length}枚（入口の案内1枚＋ブース${items.length - 1}枚）。`;
-  // 割り当て前に刷ろうとすると案内1枚だけが出る。気づかず刷ってしまわないよう言う
+  // 割り当て前に刷ろうとすると案内1枚だけが出る。気づかず刷ってしまわないよう言う。
+  // 電波が悪くて一覧がまだ届いていないだけの場合と、言い分けないと
+  //「割り当てが消えた」と勘違いさせる（通信は最大12秒待つ）
+  const loading = !S.booths.length && !S.fetchedAt;
   if (!S.booths.length && qn){
-    qn.textContent = 'ブースがまだ1件もありません。先に「地図でブースを割り当てる」で決めてください。';
+    qn.textContent = loading
+      ? 'ブースの情報を読み込んでいます。出そろってから刷ってください。'
+      : 'ブースがまだ1件もありません。先に「地図でブースを割り当てる」で決めてください。';
   }
+  setPrintReady('#btn-print', S.booths.length > 0);
   $('#qr-grid').innerHTML = items.map(it => `
     <figure class="qr-card${it.top ? ' top' : ''}">
       <div class="qr-where">${esc(it.where)}</div>
@@ -7102,7 +7125,22 @@ function renderQrSheet(){
    混雑状況は載せず、番号と場所だけの静的な地図にする。
    最新の状況はQRから見てもらう。
    ===================================================================== */
+/**
+ * ブースが1件も無いうちに刷らせない。
+ * 紙マップもQRシートも、開いた瞬間に1回組み立てるだけなので、
+ * 通信が遅れているあいだは中身が空のまま刷れてしまっていた。
+ */
+function setPrintReady(sel, ready){
+  const b = $(sel);
+  if (!b) return;
+  if (!b.dataset.label) b.dataset.label = b.textContent;
+  b.disabled = !ready;
+  b.textContent = ready ? b.dataset.label : 'ブースの情報を待っています…';
+}
+
 function renderPrintSheet(){
+  renderPrintSheet._n = S.booths.length;
+  setPrintReady('#btn-print2', S.booths.length > 0);
   const base = location.origin + location.pathname.replace(/[^/]*$/, '');
 
   const planSvg = (floorNum) => {
