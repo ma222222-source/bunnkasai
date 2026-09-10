@@ -443,9 +443,9 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
                    stroke:color-mix(in srgb,var(--dept) 42%,var(--border))}
 .dept-bar{fill:var(--dept);opacity:.85;pointer-events:none}
 .dept-bar.on{opacity:1;fill:var(--dept)}
-.legend.marks{border-top:1px dashed var(--border);gap:10px}
-.legend.marks span{gap:5px}
-.legend.marks b{display:inline-grid;place-items:center;font-weight:900;flex:none}
+.legend b{display:inline-grid;place-items:center;font-weight:900;flex:none;margin-right:5px}
+/* 混雑の見本と記号の見本のあいだで必ず行を変える。混ざると読み分けられない */
+.legend .lg-br{flex-basis:100%;height:0;margin:0;padding:0}
 /* 地図の水色の帯＝歩けるところ。凡例に無いと「ただの隙間」に見える */
 .mk-way{width:22px;height:9px;border-radius:3px;background:var(--corridor-fill);
         border:1px solid color-mix(in srgb,var(--corridor-ink) 35%,transparent);position:relative}
@@ -751,12 +751,16 @@ text.util:not([font-size]){font-size:7.5px}
                  border-radius:7px;padding:5px 10px;font-size:10.5px;font-weight:800}
 /* 凡例と注記は「調べたいときに読む」もの。常時強く出ていると本文と競合するので、
    彩度と大きさを一段落として背面へ送る */
-.legend{display:flex;flex-wrap:wrap;gap:6px 10px;padding:9px 10px;border-top:1px solid var(--border);
-        background:var(--surface);font-size:11px;font-weight:800;color:var(--text-dim)}
+/* 5つの見本が1行に収まる大きさにしてある。2行に折れると、
+   地図の下の説明だけで画面の1/5を占める */
+.legend{display:flex;flex-wrap:wrap;align-items:center;gap:5px 8px;padding:8px 10px;
+        border-top:1px solid var(--border);background:var(--surface);
+        font-size:10.5px;font-weight:800;color:var(--text-dim)}
+.legend span{display:inline-flex;align-items:center;white-space:nowrap}
 /* 見本は地図とまったく同じ柄・同じ色にする。別々に作っていたため、
    地図の柄と凡例の柄が一致しておらず、見比べても分からなかった */
-.legend i{display:inline-block;width:15px;height:15px;border-radius:3px;margin-right:5px;
-          vertical-align:-3px;border:1px solid rgba(0,0,0,.2)}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:4px;
+          flex:none;border:1px solid rgba(0,0,0,.2)}
 .lg-free{background:var(--free-fill);border-color:var(--free-edge)}
 .lg-warn{background:var(--warn-fill);border-color:var(--warn-edge);
   background-image:repeating-linear-gradient(45deg,var(--warn-edge) 0 3.2px,transparent 3.2px 8px)}
@@ -767,7 +771,7 @@ text.util:not([font-size]){font-size:7.5px}
   background-image:repeating-linear-gradient(135deg,var(--closed-edge) 0 3px,transparent 3px 9px)}
 .lg-unk{background:var(--unknown)}
 .legend-tip{flex-basis:100%;color:var(--text-mute);font-weight:700;font-size:9.5px;
-            border-top:1px dashed var(--border);padding-top:6px;margin-top:2px}
+            border-top:1px dashed var(--border);padding-top:5px;margin-top:1px}
 
 /* ========================= 検索・フィルタ ========================= */
 .search{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);
@@ -1059,8 +1063,12 @@ text.util:not([font-size]){font-size:7.5px}
             font-variant-numeric:tabular-nums;border-radius:8px}
 .adm-wait-n.dirty{background:var(--warn-soft);color:var(--warn);
                   outline:2px dashed var(--warn);outline-offset:-2px}
-.adm-wait .send{height:44px;padding:0 16px;border-radius:11px;background:var(--accent);
-                color:var(--on-accent);font-size:12.5px;font-weight:900;flex:none}
+/* 送信は当日いちばん押すボタン。−5〜+5 と同じ行の端に置くと、
+   幅の狭い端末では 60px ほどの小さなボタンになり、しかも入るか入らないかが
+   端末の文字幅しだいで変わる。数を合わせる行と切り離し、必ず行いっぱいに置く */
+.adm-wait .send{height:46px;border-radius:11px;background:var(--accent);
+                color:var(--on-accent);font-size:13px;font-weight:900;
+                flex:1 0 100%;margin-top:2px}
 .adm-hint{font-size:9.5px;color:var(--text-mute);font-weight:600;margin-bottom:9px;line-height:1.5}
 .field{width:100%;padding:13px 14px;border-radius:var(--r);border:1.5px solid var(--border);
        background:var(--surface);color:var(--text);outline:none;text-align:center;font-weight:800;letter-spacing:.15em}
@@ -1515,7 +1523,8 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 @media (max-height:540px) and (orientation:landscape){
   .banner{padding:6px 10px;font-size:11px}
   .legend-tip{display:none}
-  .legend.marks{display:none}
+  /* 横向きは縦が足りない。記号の見本は畳んで、混雑の色だけ残す */
+  .legend .lg-br,.legend .lg-br ~ span{display:none}
   .legend{padding:5px 8px;gap:6px;font-size:9.5px}
   .dept-legend{padding:5px 8px}
   .dept-legend button{font-size:9px;padding:3px 7px}
@@ -1660,18 +1669,20 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
           </div>
           <div class="unplaced hide" id="map-unplaced"></div>
           <div class="dept-legend hide" id="dept-legend" aria-label="科ごとの色" role="group" tabindex="0"></div>
-          <div class="legend">
-            <span><i class="lg-free"></i>空いている</span>
+          <!-- 混雑の見本と記号の見本を別々の箱に分けていたので、地図の下に
+               167px ぶんの説明が常時居座り、肝心の地図を押し下げていた。
+               1つにまとめて、端末の幅に合わせて詰めてもらう -->
+          <div class="legend" aria-label="地図の見かた">
+            <span><i class="lg-free"></i>空き</span>
             <span><i class="lg-warn"></i>やや混雑</span>
             <span><i class="lg-busy"></i>混雑</span>
             <span><i class="lg-prep"></i>準備中</span>
             <span><i class="lg-unk"></i>情報なし</span>
-            <span class="legend-tip">数字をタップすると詳しく出ます。ひろげると名前も出ます。上の色ボタンで科をしぼれます</span>
-          </div>
-          <div class="legend marks" aria-label="地図の記号">
-            <span><b class="mk-way"></b>歩ける道（廊下・渡り廊下）</span>
+            <span class="lg-br"></span>
+            <span><b class="mk-way"></b>歩ける道</span>
             <span><b class="mk-out">外に出る</b>いったん外へ</span>
-            <span><b class="mk-no">3</b>紙マップと同じ番号</span>
+            <span><b class="mk-no">3</b>紙マップの番号</span>
+            <span class="legend-tip">数字をおすとくわしく出ます。ひろげると名前も出ます</span>
           </div>
         </div>
         <div class="route-steps hide" id="route-steps"></div>
@@ -2081,7 +2092,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-10h',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-10i',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5468,11 +5479,13 @@ function renderSummary(){
     const lv = lvOf(b).lv;
     if (lv === 0) c[0]++; else if (lv === 1) c[1]++; else if (lv === 2) c[2]++; else c[3]++;
   });
+  // 言葉は凡例・一覧・ブースの表示とそろえる（同じ状態を別の言葉で呼ばない）。
+  // 「準備中・情報なし」は狭い枠で必ず2行に折れて崩れていた
   const cells = [
-    { lv:'0', n:c[0], t:'空いている' },
+    { lv:'0', n:c[0], t:'空き' },
     { lv:'1', n:c[1], t:'やや混雑' },
     { lv:'2', n:c[2], t:'混雑' },
-    { lv:'x', n:c[3], t:'準備中・情報なし' }
+    { lv:'x', n:c[3], t:'準備中など' }
   ];
   const box = $('#summary');
   if (box.children.length !== cells.length){
@@ -7196,7 +7209,7 @@ async function renderReport(){
         <text x="0" y="${H - 22}" font-size="8" fill="var(--text-mute)">0</text>
       </svg>
       <div class="legend" style="border:none;padding:6px 0 0">
-        <span><i class="lg-free"></i>空いている</span>
+        <span><i class="lg-free"></i>空き</span>
         <span><i class="lg-warn"></i>やや混雑</span>
         <span><i class="lg-busy"></i>混雑</span>
       </div>
@@ -7271,8 +7284,8 @@ function initFontSize(){
   const apply = v => {
     document.documentElement.setAttribute('data-fs', v);
     SIZES.forEach(([k, sel]) => $(sel).setAttribute('aria-pressed', String(k === v)));
-    // 文字を変えると地図の高さも変わるので測り直す
-    requestAnimationFrame(() => fitMapBox(S.floor));
+    // 文字を変えると見出しと地図の高さが変わるので測り直す
+    requestAnimationFrame(() => { measureHead(); fitMapBox(S.floor); });
   };
   const saved = load('kuroko_fs', 'n');
   apply(SIZES.some(x => x[0] === saved) ? saved : 'n');
@@ -7310,9 +7323,11 @@ function initTheme(){
     store('kuroko_theme', t);
     btn.setAttribute('aria-label', '見た目を変える（いま：' + label() + '）');
     toast('見た目：' + label());
-    // 地図の線の太さや塗りがテーマで変わるので、描き直して測り直す
+    // 地図の線の太さや塗りがテーマで変わるので、描き直して測り直す。
+    // 見出しの字の大きさもテーマで変わる（係員のタブがその下に貼りつく）
     drawFloor._fp = null; drawFloor(S.floor);
     fitMapBox._key = null; fitMapBox(S.floor);
+    measureHead();
   });
 }
 
