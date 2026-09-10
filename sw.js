@@ -1,7 +1,7 @@
 /* 黒工文化祭マップ Service Worker
    目的：校内Wi-Fiが不安定でも「アプリの外側」が必ず開くようにする。
    混雑データ(GAS)は絶対にキャッシュしない（古い混雑状況を見せないため）。 */
-const CACHE = 'kuroko-map-v114';
+const CACHE = 'kuroko-map-v115';
 const SHELL = ['./', './index.html', './manifest.json', './apple-touch-icon.png'];
 
 // 回線が遅いときにネットワークを待ち続けない上限（ms）。
