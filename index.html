@@ -2189,7 +2189,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-11a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-11b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -2208,8 +2208,12 @@ const CONFIG = {
   // いま見ている人だけ速くする。ポケットの中の端末は visibilitychange で
   // そもそも止まっているので、全体の通信量はほとんど増えない。
   // GAS の実行時間が足りなくなったら、まずここを 20000 に戻す。
-  POLL_MS_ACTIVE: 9000,    // 直近に操作した人のポーリング間隔
-  ACTIVE_WINDOW_MS: 75000, // 最後の操作から何ミリ秒を「見ている」とみなすか
+  POLL_MS_ACTIVE: 12000,   // 直近に操作した人のポーリング間隔
+  ACTIVE_WINDOW_MS: 45000, // 最後の操作から何ミリ秒を「見ている」とみなすか
+  // GASは同時実行が30本までで、1回の往復に実測1.2〜4.5秒かかる。
+  // 間隔を詰めるほど「同時に走っている本数」が増えるので、応答が重く
+  // なってきたら自動で元の間隔へ戻す（当日に全員が弾かれるのを避ける）
+  SLOW_MS: 4000,
   POLL_MS_HIDDEN: 0,       // バックグラウンド時は停止（0）
   STALE_MS: 90000,         // これを超えたら「情報が古い」表示
   // 一般公開の時間。開場前・閉場後・別の日に開いた人へ、
@@ -2779,6 +2783,7 @@ const S = {
   draftWait: {},        // 送信前の待ち人数（自動同期で消さないため）
   draftAt: {},          // その下書きに最後に触った時刻（送信し忘れの検知に使う）
   activeAt: 0,          // 最後に人が触った時刻（見ている人だけ速く取りに行く）
+  lastRtt: 0,           // 直近の取得にかかった時間（サーバーの混み具合の目安）
   adminOrder: [],       // 操作中に並べ替えないための現在の並び
   lastAdminTouch: 0,
   timer: null
@@ -2929,6 +2934,8 @@ async function sync(manual){
     S.updatedAt = (raw && raw.updatedAt) || new Date().toISOString();
     S.fetchedAt = Date.now();
     S.online = true; S.failures = 0;
+    // 往復にかかった時間を覚えておく（重いときは間隔を詰めない）
+    S.lastRtt = Date.now() - (sync._at || Date.now());
     store('kuroko_cache_v2', { booths, notice: S.notice, updatedAt: S.updatedAt, fetchedAt: S.fetchedAt });
     renderAll();
     // 印刷ページは開いたときに1回組み立てるだけだった。最初の同期が
@@ -2963,6 +2970,14 @@ async function sync(manual){
 function isActive(){
   return !document.hidden && (Date.now() - (S.activeAt || 0)) < CONFIG.ACTIVE_WINDOW_MS;
 }
+/**
+ * サーバーが重くなっていないか。直近の往復が遅いときは間隔を詰めない。
+ * 混んでいるときに全員が短い間隔で叩くと、GASの同時実行の上限に当たって
+ * 「更新できません」が一斉に出る。速さより、当日つながり続けることを優先する。
+ */
+function serverBusy(){
+  return (S.lastRtt || 0) > CONFIG.SLOW_MS;
+}
 /** 触ったことを記録し、必要なら次の取得を前倒しする */
 function markActive(){
   const was = isActive();
@@ -2978,7 +2993,7 @@ function syncIfStale(maxAgeMs){
 function schedule(){
   clearTimeout(S.timer);
   if (document.hidden && CONFIG.POLL_MS_HIDDEN === 0) return;
-  const base = isActive() ? CONFIG.POLL_MS_ACTIVE : CONFIG.POLL_MS;
+  const base = (isActive() && !serverBusy()) ? CONFIG.POLL_MS_ACTIVE : CONFIG.POLL_MS;
   const backoff = Math.min(base * Math.pow(2, Math.min(S.failures, 4)), 5 * 60000);
   S.timer = setTimeout(() => sync(false), S.failures ? backoff : base);
 }
