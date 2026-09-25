@@ -251,7 +251,7 @@ p{margin:0}
 /* 見出しは画面の骨格。テーマごとに大きさと字間を差し替えられるようにする */
 .head h1{font-size:var(--head-size,18px);font-weight:900;letter-spacing:var(--head-track,.01em);
          line-height:1.15}
-.head .sub{font-size:10px;opacity:.75;letter-spacing:.08em}
+.head .sub{font-size:10px;opacity:.9;letter-spacing:.08em}   /* .75 だと背景の赤に対して 4.2:1 で基準に届かなかった */
 .head-actions{margin-left:auto;display:flex;align-items:center;gap:6px}
 .icon-btn{
   width:44px;height:44px;border-radius:12px;display:grid;place-items:center;
@@ -331,6 +331,8 @@ main{flex:1;padding:14px 12px calc(88px + var(--safe-b));display:flex;flex-direc
 .banner span:last-of-type{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
   overflow:hidden}
 .banner .retry{-webkit-line-clamp:none}
+/* 通信できないときの案内は「係の人にきいて」まで読めないと意味がないので切らない */
+#banner-offline #banner-offline-text{-webkit-line-clamp:none}
 /* ただし「注意（赤）」は雨天・落とし物・避難のような、最後まで読ませたい知らせ。
    3行で黙って切ると、肝心のところが読めないまま終わる。全文を出す */
 #banner-notice[data-level="alert"] span:last-of-type{display:block;overflow:visible}
@@ -388,7 +390,7 @@ main{flex:1;padding:14px 12px calc(88px + var(--safe-b));display:flex;flex-direc
 
 /* ========================= おすすめ ========================= */
 .reco-list{display:flex;flex-direction:column;gap:6px}
-.reco{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r-sm);
+.reco{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r-sm);min-height:44px;
       background:var(--surface-2);border:1px solid var(--border);text-align:left;width:100%}
 .reco:active{transform:scale(.985)}
 .reco .rank{width:22px;height:22px;border-radius:7px;background:var(--accent);color:var(--on-accent);
@@ -765,6 +767,13 @@ text.util:not([font-size]){font-size:7.5px}
                opacity:.85;pointer-events:none}
 .route-arrow{fill:var(--accent);stroke:var(--surface);stroke-width:1;pointer-events:none}
 @keyframes routeFlow{to{stroke-dashoffset:-24}}
+/* 棟をまたぐ区間。まっすぐな線の上を歩けるわけではないので、線を細く薄くして札を添える */
+.route-path.hop{stroke-width:1.6;stroke-dasharray:2 4;opacity:.75;animation:none}
+.route-hop rect{fill:var(--surface);stroke:var(--accent);stroke-width:.8}
+.route-hop text{fill:var(--accent);font-weight:900;pointer-events:none}
+.route-hop{pointer-events:none}
+.rs-note{font-size:10.5px;font-weight:700;color:var(--text-mute);margin:-4px 0 8px}
+[data-fs="xl"] .rs-note{font-size:13.5px}
 @media (prefers-reduced-motion:reduce){ .route-path{animation:none} }
 .route-steps{border-top:1px dashed var(--border);padding:10px 0 2px;margin-top:2px}
 .route-steps h4{font-size:11px;font-weight:900;color:var(--text-dim);margin-bottom:8px;
@@ -832,6 +841,8 @@ text.util:not([font-size]){font-size:7.5px}
   background-image:repeating-linear-gradient(135deg,var(--closed-edge) 0 3px,transparent 3px 9px)}
 .lg-unk{background:var(--unknown)}
 .legend-tip b{font-weight:900;color:var(--text-dim)}
+/* .legend span の nowrap を受け継ぐと1行のまま伸び、390px幅でページごと横に27pxずれていた */
+.legend .legend-tip{white-space:normal;display:block}
 .legend-tip{flex-basis:100%;color:var(--text-mute);font-weight:700;font-size:9.5px;
             border-top:1px dashed var(--border);padding-top:5px;margin-top:1px}
 
@@ -1189,7 +1200,14 @@ text.util:not([font-size]){font-size:7.5px}
        font-size:12px;font-weight:800;z-index:80;box-shadow:var(--shadow-lg);
        opacity:0;pointer-events:none;
        transition:opacity var(--t) var(--ease),transform var(--t) var(--ease-out-back)}
-.toast.on{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(-4px) scale(1)}
+.toast{visibility:hidden}
+.toast.on{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(-4px) scale(1);visibility:visible}
+.toast-act{min-height:36px}
+/* 係員画面では下に出すと「＋1/＋5」の上に重なって押せなくなる。上に出す */
+body:has(#v-admin.on) .toast{top:calc(10px + env(safe-area-inset-top, 0px));bottom:auto}
+/* 送れていない更新。電波が戻ると自動で送る */
+.adm-booth.unsent{outline:2px dashed var(--warn);outline-offset:-2px}
+.adm-booth.unsent .adm-elapsed{color:var(--busy-ink);font-weight:900}
 /* パネルを開いている間は、その上に出さないと読めない */
 body.sheet-open .toast{z-index:90}
 
@@ -1222,6 +1240,10 @@ body.wide-mode .app{max-width:1100px}
   body.staff-wide.editing #map-card{width:100%;max-width:920px;align-self:center}
 }
 body.board-mode .head{display:none}
+/* ボードは誰も触らない。「電波の良い場所へ」のような来場者向けの案内は出さない（状態は右上の同期表示で示す） */
+body.board-mode #banner-offline{display:none !important}
+.board-empty{grid-column:1 / -1;align-self:center;text-align:center;font-size:clamp(16px,1.6vw,28px);
+  font-weight:800;color:var(--text-mute)}
 /* ボードは1画面ぴったり。main に余白や他の要素の高さが残ると、
    画面の下（1階の地図）が見切れてスクロールが必要になる。 */
 body.board-mode main{padding:0;gap:0;height:100dvh;overflow:hidden}
@@ -1299,6 +1321,17 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 .btile[data-lv="1"] .bt-big b{color:var(--warn)}
 .btile[data-lv="2"] .bt-big b{color:var(--busy-ink)}
 .bt-age{padding-left:8px;font-size:clamp(9px,.85vw,12px);font-weight:800;color:var(--text-mute)}
+/* 教室のテレビ（1280×720）など縦が短い画面では、タイルの高さが足りず
+   いちばん大事な待ち人数が下で切れていた。人数を右に出して1段に収める */
+@media (max-height:820px){
+  .btile{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;
+         column-gap:10px;row-gap:2px;align-content:center;padding:8px 12px}
+  .bt-head{grid-column:1;grid-row:1}
+  .bt-age{grid-column:1;grid-row:2}
+  .bt-big{grid-column:2;grid-row:1 / span 2;align-self:center;padding-left:0}
+  /* 詰めた表示では「人待ち」を外して名前に幅を回す（数字の色で状態は分かる） */
+  .board-grid.d3 .bt-big i{display:none}
+}
 .btile[data-fresh="warn"] .bt-age{color:var(--warn)}
 .btile[data-fresh="danger"]{border-color:var(--busy)}
 .btile[data-fresh="danger"] .bt-age{color:var(--busy-ink)}
@@ -1388,7 +1421,9 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 .bsh-grab{width:46px;height:5px;border-radius:99px;background:var(--border);
           margin:2px auto 12px;cursor:grab}
 .bsh-head{display:flex;align-items:flex-start;gap:9px}
-.bsh-head h2{font-size:19px;font-weight:900;line-height:1.35;flex:1;letter-spacing:.01em}
+.bsh-head h2{font-size:19px;font-weight:900;line-height:1.35;flex:1;letter-spacing:.01em;
+             min-width:0;overflow-wrap:anywhere}
+html.sheet-open{overflow:hidden}
 .bsh-no{flex:none;width:28px;height:28px;border-radius:50%;background:var(--surface);
         border:2px solid var(--accent);color:var(--text);font-size:13px;font-weight:900;
         display:grid;place-items:center;margin-top:2px;font-variant-numeric:tabular-nums}
@@ -1414,7 +1449,8 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 .bsh-st .wt b{display:block;font-size:25px;font-weight:900;color:var(--text);line-height:1.05;
               font-variant-numeric:tabular-nums}
 .bsh-note{margin-top:11px;padding:10px 12px;border-radius:12px;background:var(--surface-2);
-          border:1px dashed var(--border);font-size:12.5px;font-weight:700;line-height:1.65}
+          border:1px dashed var(--border);font-size:12.5px;font-weight:700;line-height:1.65;
+          overflow-wrap:anywhere}
 .bsh-alt{display:flex;align-items:center;gap:9px;width:100%;margin-top:11px;padding:11px 12px;
   border-radius:12px;border:1.5px solid var(--free);background:var(--free-soft);
   cursor:pointer;text-align:left;transition:transform var(--t-fast) var(--ease)}
@@ -1446,7 +1482,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 .sheet-head p{font-size:10.5px;color:#555;margin-top:3px;font-weight:700}
 .sheet-qr{text-align:center;flex:none;width:96px}
 .sheet-qr svg{width:96px;height:96px}
-.sheet-qr span{display:block;font-size:7.5px;color:#444;font-weight:700;margin-top:2px;line-height:1.35}
+.sheet-qr span{display:block;font-size:8pt;color:#444;font-weight:700;margin-top:2px;line-height:1.35}
 .sheet-body{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
 .sheet h2{font-size:12px;font-weight:900;margin-bottom:5px;color:#b91c1c}
 .sheet-plan{width:100%;height:auto;border:1px solid #ddd;border-radius:8px;background:#fff}
@@ -1464,11 +1500,11 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 .sheet-table td.ic{width:20px;text-align:center;font-size:12px}
 .sheet-info{border-top:2px solid #b91c1c;padding-top:10px}
 
-.rep-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.rep-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .rep-grid > div{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
                 padding:9px 10px}
-.rep-grid b{display:block;font-size:15px;font-weight:900;line-height:1.25;
-            overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rep-grid b{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;
+            font-size:15px;font-weight:900;line-height:1.25;overflow-wrap:anywhere}
 .rep-grid span{display:block;font-size:9.5px;color:var(--text-mute);font-weight:800;margin-top:2px}
 .rep-chart{width:100%;height:auto}
 .vis-total{display:flex;align-items:baseline;gap:4px;margin-bottom:6px}
@@ -1513,6 +1549,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 
 @media print{
   @page{margin:10mm}
+  .hm-row{break-inside:avoid}
   #qr-staff{break-before:page;page-break-before:always}
   body{background:#fff}
   .app{max-width:none;box-shadow:none;background:#fff}
@@ -1548,7 +1585,17 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
   .sheet-maps > div.tall .sheet-plan{width:auto;max-width:100%;max-height:92mm;margin:0 auto;display:block}
   .sheet-table{font-size:8pt}
   .sheet-table td{padding:2.5px 4px}
-  .sheet-note{font-size:7.5pt}
+  .sheet-note{font-size:8pt}
+  /* 1階だけ等で図が1枚のときは、横長の図面を幅いっぱいに使う（95mmだと部屋名が2.6ptになる） */
+  .sheet-maps > div.wide:only-child .sheet-plan{max-width:150mm}
+  /* ブースが多いときは一覧を2段組にし、ページの右半分が空くのを防ぐ */
+  .sheet-list.many{grid-column:1 / -1}
+  .sheet-list.many .sheet-table{display:block;column-count:2;column-gap:5mm}
+  .sheet-list.many tbody{display:block}
+  .sheet-list.many tr{display:flex;break-inside:avoid;border-bottom:1px solid #e5e5e5}
+  .sheet-list.many td{border-bottom:none}
+  .sheet-list.many td:last-child{flex:1 1 auto}
+  .sheet h2{break-after:avoid}
 }
 
 /* ========================= 文字を大きく =========================
@@ -1558,6 +1605,9 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 [data-fs="xl"] .booth-meta{font-size:14.5px}
 [data-fs="xl"] .booth-note{font-size:15px}
 [data-fs="xl"] .pill{font-size:15px;padding:8px 13px}
+/* 特大では「空き・2人待ち」が横に長く、ブース名が1行6文字まで押しつぶされていた。状態と人数を2行に分ける */
+[data-fs="xl"] .booth-side .pill{flex-wrap:wrap;justify-content:center;row-gap:0;column-gap:4px;
+  line-height:1.3;max-width:6.4em;border-radius:16px}
 [data-fs="xl"] .reco .nm{font-size:17px}
 [data-fs="xl"] .reco .why{font-size:13px}
 [data-fs="xl"] .card-t{font-size:15px}
@@ -1931,6 +1981,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
       <div class="adm-pane on" id="admpane-update" role="tabpanel" aria-labelledby="admtab-update">
         <div class="card">
           <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5a4.5 4.5 0 0 0 5.6 5.6L11 19.7a2.4 2.4 0 1 1-3.4-3.4z"/><circle cx="18" cy="6" r="1"/></svg> 係員コンソール</div>
+          <input class="field hide" type="search" id="assign-q" placeholder="担当ブースを名前・番号でさがす" autocomplete="off" enterkeyhint="search" aria-label="担当ブースをさがす" style="margin-bottom:8px">
           <div class="chips" id="assign-chips"></div>
           <!-- 選び終わった人にはもう要らない案内。選んでいるあいだだけ出す -->
           <p id="assign-note" style="font-size:10.5px;color:var(--text-mute);font-weight:700;margin-top:8px">
@@ -2189,7 +2240,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-11d',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-25a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -2787,6 +2838,7 @@ const S = {
   afterLogin: '',          // ?mode=qr で来てログインした後に戻る画面
   draftWait: {},        // 送信前の待ち人数（自動同期で消さないため）
   draftAt: {},          // その下書きに最後に触った時刻（送信し忘れの検知に使う）
+  unsent: {},           // 送れなかった更新 { id: {status, wait, at} }。電波が戻ると自動で再送
   activeAt: 0,          // 最後に人が触った時刻（見ている人だけ速く取りに行く）
   lastRtt: 0,           // 直近の取得にかかった時間（サーバーの混み具合の目安）
   adminOrder: [],       // 操作中に並べ替えないための現在の並び
@@ -2807,24 +2859,40 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
 const REDUCE_MOTION = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches:false };
 function smoothBehavior(){ return REDUCE_MOTION.matches ? 'auto' : 'smooth'; }
 
-function toast(msg, action){
+function toast(msg, action, dur){
   const t = $('#toast');
   t.textContent = '';          // 同じ文言でも読み上げが再発火するよう一度空にする
   t.textContent = msg;
-  let ms = 2200;
+  // 表示時間は文の長さに合わせる（日本語は1秒に8文字前後）。
+  // 一律2.2秒では「未送信…自動で送ります」のような長い案内が読み切れずに消えていた
+  let ms = dur || Math.max(2200, Math.min(8000, String(msg).length * 120));
   if (action){
     const btn = document.createElement('button');
     btn.className = 'toast-act';
     btn.textContent = action.label;
     btn.addEventListener('click', () => { t.classList.remove('on'); action.fn(); });
     t.appendChild(btn);
-    ms = 6000;                     // 押す時間を確保する
+    ms = Math.max(ms, 6000);       // 押す時間を確保する
   }
   t.classList.add('on');
   clearTimeout(toast._t);
   toast._t = setTimeout(() => t.classList.remove('on'), ms);
 }
-function store(k, v){ try{ v===undefined ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+/**
+ * シート由来の画像URLを、表示してよい形だけに絞る。
+ * https / http / data:image と、同じサイト内の相対パスだけを通し、
+ * javascript: や file: などは空にする。
+ */
+function safeImg(u){
+  const v = String(u == null ? '' : u).trim();
+  if (!v) return '';
+  if (/^(https?:)?\/\//i.test(v)) return v;                 // https://… と //…
+  if (/^data:image\/(png|jpe?g|gif|webp|avif);/i.test(v)) return v;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return '';             // その他のスキームは全部だめ
+  return v;                                                  // 相対パス（同じサイトの画像）
+}
+// 保存できたかを返す。プライベートモードや容量不足では false（スタンプの保存で使う）
+function store(k, v){ try{ v===undefined ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
 /** この端末を表すランダムな文字列。個人情報は含まない */
 function deviceId(){
   if (deviceId._v) return deviceId._v;
@@ -2915,7 +2983,7 @@ function normalize(raw){
     category: String(b.category || 'その他').trim(),
     floor: [0,1,2,3].indexOf(Number(b.floor)) >= 0 ? Number(b.floor) : 1,
     note: String(b.note || '').trim(),
-    image: String(b.image || '').trim(),
+    image: safeImg(b.image),               // javascript: などは取り込む時点で捨てる
     history: Array.isArray(b.history) ? b.history.slice(-12) : []
   })).sort((a, x) => a.id.localeCompare(x.id, 'ja', { numeric:true }));
 }
@@ -2930,9 +2998,14 @@ async function sync(manual){
   // 1秒たっても返ってこなければ「取りに行っています」を出す
   clearTimeout(sync._slow);
   sync._slow = setTimeout(() => { if (sync._busy) renderSyncState(); }, 1100);
+  const gen = update._gen || 0;
   try{
     const raw = await api();
+    // 取得している間に係員が送信した場合、この結果は送信前の古い状態。
+    // 取り込むと押したボタンが20秒ほど元に戻って見えるので捨てて、すぐ取り直す
+    if ((update._gen || 0) !== gen || update._busy){ sync._again = true; return; }
     const booths = normalize(raw);
+    applyUnsent(booths);
     // 0件は「まだ登録されていない」だけで障害ではない。
     // ここで例外にすると5分バックオフに入り、先生がブースを足しても反映されなくなる。
     S.booths = booths;
@@ -2955,7 +3028,12 @@ async function sync(manual){
     // 直近の値をならしていく
     const rtt = Date.now() - (sync._at || Date.now());
     S.lastRtt = S.lastRtt ? Math.round(S.lastRtt * 0.6 + rtt * 0.4) : rtt;
-    store('kuroko_cache_v2', { booths, notice: S.notice, updatedAt: S.updatedAt, fetchedAt: S.fetchedAt });
+    // 同じ内容なら書き直さない（60KB超を20秒ごとに書くと、1時間で10MB以上の書き込みになる）
+    const cacheFp = JSON.stringify([booths, S.notice, S.updatedAt]);
+    if (sync._cacheFp !== cacheFp || Date.now() - (sync._cacheAt || 0) > 5 * 60000){
+      sync._cacheFp = cacheFp; sync._cacheAt = Date.now();
+      store('kuroko_cache_v2', { booths, notice: S.notice, updatedAt: S.updatedAt, fetchedAt: S.fetchedAt });
+    }
     renderAll();
     // 印刷ページは開いたときに1回組み立てるだけだった。最初の同期が
     // 遅れたり失敗したりすると、ブースの載っていない紙マップ・
@@ -2969,6 +3047,7 @@ async function sync(manual){
     // QRで来たが最初の同期に失敗していた場合、ここで拾い直す
     if (S.pendingLink && S.pendingLink()) S.pendingLink = null;
     if (manual) toast('最新の状況に更新しました');
+    if (S.isAdmin) flushUnsent();                        // つながった＝送れなかった分を送る好機
   }catch(err){
     S.online = false; S.failures++;
     // 通信断とサーバー側の異常を区別する（対処が違うため）
@@ -2976,12 +3055,23 @@ async function sync(manual){
     S.errKind = /Failed to fetch|NetworkError|aborted|The user aborted|timeout/i.test(msg) ? 'net'
               : /^HTTP/.test(msg) ? 'net' : 'server';
     console.warn('[sync]', S.errKind, msg);
+    // JSONの代わりにHTML（Googleのログイン画面など）が返った＝デプロイの公開範囲の設定ミス。
+    // 来場者には関係ないので、係員画面にだけ直し方を1回出す
+    if (/Unexpected token '?<|is not valid JSON|JSON\.parse/i.test(msg) && (S.isAdmin || S.view === 'auth') && !sync._htmlWarned){
+      sync._htmlWarned = true;
+      toast('サーバーがJSONでなくWebページを返しました。Apps Scriptのデプロイで「アクセスできるユーザー：全員」になっているか確認してください', null, 9000);
+    }
     if (manual) toast(S.errKind === 'net' ? '通信できませんでした' : 'サーバーが応答しません');
     renderSyncState();
   }finally{
     sync._busy = false;
     clearTimeout(sync._slow);
     schedule();
+    if (sync._again){
+      sync._again = false;
+      clearTimeout(S.timer);
+      S.timer = setTimeout(() => sync(false), 1500);
+    }
   }
 }
 
@@ -3013,12 +3103,16 @@ function schedule(){
   clearTimeout(S.timer);
   if (document.hidden && CONFIG.POLL_MS_HIDDEN === 0) return;
   const base = (isActive() && !serverBusy()) ? CONFIG.POLL_MS_ACTIVE : CONFIG.POLL_MS;
-  const backoff = Math.min(base * Math.pow(2, Math.min(S.failures, 4)), 5 * 60000);
+  // ボードは誰も「再試行」を押さないので、待ちの上限を1分にしておく
+  const cap = S.view === 'board' ? 60000 : 5 * 60000;
+  const backoff = Math.min(base * Math.pow(2, Math.min(S.failures, 4)), cap);
   S.timer = setTimeout(() => sync(false), S.failures ? backoff : base);
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden){ markActive(); sync(false); } else { clearTimeout(S.timer); }
+  // 何度も切り替えるたびに取りに行かない（5秒以内なら次の定期更新に任せる）
+  if (!document.hidden){ markActive(); Date.now() - S.fetchedAt > 5000 ? sync(false) : schedule(); }
+  else { clearTimeout(S.timer); }
 });
 
 /* =====================================================================
@@ -3069,8 +3163,9 @@ function renderSyncState(){
     $('#banner-offline-text').textContent = has
       ? (net ? '通信できません。電波の良い場所へ移動してください。最後に取得した情報を表示しています。'
              : '案内システムが一時的に応答していません。最後に取得した情報を表示しています。')
-      : '混雑状況を取れませんでした。校内マップと出し物の一覧は下に出ています。'
-        + 'くわしい待ち時間は、各ブースの入口の掲示か、近くの係の人にきいてください。';
+      // 初回で何も受け取れていないときは一覧も空。「下に出ています」とは言わない
+      : '混雑状況を取れませんでした。校内マップは下で見られます。'
+        + '出し物や待ち時間は、各ブースの入口の掲示か、近くの係の人にきいてください。';
     dot.className = 'dot down';
     txt.textContent = S.booths.length ? `つながっていません・${ago(S.updatedAt)}の情報` : 'つながっていません';
   } else if (S.fetchedAt && age > CONFIG.STALE_MS){
@@ -3085,9 +3180,11 @@ function renderSyncState(){
   }
 }
 setInterval(() => {
+  if (document.hidden) return;          // 見ていない間は描かない（電池）
   renderSyncState();
   renderNextEvent();
   if (S.view === 'list') renderList();
+  if (S.view === 'info') renderInfo();  // 「いまのコマ」の印を時刻に合わせて進める
 }, 15000);
 
 /* =====================================================================
@@ -3150,6 +3247,30 @@ function utilLabel(u){
               class="util" font-size="${size.toFixed(1)}">${esc(t)}</text>`;
   }
   return fitTextSvg(t, u.x, u.y, u.w, u.h, 'util', 6, 4.2);
+}
+
+/**
+ * 周回コースで、隣り合う2つのブースの間を「どう移るか」。
+ * 線は順番の目安としてまっすぐ引いているので、実際には歩けない所を横切ることがある。
+ * 棟が変わる区間だけ、現地の事実に沿った一言を添える（空文字＝同じ廊下でつながっている）。
+ */
+const HOP_KEY = (a, b) => [a || '', b || ''].sort().join('|');
+const HOP_NOLINK = {                    // 同じ階では直接つながっていない棟の組
+  1: [HOP_KEY('家庭科実習棟', '電気科実習棟')],
+  2: [HOP_KEY('土木科実習棟', '専攻科棟')]
+};
+const HOP_OUT = {                       // 横一直線だが、いったん外に出てから入る組
+  1: [HOP_KEY('北教室棟', '電気科実習棟'), HOP_KEY('南教室棟', '電子科実習棟')]
+};
+function hopLabel(f, za, zb){
+  if (za === zb) return '';
+  if (f === 3) return '下の階を通る';                     // 3階は棟どうしをつなぐ道がない
+  const k = HOP_KEY(za, zb);
+  if ((HOP_NOLINK[f] || []).includes(k)) return '直接つながっていません';
+  if (f <= 1 && (!za || !zb)) return '外に出る';          // 屋外・体育館・柔剣道場（廊下なし）
+  if (f === 1 && (za === '専攻科棟' || zb === '専攻科棟')) return '外に出る';  // 1階は外から入る
+  if ((HOP_OUT[f] || []).includes(k)) return '外に出る';
+  return '';
 }
 
 /** 「ここから外に出る」道の札。屋内の通路と取り違えると外に出られず迷う。 */
@@ -3779,6 +3900,7 @@ function drawFloor(floorNum){
   });
 
   const routeIds = S.route ? CONFIG.ROUTES[S.route] : null;
+  let routeHops = '';      // 棟をまたぐ区間の札。棟の名札より上に描くため最後に足す
 
   // 周回コースの道すじ。番号だけでは「どっちへ歩くか」が伝わらないので矢印でつなぐ。
   // 線は部屋の外（廊下側）だけに描く。部屋を横切るとブース名が読めなくなるため。
@@ -3791,7 +3913,7 @@ function drawFloor(floorNum){
       const t = Math.max(0, Math.min(1, Math.min(tx, ty)));
       return [x0 + dx * t, y0 + dy * t];
     };
-    let lines = '', arrows = '';
+    let lines = '', arrows = '', hops = '';
     for (let i = 0; i < stops.length - 1; i++){
       const a = stops[i].s, b2 = stops[i + 1].s;
       const ax = a.x + a.w / 2, ay = a.y + a.h / 2;
@@ -3802,8 +3924,19 @@ function drawFloor(floorNum){
       const p1 = exit(b2, bx2, by2, -dx, -dy);
       const len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
       if (len < 5) continue;                       // 隣り合っていて隙間が無いときは描かない
+      const hop = hopLabel(floorNum, a.z || null, b2.z || null);
       lines += `<path class="route-path-bg" d="M${p0[0].toFixed(1)} ${p0[1].toFixed(1)}L${p1[0].toFixed(1)} ${p1[1].toFixed(1)}"/>`;
-      lines += `<path class="route-path" d="M${p0[0].toFixed(1)} ${p0[1].toFixed(1)}L${p1[0].toFixed(1)} ${p1[1].toFixed(1)}"/>`;
+      lines += `<path class="route-path${hop ? ' hop' : ''}" d="M${p0[0].toFixed(1)} ${p0[1].toFixed(1)}L${p1[0].toFixed(1)} ${p1[1].toFixed(1)}"/>`;
+      if (hop && len > 24){
+        // 拡大しても画面上の大きさが変わらないよう倍率で割る。真ん中は棟の名札とぶつかりやすいので4割の位置に
+        const zk = Math.max(1, Math.min(5, mapScale() / (366 / 400)));
+        const fs = 4.6 / zk, bh = 8 / zk, w = (hop.length * fs + 5 / zk);
+        const mx = p0[0] + (p1[0] - p0[0]) * 0.4, my = p0[1] + (p1[1] - p0[1]) * 0.4;
+        hops += `<g class="route-hop"><rect x="${(mx - w / 2).toFixed(1)}" y="${(my - bh / 2).toFixed(1)}"
+            width="${w.toFixed(1)}" height="${bh.toFixed(1)}" rx="${(bh / 2).toFixed(1)}"/>
+          <text x="${mx.toFixed(1)}" y="${(my + fs * 0.36).toFixed(1)}" text-anchor="middle"
+            font-size="${fs.toFixed(2)}">${esc(hop)}</text></g>`;
+      }
       // 進む向きを示す三角形を線の終点に置く
       const ux = (p1[0] - p0[0]) / len, uy = (p1[1] - p0[1]) / len;
       const tipX = p1[0], tipY = p1[1], back = 7, half = 3.8;
@@ -3812,6 +3945,7 @@ function drawFloor(floorNum){
         `${(tipX - ux * back + uy * half).toFixed(1)},${(tipY - uy * back - ux * half).toFixed(1)}"/>`;
     }
     html += lines + arrows;
+    routeHops = hops;
   }
 
   placed.forEach(({ b, s }) => {
@@ -3954,6 +4088,7 @@ function drawFloor(floorNum){
   svg.setAttribute('viewBox', planViewBox(floorNum, tagRects));
   svg.classList.toggle('has-booth', placed.length > 0);
   renderDeptLegend(floorNum);
+  html += routeHops;
   svg.innerHTML = html;
 
   // 図面に置き場所が無いブースを取りこぼさない。
@@ -4456,18 +4591,26 @@ function openSheet(id, fromHistory){
   S.sheetId = id;
   // 戻り先を要素そのものだけで覚えると、地図が描き直された瞬間に消える。
   // ブースidでも控えておき、消えていたら探し直す。
-  const prev = document.activeElement;
-  S.sheetFrom = prev;
-  S.sheetFromKey = (prev && (prev.dataset && (prev.dataset.id || prev.dataset.stamp)))
-                 || (prev && prev.closest && prev.closest('.room') && prev.closest('.room').dataset.id)
-                 || null;
+  // シートの中の「空いているブース」から乗り換えたときは、最初に開いた要素を戻り先のまま保つ
+  if (first){
+    const prev = document.activeElement;
+    S.sheetFrom = prev;
+    S.sheetFromKey = (prev && (prev.dataset && (prev.dataset.id || prev.dataset.stamp)))
+                   || (prev && prev.closest && prev.closest('.room') && prev.closest('.room').dataset.id)
+                   || null;
+  }
   document.addEventListener('keydown', trapTab);
+  // シートを開いている間は後ろのページを動かさない（指でなぞると背景が流れて迷子になる）
+  document.documentElement.classList.add('sheet-open');
   const back = $('#bsh-back'), sh = $('#bsh');
   back.hidden = false; sh.hidden = false;
   renderSheet();
   requestAnimationFrame(() => { back.classList.add('on'); sh.classList.add('on'); });
   if (first && !fromHistory){
     try{ history.pushState({ v:S.view, sheet:id }, '', location.hash || '#map'); }catch(e){}
+  } else if (!fromHistory){
+    // 乗り換えでは履歴を増やさず中身だけ差し替える。戻る→進むで古いブースが開かないように
+    try{ history.replaceState({ v:S.view, sheet:id }, '', location.hash || '#map'); }catch(e){}
   }
   setTimeout(() => { const x = $('#bsh-x'); x && x.focus({ preventScroll:true }); }, 60);
 }
@@ -4481,6 +4624,7 @@ function closeSheet(fromHistory){
   sh.style.transform = '';
   setTimeout(() => { if (!S.sheetId){ back.hidden = true; sh.hidden = true; } }, 340);
   document.removeEventListener('keydown', trapTab);
+  document.documentElement.classList.remove('sheet-open');
   let f = S.sheetFrom;
   if (!f || !f.isConnected){
     const k = S.sheetFromKey;
@@ -4679,12 +4823,19 @@ function zoomApply(animate){
   if (zoomApply._step !== step){
     zoomApply._step = step;
     clearTimeout(zoomApply._t);
-    zoomApply._t = setTimeout(() => { drawFloor._fp = null; drawFloor(S.floor); }, 160);
+    // 指が触れている間は描き直さない（ピンチ中に地図全体を作り直すとカクつく）
+    zoomApply._t = setTimeout(function redraw(){
+      if (z.panId != null || z.tBase){ zoomApply._t = setTimeout(redraw, 160); return; }
+      drawFloor._fp = null; drawFloor(S.floor);
+    }, 160);
   }
-  // 初回だけ「動かせる」ことを伝える
-  if (z.k > 1.01 && !load('kuroko_zoom_hint', false)){
-    store('kuroko_zoom_hint', true);
-    toast('指1本で動かせます。2本指で拡大・縮小できます');
+  // 初回だけ「動かせる」ことを伝える（保存領域はページごとに1回だけ見る）
+  if (z.k > 1.01 && !zoomApply._hinted){
+    zoomApply._hinted = true;
+    if (!load('kuroko_zoom_hint', false)){
+      store('kuroko_zoom_hint', true);
+      toast('指1本で動かせます。2本指で拡大・縮小できます');
+    }
   }
   const zi = $('#zoom-in'), zo = $('#zoom-out'), zr = $('#zoom-reset'), zb = $('#zoom-booth');
   const atMin = z.k <= (z.base0 || 1) + .01;
@@ -4709,7 +4860,10 @@ function zoomApply(animate){
 function zoomTo(to, cx, cy, animate, pan){
   const z = ZOOM;
   to = Math.min(z.max, Math.max(z.min, to));
-  const r = z.wrap.getBoundingClientRect();
+  // ピンチ中は毎回の位置取得がレイアウト計算を強制して重い。枠は動かないので短時間使い回す
+  const now = performance.now();
+  if (!z.rect || now - z.rectT > 250){ z.rect = z.wrap.getBoundingClientRect(); z.rectT = now; }
+  const r = z.rect;
   const px = (cx == null ? r.width / 2 : cx - r.left);
   const py = (cy == null ? r.height / 2 : cy - r.top);
   const ratio = to / z.k;
@@ -5109,7 +5263,8 @@ function renderRouteSteps(){
 
   box.innerHTML =
     `<h4>${S.route === 'free' ? '空いている順に回る' : 'このコースの回り方'}
-       <span>${doneN} / ${stops.length} 到達</span></h4>` +
+       <span>${doneN} / ${stops.length} 到達</span></h4>
+     <p class="rs-note">地図の点線は回る順番の目安です。道は廊下や案内表示に従ってください。</p>` +
     view.map((b, k) => {
       const i = stops.indexOf(b);
       const L = lvOf(b);
@@ -5219,7 +5374,7 @@ function withYomi(text){
 }
 
 function normalizeQ(s){
-  return String(s)
+  return String(s).normalize('NFKC')           // 半角カナ「ﾛﾎﾞｯﾄ」・全角「１Ｆ－０２」をそろえる
     .replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60))
     .replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
     .replace(/\s+/g, '')
@@ -5283,15 +5438,22 @@ function renderList(){
   let items = S.booths.slice();
   if (S.cat !== 'all') items = items.filter(b => b.category === S.cat);
   if (S.q){
-    const q = normalizeQ(S.q);
+    // 空白で区切った語はすべて含むものを残す（「プログラミング 教室」で探せるように）。
+    // 正規化した検索用の文字列はブースごとに1回だけ作る（打つたびに150件作り直すと重い）
+    const qs = String(S.q).normalize('NFKC').split(/\s+/).map(normalizeQ).filter(Boolean);
+    const cache = renderList._hay || (renderList._hay = new WeakMap());
     items = items.filter(b => {
-      const sl = slotOf(b.id);
-      const dept = sl && sl.z ? (DEPT_BY_ZONE[sl.z] ? DEPT_BY_ZONE[sl.z].s : sl.z) : '';
-      const no = S.numbers.get(b.id);
-      // 紙のマップに出ているのは通し番号。それで引けないと紙とアプリがつながらない
-      const hay = (no != null ? '#' + no + ' ' : '')
-                + b.id + b.name + b.category + b.note + (sl ? sl.nm : '') + dept + (sl ? sl.z : '');
-      return normalizeQ(withYomi(hay)).includes(q);
+      let hay = cache.get(b);
+      if (hay == null){
+        const sl = slotOf(b.id);
+        const dept = sl && sl.z ? (DEPT_BY_ZONE[sl.z] ? DEPT_BY_ZONE[sl.z].s : sl.z) : '';
+        const no = S.numbers.get(b.id);
+        // 紙のマップに出ているのは通し番号。それで引けないと紙とアプリがつながらない
+        hay = normalizeQ(withYomi((no != null ? '#' + no + ' ' : '')
+                + b.id + b.name + b.category + b.note + (sl ? sl.nm : '') + dept + (sl ? sl.z : '')));
+        cache.set(b, hay);
+      }
+      return qs.every(t => hay.includes(t));
     });
   }
   // 「空いている順」：空き→やや混雑→混雑→情報なし→準備中。
@@ -5300,6 +5462,12 @@ function renderList(){
   items.sort((a, b) => S.sort === 'free'
     ? (rank(a) - rank(b)) || a.id.localeCompare(b.id, 'ja', { numeric:true })
     : a.id.localeCompare(b.id, 'ja', { numeric:true }));
+  // 数字だけで探したら、紙のマップの番号がそれと一致するブースを先頭に出す
+  const qn = String(S.q || '').normalize('NFKC').trim();
+  if (/^\d+$/.test(qn)){
+    const hit = items.filter(b => String(S.numbers.get(b.id)) === String(+qn));
+    if (hit.length) items = hit.concat(items.filter(b => hit.indexOf(b) < 0));
+  }
 
   // 何件に絞られたのかを出す。1件しか出ないとき「壊れているのでは」と思わせない
   const cnt = $('#list-count');
@@ -5432,8 +5600,11 @@ function spendStamps(){
   // 取った順（QRを読んだ順）に消す。あとから取った分を残す
   const usable = Array.from(S.stamps).filter(id => !spent.has(id));
   if (usable.length < need) return 0;
-  S.spent = S.spent.concat(usable.slice(0, need));
-  store('kuroko_spent_v1', S.spent);
+  const next = S.spent.concat(usable.slice(0, need));
+  // 保存できないと、読み込み直したときに消費が戻り、お菓子を2回もらえてしまう。
+  // 保存に失敗したら消費しない（-1 を返して係員に知らせる）
+  if (!store('kuroko_spent_v1', next)) return -1;
+  S.spent = next;
   return need;
 }
 
@@ -5461,7 +5632,10 @@ function earnStamp(id){
   S.justStamp = id;
   setTimeout(() => { S.justStamp = null; }, 1200);
   S.stamps.add(id);
-  store('kuroko_stamps_v2', Array.from(S.stamps));
+  if (!store('kuroko_stamps_v2', Array.from(S.stamps))){
+    // 画面を開いている間は有効。閉じると消えることを正直に伝える
+    setTimeout(() => toast('この端末に保存できません（プライベートモードか空き容量不足）。画面を閉じるとスタンプが消えます'), 1800);
+  }
   renderList(); renderStamps(); recommend(); drawFloor(S.floor);
   if (S.sheetId) renderSheet();
   ding();
@@ -5724,18 +5898,23 @@ function stampCardCanvas(){
     const cx = PAD + (i % cols) * (colW + 24);
     const cy = y + Math.floor(i / cols) * rowH;
     const on = S.stamps.has(b.id);
-    g.fillStyle = on ? '#f0fdf4' : '#f8fafc';
-    g.strokeStyle = on ? C.free : C.line; g.lineWidth = on ? 2 : 1;
+    // 画面のカードと同じく、お菓子と交換したスタンプは赤の「換」で示す
+    const used = on && S.spent.includes(b.id);
+    const RED = '#dc2626';
+    g.fillStyle = used ? '#fef2f2' : on ? '#f0fdf4' : '#f8fafc';
+    g.strokeStyle = used ? RED : on ? C.free : C.line; g.lineWidth = on ? 2 : 1;
     g.beginPath(); g.roundRect(cx, cy, colW, rowH - 12, 12); g.fill(); g.stroke();
-    g.fillStyle = on ? C.free : C.mute;
-    g.font = F(23, 900);
-    g.fillText(on ? '✓' : '−', cx + 18, cy + 34);
+    g.fillStyle = used ? RED : on ? C.free : C.mute;
+    g.font = F(used ? 20 : 23, 900);
+    g.fillText(used ? '換' : on ? '✓' : '−', cx + 16, cy + 34);
     g.fillStyle = on ? C.ink : C.mute;
     g.font = F(21, on ? 800 : 600);
-    let nm = b.name;
-    while (g.measureText(nm).width > colW - 62 && nm.length > 1) nm = nm.slice(0, -1);
-    if (nm !== b.name) nm = nm.slice(0, -1) + '…';
-    g.fillText(nm, cx + 48, cy + 34);
+    // 文字単位（サロゲートペア込み）で詰める。絵文字を半分に切ると「�」になる
+    const all = Array.from(String(b.name || ''));
+    let cs = all.slice();
+    while (g.measureText(cs.join('')).width > colW - 62 && cs.length > 1) cs.pop();
+    if (cs.length < all.length){ cs.pop(); cs.push('…'); }
+    g.fillText(cs.join(''), cx + 48, cy + 34);
   });
 
   // 足元
@@ -5752,6 +5931,14 @@ function stampCardCanvas(){
 }
 
 async function shareStamps(){
+  // 共有画面が開いている間の2回目のタップを無視する（2回目は失敗扱いになり、勝手に画像保存へ進んでいた）
+  if (shareStamps._busy) return;
+  shareStamps._busy = true;
+  try{ await shareStampsRun(); } finally { shareStamps._busy = false; }
+}
+async function shareStampsRun(){
+  // 利用者が閉じた・すでに共有画面が開いている、は失敗ではないので何も出さない
+  const quiet = e => e && (e.name === 'AbortError' || e.name === 'InvalidStateError');
   const total = S.booths.length;
   const got = S.booths.filter(b => S.stamps.has(b.id)).length;
   const rk = stampRank(got, total);
@@ -5772,12 +5959,12 @@ async function shareStamps(){
     const file = new File([blob], 'kuroko-stamp.png', { type:'image/png' });
     if (navigator.canShare({ files:[file] })){
       try{ await navigator.share({ files:[file], text, title:'黒工文化祭 スタンプラリー' }); return; }
-      catch(e){ if (e && e.name === 'AbortError') return; }
+      catch(e){ if (quiet(e)) return; }
     }
   }
   if (navigator.share){
     try{ await navigator.share({ title:'黒工文化祭 校内マップ', text, url }); return; }
-    catch(e){ if (e && e.name === 'AbortError') return; }
+    catch(e){ if (quiet(e)) return; }
   }
   // 共有機能が無い端末（PCのブラウザなど）は画像を保存する
   if (blob){
@@ -5849,6 +6036,9 @@ function renderInfo(){
   const toMin = s => { const m = /^(\d{1,2}):(\d{2})/.exec(s); return m ? +m[1] * 60 + +m[2] : -1; };
   let cur = -1;
   CONFIG.INFO.timetable.forEach(([t], i) => { if (toMin(t) <= mins) cur = i; });
+  // 15秒ごと・画面を開くたびに呼ばれる。コマが変わったときだけ描き直す
+  if (renderInfo._cur === cur) return;
+  renderInfo._cur = cur;
 
   $('#tt-body').innerHTML = CONFIG.INFO.timetable
     .map(([t, v, where], i) => {
@@ -5979,8 +6169,17 @@ function exportReportPng(){
     const x = PAD + i * (cw + 12);
     g.fillStyle = '#f8fafc'; g.strokeStyle = '#e2e8f0'; g.lineWidth = 1;
     g.beginPath(); g.roundRect(x, 120, cw, 70, 10); g.fill(); g.stroke();
-    g.fillStyle = C.ink; g.font = F(19, 900);
-    g.fillText(String(c[1]).slice(0, 12), x + 12, 152);
+    g.fillStyle = C.ink;
+    // 長い名前は文字を少し小さくし、それでも入らなければ末尾を「…」で切る（横に潰すと読めない）
+    const maxW = cw - 24;
+    let fs = 19, tx = Array.from(String(c[1]));
+    g.font = F(fs, 900);
+    while (g.measureText(tx.join('')).width > maxW && fs > 14){ fs--; g.font = F(fs, 900); }
+    if (g.measureText(tx.join('')).width > maxW){
+      while (tx.length > 1 && g.measureText(tx.join('') + '…').width > maxW) tx.pop();
+      tx.push('…');
+    }
+    g.fillText(tx.join(''), x + 12, 152);
     g.fillStyle = C.mute; g.font = F(11, 700);
     g.fillText(c[0], x + 12, 174);
   });
@@ -6148,7 +6347,11 @@ function renderBoard(){
 
   const alertEl = $('#board-alert');
   const overdue = S.booths.filter(b => elapsedMin(b) >= CONFIG.ADMIN_WARN_MIN);
-  if (overdue.length){
+  if (!S.online && S.fetchedAt){
+    // 止まっているのはボード自身の通信。係員のせいにしない
+    alertEl.classList.remove('hide');
+    alertEl.textContent = `このボードが通信できていません。表示は${ago(S.fetchedAt)}の情報です（自動で再接続します）`;
+  } else if (overdue.length){
     alertEl.classList.remove('hide');
     alertEl.textContent =
       // 何十件も名前を並べても読めない。件数を先に出し、名前は数件までにする。
@@ -6159,14 +6362,27 @@ function renderBoard(){
           + (overdue.length > 3 ? ` ほか${overdue.length - 3}件` : ''));
   } else alertEl.classList.add('hide');
 
-  const fp = fingerprint('board') + '|' + S.booths.map(b => elapsedMin(b)).join(',');
+  // ブースが多いと1画面に全部詰めて読めなくなる（150件で1枚37px）。
+  // 30件ずつに分け、20秒ごとに次のページへ送る（地図は全体を出し続ける）
+  const PER = 30;
+  const pages = Math.max(1, Math.ceil(S.booths.length / PER));
+  const pg = Math.floor(Date.now() / 20000) % pages;
+  const shown = S.booths.slice(pg * PER, pg * PER + PER);
+  const sub = $('#board-sub');
+  if (sub) sub.textContent = pages > 1 ? `本部モニタ　${pg + 1} / ${pages}ページ（20秒ごとに切替）` : '本部モニタ';
+  const fp = fingerprint('board') + '|' + pg + '|' + S.booths.map(b => elapsedMin(b)).join(',');
   if (renderBoard._fp !== fp){
     renderBoard._fp = fp;
     const grid = $('#board-grid');
-    const n = S.booths.length;
+    const n = shown.length;
     grid.classList.toggle('d2', n > 12 && n <= 24);
     grid.classList.toggle('d3', n > 24);
-    grid.innerHTML = S.booths.map(b => {
+    if (!n){
+      grid.innerHTML = `<p class="board-empty">${S.online || S.fetchedAt
+        ? 'ブースがまだ登録されていません'
+        : 'データを取得しています…（つながらない場合は、このPCのネット接続を確認してください）'}</p>`;
+    } else
+    grid.innerHTML = shown.map(b => {
       const L = lvOf(b);
       const m = elapsedMin(b);
       const fresh = m >= CONFIG.ADMIN_DANGER_MIN ? 'danger' : m >= CONFIG.ADMIN_WARN_MIN ? 'warn' : 'ok';
@@ -6424,12 +6640,17 @@ function renderAll(){
   // 開いたまま待っている人には「1階」「2階」だけが並び、
   // どの階に何があるのか分からないままだった
   renderFloorCounts();
-  renderList();
+  // 見えていない一覧は作らない（150件で毎回0.4秒かかっていた）。一覧に切り替えたときに描く
+  if (S.view === 'list') renderList(); else renderList._fp = null;
   renderRouteChips();
   renderRouteSteps();
   renderStamps();
   if (S.sheetId) renderSheet();
-  if (S.isAdmin) renderAdmin();
+  if (S.isAdmin){
+    // ログインがデータ到着より先だと担当ブースの選択肢が空のままになる。数が変わったら作り直す
+    if (renderAssign._n !== S.booths.length) renderAssign();
+    renderAdmin();
+  }
   // 最初にデータが届いたら、地図の箱の高さを図面に合わせ直す
   if (!hadBooths && renderAll._had){
     requestAnimationFrame(() => fitMapBox(S.floor));
@@ -6527,7 +6748,11 @@ function switchView(v, fromHistory){
   S.view = v;
   ['map','list','stamp','info','auth','admin','qr','print','report','board'].forEach(k =>
     $('#v-' + k).classList.toggle('on', k === v));
-  $$('#nav button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
+  $$('#nav button').forEach(b => {
+    b.setAttribute('aria-pressed', String(b.dataset.view === v));
+    // 読み上げでは「いまいる画面」と伝える（押しボタンの ON/OFF ではない）
+    if (b.dataset.view === v) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
   const staff = STAFF_VIEWS.indexOf(v) >= 0;
   // 割り当て中は地図だけを見せる。一覧・スタンプ・インフォへ移る場面ではないし、
   // 誤って移ると「どこを直していたか」を見失う
@@ -6574,6 +6799,8 @@ function switchView(v, fromHistory){
   // 画面に入った時点で止めておき、ブースが届いたら開ける。
   if (v === 'print') setPrintReady('#btn-print2', S.booths.length > 0);
   if (v === 'qr')    setPrintReady('#btn-print',  S.booths.length > 0);
+  if (v === 'list') renderList();       // 見えていない間は作っていないので、開いたときに描く
+  if (v === 'info') renderInfo();       // 「いまのコマ」の印を時刻に合わせる
   // 来場者向けの混雑アラートは係員画面では出さない（ノイズになる）
   // 一覧は「空いている順」に並んでいて先頭がその答えなので、同じ内容のバナーは出さない
   $('#banner-alert').classList.toggle('hide', v !== 'map' || !$('#banner-alert-text').textContent);
@@ -6647,6 +6874,8 @@ async function login(){
     $('#auth-err').classList.remove('hide');
     $('#auth-err').textContent =
       /locked/.test(m) ? '入力の失敗が続いたため、しばらく受け付けできません（90秒ほど待ってください）'
+      // サーバー側の設定の問題（ADMIN_PASS が短い・未設定）。通信の失敗と取り違えさせない
+      : /^weak:|未設定/.test(m) ? m.replace(/^weak:\s*/, '')
       : m === 'bad' || /unauthorized/.test(m) ? 'パスワードが違います'
       : '通信に失敗しました';
   }finally{ $('#btn-login').disabled = false; }
@@ -6659,12 +6888,20 @@ async function login(){
  * そのぶん毎回下へ押し下げられる。選び終わっていれば1行に畳む。
  */
 function renderAssign(){
+  renderAssign._n = S.booths.length;
   const box = $('#assign-chips');
   const picked = S.booths.filter(b => S.assigned.has(b.id));
   const open = S.assignOpen || !picked.length;
   box.classList.toggle('picked', !open);
   const note = $('#assign-note');
   if (note) note.classList.toggle('hide', !open);
+  // 150ブースを横一列に並べると、自分のブースまで50回以上スワイプが要る。
+  // 名前・番号・部屋名で絞れるようにし、選んだものは先頭に出す
+  const qEl = $('#assign-q');
+  if (qEl) qEl.classList.toggle('hide', !open || S.booths.length < 8);
+  const q = qEl && open ? normalizeQ(qEl.value) : '';
+  const hit = b => !q || String(S.numbers.get(b.id)) === q
+    || normalizeQ(b.name + ' ' + b.id + ' ' + (S.numbers.get(b.id) || '') + ' ' + roomLabel(b)).includes(q);
   if (!open){
     box.innerHTML =
       `<span class="as-now">担当：<b>${picked.map(b => esc(b.name)).join('・')}</b></span>` +
@@ -6672,10 +6909,11 @@ function renderAssign(){
   } else {
     box.innerHTML =
       `<button class="chip" data-as="__all" aria-pressed="${S.assigned.size === 0}">すべて表示</button>` +
-      S.booths.map(b => {
+      picked.concat(S.booths.filter(b => !S.assigned.has(b.id))).map(b => {
         // 場所も出す。名前が似ていると、担当でないブースを選んでしまう
         const r = roomLabel(b);
-        return `<button class="chip as-chip" data-as="${esc(b.id)}" aria-pressed="${S.assigned.has(b.id)}"
+        const hide = !hit(b) && !S.assigned.has(b.id);
+        return `<button class="chip as-chip" data-as="${esc(b.id)}" aria-pressed="${S.assigned.has(b.id)}"${hide ? ' hidden' : ''}
           >${esc(b.name)}<small>${esc(flLabel(b))}${r ? '・' + esc(r) : ''}</small></button>`;
       }).join('') +
       (picked.length ? `<button class="chip" data-as="__done">えらび終わった</button>` : '');
@@ -6809,7 +7047,9 @@ function renderAdmin(){
 
   const busy = Object.keys(S.draftWait).length > 0 ||
                (Date.now() - S.lastAdminTouch < CONFIG.ADMIN_HOLD_MS);
-  if (!busy){
+  // 画面を下へ送っている最中に並べ替えると、指の下のカードが別のブースに入れ替わり、
+  // 次のタップで違うブースを更新してしまう。並べ替えるのは一番上を見ているときだけ
+  if (!busy && (window.scrollY < 40 || !S.adminOrder.length)){
     // 更新が古い順。放置されているブースが必ず一番上に来る
     list = list.slice().sort((a, c) => elapsedMin(c) - elapsedMin(a));
     S.adminOrder = list.map(b => b.id);
@@ -6892,9 +7132,11 @@ function renderAdmin(){
     const L = lvOf(b);
     const m = elapsedMin(b);
     const cls = m >= CONFIG.ADMIN_DANGER_MIN ? 'danger' : m >= CONFIG.ADMIN_WARN_MIN ? 'warn' : 'ok';
-    const el = m >= NEVER ? '未更新' : agoMin(m);
+    const unsent = b.id in S.unsent;
+    const el = unsent ? '未送信・自動で再送' : m >= NEVER ? '未更新' : agoMin(m);
 
     card.dataset.fresh = cls;
+    card.classList.toggle('unsent', unsent);
     card.querySelector('.adm-nm').textContent = b.name;
     const sl = slotOf(b.id);
     card.querySelector('.adm-loc').textContent =
@@ -6971,10 +7213,10 @@ function bindAdminCard(card){
  * ステータスと待ち人数を更新する。
  * status を null にすると人数から自動判定（サーバー側で決定）。
  */
-async function update(id, status, wait){
+async function update(id, status, wait, retry){
   const b = S.booths.find(x => x.id === id);
   if (!b) return;
-  if (navigator.onLine === false){ toast('圏外です。電波の届く場所で操作してください'); return; }
+  update._gen = (update._gen || 0) + 1;
 
   const prev = { status: b.status, wait: b.wait, time: b.time, stale: b.stale };
   // 楽観的更新：サーバーと同じ規則でこちらでも判定しておく
@@ -6995,6 +7237,7 @@ async function update(id, status, wait){
   if (sendBtn){ sendBtn.dataset.label = sendBtn.textContent; sendBtn.textContent = '送信中…'; }
   update._busy = (update._busy || 0) + 1;                   // 送信中は自動同期を待たせる
   try{
+    if (navigator.onLine === false) throw new Error('offline');
     // wait は常に送る。null なら人数を消す指示になる
     await api({ body:{ action:'update', id, status, wait, pass: pw() } });
     // await の間に sync() が S.booths を丸ごと差し替えている可能性がある。
@@ -7002,22 +7245,38 @@ async function update(id, status, wait){
     const cur = S.booths.find(x => x.id === id) || b;
     Object.assign(cur, { status, wait, stale:false, time:new Date().toISOString() });
     delete S.draftWait[id]; delete S.draftAt[id];          // 送信できたので下書きを確定
+    // 再送中に同じブースを押し直していたら、新しい方を残す
+    const u0 = S.unsent[id];
+    if (!u0 || !retry || (u0.status === status && u0.wait === wait)){ delete S.unsent[id]; saveUnsent(); }
     renderAdmin();
+    if (retry){ toast(`送れていなかった更新を送りました：${b.name} → ${lvOf(status).short}`); return; }
     // 押し間違いをすぐ戻せるようにする
     const canUndo = prev.status && LEVELS.some(l => l.key === prev.status) &&
                     !(prev.status === status && prev.wait === wait);
     toast(`${b.name} → ${lvOf(status).short}${wait != null ? `（${wait}人）` : ''}`,
       canUndo ? { label:'元に戻す', fn: () => update(id, prev.status, prev.wait ?? null) } : null);
   }catch(e){
-    Object.assign(S.booths.find(x => x.id === id) || b, prev);   // ロールバックも引き直す
-    // 送れなかったぶんは下書きとして残す。送ったつもりで放置されるのが
-    // いちばん困るので、1分後に「まだ送信されていません」と言えるよう時刻も残す
-    if (wait != null){ S.draftWait[id] = wait; S.draftAt[id] = Date.now(); }
+    if (authFailed(e)){
+      Object.assign(S.booths.find(x => x.id === id) || b, prev);   // ロールバックも引き直す
+      if (wait != null){ S.draftWait[id] = wait; S.draftAt[id] = Date.now(); }
+      renderAdmin();
+      return;
+    }
+    // 通信断・時間切れ・混雑：押した内容は捨てずに持っておき、つながったら自動で送る。
+    // 同じ値をもう一度送っても結果は同じなので、届いたか分からない時間切れでも再送してよい
+    // （二重計上にならない）。以前は元に戻して短いトーストを出すだけで、
+    // 状態ボタンで押した分は送れていないことが誰にも分からなかった
+    const keepAt = retry && S.unsent[id] ? S.unsent[id].at : Date.now();
+    if (!retry || (id in S.unsent)) S.unsent[id] = { status, wait, at: keepAt };
+    delete S.draftWait[id]; delete S.draftAt[id];
+    saveUnsent();
     renderAdmin();
-    if (!authFailed(e)){
-      toast(/busy|混み合/i.test(String(e && e.message || e))
-        ? '混み合っています。少し待ってもう一度押してください'
-        : '更新失敗：もう一度お試しください');
+    if (!retry){
+      const m = String(e && e.message || e);
+      toast(m === 'offline' ? '圏外です。電波が戻ったら自動で送ります'
+          : /busy|混み合/i.test(m) ? '混み合っています。少し後に自動で送り直します'
+          : /timeout|abort/i.test(m) ? '応答がありません。自動でもう一度送ります（二重にはなりません）'
+          : '送信できませんでした。電波が戻ったら自動で送ります');
     }
   }finally{
     update._busy--;
@@ -7026,6 +7285,53 @@ async function update(id, status, wait){
     if (sb && sb.dataset.label){ sb.textContent = sb.dataset.label; delete sb.dataset.label; }
   }
 }
+
+/* ---------- 送れなかった更新（未送信）の保持と再送 ---------- */
+// これより古い未送信は送らない。10分前の「空いています」をいま送ると、今の状況として表示されてしまう
+const UNSENT_MAX_MS = 10 * 60000;
+function saveUnsent(){
+  try{ sessionStorage.setItem('kuroko_unsent', JSON.stringify(S.unsent)); }catch(e){}
+}
+function loadUnsent(){
+  try{
+    const v = JSON.parse(sessionStorage.getItem('kuroko_unsent') || '{}');
+    if (v && typeof v === 'object' && !Array.isArray(v)) S.unsent = v;
+  }catch(e){ S.unsent = {}; }
+}
+/** 取得した一覧に、この端末でまだ送れていない変更を重ねる（係員の画面が元に戻って見えないように） */
+function applyUnsent(booths){
+  for (const id of Object.keys(S.unsent)){
+    const b = booths.find(x => x.id === id), u = S.unsent[id];
+    if (b && u){ b.status = u.status; b.wait = u.wait; b.stale = false; }
+  }
+}
+async function flushUnsent(){
+  if (flushUnsent._on || !S.isAdmin || navigator.onLine === false) return;
+  const ids = Object.keys(S.unsent);
+  if (!ids.length) return;
+  flushUnsent._on = true;
+  let dropped = 0;
+  try{
+    for (const id of ids){
+      const u = S.unsent[id];
+      if (!u) continue;
+      if (!S.booths.some(x => x.id === id) || Date.now() - (u.at || 0) > UNSENT_MAX_MS){
+        delete S.unsent[id]; dropped++; continue;
+      }
+      await update(id, u.status, u.wait, true);
+      if (id in S.unsent && S.unsent[id].at === u.at) break;   // まだ通らない。残りは次の機会に
+    }
+  }finally{
+    flushUnsent._on = false;
+    saveUnsent();
+    if (dropped){
+      toast(`10分以上送れなかった更新（${dropped}件）は取り消しました。いまの状況で押し直してください`);
+      sync(false);
+    }
+    renderAdmin();
+  }
+}
+window.addEventListener('online', () => { S.failures = 0; sync(false); });
 
 /**
  * 全ブースの状態をまとめて変える。
@@ -7055,6 +7361,11 @@ function authFailed(e){
   // 連続で外して一時的に止められている状態。「パスワードが違う」とは原因が別なので分けて出す
   if (/locked/i.test(m)){
     toast('何度も違っています。1分ほど待ってから、もう一度お試しください');
+    return true;
+  }
+  // サーバー側の ADMIN_PASS が短い（8文字未満）。何度送っても通らないので本部に直してもらう
+  if (/^weak:/i.test(m)){
+    toast(m.replace(/^weak:\s*/, '') + '（本部に連絡してください）', null, 8000);
     return true;
   }
   if (!/unauthorized/i.test(m)) return false;
@@ -7578,7 +7889,7 @@ function renderPrintSheet(){
          + (d2 ? `<rect x="${s.x}" y="${s.y}" width="${Math.min(3, s.w / 6)}" height="${s.h}" rx="1.5" fill="${d2.c}"/>` : '');
       h += `<circle cx="${cx2.toFixed(1)}" cy="${cy2.toFixed(1)}" r="${br.toFixed(1)}" fill="#b91c1c"/>
             <text x="${cx2.toFixed(1)}" y="${(cy2 + br * 0.38).toFixed(1)}" text-anchor="middle"
-              font-size="${(br * 1.2).toFixed(1)}" font-weight="bold" fill="#fff">${S.numbers.get(b.id)}</text>`;
+              font-size="${(br * (S.numbers.get(b.id) > 99 ? .8 : S.numbers.get(b.id) > 9 ? 1 : 1.2)).toFixed(1)}" font-weight="bold" fill="#fff">${S.numbers.get(b.id)}</text>`;
     });
     return `<svg viewBox="${planViewBox(floorNum)}" class="sheet-plan">${h}${zoneH}</svg>`;
   };
@@ -7628,7 +7939,7 @@ function renderPrintSheet(){
               <h2>${f.n === 0 ? '屋外' : f.n + '階'}</h2>${planSvg(f.n)}</div>`;
           }).join('')}
       </div>
-      <div class="sheet-list sheet-col">
+      <div class="sheet-list sheet-col${S.booths.length > 30 ? ' many' : ''}">
         <h2>ブース一覧</h2>
         <table class="sheet-table"><tbody>${rows}</tbody></table>
         <p class="sheet-note">
@@ -7660,7 +7971,10 @@ async function renderReport(){
   box.innerHTML = `<div class="skel"></div><div class="skel"></div>`;
   let r;
   try{
-    const url = CONFIG.GAS_URL + (CONFIG.GAS_URL.includes('?') ? '&' : '?') + 'report=1&_=' + Date.now();
+    // ?mode=report&date=2026-09-20 で前日（1日目）の記録も見られるようにする
+    const day = new URLSearchParams(location.search).get('date') || '';
+    const url = CONFIG.GAS_URL + (CONFIG.GAS_URL.includes('?') ? '&' : '?') + 'report=1'
+              + (/^\d{4}-\d{2}-\d{2}$/.test(day) ? '&date=' + day : '') + '&_=' + Date.now();
     const res = await fetch(url, { mode:'cors' });
     r = await res.json();
     if (!r || r.ok === false) throw new Error(r && r.error || '取得に失敗しました');
@@ -7686,7 +8000,9 @@ async function renderReport(){
 
   const n = r.buckets.length;
   const total = r.booths.length;
-  const W = Math.max(320, n * 18), H = 130, pad = 22;
+  // 描画幅は画面の実寸に合わせる（時間帯の数で決めると、1枠だけの日は文字が巨大に、
+  // 1日分の記録では豆粒になる）。PCで広がりすぎないよう900で頭打ち
+  const W = Math.max(320, Math.min(box.clientWidth || 360, 900)), H = 130, pad = 24;
   const colW = (W - pad) / n;
 
   // 全体の推移（積み上げ棒）
@@ -7703,10 +8019,11 @@ async function renderReport(){
   let axis = '';
   r.buckets.forEach((t, i) => {
     if (i % Math.ceil(n / 6) !== 0 && i !== n - 1) return;
+    if (i !== n - 1 && n - 1 - i < Math.ceil(n / 6) * 0.7) return;   // 最後の目盛りと重ならないように
     const last = i === n - 1;
     axis += `<text x="${pad + i * colW + (last ? colW : colW / 2)}" y="${H - 5}"
              text-anchor="${last ? 'end' : 'middle'}"
-             font-size="8" fill="var(--text-mute)">${esc(t)}</text>`;
+             font-size="10" fill="var(--text-mute)">${esc(t)}</text>`;
   });
 
   // ブース別ヒートマップ
@@ -7723,9 +8040,10 @@ async function renderReport(){
     });
     r.buckets.forEach((t, i) => {
       if (i % Math.ceil(n / 6) !== 0 && i !== n - 1) return;
+      if (i !== n - 1 && n - 1 - i < Math.ceil(n / 6) * 0.7) return;
       const last = i === n - 1;
       visAxis += `<text x="${pad + i * colW + (last ? colW : colW / 2)}" y="92"
-                   text-anchor="${last ? 'end' : 'middle'}" font-size="8"
+                   text-anchor="${last ? 'end' : 'middle'}" font-size="10"
                    fill="var(--text-mute)">${esc(t)}</text>`;
     });
   }
@@ -7733,7 +8051,7 @@ async function renderReport(){
   const heat = r.booths.map(b => `
     <div class="hm-row">
       <span class="hm-nm">${esc(b.name)}<small>${esc(reportWhere(b.id))}</small></span>
-      <div class="hm-cells">${b.series.map((lv, i) =>
+      <div class="hm-cells">${(b.series || []).map((lv, i) =>
         `<i data-lv="${lv === null ? 'x' : lv}" title="${esc(r.buckets[i])}"></i>`).join('')}</div>
       <span class="hm-max">${b.maxWait == null ? '' : b.maxWait + '人'}</span>
     </div>`).join('');
@@ -7758,8 +8076,8 @@ async function renderReport(){
       <svg viewBox="0 0 ${W} ${H}" class="rep-chart" role="img" aria-label="全体の混雑推移">
         ${bars}${axis}
         <line x1="${pad}" y1="${H - 18}" x2="${W}" y2="${H - 18}" stroke="var(--border)"/>
-        <text x="0" y="16" font-size="8" fill="var(--text-mute)">全${total}</text>
-        <text x="0" y="${H - 22}" font-size="8" fill="var(--text-mute)">0</text>
+        <text x="0" y="16" font-size="10" fill="var(--text-mute)">全${total}</text>
+        <text x="0" y="${H - 22}" font-size="10" fill="var(--text-mute)">0</text>
       </svg>
       <div class="legend" style="border:none;padding:6px 0 0">
         <span><i class="lg-free"></i>空き</span>
@@ -7804,7 +8122,7 @@ function initBoard(){
   if (initBoard._done) return;
   initBoard._done = true;
   document.body.classList.add('board-mode');
-  setInterval(renderBoard, 20000);
+  setInterval(renderBoard, 5000);     // ページ送り（20秒ごと）と時計を遅れなく反映する
   setInterval(() => {
     const n = new Date();
     $('#board-clock').textContent =
@@ -7913,6 +8231,11 @@ function init(){
   S.stamps   = new Set(load('kuroko_stamps_v2', []));
   S.spent    = (load('kuroko_spent_v1', []) || []).filter(id => S.stamps.has(id));
   S.assigned = new Set(load('kuroko_assigned_v2', []));
+  loadUnsent();
+  // カードの見出しを読み上げの「見出し」として扱う（見出しジャンプで画面内を移動できるように）
+  $$('.card-t').forEach(el => { el.setAttribute('role', 'heading'); el.setAttribute('aria-level', '2'); });
+  const aq = $('#assign-q');
+  if (aq) aq.addEventListener('input', () => renderAssign());
 
   // 前回の内容を先に出して待ち時間を減らす。
   // ただし古すぎるもの（前日など）は出さない。混雑状況は数時間で無意味になる
@@ -7944,7 +8267,9 @@ function init(){
     }
   }));
   $('#q').addEventListener('input', e => {
-    S.q = e.target.value.trim(); renderList();
+    // 1文字ごとに150件を作り直すと低性能の端末で入力がもたつく。打ち終わりを待って描く
+    S.q = e.target.value.trim();
+    clearTimeout(renderList._qt); renderList._qt = setTimeout(renderList, 120);
     $('#q-clear').classList.toggle('hide', !e.target.value);
   });
   // PCでは Esc で検索をやめるのが当たり前の動き。効かないと×を探すことになる
@@ -8007,9 +8332,11 @@ function init(){
       return;
     }
     const n = spendStamps();
-    if (!n){
+    if (n <= 0){
       rerr.classList.remove('hide');
-      rerr.textContent = 'スタンプが足りません';
+      rerr.textContent = n < 0
+        ? 'この端末に保存できないため交換できません（プライベートモードを解除してください）'
+        : 'スタンプが足りません';
       return;
     }
     closePad();
@@ -8018,7 +8345,7 @@ function init(){
     toast(`スタンプ${n}個分を使いました。お菓子を1個受け取ってください`);
   });
 
-  setInterval(tickCode, 15000);
+  setInterval(() => { if (!document.hidden) tickCode(); }, 15000);
   $('#build-id').textContent = CONFIG.BUILD;
   $('#btn-print').addEventListener('click', () => window.print());
   $('#btn-print2').addEventListener('click', () => window.print());
@@ -8127,6 +8454,7 @@ function init(){
     if (!S.booths.some(x => x.id === b)){
       toast('そのブースは移動したか、終わった可能性があります。一覧からさがしてください');
       switchView('list');
+      stripLink();                     // 残すと読み込み直すたびに同じ案内が出る
       return true;
     }
     if (fromQr){
@@ -8141,13 +8469,16 @@ function init(){
     } else {
       openBooth(b);
     }
-    // 読み込み直したときに同じ演出が繰り返されないよう、URLから引数を落とす
+    stripLink();
+    return true;
+  }
+  // 読み込み直したときに同じ演出が繰り返されないよう、URLから引数を落とす
+  function stripLink(){
     try{
       const u = new URL(location.href);
       u.searchParams.delete('booth'); u.searchParams.delete('qr'); u.searchParams.delete('k');
       history.replaceState(history.state, '', u.pathname + u.search + u.hash);
     }catch(e){}
-    return true;
   }
 
   sync(false).then(() => {

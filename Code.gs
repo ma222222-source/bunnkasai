@@ -1,3 +1,12 @@
+/* 黒工文化祭 校内マップ — サーバー側 (Google Apps Script)
+   GAS-2026-09-23a
+   2026-09-21a: ADMIN_PASS は8文字以上でないと受け付けない。
+                cid を毎回変える総当たりを、全体の失敗数で捕まえて遅らせる
+                （正しいパスワードは遅らせも止めもしない）。
+   2026-09-20a: writeBooth_ が id〜wait の全列を書き戻しており、
+                係員の更新と先生のシート編集が重なると name / category / floor / note が
+                「読んだ時点の値」で上書きされて消えていた。
+                status / time / wait の3列だけを書くようにした。 */
 /**
  * 黒工文化祭 混雑状況API v3
  * =============================================================================
@@ -84,8 +93,10 @@ function migrate() {
     main.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]).setFontWeight('bold');
     log.push('ブースシートを作成');
   } else {
+    // 見出しは大文字小文字を区別しない（「ID」を別物と見て空の id 列を足すと、
+    // エラーも出ずにブース0件になり原因が分からなくなる）
     var head = main.getRange(1, 1, 1, Math.max(main.getLastColumn(), 1)).getValues()[0]
-                   .map(function (h) { return String(h).trim(); });
+                   .map(function (h) { return String(h).trim().toLowerCase(); });
     HEADERS.forEach(function (h) {
       if (head.indexOf(h) === -1) {
         main.getRange(1, head.length + 1).setValue(h).setFontWeight('bold');
@@ -147,7 +158,7 @@ function applySheetGuards_(sh) {
   if (idx['floor'] != null) {
     sh.getRange(2, idx['floor'] + 1, rows, 1).setDataValidation(
       SpreadsheetApp.newDataValidation()
-        .requireValueInList(['1', '2'], true).setAllowInvalid(false).build());
+        .requireValueInList(['0', '1', '2', '3'], true).setAllowInvalid(false).build());
   }
 
   // 既存の条件付き書式を作り直す（重複して積み上がらないように）
@@ -256,15 +267,15 @@ function seedBooths() {
   }
   // 部屋IDは 部屋ID一覧.xlsx を参照（1F-02 = 機械加工実習室 など）
   var rows = [
-    ['1F-32', '受付・本部',        '準備中', '', '受付',     1, 'パンフ配布中', 0],
-    ['1F-01', '電子機械科 展示',   '準備中', '', '展示',     1, '', 0],
-    ['1F-02', '機械科 実演',       '準備中', '', '展示',     1, '', 0],
-    ['1F-33', '材料技術科 展示',   '準備中', '', '展示',     1, '', 0],
-    ['1F-38', '土木科 体験',       '準備中', '', '体験',     1, '', 0],
-    ['1F-42', '体育館ステージ',    '準備中', '', 'イベント', 1, '12:00 ステージ発表', 0],
-    ['2F-24', '図書室 古本市',     '準備中', '', '展示',     2, '', 0],
-    ['3F-12', 'CAI教室 体験',      '準備中', '', '体験',     3, '', 0],
-    ['0F-01', 'ふれあい広場 屋台', '準備中', '', '食べ物',   0, '', 0]
+    ['1F-32', '受付・本部',        '準備中', '', '受付',     1, 'パンフ配布中', 0, ''],
+    ['1F-01', '電子機械科 展示',   '準備中', '', '展示',     1, '', 0, ''],
+    ['1F-02', '機械科 実演',       '準備中', '', '展示',     1, '', 0, ''],
+    ['1F-33', '材料技術科 展示',   '準備中', '', '展示',     1, '', 0, ''],
+    ['1F-38', '土木科 体験',       '準備中', '', '体験',     1, '', 0, ''],
+    ['1F-42', '体育館ステージ',    '準備中', '', 'イベント', 1, '12:00 ステージ発表', 0, ''],
+    ['2F-24', '図書室 古本市',     '準備中', '', '展示',     2, '', 0, ''],
+    ['3F-12', 'CAI教室 体験',      '準備中', '', '体験',     3, '', 0, ''],
+    ['0F-01', 'ふれあい広場 屋台', '準備中', '', '食べ物',   0, '', 0, '']
   ];
   sh.getRange(2, 1, rows.length, HEADERS.length).setValues(rows);
   Logger.log('ブース ' + rows.length + '件を登録しました。');
@@ -301,26 +312,54 @@ function withLock_(fn) {
  * 落ちないようにする（実際に起きやすい操作）。
  */
 function toDate_(v) {
-  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return null;
+    // 「10:30」とだけ打つと、シートは 1899-12-30 10:30 の日付として持つ。今日のその時刻に読み替える
+    if (v.getFullYear() < 1900) return todayAt_(Utilities.formatDate(v, TZ, 'HH:mm:ss'));
+    return v;
+  }
+  if (typeof v === 'number') {                          // 書式が「数値」のセル（シリアル値）
+    if (!isFinite(v) || v <= 0) return null;
+    if (v < 1) return todayAt_(Utilities.formatDate(new Date(Math.round(v * 864e5)), 'UTC', 'HH:mm:ss'));   // 時刻だけ
+    return new Date(Math.round((v - 25569) * 864e5) - 9 * 3600e3);   // 日本時間として読む
+  }
   var t = String(v == null ? '' : v).trim();
   if (!t) return null;
-  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(t)) {          // 「10:30」＝今日のその時刻
-    var p = t.split(':'), d = new Date();
-    d.setHours(Number(p[0]), Number(p[1]), Number(p[2] || 0), 0);
-    return d;
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(t)) return todayAt_(t);   // 「10:30」＝今日のその時刻
+  // ISO形式（2026-09-23T01:30:00.000Z）はそのまま読む。「-」を「/」にすると壊れる
+  if (/^\d{4}-\d{2}-\d{2}T/.test(t)) {
+    var di = new Date(t);
+    return isNaN(di.getTime()) ? null : di;
+  }
+  // 「9/23 10:30」のように年がないと 2001年として読まれる。今年を補う
+  if (/^\d{1,2}[\/\-]\d{1,2}(\s|$)/.test(t)) t = Utilities.formatDate(new Date(), TZ, 'yyyy') + '/' + t;
+  var m = t.replace(/-/g, '/').match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (m) {
+    // 日本時間として組み立てる（スクリプトのタイムゾーン設定に左右されない）
+    var ms = Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)) - 9 * 3600e3;
+    return new Date(ms);
   }
   var d2 = new Date(t.replace(/-/g, '/'));
   return isNaN(d2.getTime()) ? null : d2;
+}
+
+/** 日本時間の「今日」の指定時刻（'HH:mm' / 'HH:mm:ss'）。スクリプトのタイムゾーンに依存しない */
+function todayAt_(hms) {
+  var p = String(hms).split(':');
+  var ymd = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd').split('-');
+  return new Date(Date.UTC(+ymd[0], +ymd[1] - 1, +ymd[2], +p[0], +p[1], +(p[2] || 0)) - 9 * 3600e3);
 }
 
 /** 全角数字・「5人」なども数値として拾う。数にできなければ null */
 function toNum_(v) {
   if (typeof v === 'number') return isFinite(v) ? v : null;
   var t = String(v == null ? '' : v).trim()
-    .replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
-    .replace(/[^0-9.\-]/g, '');
-  if (t === '') return null;
-  var n = Number(t);
+    .replace(/[０-９．－]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+  if (v instanceof Date) return null;                  // 日付に化けたセルは人数ではない
+  // 最初に出てくる数だけを使う。「10〜15人」を 1015 と読まないように
+  var m = t.replace(/(\d),(?=\d{3}(\D|$))/g, '$1').match(/-?\d+(\.\d+)?/);   // 「1,200」は1200
+  if (!m) return null;
+  var n = Number(m[0]);
   return isFinite(n) ? n : null;
 }
 
@@ -348,7 +387,12 @@ function headerIndex_(sh) {
   if (lc < 1) throw new Error('「' + sh.getName() + '」シートが空です。migrate を実行してください');
   var head = sh.getRange(1, 1, 1, lc).getValues()[0];
   var idx = {};
-  head.forEach(function (h, i) { idx[String(h).trim()] = i; });
+  // 大文字小文字は区別しない。同じ見出しが2つあれば左を使う
+  // （右に空の列を足されて、本物のメモが消えて見える事故を防ぐ）
+  head.forEach(function (h, i) {
+    var k = String(h).trim().toLowerCase();
+    if (k && idx[k] == null) idx[k] = i;
+  });
   return idx;
 }
 
@@ -369,6 +413,16 @@ function requireCols_(idx, cols) {
 // 総当たり対策。連続で外し続けたら一定時間だけ受け付けない
 var LOGIN_MAX_FAILS = 10;
 var LOGIN_LOCK_SEC  = 90;
+// パスワードの最短長。
+// 失敗回数は端末(cid)ごとに数えているが、cid は送る側が自由に決められる。
+// 毎回ちがう cid を送れば端末ごとの制限は素通りになり、4桁なら1万通りを
+// 並列で数分〜数十分で試し切れてしまう。GAS の同時実行の上で回数制限を
+// 工夫しても、4桁を守りきることはできない。守れるのは「長さ」だけ。
+var PASS_MIN_LEN = 8;
+// 全体での失敗が急に増えたときだけ、失敗した試行を遅らせる。
+// 正しいパスワードは遅らせも止めもしないので、正しい係員が締め出されることはない。
+var GLOBAL_FAIL_WINDOW_SEC = 60;
+var GLOBAL_FAIL_SLOW_AT    = 20;
 
 /**
  * 失敗回数は端末ごとに数える。
@@ -379,6 +433,12 @@ var LOGIN_LOCK_SEC  = 90;
 function checkPass_(pass, cid) {
   var real = PropertiesService.getScriptProperties().getProperty('ADMIN_PASS');
   if (!real) throw new Error('サーバー側にパスワードが未設定です');
+  // 短いパスワードは総当たりで破られる。設定し直すまで受け付けない
+  //（本番前のログインで必ず気づけるよう、正しい値を入れても通さない）
+  if (String(real).length < PASS_MIN_LEN) {
+    throw new Error('weak: サーバー側のパスワードが短すぎます。スクリプトプロパティの ADMIN_PASS を '
+      + PASS_MIN_LEN + '文字以上に変えてください');
+  }
 
   var key = 'pwf_' + String(cid || 'anon').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32);
   var cache = CacheService.getScriptCache();
@@ -387,8 +447,15 @@ function checkPass_(pass, cid) {
 
   if (String(pass || '') !== real) {
     cache.put(key, String(fails + 1), LOGIN_LOCK_SEC);
-    // 初回から待たせると、打ち間違いのたびに実行枠を長く占有してしまう
-    Utilities.sleep(Math.min(150 * fails, 1000));
+    // 全体の失敗回数も数える。cid を毎回変えて総当たりされると
+    // 端末ごとの数えは0のままなので、ここでしか気づけない
+    var gAll = Number(cache.get('pwf__all') || 0) + 1;
+    cache.put('pwf__all', String(gAll), GLOBAL_FAIL_WINDOW_SEC);
+    // 初回から待たせると、打ち間違いのたびに実行枠を長く占有してしまう。
+    // 全体の失敗が急増しているときだけ、失敗した試行を長めに待たせる
+    var wait = Math.min(150 * fails, 1000);
+    if (gAll >= GLOBAL_FAIL_SLOW_AT) wait = Math.max(wait, 2500);
+    Utilities.sleep(wait);
     throw new Error('unauthorized');
   }
   if (fails) cache.remove(key);
@@ -400,13 +467,17 @@ function doGet(e) {
   var param = (e && e.parameter) || {};
   if (param.report === '1') {
     try {
+      // 日付は YYYY-MM-DD だけ受け付ける（任意の文字列でキャッシュを素通りされないように）
+      if (param.date && !/^\d{4}-\d{2}-\d{2}$/.test(String(param.date))) {
+        return json_({ ok: false, error: '日付は YYYY-MM-DD の形で指定してください' });
+      }
       var key = 'report_' + (param.date || 'today');
       var c = CacheService.getScriptCache();
       var cached = c.get(key);
       if (cached) return ContentService.createTextOutput(cached)
         .setMimeType(ContentService.MimeType.JSON);
       var body = JSON.stringify(buildReport_(param.date));
-      c.put(key, body, 60);
+      try { c.put(key, body, 60); } catch (eC) {}      // 大きすぎて置けなくても結果は返す
       return ContentService.createTextOutput(body).setMimeType(ContentService.MimeType.JSON);
     } catch (err) {
       return json_({ ok: false, error: String(err.message || err) });
@@ -431,15 +502,24 @@ function doGet(e) {
     try {
       hit = cache.get(CACHE_KEY);                 // 待っている間に出来ていることがある
       if (hit) return out_(hit);
-      var payload = JSON.stringify(buildPayload_());
-      // 1件100KBを超えると put が失敗し、以後ずっとキャッシュ無しで走ってしまう
-      if (payload.length > 90000) {
-        var slim = buildPayload_();
-        slim.booths.forEach(function (b) { b.history = []; });
-        payload = JSON.stringify(slim);
+      var data = buildPayload_();
+      var payload = JSON.stringify(data);
+      // 1件100KB（バイト）を超えると put が失敗する。日本語は1文字3バイトなので文字数では測れない。
+      // まず推移を半分の点数に間引き、それでも大きければ推移を外す
+      var LIMIT = 98000;
+      if (bytes_(payload) > LIMIT) {
+        data.booths.forEach(function (b) { b.history = (b.history || []).filter(function (_, i, a) { return (a.length - 1 - i) % 2 === 0; }); });
+        payload = JSON.stringify(data);
       }
-      cache.put(CACHE_KEY, payload, CACHE_SEC);
-      cache.put(CACHE_BAK, payload, BACKUP_SEC);
+      if (bytes_(payload) > LIMIT) {
+        data.booths.forEach(function (b) { b.history = []; });
+        payload = JSON.stringify(data);
+      }
+      // 置けなかったとしても、作った結果は必ず返す（ここで投げると全員に「失敗」が返る）
+      try {
+        cache.put(CACHE_KEY, payload, CACHE_SEC);
+        cache.put(CACHE_BAK, payload, BACKUP_SEC);
+      } catch (eC) { console.warn('cache put failed: ' + bytes_(payload) + ' bytes'); }
       return out_(payload);
     } finally { try { lock.releaseLock(); } catch (e) {} }
   } catch (err) {
@@ -451,6 +531,9 @@ function doGet(e) {
     return json_({ ok: false, error: String(err.message || err) });
   }
 }
+
+/** UTF-8 でのバイト数 */
+function bytes_(s) { return unescape(encodeURIComponent(String(s))).length; }
 
 function out_(text) {
   return ContentService.createTextOutput(text).setMimeType(ContentService.MimeType.JSON);
@@ -475,6 +558,7 @@ function buildPayload_() {
       var ts = toDate_(r[idx['time']]);
       var iso = ts ? ts.toISOString() : null;
       var status = String(r[idx['status']] || '').trim();
+      if (status && !isStatus_(status)) status = '';   // 「閉鎖中」など想定外の値は「情報なし」扱い
       // 空セルは「人数が分からない」。Number('') は 0 になってしまうので先に弾く
       var wn = idx['wait'] != null ? toNum_(r[idx['wait']]) : null;
       var wait = (wn !== null && wn >= 0) ? Math.round(Math.min(wn, 999)) : null;
@@ -483,7 +567,8 @@ function buildPayload_() {
       // 「準備中」は意図して設定した状態なので対象外。
       var stale = false;
       if (status && status !== '準備中') {
-        if (!ts || now - ts.getTime() > staleMs) {
+        // 未来の時刻（打ち間違い）は一日中「最新」に見えてしまうので、5分以上先なら古い扱い
+        if (!ts || now - ts.getTime() > staleMs || ts.getTime() - now > 5 * 60000) {
           stale = true; status = ''; wait = null;
         }
       }
@@ -564,7 +649,8 @@ function buildHistory_() {
   if (last < 2) return out;
 
   var cols = Math.max(sh.getLastColumn(), 3);
-  var take = Math.min(600, last - 1);
+  // 3時間分を確実に含める。150ブースが5分おきに更新すると3時間で約5400行になる
+  var take = Math.min(6000, last - 1);
   var rows = sh.getRange(last - take + 1, 1, take, cols).getValues();
   var since = Date.now() - HISTORY_WINDOW_MS;
   var tz = TZ;   // 表示・集計の基準は常に日本時間
@@ -576,7 +662,8 @@ function buildHistory_() {
     var id = String(r[1]).trim();
     var lv = statusLevel_(String(r[2]).trim());
     if (!id || lv === undefined || lv === 3) return;
-    var w = cols >= 4 ? Number(r[3]) : NaN;
+    // 空欄は「人数不明」。Number('') は 0 になり「0人」と出てしまう
+    var w = cols >= 4 && r[3] !== '' && r[3] != null ? Number(r[3]) : NaN;
     (grouped[id] = grouped[id] || []).push({
       t: Utilities.formatDate(ts, tz, 'HH:mm'),
       lv: lv,
@@ -637,9 +724,11 @@ function buildReport_(dateStr) {
     var lv = statusLevel_(String(r[2]).trim());
     if (lv === undefined) return;
     entries.push({ ts: ts, id: String(r[1]).trim(), lv: lv,
-                   w: Number(r[3]), d: day(ts) });
+                   w: (r[3] === '' || r[3] == null) ? NaN : Number(r[3]), d: day(ts) });
   });
   if (!entries.length) return empty;
+  // 履歴シートを手で並べ替えられても正しく集計できるよう、時刻順にそろえる
+  entries.sort(function (a, b) { return a.ts - b.ts; });
 
   var target = dateStr || entries[entries.length - 1].d;
   entries = entries.filter(function (x) { return x.d === target; });
@@ -650,6 +739,20 @@ function buildReport_(dateStr) {
   var floorTo = function (t) { return Math.floor(t / msBucket) * msBucket; };
   // 履歴は追記順だが、念のため最小・最大から範囲を決める
   var times = entries.map(function (x) { return x.ts.getTime(); });
+  // 受付のカウントは最初の更新より前（開場直後）から始まることがある。
+  // 範囲に含めないと、合計には入るのにグラフに出ない人数ができる
+  var visRows = [];
+  var vsh = ss.getSheetByName(SHEET_VISITORS);
+  if (vsh && vsh.getLastRow() >= 2) {
+    vsh.getRange(2, 1, vsh.getLastRow() - 1, 2).getValues().forEach(function (r) {
+      var ts = r[0] instanceof Date ? r[0] : new Date(r[0]);
+      if (isNaN(ts.getTime()) || day(ts) !== target) return;
+      var d = Number(r[1]);
+      if (isNaN(d)) return;
+      visRows.push({ t: ts.getTime(), d: d });
+      times.push(ts.getTime());
+    });
+  }
   var t0 = floorTo(Math.min.apply(null, times));
   var t1 = floorTo(Math.max.apply(null, times));
   var buckets = [];
@@ -658,17 +761,19 @@ function buildReport_(dateStr) {
 
   // ブースごとに、各バケットの「最後に記録された状態」を採用する
   var per = {};
+  var nUpd = {};
   entries.forEach(function (x) {
     if (!x.id) return;
     var b = floorTo(x.ts.getTime());
     (per[x.id] = per[x.id] || {})[b] = { lv: x.lv, w: isNaN(x.w) ? null : x.w };
+    nUpd[x.id] = (nUpd[x.id] || 0) + 1;            // 同じ15分に3回更新したら3回と数える
   });
 
   var ids = order.filter(function (id) { return per[id]; });
   Object.keys(per).forEach(function (id) { if (ids.indexOf(id) === -1) ids.push(id); });
 
   var booths = ids.map(function (id) {
-    var series = [], waits = [], last = null, busy = 0;
+    var series = [], waits = [], last = null, busy = 0, cnt = 0;
     buckets.forEach(function (t) {
       var v = per[id][t];
       if (v) { last = v; }                       // 記録がないバケットは直前の状態が続いたとみなす
@@ -681,7 +786,7 @@ function buildReport_(dateStr) {
       maxWait: waits.length ? Math.max.apply(null, waits) : null,
       avgWait: waits.length ? Math.round(waits.reduce(function (s, v) { return s + v; }, 0) / waits.length) : null,
       busyMinutes: busy,
-      updates: Object.keys(per[id]).length
+      updates: nUpd[id] || 0
     };
   });
 
@@ -699,21 +804,17 @@ function buildReport_(dateStr) {
   // 来場者の入りを同じ時間バケットで集計する
   var vis = new Array(buckets.length).fill(0);
   var visTotal = 0;
-  var vsh = ss.getSheetByName(SHEET_VISITORS);
-  if (vsh && vsh.getLastRow() >= 2) {
-    vsh.getRange(2, 1, vsh.getLastRow() - 1, 2).getValues().forEach(function (r) {
-      var ts = r[0] instanceof Date ? r[0] : new Date(r[0]);
-      if (isNaN(ts.getTime()) || day(ts) !== target) return;
-      var d = Number(r[1]);
-      if (isNaN(d)) return;
-      visTotal += d;
-      var i = Math.round((floorTo(ts.getTime()) - t0) / msBucket);
-      if (i >= 0 && i < vis.length) vis[i] += d;
-    });
-  }
+  visRows.forEach(function (v) {
+    visTotal += v.d;
+    var i = Math.round((floorTo(v.t) - t0) / msBucket);
+    vis[Math.min(Math.max(i, 0), vis.length - 1)] += v.d;
+  });
 
   var peak = overall.reduce(function (a, x) { return x.busy > a.busy ? x : a; }, overall[0]);
   var busiest = booths.slice().sort(function (a, b) { return b.busyMinutes - a.busyMinutes; })[0];
+  // 一度も混雑しなかった日に「最も混んだ時間＝開始時刻」「0分のブース」と出さない
+  if (peak && !peak.busy) peak = null;
+  if (busiest && !busiest.busyMinutes) busiest = null;
   var totalUpdates = booths.reduce(function (s, b) { return s + b.updates; }, 0);
 
   return {
@@ -944,26 +1045,39 @@ function writeBooth_(ids, status, wait) {
 
     // セルを1つずつ書くと、20件の一括更新で60回の書き込みになり、
     // その間ずっと他の係員がロック待ちで弾かれる（開場・閉場の直後に必ず起きる）。
-    // まとめて読み、メモリ上で直し、1回で書き戻す。
-    var width = Math.max(idCol, stCol, tmCol, wtCol || 0);
-    var block = sh.getRange(2, 1, last - 1, width).getValues();
+    // まとめて読み、メモリ上で直し、列ごとに1回で書き戻す。
+    //
+    // 【1〜8列をまとめて書き戻してはいけない】
+    // 列は id / name / status / time / category / floor / note / wait / image。
+    // 範囲でまとめて書くと、name・category・floor・note まで
+    // 「読んだ時点の値」で上書きしてしまう。
+    // 先生がブラウザでブース名やメモを直している最中に係員が送信すると、
+    // その編集が黙って消える。当日は更新が数秒おきに走るので必ず起きる。
+    // このスクリプトが持ち主である status / time / wait の3列だけを書く。
+    var rows = last - 1;
+    var idVals = sh.getRange(2, idCol, rows, 1).getValues();
+    var stVals = sh.getRange(2, stCol, rows, 1).getValues();
+    var tmVals = sh.getRange(2, tmCol, rows, 1).getValues();
+    var wtVals = wtCol ? sh.getRange(2, wtCol, rows, 1).getValues() : null;
     var now = new Date();
     var logs = [];
     var updated = 0;
 
-    for (var i = 0; i < block.length; i++) {
-      var id = String(block[i][idCol - 1] == null ? '' : block[i][idCol - 1]).trim();
+    for (var i = 0; i < rows; i++) {
+      var id = String(idVals[i][0] == null ? '' : idVals[i][0]).trim();
       if (!id) continue;
       if (ids && ids.indexOf(id) === -1) continue;
-      block[i][stCol - 1] = status;
-      block[i][tmCol - 1] = now;
-      if (wtCol && wait !== undefined) block[i][wtCol - 1] = (wait === null ? '' : wait);
+      stVals[i][0] = status;
+      tmVals[i][0] = now;
+      if (wtVals && wait !== undefined) wtVals[i][0] = (wait === null ? '' : wait);
       logs.push([now, id, status, (wait === null || wait === undefined) ? '' : wait]);
       updated++;
     }
     if (!updated) return 0;
 
-    sh.getRange(2, 1, block.length, width).setValues(block);
+    sh.getRange(2, stCol, rows, 1).setValues(stVals);
+    sh.getRange(2, tmCol, rows, 1).setValues(tmVals);
+    if (wtVals && wait !== undefined) sh.getRange(2, wtCol, rows, 1).setValues(wtVals);
     appendLogs_(logs);
     SpreadsheetApp.flush();      // 確定してからキャッシュを捨てる
     clearCache_();
