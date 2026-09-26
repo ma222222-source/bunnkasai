@@ -1,5 +1,5 @@
 /* 黒工文化祭 校内マップ — サーバー側 (Google Apps Script)
-   GAS-2026-09-23a
+   GAS-2026-09-25c
    2026-09-21a: ADMIN_PASS は8文字以上でないと受け付けない。
                 cid を毎回変える総当たりを、全体の失敗数で捕まえて遅らせる
                 （正しいパスワードは遅らせも止めもしない）。
@@ -36,6 +36,10 @@ var SHEET_MAIN     = 'ブース';
 var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
+var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
+var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
+var SHEET_REMOVED  = '削除したブース';   // 地図から外したブース行の控え
+var SHEET_NOTICE_LOG = 'お知らせ履歴';  // 出したお知らせの控え
 
 var CACHE_KEY = 'payload_v3';
 var CACHE_BAK = 'payload_v3_bak';   // 再構築中に返す少し古い控え
@@ -465,6 +469,14 @@ function checkPass_(pass, cid) {
 function doGet(e) {
   // ?report=1 で当日の振り返りデータを返す（?date=YYYY-MM-DD で日付指定）
   var param = (e && e.parameter) || {};
+  // ?ledger=端末番号 … その端末のスタンプ記録を返す（別のブラウザ・機種への引き継ぎ用）
+  if (param.ledger) {
+    try {
+      return json_(readLedger_(String(param.ledger)));
+    } catch (errL) {
+      return json_({ ok: false, error: String(errL.message || errL) });
+    }
+  }
   if (param.report === '1') {
     try {
       // 日付は YYYY-MM-DD だけ受け付ける（任意の文字列でキャッシュを素通りされないように）
@@ -715,6 +727,11 @@ function buildReport_(dateStr) {
   if (!log || log.getLastRow() < 2) return empty;
 
   var rows = log.getRange(2, 1, log.getLastRow() - 1, Math.max(log.getLastColumn(), 3)).getValues();
+  // 古い行は「履歴_保管」へ移してあるので、振り返りはそちらも合わせて読む（1日目の記録を失わない）
+  var arcSh = ss.getSheetByName(SHEET_LOG_ARC);
+  if (arcSh && arcSh.getLastRow() >= 2) {
+    rows = arcSh.getRange(2, 1, arcSh.getLastRow() - 1, 4).getValues().concat(rows);
+  }
   var day = function (d) { return Utilities.formatDate(d, tz, 'yyyy-MM-dd'); };
 
   var entries = [];
@@ -817,6 +834,22 @@ function buildReport_(dateStr) {
   if (busiest && !busiest.busyMinutes) busiest = null;
   var totalUpdates = booths.reduce(function (s, b) { return s + b.updates; }, 0);
 
+  // スタンプの控えから、その日にスタンプが押された数（＝QRを読んで来た人の数）をブースごとに数える
+  var stampBy = {}, stampTotal = 0, stampPeople = {};
+  var lg = ss.getSheetByName(SHEET_LEDGER);
+  if (lg && lg.getLastRow() >= 2) {
+    lg.getRange(2, 1, lg.getLastRow() - 1, 4).getValues().forEach(function (r) {
+      if (r[2] !== 's') return;
+      var ts = r[0] instanceof Date ? r[0] : new Date(r[0]);
+      if (isNaN(ts.getTime()) || day(ts) !== target) return;
+      var id = String(r[3]);
+      stampBy[id] = (stampBy[id] || 0) + 1; stampTotal++; stampPeople[r[1]] = 1;
+    });
+  }
+  booths.forEach(function (b) { b.stamps = stampBy[b.id] || 0; });
+  var topStamp = booths.slice().sort(function (a, b) { return b.stamps - a.stamps; })[0];
+  if (topStamp && !topStamp.stamps) topStamp = null;
+
   return {
     ok: true,
     generatedAt: new Date().toISOString(),
@@ -833,7 +866,11 @@ function buildReport_(dateStr) {
       busiestMinutes: busiest ? busiest.busyMinutes : 0,
       totalUpdates: totalUpdates,
       visitorsTotal: visTotal,
-      openLabel: labels[0] + '〜' + labels[labels.length - 1]
+      openLabel: labels[0] + '〜' + labels[labels.length - 1],
+      stampsTotal: stampTotal,
+      stampPeople: Object.keys(stampPeople).length,
+      topStampBooth: topStamp ? topStamp.name : null,
+      topStampCount: topStamp ? topStamp.stamps : 0
     }
   };
 }
@@ -853,6 +890,16 @@ function doPost(e) {
     if (action === 'verify') {
       checkPass_(body.pass, body.cid);
       return json_({ ok: true });
+    }
+
+    // 来場者のスタンプの控え。端末の保存が消えても、ここから戻せるようにする。
+    // パスワードは要らない（来場者の端末から送る）。追記だけで、既存の行は触らない
+    if (action === 'ledger') {
+      return json_(appendLedger_(body));
+    }
+    // お菓子の交換。同じスタンプを別のブラウザで二重に使えないよう、サーバーの控えで確かめる
+    if (action === 'redeem') {
+      return json_(redeemLedger_(body));
     }
 
     if (action === 'update') {
@@ -920,6 +967,8 @@ function doPost(e) {
         }
         if (nt.getLastRow() < 2) nt.getRange(2, 1, 1, 3).setValues([['', 'info', false]]);
         nt.getRange(2, 1, 1, 3).setValues([[text, level, text ? true : false]]);
+        // 上書きで前のお知らせが消えるので、出した内容はすべて控えに残す
+        appendTo_(SHEET_NOTICE_LOG, ['timestamp', 'text', 'level'], [new Date(), text || '（取り消し）', level]);
         // 書き込みを確定させてからキャッシュを消す。
         // 逆にすると、確定前の内容が新しいキャッシュとして焼き付いてしまう
         SpreadsheetApp.flush();
@@ -932,18 +981,26 @@ function doPost(e) {
       checkPass_(body.pass, body.cid);
       var n = Math.round(Number(body.n));
       if (isNaN(n) || n === 0 || Math.abs(n) > 1000) throw new Error('bad count');
+      // uid … 押した1回ごとの番号。電波が悪くて送り直しても、同じ番号は2回数えない
+      var vuid = String(body.uid || '').replace(/[^0-9a-z_-]/gi, '').slice(0, 40);
+      var dup = false;
       // 受付が2台で同時に押すと、同じ行番号を計算して片方が消えていた
       withLock_(function () {
         var vs = ss_().getSheetByName(SHEET_VISITORS);
         if (!vs) {
           vs = ss_().insertSheet(SHEET_VISITORS);
-          vs.getRange(1, 1, 1, 3).setValues([['timestamp', 'delta', 'memo']]).setFontWeight('bold');
+          vs.getRange(1, 1, 1, 4).setValues([['timestamp', 'delta', 'memo', 'uid']]).setFontWeight('bold');
         }
-        vs.appendRow([new Date(), n, cut_(body.memo, 100)]);
+        if (vuid && vs.getLastRow() >= 2 &&
+            vs.getRange(2, 4, vs.getLastRow() - 1, 1).createTextFinder(vuid).matchEntireCell(true).findNext()) {
+          dup = true;
+          return;
+        }
+        vs.appendRow([new Date(), n, cut_(body.memo, 100), vuid]);
         SpreadsheetApp.flush();
         clearCache_();
       });
-      return json_({ ok: true, status: 'success', visitors: readVisitors_() });
+      return json_({ ok: true, status: 'success', duplicate: dup, visitors: readVisitors_() });
     }
 
     if (action === 'bulk') {
@@ -1022,6 +1079,11 @@ function removeBooth_(id) {
     var ids = sh.getRange(2, idx['id'] + 1, last - 1, 1).getValues();
     for (var i = ids.length - 1; i >= 0; i--) {
       if (String(ids[i][0] == null ? '' : ids[i][0]).trim() === id) {
+        // 消す前に行の中身を控えに移す（間違えて外したときに戻せるように）
+        var width = sh.getLastColumn();
+        var head = sh.getRange(1, 1, 1, width).getValues()[0];
+        var row = sh.getRange(2 + i, 1, 1, width).getValues()[0];
+        appendTo_(SHEET_REMOVED, ['removedAt'].concat(head), [new Date()].concat(row));
         sh.deleteRow(2 + i);
         SpreadsheetApp.flush();
         clearCache_();
@@ -1100,8 +1162,21 @@ function appendLogs_(logs) {
   sh.getRange(sh.getLastRow() + 1, 1, logs.length, 4).setValues(logs);
 
   var last = sh.getLastRow();
-  // 削除はロックを握ったまま走る重い処理。閾値を上げすぎず、一度に減らしすぎない
-  if (last > 10000) sh.deleteRows(2, last - 8000);
+  // 履歴シートは画面の推移表示のために毎回読むので、長くなりすぎると重くなる。
+  // 以前は古い行を消していたが、それでは1日目の記録（振り返りレポートの元）が失われる。
+  // 消さずに「履歴_保管」へ移してから、元のシートから外す。
+  if (last > 10000) {
+    var move = last - 8000;
+    var old = sh.getRange(2, 1, move, 4).getValues();
+    var arc = ss.getSheetByName(SHEET_LOG_ARC);
+    if (!arc) {
+      arc = ss.insertSheet(SHEET_LOG_ARC);
+      arc.getRange(1, 1, 1, 4).setValues([['timestamp', 'id', 'status', 'wait']]).setFontWeight('bold');
+    }
+    arc.getRange(arc.getLastRow() + 1, 1, old.length, 4).setValues(old);
+    SpreadsheetApp.flush();                 // 控えを確定させてから消す
+    sh.deleteRows(2, move);
+  }
 }
 
 /**
@@ -1121,4 +1196,115 @@ function trimVisitors_() {
    ================================================================= */
 function resetDaily() {
   writeBooth_(null, '準備中', 0);
+}
+
+
+/* ====================== スタンプの控え（来場者） ======================
+   スタンプは来場者の端末に保存するが、端末の保存は消えることがある
+   （ブラウザの掃除・容量不足・別のブラウザで開いた等）。サーバーにも控えを残し、
+   ・引き継ぎ用のリンクから別のブラウザ・機種へ戻せるようにする
+   ・お菓子の交換を控えで確かめ、同じスタンプを別のブラウザで二重に使えないようにする
+   ・どのブースに何人来たか（スタンプ数）を振り返りに使えるようにする
+   行は追記だけ。消さない。列：timestamp / cid / type(s=獲得, r=交換) / id / at(端末時刻)
+   ================================================================= */
+var LEDGER_HEAD = ['timestamp', 'cid', 'type', 'id', 'at'];
+
+function cleanCid_(v) {
+  var c = String(v == null ? '' : v).trim();
+  if (!/^[a-z0-9]{12,40}$/i.test(c)) throw new Error('bad cid');
+  return c;
+}
+function cleanBoothId_(v) {
+  var c = String(v == null ? '' : v).trim();
+  if (!/^[0-9A-Za-z_-]{1,24}$/.test(c)) return '';
+  return c;
+}
+function ledgerSheet_() {
+  var ss = ss_();
+  var sh = ss.getSheetByName(SHEET_LEDGER);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_LEDGER);
+    sh.getRange(1, 1, 1, LEDGER_HEAD.length).setValues([LEDGER_HEAD]).setFontWeight('bold');
+  }
+  return sh;
+}
+/** 指定のシートに1行足す（無ければ見出しつきで作る） */
+function appendTo_(name, head, row) {
+  var ss = ss_();
+  var sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold');
+  }
+  sh.appendRow(row);
+}
+/** その端末の控えを読む。{stamps:[id...], spent:[id...]} */
+function ledgerOf_(cid) {
+  var sh = ledgerSheet_();
+  var last = sh.getLastRow();
+  var stamps = [], spent = [], seenS = {}, seenR = {};
+  if (last < 2) return { stamps: stamps, spent: spent };
+  var hits = sh.getRange(2, 2, last - 1, 1).createTextFinder(cid).matchEntireCell(true).findAll();
+  hits.forEach(function (rg) {
+    var r = sh.getRange(rg.getRow(), 1, 1, 5).getValues()[0];
+    var id = String(r[3]);
+    if (r[2] === 's' && !seenS[id]) { seenS[id] = 1; stamps.push(id); }
+    if (r[2] === 'r' && !seenR[id]) { seenR[id] = 1; spent.push(id); }
+  });
+  return { stamps: stamps, spent: spent };
+}
+function readLedger_(cidRaw) {
+  var cid = cleanCid_(cidRaw);
+  var l = ledgerOf_(cid);
+  return { ok: true, cid: cid, stamps: l.stamps, spent: l.spent };
+}
+/**
+ * 端末からの控えを追記する。ev: [{t:'s'|'r', id, at}]
+ * ロックは取らない（係員の更新を待たせないため）。appendRow は1行ずつ確定する。
+ * 同じ端末・同じスタンプの「獲得」は1回だけ記録する。
+ */
+function appendLedger_(body) {
+  var cid = cleanCid_(body.cid);
+  var ev = Array.isArray(body.ev) ? body.ev.slice(0, 60) : [];
+  if (!ev.length) return { ok: true, added: 0 };
+  var sh = ledgerSheet_();
+  var have = ledgerOf_(cid);
+  var hs = {}, hr = {};
+  have.stamps.forEach(function (x) { hs[x] = 1; });
+  have.spent.forEach(function (x) { hr[x] = 1; });
+  var added = 0;
+  ev.forEach(function (e) {
+    var id = cleanBoothId_(e && e.id);
+    var t = e && e.t === 'r' ? 'r' : 's';
+    if (!id) return;
+    if (t === 's' && hs[id]) return;
+    if (t === 'r' && hr[id]) return;
+    var at = new Date(Number(e.at) || Date.now());
+    sh.appendRow([new Date(), cid, t, id, isNaN(at.getTime()) ? '' : at]);
+    if (t === 's') hs[id] = 1; else hr[id] = 1;
+    added++;
+  });
+  return { ok: true, added: added };
+}
+/**
+ * お菓子の交換。ids のどれかがすでに交換済みなら断る（別のブラウザ・機種での二重交換を防ぐ）。
+ * 同じ端末が同時に2回送っても二重にならないよう、ここだけはロックを取る（交換は回数が少ない）。
+ */
+function redeemLedger_(body) {
+  var cid = cleanCid_(body.cid);
+  var ids = (Array.isArray(body.ids) ? body.ids : []).map(cleanBoothId_).filter(String).slice(0, 20);
+  if (!ids.length) throw new Error('bad request');
+  return withLock_(function () {
+    var have = ledgerOf_(cid);
+    var used = ids.filter(function (id) { return have.spent.indexOf(id) >= 0; });
+    if (used.length) return { ok: false, error: 'already', used: used, spent: have.spent };
+    var sh = ledgerSheet_();
+    var now = new Date();
+    ids.forEach(function (id) {
+      // 獲得の控えが届いていなかった分も、ここで一緒に残す（交換したのに獲得の記録が無い、を作らない）
+      if (have.stamps.indexOf(id) < 0) sh.appendRow([now, cid, 's', id, '']);
+      sh.appendRow([now, cid, 'r', id, now]);
+    });
+    return { ok: true, spent: have.spent.concat(ids) };
+  });
 }

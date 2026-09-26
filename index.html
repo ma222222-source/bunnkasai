@@ -19,6 +19,31 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#b91c1c">
+<script>
+/* 入口をそろえる（本体より先に動かす）。
+   スタンプは「ブラウザ×アドレス」ごとに別々に保存される。入口が2つあると
+   「QRを読んだのに1個しかない」になるので、読み込みの最初でそろえる。 */
+(function(){
+  try{
+    var u = new URL(location.href), q = u.searchParams;
+    // LINEのアプリ内ブラウザは保存が消えやすく、SafariやChromeとも別の保存先。外部ブラウザで開き直す
+    if (/\bLine\//i.test(navigator.userAgent) && q.get('openExternalBrowser') !== '1'){
+      q.set('openExternalBrowser', '1'); location.replace(u.toString()); return;
+    }
+    // 公式アドレス（og:url）以外で開かれたら公式へ寄せる（Cloudflareの別アドレス等）。
+    // ただし、その場所にすでにスタンプがある人は動かさない（持っている分が見えなくなるため）
+    var m = document.querySelector('meta[property="og:url"]');
+    if (m && m.content && location.protocol === 'https:'){
+      var c = new URL(m.content);
+      if (location.host !== c.host){
+        var has = false;
+        try{ has = (JSON.parse(localStorage.getItem('kuroko_stamps_v2') || '[]') || []).length > 0; }catch(e){}
+        if (!has) location.replace(c.origin + c.pathname + u.search + u.hash);
+      }
+    }
+  }catch(e){}
+})();
+</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <!-- 混雑データの取り先。GASは script.google.com から
@@ -1024,6 +1049,53 @@ text.util:not([font-size]){font-size:7.5px}
 /* 交換に使ったスタンプは赤くする。緑＝まだ使える／赤＝お菓子と交換済み。
    .stamp.got のあとに置くこと（前に置くと緑に上書きされる） */
 .stamp.got.used{border-color:var(--busy);background:var(--busy-soft)}
+/* 押したマスには、そのブースだけの判子を小さく出す（集めたものが並んで見える） */
+.handoff .small-note{font-size:11.5px;color:var(--text-mute);font-weight:700}
+[data-fs="xl"] .handoff .small-note{font-size:14px}
+.handoff summary{cursor:pointer;font-size:13px;font-weight:900;color:var(--text-dim);min-height:32px;
+  display:flex;align-items:center}
+.handoff-qr{display:grid;place-items:center;margin:10px 0}
+.handoff-qr svg{width:180px;height:180px}
+.stamp .mk.art{width:46px;height:46px;border:none;background:none;border-radius:0}
+.stamp .mk.art::after{display:none}
+.stamp .mk.art .stamp-art{width:46px;height:46px;transform:rotate(var(--tilt))}
+
+/* ========================= スタンプ獲得の演出 ========================= */
+.sfx{position:fixed;inset:0;z-index:120;display:grid;place-items:center;padding:18px;
+     background:color-mix(in srgb,#000 52%,transparent);animation:sfx-bg .22s ease both}
+.sfx.out{animation:sfx-bg .2s ease reverse both}
+@keyframes sfx-bg{from{opacity:0}to{opacity:1}}
+.sfx-card{width:min(360px,100%);background:var(--surface);color:var(--text);border-radius:22px;
+          padding:20px 18px 16px;text-align:center;box-shadow:0 24px 60px -20px rgba(0,0,0,.55);
+          animation:sfx-card .32s cubic-bezier(.2,1.3,.4,1) both}
+@keyframes sfx-card{from{transform:translateY(24px) scale(.94);opacity:0}to{transform:none;opacity:1}}
+.sfx-kicker{font-size:13px;font-weight:900;letter-spacing:.12em;color:var(--accent)}
+.sfx.dup .sfx-kicker{color:var(--text-mute)}
+.sfx-stamp{position:relative;width:min(230px,62vw);aspect-ratio:1;margin:8px auto 4px}
+.sfx-stamp .stamp-art{width:100%;height:100%;transform:rotate(var(--tilt))}
+/* 上から勢いよく押し付けて、少しだけ沈む。紙が揺れて、インクがにじむ */
+.sfx-stamp.slam .stamp-art{animation:sfx-slam .52s cubic-bezier(.3,1.5,.5,1) both}
+@keyframes sfx-slam{0%{transform:scale(2.3) rotate(-24deg);opacity:0}
+                    55%{transform:scale(.9) rotate(var(--tilt));opacity:1}
+                    100%{transform:scale(1) rotate(var(--tilt));opacity:1}}
+.sfx.fresh .sfx-card{animation:sfx-card .32s cubic-bezier(.2,1.3,.4,1) both, sfx-shake .28s .3s ease both}
+@keyframes sfx-shake{25%{transform:translate(-3px,2px)}50%{transform:translate(3px,-1px)}75%{transform:translate(-1px,1px)}}
+.sfx-ink{position:absolute;inset:8%;border-radius:50%;border:3px solid currentColor;opacity:0;pointer-events:none}
+.sfx.fresh .sfx-stamp.slam .sfx-ink{color:var(--accent);animation:sfx-ink .7s .28s ease-out both}
+@keyframes sfx-ink{0%{transform:scale(.8);opacity:.55}100%{transform:scale(1.35);opacity:0}}
+.sfx.dup .stamp-art{filter:saturate(.6);opacity:.85}
+.stamp-art.shiny{filter:drop-shadow(0 0 6px rgba(245,215,110,.8))}
+.sfx-name{font-size:18px;font-weight:900;line-height:1.35;overflow-wrap:anywhere}
+.sfx-count{margin-top:6px;font-size:13px;font-weight:800;color:var(--text-dim)}
+.sfx-count b{font-size:26px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums}
+.sfx-bar{height:8px;border-radius:99px;background:var(--surface-3);overflow:hidden;margin:6px auto 0;width:80%}
+.sfx-bar i{display:block;height:100%;background:var(--free);border-radius:inherit;transition:width .6s var(--ease)}
+.sfx-goal{margin-top:10px;font-size:12.5px;font-weight:800;line-height:1.6;color:var(--text-dim)}
+.sfx-acts{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.sfx-acts .btn{width:100%;min-height:48px}
+.sfx-note{margin-top:10px;font-size:10.5px;font-weight:700;color:var(--text-mute);line-height:1.5}
+[data-fs="xl"] .sfx-goal,[data-fs="xl"] .sfx-note{font-size:14px}
+@media (prefers-reduced-motion:reduce){ .sfx,.sfx-card,.sfx-stamp .stamp-art,.sfx-ink{animation:none !important} }
 .stamp.got.used .mk{color:var(--busy-ink);border-color:var(--busy-ink)}
 .stamp.got.used .mk::after{border-color:color-mix(in srgb,var(--busy) 55%,transparent)}
 .stamp.got.used .lb,.stamp.got.used .no{color:var(--busy-ink)}
@@ -1905,7 +1977,16 @@ html.sheet-open{overflow:hidden}
 
       <div class="stamp-grid stagger" id="stamp-grid"></div>
       <button class="btn ghost hide" id="stamp-share">この記録を共有する</button>
-      <button class="btn ghost" id="stamp-reset">記録をリセット</button>
+      <details class="card handoff hide" id="stamp-handoff">
+        <summary>別のスマホ・ブラウザに引き継ぐ</summary>
+        <p class="small-note" style="margin-top:8px;line-height:1.7">
+          スタンプはこのブラウザに保存されています。別のスマホや別のブラウザで続けるときは、
+          そちらのカメラでこのQRを読むか、下のリンクを開いてください。スタンプと交換の記録が移ります。</p>
+        <div id="handoff-qr" class="handoff-qr"></div>
+        <button class="btn ghost" id="handoff-copy">引き継ぎ用リンクをコピー</button>
+        <p class="small-note" style="margin-top:6px;color:var(--busy-ink)">このリンクを知っている人はあなたのスタンプを使えます。人に送らないでください。</p>
+      </details>
+      <button class="btn ghost hide" id="stamp-reset">記録をリセット（係員の試し用）</button>
     </section>
 
     <!-- ============ インフォ ============ -->
@@ -2240,7 +2321,7 @@ html.sheet-open{overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-25a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-25c',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -2897,8 +2978,14 @@ function store(k, v){ try{ v===undefined ? localStorage.removeItem(k) : localSto
 function deviceId(){
   if (deviceId._v) return deviceId._v;
   let v = load('kuroko_cid', null);
-  if (!v){
-    v = (Math.random().toString(36).slice(2) + Date.now().toString(36)).slice(0, 20);
+  if (!v || !/^[a-z0-9]{12,40}$/i.test(v)){
+    // 引き継ぎの鍵にもなるので、推測できない乱数で作る（Math.random は予測されうる）
+    try{
+      const a = new Uint8Array(15); crypto.getRandomValues(a);
+      v = Array.from(a, x => (x % 36).toString(36)).join('') + Date.now().toString(36).slice(-5);
+    }catch(e){
+      v = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now().toString(36)).slice(0, 20);
+    }
     store('kuroko_cid', v);
   }
   deviceId._v = v;
@@ -3047,7 +3134,8 @@ async function sync(manual){
     // QRで来たが最初の同期に失敗していた場合、ここで拾い直す
     if (S.pendingLink && S.pendingLink()) S.pendingLink = null;
     if (manual) toast('最新の状況に更新しました');
-    if (S.isAdmin) flushUnsent();                        // つながった＝送れなかった分を送る好機
+    if (S.isAdmin){ flushUnsent(); flushVisitors(); }     // つながった＝送れなかった分を送る好機
+    flushLedger();                                       // スタンプの控えも、たまっていれば送る
   }catch(err){
     S.online = false; S.failures++;
     // 通信断とサーバー側の異常を区別する（対処が違うため）
@@ -4187,10 +4275,10 @@ async function checkServer(){
   const r = await probeServer();
   if (r === 'new'){
     el.className = 'srv-state ok';
-    el.textContent = 'サーバーは新しい版です。地図からの割り当てを保存できます。';
+    el.textContent = 'サーバーは新しい版です。割り当ての保存・スタンプの控え・二重交換の防止が働いています。';
   } else if (r === 'old'){
     el.className = 'srv-state';
-    el.textContent = 'サーバーが古い版のままです。このままだと割り当てを保存できません。' + DEPLOY_STEPS;
+    el.textContent = 'サーバーが古い版のままです。スタンプの控え（引き継ぎ・二重交換の防止）が働きません。' + DEPLOY_STEPS;
   } else {
     el.classList.add('hide'); return;   // 通信不能。ここで騒いでも仕方がない
   }
@@ -4375,12 +4463,14 @@ async function removeEditor(){
  */
 async function probeServer(){
   try{
-    await api({ body:{ action:'upsert', id:'__probe__', name:'', pass:'--probe--' } });
-    return 'new';                     // 通ることは無いが、通ったなら新しい
+    // 最新の版にだけある口（スタンプの控え）を、わざと不正な番号で叩いて確かめる。
+    // パスワードを使わないので、ログイン失敗の回数に数えられない（以前は毎回1回失敗として数えていた）
+    await api({ body:{ action:'redeem', cid:'probe', ids:['x'] } });
+    return 'new';
   }catch(e){
     const m = String((e && e.message) || e);
     if (/unknown action/i.test(m)) return 'old';
-    if (/unauthorized|locked|パスワード/i.test(m)) return 'new';
+    if (/bad cid|bad request/i.test(m)) return 'new';
     return 'unknown';                 // 通信不能など。判定しない
   }
 }
@@ -4830,7 +4920,8 @@ function zoomApply(animate){
     }, 160);
   }
   // 初回だけ「動かせる」ことを伝える（保存領域はページごとに1回だけ見る）
-  if (z.k > 1.01 && !zoomApply._hinted){
+  // 開いた直後の自動の寄せ（ブースが全部入る位置）では出さない。人が地図に触ったときだけ
+  if (z.k > 1.01 && !zoomApply._hinted && zoomApply._user && S.view === 'map'){
     zoomApply._hinted = true;
     if (!load('kuroko_zoom_hint', false)){
       store('kuroko_zoom_hint', true);
@@ -4911,6 +5002,7 @@ function initZoom(){
      PointerEvent は「動かす」だけを担当し、拡大には一切関わらない。
      拡大は TouchEvent（e.touches）だけが担当する。 */
   z.el.addEventListener('pointerdown', e => {
+    zoomApply._user = true;              // 人が触った（操作のヒントを出してよい）
     z.noClick = false;
     if (z.tBase) return;                 // 指2本で拡大している間は動かさない
     markActive();
@@ -4978,6 +5070,7 @@ function initZoom(){
   const tDist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
   const tMid  = t => ({ x:(t[0].clientX + t[1].clientX) / 2, y:(t[0].clientY + t[1].clientY) / 2 });
   z.el.addEventListener('touchstart', e => {
+    zoomApply._user = true;
     if (e.touches.length >= 2){
       z.el.classList.add('gesturing');
       z.tBase = tDist(e.touches); z.tBaseK = z.k; z.tMid = tMid(e.touches); z.touched = true;
@@ -5594,7 +5687,98 @@ function stampsLeft(){
  * （来場者が自分で減らしてしまう事故と、係員がいないところでの交換を防ぐ）。
  * @returns {number} 消費したスタンプの数。0なら交換できなかった
  */
+/** 次の交換で使うスタンプを決める（まだ確定しない）。足りなければ null */
+function planSpend(){
+  pullStamps();
+  const need = Math.max(1, CONFIG.PRIZE_COST | 0);
+  const spent = new Set(S.spent);
+  const usable = Array.from(S.stamps).filter(id => !spent.has(id));
+  return usable.length < need ? null : usable.slice(0, need);
+}
+/**
+ * 交換を確定して保存する。queue=true のときはサーバーへの控えをあとで送る。
+ * @returns {number} 使った数（保存できなければ -1）
+ */
+function commitSpend(ids, queue){
+  pullStamps();
+  const have = new Set(S.spent);
+  const next = S.spent.concat(ids.filter(id => !have.has(id)));
+  if (!store('kuroko_spent_v1', next)) return -1;
+  S.spent = next;
+  if (queue) ids.forEach(id => ledgerAdd({ t:'r', id }));
+  return ids.length;
+}
+/** サーバーの控えにある「交換済み」をこの端末に足す */
+function mergeSpent(list){
+  const have = new Set(S.spent); let ch = false;
+  (list || []).forEach(id => { if (!have.has(id)){ S.spent.push(id); have.add(id); ch = true; } });
+  if (ch) store('kuroko_spent_v1', S.spent);
+}
+
+/* ---------- スタンプの控え（サーバー）への送信 ----------
+   獲得・交換のたびに1件ずつ送るとサーバーが混むので、端末にためてまとめて送る。
+   送れなかった分は端末に残り、電波が戻る・次の同期のときに送り直す（何度送っても1回分として記録される）。 */
+function ledgerAdd(e){
+  const q = load('kuroko_ledger_q', []) || [];
+  q.push(Object.assign({ at: Date.now() }, e));
+  store('kuroko_ledger_q', q.slice(-300));
+  clearTimeout(ledgerAdd._t);
+  ledgerAdd._t = setTimeout(flushLedger, 3000);
+}
+async function flushLedger(){
+  if (flushLedger._on || navigator.onLine === false) return;
+  const q = load('kuroko_ledger_q', []) || [];
+  if (!q.length) return;
+  flushLedger._on = true;
+  const batch = q.slice(0, 40);
+  try{
+    await api({ body:{ action:'ledger', cid: deviceId(), ev: batch }, timeout: 15000 });
+    // 送っている間に増えた分は残す
+    const now = load('kuroko_ledger_q', []) || [];
+    const sent = new Set(batch.map(x => x.t + x.id + x.at));
+    store('kuroko_ledger_q', now.filter(x => !sent.has(x.t + x.id + x.at)));
+    if (now.length > batch.length) setTimeout(flushLedger, 1500);
+  }catch(e){ /* 次の機会に送る */ }
+  finally{ flushLedger._on = false; }
+}
+window.addEventListener('online', () => setTimeout(flushLedger, 1500));
+/**
+ * 引き継ぎ。別のブラウザ・機種の端末番号を受け継ぎ、サーバーの控えからスタンプと交換済みを戻す。
+ * この端末にすでにあったスタンプは消さずに足し、新しい番号の控えにも送る。
+ */
+async function restoreFrom(cid){
+  const strip = () => { try{ const u = new URL(location.href); u.searchParams.delete('restore');
+    history.replaceState(history.state, '', u.pathname + u.search + u.hash); }catch(e){} };
+  if (cid === deviceId()){ strip(); return; }
+  toast('スタンプを引き継いでいます…', null, 6000);
+  let l;
+  try{ l = await fetchLedger(cid); }
+  catch(e){ toast('引き継げませんでした。電波の良い場所で、もう一度リンクを開いてください', null, 8000); return; }
+  pullStamps();
+  const mine = Array.from(S.stamps);
+  store('kuroko_cid', cid); deviceId._v = cid;
+  (l.stamps || []).forEach(id => S.stamps.add(id));
+  store('kuroko_stamps_v2', Array.from(S.stamps));
+  mergeSpent(l.spent);
+  mine.filter(id => (l.stamps || []).indexOf(id) < 0).forEach(id => ledgerAdd({ t:'s', id }));
+  strip();
+  renderAll(); switchView('stamp');
+  toast(`引き継ぎました（スタンプ${S.stamps.size}個）。これからはこのブラウザで集められます`, null, 7000);
+}
+/** サーバーの控えを読む（引き継ぎ・交換の確認用） */
+async function fetchLedger(cid){
+  const url = CONFIG.GAS_URL + (CONFIG.GAS_URL.includes('?') ? '&' : '?') + 'ledger=' + encodeURIComponent(cid) + '&_=' + Date.now();
+  const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 12000);
+  try{
+    const res = await fetch(url, { signal: ctl.signal, mode:'cors', redirect:'follow' });
+    const j = await res.json();
+    if (!j || j.ok === false) throw new Error(j && j.error || 'ledger');
+    return j;
+  } finally { clearTimeout(to); }
+}
+
 function spendStamps(){
+  pullStamps();                                  // 別のタブで交換した分も数に入れる（二重に交換させない）
   const need = Math.max(1, CONFIG.PRIZE_COST | 0);
   const spent = new Set(S.spent);
   // 取った順（QRを読んだ順）に消す。あとから取った分を残す
@@ -5627,11 +5811,48 @@ function codeSkewMin(v){
 }
 
 /** QRから読み取ったときだけ呼ぶ。画面の操作からは呼ばない */
+/**
+ * 保存されている分をこの画面に取り込む（和をとる。減らすことはしない）。
+ * スマホのカメラでQRを読むと毎回新しいタブで開く。古いタブは読み込んだ時点の
+ * スタンプしか知らないので、
+ *   ・戻ってきた古いタブに「1個しかない」と表示される
+ *   ・古いタブで次のQRを処理すると、古い中身で上書きしてスタンプが消える
+ * ということが起きていた（実機で報告あり・再現済み）。書く前と見る前に必ず取り込む。
+ * @returns {boolean} 増えたものがあったか
+ */
+function pullStamps(){
+  let changed = false;
+  const disk = load('kuroko_stamps_v2', []) || [];
+  for (const id of disk) if (!S.stamps.has(id)){ S.stamps.add(id); changed = true; }
+  const have = new Set(S.spent);
+  for (const id of (load('kuroko_spent_v1', []) || [])){
+    if (!have.has(id)){ S.spent.push(id); have.add(id); changed = true; }
+  }
+  return changed;
+}
+/** 別のタブ・別のQRで増えた分を反映して描き直す */
+function refreshStampsFromDisk(){
+  if (!pullStamps()) return;
+  renderStamps(); renderList(); recommend(); drawFloor(S.floor);
+  if (S.sheetId) renderSheet();
+}
+window.addEventListener('storage', e => {
+  if (e.key === 'kuroko_stamps_v2' || e.key === 'kuroko_spent_v1' || e.key === null) refreshStampsFromDisk();
+});
+window.addEventListener('pageshow', refreshStampsFromDisk);
+window.addEventListener('focus', refreshStampsFromDisk);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshStampsFromDisk(); });
+
 function earnStamp(id){
+  pullStamps();                                  // 他のタブで増えた分を消さないよう、先に取り込む
   if (S.stamps.has(id)) return false;
+  // 端末の空き容量が減ったときに、ブラウザがこのサイトの保存を勝手に消さないよう頼んでおく
+  // （対応していない端末では何も起きない。許可を求める画面も出ない）
+  try{ if (navigator.storage && navigator.storage.persist && !earnStamp._p){ earnStamp._p = 1; navigator.storage.persist(); } }catch(e){}
   S.justStamp = id;
   setTimeout(() => { S.justStamp = null; }, 1200);
   S.stamps.add(id);
+  ledgerAdd({ t:'s', id });                      // サーバーにも控えを送る（あとでまとめて）
   if (!store('kuroko_stamps_v2', Array.from(S.stamps))){
     // 画面を開いている間は有効。閉じると消えることを正直に伝える
     setTimeout(() => toast('この端末に保存できません（プライベートモードか空き容量不足）。画面を閉じるとスタンプが消えます'), 1800);
@@ -5641,6 +5862,173 @@ function earnStamp(id){
   ding();
   return true;
 }
+/* =====================================================================
+   スタンプの絵柄と「押された」演出
+   ブースごとに形・色・マーク・向きが決まった1つだけの判子にする。
+   同じブースは何度見ても同じ絵柄（idから決める）なので、集める楽しみになる。
+   ===================================================================== */
+const STAMP_SHAPES = ['circle', 'flower', 'hex', 'burst', 'square'];
+const STAMP_INK = ['#c0262d', '#1d4ed8', '#15803d', '#b45309', '#7c3aed', '#0f766e', '#be185d', '#334155'];
+/** ブースの絵柄の設定（形・色・マーク・キラ） */
+function stampLook(id){
+  const h = hash32('art|' + id);
+  const sl = slotOf(id);
+  const d = sl ? deptOf(sl) : null;
+  const b = S.booths.find(x => x.id === id) || {};
+  // 科の色がある棟はその色（地図と同じ色なので「どこの判子か」が分かる）。教室棟などは決まった色から選ぶ
+  const ink = d && !/教室棟/.test(d.s) ? d.c : STAMP_INK[h % STAMP_INK.length];
+  const cat = String(b.category || '') + ' ' + (d ? d.s : '');
+  const icon = /食|飲|家庭|屋台|カフェ/.test(cat) ? 'food'
+             : /電子|電気|情報|CAI|プログラ/.test(cat + (b.name || '')) ? 'chip'
+             : /機械|材料|実習|体験|工/.test(cat) ? 'tool'
+             : /土木|測量|屋外|広場/.test(cat) ? 'flag'
+             : /ステージ|音楽|発表|イベント/.test(cat + (b.name || '')) ? 'call'
+             : /受付|本部/.test(b.name || '') ? 'school' : 'leaf';
+  return { h, ink, icon, shape: STAMP_SHAPES[(h >>> 4) % STAMP_SHAPES.length],
+           tilt: (h % 17) - 8, shiny: h % 9 === 4,
+           name: b.name || (sl && sl.nm) || id, no: S.numbers.get(id) || '' };
+}
+/** 形の外枠（200×200の箱の中心に置く） */
+function stampOutline(shape, r){
+  const c = 100, P = (a, rr) => [(c + rr * Math.cos(a)).toFixed(1), (c + rr * Math.sin(a)).toFixed(1)];
+  if (shape === 'circle') return `<circle cx="100" cy="100" r="${r}"/>`;
+  if (shape === 'square') return `<rect x="${100 - r}" y="${100 - r}" width="${r * 2}" height="${r * 2}" rx="${r * .28}"/>`;
+  if (shape === 'hex'){
+    const pts = []; for (let i = 0; i < 6; i++) pts.push(P(Math.PI / 6 + i * Math.PI / 3, r).join(','));
+    return `<polygon points="${pts.join(' ')}"/>`;
+  }
+  if (shape === 'burst'){
+    const pts = []; for (let i = 0; i < 28; i++) pts.push(P(i * Math.PI / 14, i % 2 ? r * .9 : r).join(','));
+    return `<polygon points="${pts.join(' ')}"/>`;
+  }
+  // flower：花形（波打つ外枠）
+  const n = 14; let d = '';
+  for (let i = 0; i < n; i++){
+    const a0 = i * 2 * Math.PI / n, a1 = (i + .5) * 2 * Math.PI / n, a2 = (i + 1) * 2 * Math.PI / n;
+    const p0 = P(a0, r * .9), p1 = P(a1, r * 1.06), p2 = P(a2, r * .9);
+    d += (i ? '' : `M${p0[0]} ${p0[1]}`) + `Q${p1[0]} ${p1[1]} ${p2[0]} ${p2[1]}`;
+  }
+  return `<path d="${d}Z"/>`;
+}
+/**
+ * 判子のSVG。mini はスタンプ帳のマス用（名前の円弧・インクのにじみを省いて軽くする）
+ */
+function stampArt(id, mini){
+  const L = stampLook(id);
+  const uid = 's' + (L.h % 1e6) + (mini ? 'm' : 'b');
+  const col = L.shiny ? `url(#${uid}g)` : L.ink;
+  const nm0 = Array.from(String(L.name));
+  const name = nm0.length > 11 ? nm0.slice(0, 10).join('') + '…' : nm0.join('');
+  const defs = `<defs>
+      ${L.shiny ? `<linearGradient id="${uid}g" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#b8860b"/><stop offset=".45" stop-color="#f5d76e"/>
+        <stop offset=".55" stop-color="#fff3b0"/><stop offset="1" stop-color="#b8860b"/></linearGradient>` : ''}
+      ${mini ? '' : `<filter id="${uid}i" x="-5%" y="-5%" width="110%" height="110%">
+        <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="${L.h % 97}"/>
+        <feDisplacementMap in="SourceGraphic" scale="2.6"/></filter>
+        <path id="${uid}a" d="M 42 104 A 58 58 0 0 1 158 104"/>`}
+    </defs>`;
+  const ic = (ICON[L.icon] || ICON.leaf)
+    .replace('class="ic-svg"', `x="${mini ? 72 : 78}" y="${mini ? 50 : 76}" width="${mini ? 56 : 44}" height="${mini ? 56 : 44}"`)
+    .replace('stroke-width="1.7"', 'stroke-width="2"');
+  return `<svg class="stamp-art${L.shiny ? ' shiny' : ''}" viewBox="0 0 200 200" role="img"
+      aria-label="${esc(L.name)}の判子${L.shiny ? '（キラ）' : ''}" style="--tilt:${L.tilt}deg;color:${L.ink}">
+    ${defs}
+    <g fill="none" stroke="${col}" ${mini ? '' : `filter="url(#${uid}i)"`}>
+      <g stroke-width="${mini ? 9 : 7}">${stampOutline(L.shape, 88)}</g>
+      <g stroke-width="${mini ? 3 : 2.2}" opacity=".85">${stampOutline(L.shape, 74)}</g>
+    </g>
+    <g color="${L.shiny ? '#b8860b' : L.ink}">${ic}</g>
+    ${mini ? `<text x="100" y="150" text-anchor="middle" font-size="40" font-weight="900" fill="${col}">${esc(L.no)}</text>`
+      : `<text font-size="14" font-weight="900" fill="${col}" letter-spacing=".5"><textPath href="#${uid}a"
+            startOffset="50%" text-anchor="middle">${esc(name)}</textPath></text>
+         <text x="100" y="146" text-anchor="middle" font-size="30" font-weight="900" fill="${col}">No.${esc(L.no)}</text>
+         <text x="100" y="166" text-anchor="middle" font-size="10" font-weight="800" fill="${col}" letter-spacing="3">KUROKO FES</text>`}
+    ${L.shiny && !mini ? `<g fill="#f5d76e"><path d="M160 34l3 8 8 3-8 3-3 8-3-8-8-3 8-3z"/><path d="M40 150l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/></g>` : ''}
+  </svg>`;
+}
+
+/**
+ * QRを読んだときの演出。スタンプ帳の上に大きな判子を「ポン」と押して見せる。
+ * 節目（はじめて・交換できる数・半分・全制覇）で言葉と演出を変える。
+ * @param {string} id ブースid
+ * @param {boolean} fresh 今回はじめて押されたか（false＝押し済みのQRをもう一度読んだ）
+ */
+function showStampFx(id, fresh){
+  const old = $('#sfx'); if (old) old.remove();
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const el = document.createElement('div');
+  el.id = 'sfx'; el.className = 'sfx' + (fresh ? ' fresh' : ' dup');
+  el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
+  el.setAttribute('aria-label', fresh ? 'スタンプを獲得しました' : 'このブースはスタンプ済みです');
+  document.body.appendChild(el);
+  showStampFx._open = { id, fresh };
+  const draw = () => {
+    const L = stampLook(id);
+    const total = S.booths.length || 0;
+    const got = total ? S.booths.filter(b => S.stamps.has(b.id)).length : S.stamps.size;
+    const need = Math.max(1, CONFIG.PRIZE_COST | 0);
+    const left = stampsLeft();
+    const done = total > 0 && got >= total;
+    const kicker = !fresh ? 'このブースはスタンプ済みです'
+      : done ? '全ブース制覇！'
+      : got === 1 ? 'はじめてのスタンプ！'
+      : left >= need && left - 1 < need ? 'お菓子と交換できます！'
+      : total && got === Math.ceil(total / 2) ? 'ちょうど半分！'
+      : L.shiny ? 'キラスタンプ！' : 'スタンプ獲得！';
+    const goal = done ? 'すべてのブースを回りました。おめでとうございます！'
+      : left >= need ? `スタンプ${need}個でお菓子1個と交換できます。受付で係の人に見せてください`
+      : `あと${need - left}個でお菓子と交換できます`;
+    // 次に行く先：同じ階の、まだ行っていない空いているブース
+    const fl = (() => { const b0 = S.booths.find(x => x.id === id); return b0 ? floorOfBooth(b0) : null; })();
+    const cand = S.booths.filter(x => !S.stamps.has(x.id) && lvOf(x).lv === 0);
+    const next = cand.find(x => floorOfBooth(x) === fl) || cand[0] || null;
+    el.innerHTML = `
+      <div class="sfx-card" data-kind="${esc(kicker)}">
+        <p class="sfx-kicker">${esc(kicker)}</p>
+        <div class="sfx-stamp${reduce ? '' : ' slam'}">${stampArt(id)}<i class="sfx-ink" aria-hidden="true"></i></div>
+        <h2 class="sfx-name">${esc(L.name)}</h2>
+        <p class="sfx-count"><b>${got}</b>${total ? ` / ${total}` : ''} ブース</p>
+        ${total ? `<div class="sfx-bar"><i style="width:${Math.round(got / total * 100)}%"></i></div>` : ''}
+        <p class="sfx-goal">${esc(goal)}</p>
+        <div class="sfx-acts">
+          <button class="btn" data-fx="book">スタンプ帳を見る</button>
+          ${next ? `<button class="btn ghost" data-fx="next" data-id="${esc(next.id)}">次は空いている「${esc(next.name)}」へ</button>` : ''}
+        </div>
+        <p class="sfx-note">スタンプはこのブラウザに保存されます。次のQRも同じ方法で読み取ってください</p>
+      </div>`;
+    el.querySelector('[data-fx="book"]').addEventListener('click', close);
+    const nx = el.querySelector('[data-fx="next"]');
+    if (nx) nx.addEventListener('click', () => { const t = nx.dataset.id; close(); switchView('map'); setTimeout(() => openSheet(t), 200); });
+  };
+  const close = () => {
+    showStampFx._open = null;
+    el.classList.add('out');
+    setTimeout(() => el.remove(), reduce ? 0 : 220);
+    document.removeEventListener('keydown', onKey);
+    // 押したマスを見せる
+    const t = document.querySelector(`#stamp-grid [data-sid="${CSS.escape(id)}"]`);
+    if (t){ t.classList.add('just'); t.scrollIntoView({ block:'center', behavior: reduce ? 'auto' : 'smooth' });
+            setTimeout(() => t.classList.remove('just'), 1400); }
+  };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  showStampFx.refresh = () => { if (showStampFx._open && document.body.contains(el)) draw(); };
+  draw();
+  el.addEventListener('click', e => { if (e.target === el) close(); });
+  document.addEventListener('keydown', onKey);
+  setTimeout(() => { const b = el.querySelector('[data-fx="book"]'); b && b.focus({ preventScroll:true }); }, 60);
+  if (fresh){
+    ding();
+    try{ navigator.vibrate && navigator.vibrate([18, 40, 70]); }catch(e){}
+    const total = S.booths.length, got = S.booths.filter(b => S.stamps.has(b.id)).length;
+    const left = stampsLeft(), need = Math.max(1, CONFIG.PRIZE_COST | 0);
+    // 節目だけ紙吹雪（毎回だと特別感がなくなる）
+    if ((total && got >= total) || (left >= need && left - 1 < need) || got === 1 || stampLook(id).shiny){
+      setTimeout(() => confetti(), reduce ? 0 : 380);
+    }
+  }
+}
+
 /**
  * スタンプの進み具合につける称号。順位を競わせるのではなく、
  * 「もう少し回ってみようか」と思えるくらいの軽い遊びとして置いている。
@@ -5746,7 +6134,8 @@ function renderStamps(){
                  style="--tilt:${tilt}deg" data-sid="${esc(b.id)}"
                  aria-label="${esc(b.name)}${u ? ' 交換に使用済み' : g ? ' 訪問済み' : ''} の詳細をひらく">
       <span class="no">${no}</span>
-      <span class="mk">${u ? '換' : g ? '済' : ''}</span>
+      ${g && !u ? `<span class="mk art">${stampArt(b.id, true)}</span>`
+               : `<span class="mk">${u ? '換' : ''}</span>`}
       <span class="lb">${esc(b.name)}</span></button>`;
   }).join('');
 
@@ -5765,6 +6154,8 @@ function renderStamps(){
     store('kuroko_cert_at', undefined);
   }
   $('#stamp-share').classList.toggle('hide', got === 0);
+  $('#stamp-handoff').classList.toggle('hide', S.stamps.size === 0);
+  $('#stamp-reset').classList.toggle('hide', !S.isAdmin);
   $('#stamp-share').textContent = navigator.share ? 'スタンプカードを共有する' : 'スタンプカードを画像で保存';
 }
 
@@ -6483,39 +6874,54 @@ function renderChecklist(){
 
 /** 受付の来場者カウンタ */
 function renderVisitors(){
-  animateNumber($('#vis-n'), S.visitors.today || 0);
-  $('#vis-time').textContent = S.visitors.updatedAt ? '最終 ' + ago(S.visitors.updatedAt) : '';
+  // 送れていない分（電波待ち）も足して見せる。受付が「押したのに増えない」と押し直さないように
+  const q = load('kuroko_vis_q', []) || [];
+  const pend = q.reduce((t, x) => t + (Number(x.n) || 0), 0);
+  animateNumber($('#vis-n'), Math.max(0, (S.visitors.today || 0) + pend));
+  $('#vis-time').textContent = (q.length ? `未送信 ${q.length}件（電波が戻ると自動で送ります）　` : '')
+    + (S.visitors.updatedAt ? '最終 ' + ago(S.visitors.updatedAt) : '');
 }
 
-async function addVisitors(n){
-  if (navigator.onLine === false){ toast('圏外です'); return; }
-  const prev = S.visitors.today || 0;
-  S.visitors = { today: Math.max(0, prev + n), updatedAt: new Date().toISOString() };
+/**
+ * 受付の来場者カウンタ。
+ * 押した1回ごとに番号(uid)を付けて端末にためてから送る。
+ * 電波が悪くても数は失われず、送り直してもサーバー側で同じ番号は1回しか数えない。
+ * （以前は圏外だと押しても記録されず、失敗すると数が消えていた）
+ */
+function addVisitors(n){
+  const q = load('kuroko_vis_q', []) || [];
+  const uid = deviceId().slice(0, 8) + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
+  q.push({ uid, n, at: Date.now() });
+  if (!store('kuroko_vis_q', q)){ toast('この端末に保存できません。プライベートモードを解除してください'); return; }
   renderVisitors();
-  const btns = $$('.vis-btns button');
-  btns.forEach(b => b.disabled = true);
+  toast(`来場者 ${n > 0 ? '+' : ''}${n}`, { label:'元に戻す', fn: () => addVisitors(-n) });
+  flushVisitors();
+}
+async function flushVisitors(){
+  if (flushVisitors._on || navigator.onLine === false) { renderVisitors(); return; }
+  let q = load('kuroko_vis_q', []) || [];
+  if (!q.length) return;
+  flushVisitors._on = true;
   const visCard = $('.vis-card');
   if (visCard) visCard.classList.add('sending');
   try{
-    const r = await api({ body:{ action:'visitor', n, pass: pw() } });
-    if (r && r.visitors) S.visitors = r.visitors;
-    renderVisitors();
-    toast(`来場者 ${n > 0 ? '+' : ''}${n}（合計 ${S.visitors.today}人）`,
-      { label:'元に戻す', fn: () => addVisitors(-n) });
-  }catch(e){
-    S.visitors.today = prev; renderVisitors();
-    if (!authFailed(e)){
-      // 来場者カウンタは足し算なので、二重に押されると数が狂う。
-      // 時間切れは「届いたか分からない」であって「失敗」ではない
-      toast(/timeout/.test(String(e && e.message || e))
-        ? '送れたか分かりません。数秒待って人数を見てから押し直してください'
-        : '記録できませんでした');
+    while (q.length){
+      const it = q[0];
+      const r = await api({ body:{ action:'visitor', n: it.n, uid: it.uid, pass: pw() }, timeout: 20000 });
+      q = (load('kuroko_vis_q', []) || []).filter(x => x.uid !== it.uid);
+      store('kuroko_vis_q', q);
+      if (r && r.visitors) S.visitors = r.visitors;
+      renderVisitors();
     }
+  }catch(e){
+    if (!authFailed(e)) setTimeout(flushVisitors, 20000);   // 少し待ってから送り直す（同じ番号なので二重にならない）
   }finally{
-    btns.forEach(b => b.disabled = false);
+    flushVisitors._on = false;
     if (visCard) visCard.classList.remove('sending');
+    renderVisitors();
   }
 }
+window.addEventListener('online', () => setTimeout(flushVisitors, 1200));
 
 /**
  * いま開催中かどうか。
@@ -7186,6 +7592,7 @@ function bindAdminCard(card){
     out.dataset.n = v; out.textContent = v; out.classList.add('dirty');
     S.draftWait[id] = v;
     S.draftAt[id] = Date.now();     // 送信し忘れに気づけるようにする
+    saveDrafts();                   // 画面を閉じても数えた人数を失わない
     S.lastAdminTouch = Date.now();
   }));
   card.querySelector('.send').addEventListener('click', () => {
@@ -7244,7 +7651,7 @@ async function update(id, status, wait, retry){
     // 元の b は配列から切り離された孤児になるので、必ず id で引き直す。
     const cur = S.booths.find(x => x.id === id) || b;
     Object.assign(cur, { status, wait, stale:false, time:new Date().toISOString() });
-    delete S.draftWait[id]; delete S.draftAt[id];          // 送信できたので下書きを確定
+    delete S.draftWait[id]; delete S.draftAt[id]; saveDrafts();   // 送信できたので下書きを確定
     // 再送中に同じブースを押し直していたら、新しい方を残す
     const u0 = S.unsent[id];
     if (!u0 || !retry || (u0.status === status && u0.wait === wait)){ delete S.unsent[id]; saveUnsent(); }
@@ -7289,15 +7696,20 @@ async function update(id, status, wait, retry){
 /* ---------- 送れなかった更新（未送信）の保持と再送 ---------- */
 // これより古い未送信は送らない。10分前の「空いています」をいま送ると、今の状況として表示されてしまう
 const UNSENT_MAX_MS = 10 * 60000;
-function saveUnsent(){
-  try{ sessionStorage.setItem('kuroko_unsent', JSON.stringify(S.unsent)); }catch(e){}
-}
+// 画面やブラウザを閉じても残す（sessionStorage だとタブを閉じた瞬間に消えていた）
+function saveUnsent(){ store('kuroko_unsent', S.unsent); saveDrafts(); }
 function loadUnsent(){
-  try{
-    const v = JSON.parse(sessionStorage.getItem('kuroko_unsent') || '{}');
-    if (v && typeof v === 'object' && !Array.isArray(v)) S.unsent = v;
-  }catch(e){ S.unsent = {}; }
+  const v = load('kuroko_unsent', {});
+  if (v && typeof v === 'object' && !Array.isArray(v)) S.unsent = v;
+  // 数えかけの人数（送信前）も戻す。30分より古いものは今の状況ではないので捨てる
+  const d = load('kuroko_drafts', null);
+  if (d && d.w && d.a){
+    for (const id of Object.keys(d.w)){
+      if (Date.now() - (d.a[id] || 0) < 30 * 60000){ S.draftWait[id] = d.w[id]; S.draftAt[id] = d.a[id]; }
+    }
+  }
 }
+function saveDrafts(){ store('kuroko_drafts', { w: S.draftWait, a: S.draftAt }); }
 /** 取得した一覧に、この端末でまだ送れていない変更を重ねる（係員の画面が元に戻って見えないように） */
 function applyUnsent(booths){
   for (const id of Object.keys(S.unsent)){
@@ -7657,9 +8069,19 @@ const QR = (() => {
 /* =====================================================================
    QR印刷ページ（?mode=qr）
    ===================================================================== */
+/**
+ * 印刷物に載せるアドレス。公開中は og:url（公式アドレス）に固定する。
+ * 別のアドレス（Cloudflareのプレビュー等）から刷ると、QRごとに保存先が分かれてしまうため。
+ */
+function publicBase(){
+  const here = location.origin + location.pathname.replace(/[^/]*$/, '');
+  if (location.protocol !== 'https:') return here;           // 手元での確認はその場のアドレス
+  const m = document.querySelector('meta[property="og:url"]');
+  return m && m.content ? m.content.replace(/[^/]*$/, '') : here;
+}
 function renderQrSheet(){
   renderQrSheet._n = S.booths.length;
-  const base = location.origin + location.pathname.replace(/[^/]*$/, '');
+  const base = publicBase();
   /* LINEのQRリーダーで読まれると「LINEアプリ内ブラウザ」で開いてしまう。
      アプリ内ブラウザは端末のSafari/Chromeとは保存場所が別なので、
      リッチメニューから入った人とQRから入った人でスタンプが分裂する。
@@ -7785,7 +8207,7 @@ function setPrintReady(sel, ready){
 function renderPrintSheet(){
   renderPrintSheet._n = S.booths.length;
   setPrintReady('#btn-print2', S.booths.length > 0);
-  const base = location.origin + location.pathname.replace(/[^/]*$/, '');
+  const base = publicBase();
 
   const planSvg = (floorNum) => {
     const plan = FLOOR_PLAN[floorNum];
@@ -8068,6 +8490,8 @@ async function renderReport(){
         <div><b>${s.totalUpdates || 0}回</b><span>係員の更新回数</span></div>
         <div><b>${(s.visitorsTotal || 0)}人</b><span>来場者（受付カウント）</span></div>
         <div><b>${total}</b><span>記録があったブース数</span></div>
+        ${s.stampsTotal ? `<div><b>${s.stampsTotal}個</b><span>押されたスタンプ（${s.stampPeople || 0}人）</span></div>
+        <div><b>${esc(s.topStampBooth || '-')}</b><span>スタンプ最多（${s.topStampCount || 0}個）</span></div>` : ''}
       </div>
     </div>
 
@@ -8229,7 +8653,8 @@ function init(){
   initNotice();
   requestAnimationFrame(() => fitMapBox(S.floor));
   S.stamps   = new Set(load('kuroko_stamps_v2', []));
-  S.spent    = (load('kuroko_spent_v1', []) || []).filter(id => S.stamps.has(id));
+  // 交換済みの印は、スタンプ側が消えても残す（消すと、同じQRを読み直して二重に交換できてしまう）
+  S.spent    = Array.from(new Set(load('kuroko_spent_v1', []) || []));
   S.assigned = new Set(load('kuroko_assigned_v2', []));
   loadUnsent();
   // カードの見出しを読み上げの「見出し」として扱う（見出しジャンプで画面内を移動できるように）
@@ -8289,10 +8714,26 @@ function init(){
   $('#sort-free').addEventListener('click', () => setSort('free'));
   $('#sort-name').addEventListener('click', () => setSort('name'));
   $('#stamp-share').addEventListener('click', shareStamps);
+  // 記録のリセットは係員の試し用だけ。来場者が押せると、交換したあとに消して
+  // 同じQRを読み直せば、お菓子をもう一度もらえてしまう（押し間違いで全部消える危険もある）
+  // 引き継ぎ用のリンクとQR。開いたときにだけ作る（端末番号を画面に出しっぱなしにしない）
+  const handoffUrl = () => publicBase() + '?restore=' + encodeURIComponent(deviceId()) + '&openExternalBrowser=1';
+  $('#stamp-handoff').addEventListener('toggle', () => {
+    const box = $('#handoff-qr');
+    box.innerHTML = $('#stamp-handoff').open ? QR.svgSafe(handoffUrl(), 180) : '';
+    if ($('#stamp-handoff').open) flushLedger();      // 引き継ぐ前に、控えを送り切っておく
+  });
+  $('#handoff-copy').addEventListener('click', async () => {
+    flushLedger();
+    try{ await navigator.clipboard.writeText(handoffUrl()); toast('リンクをコピーしました。引き継ぎ先のブラウザで開いてください'); }
+    catch(e){ prompt('このリンクを引き継ぎ先で開いてください', handoffUrl()); }
+  });
   $('#stamp-reset').addEventListener('click', () => {
-    if (!confirm('スタンプの記録を消しますか？お菓子の引換記録も一緒に消えます。')) return;
+    if (!S.isAdmin) return;
+    if (!confirm('【係員の試し用】この端末のスタンプと交換の記録を消します。よろしいですか？')) return;
     S.stamps.clear(); store('kuroko_stamps_v2', []);
     S.spent = []; store('kuroko_spent_v1', []);
+    store('kuroko_ledger_q', []);
     store('kuroko_cert_at', undefined);
     renderAll(); toast('記録をリセットしました');
   });
@@ -8331,7 +8772,40 @@ function init(){
       rin.select();
       return;
     }
-    const n = spendStamps();
+    redeemWithServer();
+  });
+  /**
+   * 交換の確定。サーバーの控えで「別のブラウザ・機種で同じスタンプをもう使っていないか」を確かめる。
+   * 電波が無い・サーバーが古い版のときは、この端末の記録だけで交換を進め、控えはあとで送る
+   * （当日の受付を止めないことを優先する）。
+   */
+  async function redeemWithServer(){
+    const okBtn = $('#redeem-ok');
+    if (okBtn.disabled) return;
+    pullStamps();
+    const ids = planSpend();
+    if (!ids){ rerr.classList.remove('hide'); rerr.textContent = 'スタンプが足りません'; return; }
+    okBtn.disabled = true; const lb = okBtn.textContent; okBtn.textContent = '確認中…';
+    let server = 'offline';
+    try{
+      if (navigator.onLine !== false){
+        const r = await api({ body:{ action:'redeem', cid: deviceId(), ids }, timeout: 8000 });
+        server = 'ok';
+        if (r && Array.isArray(r.spent)) mergeSpent(r.spent);
+      }
+    }catch(e){
+      const m = String(e && e.message || e);
+      if (/already/.test(m)) server = 'already';
+    }finally{ okBtn.disabled = false; okBtn.textContent = lb; }
+    if (server === 'already'){
+      // 別の画面で交換済みだった分を、この端末にも反映する
+      try{ const l = await fetchLedger(deviceId()); if (l) mergeSpent(l.spent); }catch(e){}
+      renderStamps();
+      rerr.classList.remove('hide');
+      rerr.textContent = 'このスタンプは別の画面ですでにお菓子と交換済みです。スタンプ帳を最新にしました';
+      return;
+    }
+    const n = commitSpend(ids, server !== 'ok');
     if (n <= 0){
       rerr.classList.remove('hide');
       rerr.textContent = n < 0
@@ -8343,7 +8817,7 @@ function init(){
     renderStamps(); renderList(); drawFloor(S.floor);
     ding('done');
     toast(`スタンプ${n}個分を使いました。お菓子を1個受け取ってください`);
-  });
+  }
 
   setInterval(() => { if (!document.hidden) tickCode(); }, 15000);
   $('#build-id').textContent = CONFIG.BUILD;
@@ -8442,12 +8916,13 @@ function init(){
     // それをブース一覧の到着まで待たせていたため、電波の弱い場所で読んだQRが
     // 丸ごと無効になっていた（校内に人が集まる当日ほど起きやすい）。
     // 先に付けてしまい、画面の表示だけをデータの到着まで待つ。
-    if (signed && !S.stamps.has(b)){
-      const nm0 = (S.booths.find(x => x.id === b) || {}).name || '';
-      earnStamp(b);
-      setHere(b, 'qr');                 // 読んだ場所＝いまいる場所
-      setTimeout(() => toast(nm0 ? `「${nm0}」のスタンプを獲得しました`
-                                 : 'スタンプを獲得しました'), 400);
+    // 読み取ったら、その場でスタンプ帳へ移って「押された」ことを見せる（1回の読み込みにつき1回）
+    if (signed && !applyDeepLink._fx){
+      applyDeepLink._fx = true;
+      const fresh = earnStamp(b);       // すでに持っていれば false
+      if (fresh) setHere(b, 'qr');      // 読んだ場所＝いまいる場所
+      switchView('stamp');
+      setTimeout(() => showStampFx(b, fresh), 120);
     }
 
     if (!S.booths.length) return false;                 // まだ届いていない＝保留
@@ -8462,9 +8937,8 @@ function init(){
         setTimeout(() => toast('このリンクではスタンプが付きません。ブース入口のQRを読み取ってください'), 400);
         openBooth(b);
       } else {
-        renderAll();
-        setHere(b, 'qr');
-        setTimeout(() => openSheet(b), 500);
+        renderAll();                    // 名前・番号が届いたので演出の中身も最新にする
+        if (showStampFx._open) showStampFx.refresh();
       }
     } else {
       openBooth(b);
@@ -8480,6 +8954,12 @@ function init(){
       history.replaceState(history.state, '', u.pathname + u.search + u.hash);
     }catch(e){}
   }
+
+  // QRのスタンプは通信を待たずに付けて見せる（最初の取得は電波しだいで10秒以上かかる）
+  if (!mode && params.get('qr') === '1') applyDeepLink();
+  // 引き継ぎ用リンク（?restore=端末番号）で開かれたとき
+  const restoreCid = params.get('restore');
+  if (restoreCid && /^[a-z0-9]{12,40}$/i.test(restoreCid)) restoreFrom(restoreCid);
 
   sync(false).then(() => {
     if (mode === 'qr'){ if (pw()) renderQrSheet(); return; }
