@@ -1,14 +1,11 @@
 /* 黒工文化祭マップ Service Worker
    目的：校内Wi-Fiが不安定でも「アプリの外側」が必ず開くようにする。
    混雑データ(GAS)は絶対にキャッシュしない（古い混雑状況を見せないため）。 */
-const CACHE = 'kuroko-map-v122';
+const CACHE = 'kuroko-map-v130';
 // 画面は SHELL_KEY（./index.html）1つにまとめて保存する。
 // './' も入れると同じHTMLが別の控えとして2つ残り、使われない方が約400KBを占める。
 const SHELL = ['./index.html', './manifest.json', './apple-touch-icon.png'];
 
-// 回線が遅いときにネットワークを待ち続けない上限（ms）。
-// これを過ぎたら保存してある画面を先に出し、取得できた分は次回に反映する。
-const NET_TIMEOUT = 2500;
 
 self.addEventListener('install', e => {
   // addAll は1つでも404だと全体が失敗し、SWがインストールされない＝オフライン対応が
@@ -44,7 +41,7 @@ self.addEventListener('fetch', e => {
   if (url.hostname.includes('script.google.com')) return;
   if (url.origin !== location.origin) return;
 
-  e.respondWith(handle(e.request));
+  e.respondWith(handle(e.request, e));
 });
 
 /** アプリ本体（HTML）かどうか。中身の差分を見る対象をここだけに絞る。 */
@@ -72,56 +69,40 @@ async function notifyUpdated(){
 }
 
 /**
- * 基本はネットワーク優先。ただし NET_TIMEOUT を過ぎたらキャッシュを先に返し、
- * 取得できたものは裏でキャッシュへ入れる。
- * 「更新したのに反映されない」を避けつつ、遅い回線で待たされないようにする。
- *
- * さらに、キャッシュを先に返したあとで新しいHTMLが届いた場合は
- * 画面側へ通知する（利用者が古い画面のまま気づかない状態を作らない）。
+ * 保存してある分をすぐ返し、裏で取り直して保存を新しくする（stale-while-revalidate）。
+ * 以前はネットワーク優先で、取得した本文をすべて読み終えて保存してから返していたため
+ * 流し読みができず、細い回線では 2.5秒の打ち切りまで毎回白い画面で待たされていた
+ * （2回目以降の方が初回より遅い）。
+ * 中身が変わっていたら画面側へ知らせ、「新しい版があります」のバーから切り替えてもらう。
+ * 保存が無い（初回）ときだけネットワークを待つ。
  */
-async function handle(request){
+async function handle(request, event){
   const cache = await caches.open(CACHE);
   const shell = isShell(request);
   const key = shell ? SHELL_KEY : request;
-
   const cached = await cache.match(key);
-  // 差分比較用に、返す前の中身を控えておく（HTMLのときだけ）
-  let prevText = null;
-  if (shell && cached){
-    try{ prevText = await cached.clone().text(); }catch(e){ prevText = null; }
-  }
 
-  let servedCache = false;
-
-  const network = fetch(request).then(async res => {
-    if (!res || !res.ok) return res;
+  const refresh = (async () => {
     try{
-      if (shell){
-        const text = await res.clone().text();
+      const res = await fetch(request, { cache: 'no-cache' });
+      if (!res || !res.ok) return res;
+      if (shell && cached){
+        const [a, b] = await Promise.all([res.clone().text(), cached.clone().text()]);
         await cache.put(key, res.clone());
-        if (servedCache && prevText !== null && text !== prevText) notifyUpdated();
-      }else{
+        if (a !== b) notifyUpdated();
+      } else {
         await cache.put(key, res.clone());
       }
-    }catch(e){ /* 保存に失敗しても表示は続ける */ }
-    return res;
-  });
+      return res;
+    }catch(e){ return null; }
+  })();
 
-  if (!cached) {
-    // 保存が無いときはネットワークを待つしかない
-    try { return await network; }
-    catch (e) { return (await cache.match(SHELL_KEY)) || Response.error(); }
-  }
-
-  // キャッシュがあるなら、ネットワークを少しだけ待って、遅ければ保存分を返す
-  const timeout = new Promise(resolve => setTimeout(() => resolve(null), NET_TIMEOUT));
-  try {
-    const winner = await Promise.race([network.catch(() => null), timeout]);
-    if (winner) return winner;
-    servedCache = true;
-    return cached;
-  } catch (e) {
-    servedCache = true;
+  if (cached){
+    if (event && event.waitUntil) event.waitUntil(refresh);
     return cached;
   }
+  // 保存が無いときはネットワークを待つしかない（取れなければ本体の控えで代用）
+  const res = await refresh;
+  if (res) return res;
+  return (await cache.match(SHELL_KEY)) || Response.error();
 }

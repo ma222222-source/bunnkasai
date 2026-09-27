@@ -44,7 +44,9 @@
   }catch(e){}
 })();
 </script>
-<meta name="apple-mobile-web-app-capable" content="yes">
+<!-- ホーム画面のアイコンは Safari で開く（apple-mobile-web-app-capable を付けない）。
+     独立アプリとして開くと、iPhone では Safari と保存場所が分かれ、
+     カメラでQRを読んだ（＝Safariで開いた）スタンプがアイコン側に見えなくなるため。 -->
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <!-- 混雑データの取り先。GASは script.google.com から
      script.googleusercontent.com へ転送されるので、2つとも先につないでおく。
@@ -113,6 +115,7 @@
      #5f6b7a では 4.44 でわずかに足りず、待ち人数の表示が基準割れしていた。 */
   --text:#101828; --text-dim:#5b6779; --text-mute:#566270;
   --accent:#b91c1c; --accent-2:#7f1d1d; --on-accent:#ffffff;
+  --accent-ink:var(--accent);   /* 文字・線としての赤。暗い背景では明るくしないと読めない */
   --free:#15803d; --warn:#b45309; --busy:#dc2626; --unknown:#94a3b8; --closed:#64748b;
   /* 地図の塗り。文字色と分けることで、黄をきちんと黄に、赤をきちんと赤にできる。
      -ink は柄（縞・網目）の線の色。塗りより濃くして、混むほど密に見せる */
@@ -138,7 +141,7 @@
 *,*::before,*::after{box-sizing:border-box}
 /* 絵文字は端末ごとに絵柄が変わるので、UIの記号は自前のSVGで統一する */
 .ic{width:1.05em;height:1.05em;flex:none;display:inline-block;vertical-align:-.16em}
-.card-t .ic{width:15px;height:15px;color:var(--accent)}
+.card-t .ic{width:15px;height:15px;color:var(--accent-ink)}
 .nav em .ic{width:21px;height:21px;display:block}
 .search .ic{width:19px;height:19px;color:var(--text-mute)}
 .btn .ic,.btn.ghost .ic{width:15px;height:15px;vertical-align:-.2em;margin-right:2px}
@@ -236,6 +239,7 @@ p{margin:0}
   --border:#2b323e; --border-strong:#414b5c;
   --text:#f4f7fb; --text-dim:#b3bdcb; --text-mute:#a3aebd;
   --accent:#e4142a; --accent-2:#8d0d1b; --on-accent:#ffffff;
+  --accent-ink:#ff6b78;         /* #e4142a の文字は黒地で 3.7:1。6.4:1 まで明るくする */
   --free:#2ecc71; --warn:#f0a020; --busy:#ff2f47; --unknown:#5b6577; --closed:#6b7688;
   --free-fill:#2ecc71; --warn-fill:#f5b027; --busy-fill:#ff2f47; --closed-fill:#6b7688;
   --free-edge:#0e5c33; --warn-edge:#7a5406; --busy-edge:#8c0f1c; --closed-edge:#39404d;
@@ -259,7 +263,7 @@ p{margin:0}
 /* 角を斜めに落とした板。硬い印象をつくる */
 [data-theme="heavy"] .card{border-radius:0;
   clip-path:polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px))}
-[data-theme="heavy"] .card-t{color:var(--accent)}
+[data-theme="heavy"] .card-t{color:var(--accent-ink)}
 [data-theme="heavy"] .seg{background:#10141a;border:1px solid #262d38}
 [data-theme="heavy"] .seg button[aria-pressed="true"]{background:var(--accent);color:#fff;
   box-shadow:0 0 18px -4px var(--accent)}
@@ -407,7 +411,7 @@ main{flex:1;padding:14px 12px calc(88px + var(--safe-b));display:flex;flex-direc
 .next-ev{width:100%;text-align:left;display:flex;align-items:center;gap:10px;
          background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--accent);
          border-radius:var(--r);box-shadow:var(--shadow);padding:10px 12px}
-.next-ev .tm{font-size:15px;font-weight:900;color:var(--accent);flex:none;
+.next-ev .tm{font-size:15px;font-weight:900;color:var(--accent-ink);flex:none;
              font-variant-numeric:tabular-nums}
 .next-ev .tx{font-size:12px;font-weight:800;flex:1;min-width:0;
              overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -534,7 +538,7 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
   transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease),
              border-color var(--t-fast) var(--ease)}
 .dept-legend button[aria-pressed="true"]{background:var(--text);color:var(--surface);border-color:var(--text)}
-.dept-legend button.dept-clear{color:var(--accent);border-color:var(--accent)}
+.dept-legend button.dept-clear{color:var(--accent-ink);border-color:var(--accent)}
 .dept-legend button.fac{color:var(--text);border-color:var(--border-strong)}
 .dept-legend button.fac[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
 .room-bg.entrance rect{fill:var(--free-soft);stroke:var(--free);stroke-width:1.4}
@@ -557,7 +561,7 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
    44px の高さのボタンを文中に置くと、その行だけ行間が44pxに広がり、
    時刻と予定の高さが行ごとにバラバラになって読みにくかった。 */
 .tt-go{display:flex;align-items:center;gap:5px;margin-top:5px;min-height:44px;
-  width:fit-content;font-size:11px;font-weight:800;color:var(--accent);
+  width:fit-content;font-size:11px;font-weight:800;color:var(--accent-ink);
   background:var(--surface-2);border:1px solid var(--border);border-radius:999px;
   padding:0 12px;cursor:pointer;text-align:left;
   transition:background var(--t-fast) var(--ease)}
@@ -823,7 +827,7 @@ text.util:not([font-size]){font-size:7.5px}
 .rs-st[data-lv="2"]{color:var(--busy-ink)}
 .rs-st[data-lv="3"],.rs-st[data-lv="-1"]{color:var(--text-mute)}
 .rs-more{width:100%;margin-top:4px;padding:9px;border-radius:10px;border:1px dashed var(--border-strong);
-  background:none;color:var(--accent);font-size:11.5px;font-weight:900;cursor:pointer}
+  background:none;color:var(--accent-ink);font-size:11.5px;font-weight:900;cursor:pointer}
 .route-badge circle{fill:var(--accent);stroke:var(--surface);stroke-width:2}
 .route-badge text{font-size:9px;font-weight:900;fill:var(--on-accent)}
 /* 番号の輪は科の色。部屋の塗りが混雑度で埋まるぶん、
@@ -1005,7 +1009,7 @@ text.util:not([font-size]){font-size:7.5px}
 .redeem-row .field{flex:1 1 auto;min-width:0;text-align:center;font-size:23px;font-weight:900;
   letter-spacing:.18em;font-variant-numeric:tabular-nums;min-height:52px}
 .redeem-row .btn{flex:0 0 auto;width:auto;padding:0 18px;min-height:52px}
-.redeem-err{margin-top:8px;font-size:12px;font-weight:800;color:var(--busy-ink)}
+.redeem-err,.sid-err{margin-top:8px;font-size:12px;font-weight:800;color:var(--busy-ink)}
 .redeem-pad .btn.ghost{margin-top:8px;width:100%}
 .redeem-log{margin-top:10px;padding:9px 11px;border-radius:var(--r-sm);
   background:var(--busy-soft);color:var(--busy-ink);font-size:12px;font-weight:800;line-height:1.6}
@@ -1055,21 +1059,58 @@ text.util:not([font-size]){font-size:7.5px}
 .handoff summary{cursor:pointer;font-size:13px;font-weight:900;color:var(--text-dim);min-height:32px;
   display:flex;align-items:center}
 .handoff-qr{display:grid;place-items:center;margin:10px 0}
+.diag summary{cursor:pointer;font-size:12.5px;font-weight:800;color:var(--text-dim);min-height:44px;display:flex;align-items:center}
+.diag-out{margin-top:6px;font-size:11.5px;line-height:1.55}
+.diag-row{display:grid;grid-template-columns:1.4em 8.5em 1fr;gap:4px;padding:5px 0;border-bottom:1px dashed var(--border)}
+.diag-row b{font-weight:800;color:var(--text-dim)}
+.diag-row span{overflow-wrap:anywhere;font-weight:700}
+.diag-row[data-st="ng"] i{color:var(--busy-ink)} .diag-row[data-st="ok"] i{color:var(--free)} .diag-row[data-st="warn"] i{color:var(--warn)}
+.diag-row i{font-style:normal;font-weight:900}
+.diag-acts{display:flex;gap:8px;margin-top:10px}
+.diag-acts .btn{flex:1;min-height:44px}
+/* お知らせに長いURLが入っても横にはみ出さない */
+#banner-notice-text{min-width:0;overflow-wrap:anywhere;word-break:break-word}
+#banner-notice-text a{color:inherit;text-decoration:underline;font-weight:900}
+.sid-card{padding-top:12px;padding-bottom:12px}
+.sid-row{display:flex;align-items:center;gap:10px}
+.sid-main{display:flex;flex-direction:column;min-width:0;flex:1 1 auto}
+.sid-cap{font-size:11px;font-weight:800;color:var(--text-mute)}
+.sid-no{white-space:nowrap;font:900 22px/1.15 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.08em;color:var(--text)}
+.sid-row .btn.sid-copy{flex:0 0 auto;margin:0 0 0 auto;width:auto;min-height:44px;padding:6px 16px;font-size:12.5px}
+.sid-sync{margin:8px 0 0;font-size:12px;font-weight:800;line-height:1.5;display:flex;align-items:center;gap:6px}
+.sid-sync::before{content:"";flex:0 0 auto;width:8px;height:8px;border-radius:50%;background:var(--text-mute)}
+.sid-sync[data-st="ok"]{color:var(--free)} .sid-sync[data-st="ok"]::before{background:var(--free)}
+.sid-sync[data-st="wait"]{color:var(--warn)} .sid-sync[data-st="wait"]::before{background:var(--warn)}
+.sid-sync[data-st="sending"]::before{background:var(--accent,#2563eb);animation:sidpulse 1s ease-in-out infinite}
+.sid-sync[data-st="none"]{color:var(--text-mute)}
+@keyframes sidpulse{50%{opacity:.25}}
+@media (prefers-reduced-motion: reduce){.sid-sync[data-st="sending"]::before{animation:none}}
+.sid-env{margin:8px 0 0;padding:8px 10px;border-radius:10px;background:rgba(180,83,9,.1);background:color-mix(in srgb,var(--warn) 12%,transparent);
+  color:var(--text);font-size:11.5px;font-weight:700;line-height:1.65}
+.sid-join{margin-top:10px;border-top:1px dashed var(--line,#d6dbe4);padding-top:8px}
+.sid-join summary{cursor:pointer;font-size:12.5px;font-weight:800;color:var(--text-dim);min-height:44px;display:flex;align-items:center}
+.sid-join .small-note{font-size:11.5px;line-height:1.7;margin:6px 0 8px;color:var(--text-dim)}
+.sid-join .redeem-row input{text-transform:uppercase;letter-spacing:.12em;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.sfx-link{background:none;border:0;padding:6px 4px;margin-top:4px;font:inherit;font-size:12px;font-weight:800;color:var(--text-dim);text-decoration:underline;cursor:pointer}
 .handoff-qr svg{width:180px;height:180px}
 .stamp .mk.art{width:46px;height:46px;border:none;background:none;border-radius:0}
 .stamp .mk.art::after{display:none}
 .stamp .mk.art .stamp-art{width:46px;height:46px;transform:rotate(var(--tilt))}
 
 /* ========================= スタンプ獲得の演出 ========================= */
-.sfx{position:fixed;inset:0;z-index:120;display:grid;place-items:center;padding:18px;
-     background:color-mix(in srgb,#000 52%,transparent);animation:sfx-bg .22s ease both}
+.sfx{position:fixed;inset:0;z-index:120;display:grid;place-items:center;place-items:safe center;padding:18px;
+     overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+     background:rgba(0,0,0,.52);background:color-mix(in srgb,#000 52%,transparent);animation:sfx-bg .22s ease both}
+/* 演出を出している間は後ろのページを動かさない（小さい画面で下を読もうとして、後ろが流れていた） */
+html.sfx-open,html.sfx-open body{overflow:hidden}
+
 .sfx.out{animation:sfx-bg .2s ease reverse both}
 @keyframes sfx-bg{from{opacity:0}to{opacity:1}}
 .sfx-card{width:min(360px,100%);background:var(--surface);color:var(--text);border-radius:22px;
           padding:20px 18px 16px;text-align:center;box-shadow:0 24px 60px -20px rgba(0,0,0,.55);
           animation:sfx-card .32s cubic-bezier(.2,1.3,.4,1) both}
 @keyframes sfx-card{from{transform:translateY(24px) scale(.94);opacity:0}to{transform:none;opacity:1}}
-.sfx-kicker{font-size:13px;font-weight:900;letter-spacing:.12em;color:var(--accent)}
+.sfx-kicker{font-size:13px;font-weight:900;letter-spacing:.12em;color:var(--busy-ink)}
 .sfx.dup .sfx-kicker{color:var(--text-mute)}
 .sfx-stamp{position:relative;width:min(230px,62vw);aspect-ratio:1;margin:8px auto 4px}
 .sfx-stamp .stamp-art{width:100%;height:100%;transform:rotate(var(--tilt))}
@@ -1081,7 +1122,7 @@ text.util:not([font-size]){font-size:7.5px}
 .sfx.fresh .sfx-card{animation:sfx-card .32s cubic-bezier(.2,1.3,.4,1) both, sfx-shake .28s .3s ease both}
 @keyframes sfx-shake{25%{transform:translate(-3px,2px)}50%{transform:translate(3px,-1px)}75%{transform:translate(-1px,1px)}}
 .sfx-ink{position:absolute;inset:8%;border-radius:50%;border:3px solid currentColor;opacity:0;pointer-events:none}
-.sfx.fresh .sfx-stamp.slam .sfx-ink{color:var(--accent);animation:sfx-ink .7s .28s ease-out both}
+.sfx.fresh .sfx-stamp.slam .sfx-ink{color:var(--accent-ink);animation:sfx-ink .7s .28s ease-out both}
 @keyframes sfx-ink{0%{transform:scale(.8);opacity:.55}100%{transform:scale(1.35);opacity:0}}
 .sfx.dup .stamp-art{filter:saturate(.6);opacity:.85}
 .stamp-art.shiny{filter:drop-shadow(0 0 6px rgba(245,215,110,.8))}
@@ -1094,7 +1135,20 @@ text.util:not([font-size]){font-size:7.5px}
 .sfx-acts{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 .sfx-acts .btn{width:100%;min-height:48px}
 .sfx-note{margin-top:10px;font-size:10.5px;font-weight:700;color:var(--text-mute);line-height:1.5}
-[data-fs="xl"] .sfx-goal,[data-fs="xl"] .sfx-note{font-size:14px}
+/* 背の低い画面（iPhone SE・LINEの中）では判子を小さくし、下の案内まで1画面に収める */
+@media (max-height:700px){
+  .sfx{padding:10px}
+  .sfx-card{padding:14px 14px 12px}
+  .sfx-stamp{width:min(170px,46vw);margin:4px auto 2px}
+  .sfx-acts{margin-top:10px;gap:6px}
+  .sfx-acts .btn{min-height:44px}
+}
+@media (max-height:600px){
+  .sfx-stamp{width:min(130px,40vw)}
+  .sfx-count b{font-size:22px}
+  .sfx-goal{margin-top:6px}
+  .sfx-note{margin-top:6px}
+}[data-fs="xl"] .sfx-goal,[data-fs="xl"] .sfx-note{font-size:14px}
 @media (prefers-reduced-motion:reduce){ .sfx,.sfx-card,.sfx-stamp .stamp-art,.sfx-ink{animation:none !important} }
 .stamp.got.used .mk{color:var(--busy-ink);border-color:var(--busy-ink)}
 .stamp.got.used .mk::after{border-color:color-mix(in srgb,var(--busy) 55%,transparent)}
@@ -1129,7 +1183,7 @@ text.util:not([font-size]){font-size:7.5px}
 .rank-chip.top{background:var(--free);border-color:var(--free);color:var(--on-status)}
 .cert{text-align:center;border:2px solid var(--accent);background:
       linear-gradient(180deg,color-mix(in srgb,var(--accent) 8%,var(--surface)),var(--surface))}
-.cert-badge{font-size:44px;line-height:1;color:var(--accent)}
+.cert-badge{font-size:44px;line-height:1;color:var(--accent-ink)}
 .cert-badge .mk-svg{width:44px;height:44px;vertical-align:0}
 .cert h3{font-size:17px;font-weight:900;margin-top:4px;letter-spacing:.06em}
 .cert p{font-size:11.5px;color:var(--text-dim);font-weight:700;margin-top:4px}
@@ -1150,7 +1204,7 @@ text.util:not([font-size]){font-size:7.5px}
 .tt th,.tt td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--border);
    vertical-align:top;line-height:1.45}
 .tt th{font-size:10px;color:var(--text-mute);font-weight:800;letter-spacing:.05em}
-.tt td:first-child{font-weight:800;white-space:nowrap;color:var(--accent)}
+.tt td:first-child{font-weight:800;white-space:nowrap;color:var(--accent-ink)}
 .help{display:flex;gap:11px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--border);font-size:12px}
 /* アイコンは小さな板に乗せる。字より前に「印」として認識させたい */
 .help-ic{display:grid;place-items:center;width:32px;height:32px;flex:none;border-radius:10px;
@@ -1256,7 +1310,7 @@ text.util:not([font-size]){font-size:7.5px}
 .nav button em{font-style:normal;font-size:19px;line-height:1}
 .nav button{transition:color var(--t) var(--ease)}
 .nav button em{transition:transform var(--t) var(--ease-out-back)}
-.nav button[aria-pressed="true"]{color:var(--accent)}
+.nav button[aria-pressed="true"]{color:var(--accent-ink)}
 .nav button[aria-pressed="true"] em{transform:translateY(-2px) scale(1.14)}
 .nav button::after{content:"";position:absolute;top:0;left:50%;width:0;height:3px;border-radius:0 0 3px 3px;
                    background:var(--accent);transform:translateX(-50%);
@@ -1304,7 +1358,7 @@ body.wide-mode .app{max-width:1100px}
 /* 係員の作業はPCですることが多い（ブースの割り当て・一括更新）。
    スマホ幅のままだと大きな画面の4割しか使えず、行き来が増える。 */
 @media (min-width:900px){
-  body.staff-wide .app{max-width:1000px}
+  body.staff-wide:not(.board-mode):not(.wide-mode) .app{max-width:1000px}
   body.staff-wide .adm-btns{grid-template-columns:repeat(3,minmax(0,1fr))}
   /* 割り当て中は地図を主役にする。PCでは指より正確に押せるので大きいほど良い */
   /* 列方向の flex では margin:auto を付けると stretch が外れて内容幅まで縮む。
@@ -1388,6 +1442,8 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 .bt-big b{font-size:clamp(26px,3.2vw,48px);font-weight:900;line-height:1;
           font-variant-numeric:tabular-nums}
 .bt-big b.tx{font-size:clamp(16px,1.7vw,26px)}
+/* 「情報なし」など文字の状態は、30枚表示（d3）の大きな数字の指定に負けて折り返し、枠からはみ出していた */
+.board-grid .bt-big b.tx{font-size:clamp(14px,1.2vw,22px);white-space:nowrap}
 .bt-big i{font-style:normal;font-size:clamp(10px,1vw,14px);font-weight:800;color:var(--text-dim)}
 .btile[data-lv="0"] .bt-big b{color:var(--free)}
 .btile[data-lv="1"] .bt-big b{color:var(--warn)}
@@ -1408,7 +1464,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 .btile[data-fresh="danger"]{border-color:var(--busy)}
 .btile[data-fresh="danger"] .bt-age{color:var(--busy-ink)}
 .board-foot{border-top:1px solid var(--border);padding-top:10px;
-            font-size:clamp(12px,1.2vw,17px);font-weight:800;color:var(--accent)}
+            font-size:clamp(12px,1.2vw,17px);font-weight:800;color:var(--accent-ink)}
 
 /* ========================= 当日のチェックリスト ========================= */
 .chk-card{padding:0}
@@ -1419,7 +1475,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 .chk-card[open] .chk-sum::after{transform:rotate(180deg)}
 .chk-card #chk-body{padding:0 12px}
 .chk-card .adm-hint{padding:0 12px 12px}
-.chk-sec{font-size:10.5px;font-weight:900;color:var(--accent);margin:10px 0 4px;letter-spacing:.06em}
+.chk-sec{font-size:10.5px;font-weight:900;color:var(--accent-ink);margin:10px 0 4px;letter-spacing:.06em}
 .chk-row{display:flex;gap:9px;align-items:flex-start;padding:9px 0;
          border-bottom:1px dashed var(--border);font-size:12px;font-weight:700;line-height:1.5}
 .chk-row:last-child{border-bottom:none}
@@ -1434,7 +1490,9 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 #assign-chips.picked{align-items:center;gap:8px}
 .as-now{font-size:12px;font-weight:800;color:var(--text-dim);min-width:0;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
-.as-now b{color:var(--text);font-weight:900}
+.as-now b{color:var(--text);font-weight:900;overflow-wrap:anywhere}
+/* 担当えらびのチップは長いブース名で折り返す（1行のままだと画面が横に流れていた） */
+.chip.as-chip{white-space:normal;max-width:100%;overflow-wrap:anywhere;text-align:left;line-height:1.35;padding-top:6px;padding-bottom:6px}
 .as-chip{display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;line-height:1.25}
 /* opacity で薄くすると白背景でコントラストが 3.1 まで落ちる。
    9px の小さい文字なので、薄くせず色で差をつける */
@@ -1559,7 +1617,7 @@ html.sheet-open{overflow:hidden}
 .sheet h2{font-size:12px;font-weight:900;margin-bottom:5px;color:#b91c1c}
 .sheet-plan{width:100%;height:auto;border:1px solid #ddd;border-radius:8px;background:#fff}
 .sheet-table{width:100%;border-collapse:collapse;font-size:10px}
-.sheet-table td{border-bottom:1px solid #e5e5e5;padding:4px 5px;vertical-align:top}
+.sheet-table td{border-bottom:1px solid #e5e5e5;padding:4px 5px;vertical-align:top;overflow-wrap:anywhere}
 .sheet-table td:nth-child(3),.sheet-table td:nth-child(4){white-space:nowrap}
 /* セルごと丸めると行の高さに引きずられて楕円になる。中身を丸にする */
 .sheet-table td.no{width:22px;text-align:center;padding:2px 0}
@@ -1601,6 +1659,8 @@ html.sheet-open{overflow:hidden}
 .hm-cells i[data-lv="1"]{background:var(--warn-fill)}
 .hm-cells i[data-lv="2"]{background:var(--busy-fill)}
 .hm-cells i[data-lv="x"]{background:var(--surface-3)}
+/* 印刷の既定（背景を刷らない）でも、ブースごとの推移と凡例の色が消えないように */
+@media print{ .hm-cells i,.legend i,.sw{-webkit-print-color-adjust:exact;print-color-adjust:exact} }
 .hm-max{width:34px;flex:none;text-align:right;font-size:9.5px;font-weight:800;color:var(--text-mute)}
 
 .staff-card{background:#fff;color:#000;border:2px solid #b91c1c;border-radius:var(--r);
@@ -1949,6 +2009,31 @@ html.sheet-open{overflow:hidden}
         <div class="progress"><i id="stamp-bar" style="width:0%"></i></div>
       </div>
 
+      <!-- スタンプ番号：サーバーの台帳の鍵。別のアプリ・別の端末で開いても、この番号で同じ記録につながる -->
+      <div class="card sid-card" id="sid-card">
+        <div class="sid-row">
+          <div class="sid-main">
+            <span class="sid-cap">あなたのスタンプ番号</span>
+            <b class="sid-no" id="sid-no">----</b>
+          </div>
+          <button class="btn ghost sid-copy" id="sid-copy" type="button">コピー</button>
+        </div>
+        <p class="sid-sync" id="sid-sync" data-st="none" role="status" aria-live="polite"></p>
+        <p class="sid-env hide" id="sid-env"></p>
+        <details class="sid-join" id="sid-join-box">
+          <summary>別のアプリで集めたスタンプとつなぐ</summary>
+          <p class="small-note">LINE・Safari・Chrome・ホーム画面のアイコンは、同じスマホでも保存場所が別々です。
+            先に集めていた画面に出ている<b>スタンプ番号</b>を入れると、両方のスタンプが1つにまとまります（どちらも消えません）。
+            プライベートブラウズ（シークレット）では、QRを読むたびに別の保存場所になります。通常のタブで開いてください。</p>
+          <div class="redeem-row">
+            <input id="sid-in" class="field" type="text" autocomplete="off" autocapitalize="characters"
+                   spellcheck="false" maxlength="300" placeholder="XXXX-XXXX" aria-label="スタンプ番号">
+            <button class="btn" id="sid-join" type="button">つなぐ</button>
+          </div>
+          <p class="sid-err hide" id="sid-err" role="alert"></p>
+        </details>
+      </div>
+
       <div class="card">
         <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9z"/><path d="M3 5h18v4H3z"/><path d="M12 5v16"/><path d="M12 5S10.5 2 8.6 2.6 7.4 5.6 9 5.6zM12 5s1.5-3 3.4-2.4S16.6 5.6 15 5.6z"/></svg> お菓子と交換</div>
         <p class="redeem-msg" id="redeem-msg"></p>
@@ -1980,11 +2065,11 @@ html.sheet-open{overflow:hidden}
       <details class="card handoff hide" id="stamp-handoff">
         <summary>別のスマホ・ブラウザに引き継ぐ</summary>
         <p class="small-note" style="margin-top:8px;line-height:1.7">
-          スタンプはこのブラウザに保存されています。別のスマホや別のブラウザで続けるときは、
-          そちらのカメラでこのQRを読むか、下のリンクを開いてください。スタンプと交換の記録が移ります。</p>
+          別のスマホで続けるときは、そちらのカメラでこのQRを読んでください。
+          同じスマホの別のアプリなら、上の「スタンプ番号」を入れるだけでつながります。</p>
         <div id="handoff-qr" class="handoff-qr"></div>
         <button class="btn ghost" id="handoff-copy">引き継ぎ用リンクをコピー</button>
-        <p class="small-note" style="margin-top:6px;color:var(--busy-ink)">このリンクを知っている人はあなたのスタンプを使えます。人に送らないでください。</p>
+        <p class="small-note" style="margin-top:6px;color:var(--busy-ink)">番号やリンクを知っている人はあなたのスタンプを使えます。人に教えないでください。</p>
       </details>
       <button class="btn ghost hide" id="stamp-reset">記録をリセット（係員の試し用）</button>
     </section>
@@ -2029,6 +2114,16 @@ html.sheet-open{overflow:hidden}
           「約◯分」は待っている人数から計算した目安です。列の進み方によって実際とずれます。
         </p>
       </div>
+
+      <!-- 動作チェック：スタンプが残らない・更新されない等の相談を受けたとき、その場の端末で原因を切り分ける -->
+      <details class="card diag" id="diag-box">
+        <summary>動作チェック（困ったときに係の人へ見せてください）</summary>
+        <div id="diag-out" class="diag-out" aria-live="polite"></div>
+        <div class="diag-acts">
+          <button class="btn ghost" id="diag-run" type="button">もう一度しらべる</button>
+          <button class="btn ghost" id="diag-copy" type="button">結果をコピー</button>
+        </div>
+      </details>
     </section>
 
     <!-- ============ 管理者 ============ -->
@@ -2321,7 +2416,9 @@ html.sheet-open{overflow:hidden}
    CONFIG — 運用時に触るのはここだけ
    ===================================================================== */
 const CONFIG = {
-  BUILD: '2026-09-25c',    // ファイルを更新したらここも変える。画面下部に表示され、
+  // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
+  GAS_MIN: '2026-09-28a',
+  BUILD: '2026-09-28b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -2919,6 +3016,8 @@ const S = {
   afterLogin: '',          // ?mode=qr で来てログインした後に戻る画面
   draftWait: {},        // 送信前の待ち人数（自動同期で消さないため）
   draftAt: {},          // その下書きに最後に触った時刻（送信し忘れの検知に使う）
+  unsentGone: {},       // この画面で送った・捨てた未送信の控え（id → at）。別の画面が書き戻さないように
+  recent: {},           // 送信済みの更新（少し前の控えで元に戻って見えないように）{ id: {status, wait, prevTime, at, exp} }
   unsent: {},           // 送れなかった更新 { id: {status, wait, at} }。電波が戻ると自動で再送
   activeAt: 0,          // 最後に人が触った時刻（見ている人だけ速く取りに行く）
   lastRtt: 0,           // 直近の取得にかかった時間（サーバーの混み具合の目安）
@@ -2964,6 +3063,12 @@ function toast(msg, action, dur){
  * https / http / data:image と、同じサイト内の相対パスだけを通し、
  * javascript: や file: などは空にする。
  */
+/**
+ * ブースidの並べ方（1F-2 < 1F-10）。localeCompare に言語と数値の指定を毎回渡すと、
+ * 比較のたびに照合の準備をやり直すため150件の並べ替えだけで安い端末では数十msかかる。1つを使い回す
+ */
+const ID_COLL = (typeof Intl !== 'undefined' && Intl.Collator) ? new Intl.Collator('ja', { numeric:true }) : null;
+function idCmp(a, b){ return ID_COLL ? ID_COLL.compare(a, b) : String(a).localeCompare(String(b)); }
 function safeImg(u){
   const v = String(u == null ? '' : u).trim();
   if (!v) return '';
@@ -2999,8 +3104,9 @@ function load(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.par
 async function api(opts){
   const ctl = new AbortController();
   const isPost = !!(opts && opts.body);
-  const to = setTimeout(() => ctl.abort(),
-    isPost ? (CONFIG.TIMEOUT_POST_MS || CONFIG.TIMEOUT_MS) : CONFIG.TIMEOUT_MS);
+  // 呼び出し側が timeout を指定したらそれを使う（交換の確認など、長く待たせたくない通信がある）
+  const to = setTimeout(() => ctl.abort(), (opts && opts.timeout > 0) ? opts.timeout
+    : isPost ? (CONFIG.TIMEOUT_POST_MS || CONFIG.TIMEOUT_MS) : CONFIG.TIMEOUT_MS);
   try{
     const init = { signal: ctl.signal, mode:'cors', redirect:'follow' };
     let url = CONFIG.GAS_URL;
@@ -3072,7 +3178,7 @@ function normalize(raw){
     note: String(b.note || '').trim(),
     image: safeImg(b.image),               // javascript: などは取り込む時点で捨てる
     history: Array.isArray(b.history) ? b.history.slice(-12) : []
-  })).sort((a, x) => a.id.localeCompare(x.id, 'ja', { numeric:true }));
+  })).sort((a, x) => idCmp(a.id, x.id));
 }
 
 async function sync(manual){
@@ -3092,6 +3198,9 @@ async function sync(manual){
     // 取り込むと押したボタンが20秒ほど元に戻って見えるので捨てて、すぐ取り直す
     if ((update._gen || 0) !== gen || update._busy){ sync._again = true; return; }
     const booths = normalize(raw);
+    applyRecent(booths);
+    const pruned = pruneUnsent(booths);
+    pruned.filter(x => !x.mine).forEach(x => toast(`「${x.name}」は別の係員があとから更新していたので、送らずに最新（${lvOf(x.status).short}）を表示しました`, null, 6000));
     applyUnsent(booths);
     // 0件は「まだ登録されていない」だけで障害ではない。
     // ここで例外にすると5分バックオフに入り、先生がブースを足しても反映されなくなる。
@@ -3107,6 +3216,9 @@ async function sync(manual){
       S.waitTh = { warn:+th.warn, busy:+th.busy };
     }
     S.updatedAt = (raw && raw.updatedAt) || new Date().toISOString();
+    if (raw && isFinite(+raw.staleMinutes) && +raw.staleMinutes > 0) S.staleMin = +raw.staleMinutes;
+    const sv = (raw && typeof raw.serverVersion === 'string') ? raw.serverVersion : '';
+    if (S.serverVersion !== sv){ S.serverVersion = sv; if (S.isAdmin){ checkServer._done = false; checkServer(); } }
     S.fetchedAt = Date.now();
     S.online = true; S.failures = 0;
     // 往復にかかった時間を覚えておく（重いときは間隔を詰めない）。
@@ -3121,7 +3233,18 @@ async function sync(manual){
       sync._cacheFp = cacheFp; sync._cacheAt = Date.now();
       store('kuroko_cache_v2', { booths, notice: S.notice, updatedAt: S.updatedAt, fetchedAt: S.fetchedAt });
     }
-    renderAll();
+    // 中身が前回と同じなら、画面全体は作り直さない（ほとんどの自動更新はこれ）。
+    // 安い端末では作り直し1回で0.5秒前後固まり、スクロール中に引っかかっていた。
+    // 時刻で変わる表示（まもなく／開催中・◯分前）のため、1分に1回は作り直す
+    const renderFp = JSON.stringify([booths, S.notice, S.visitors, S.waitTh]);
+    if (!manual && sync._renderFp === renderFp && Date.now() - (sync._renderAt || 0) < 60000){
+      renderSyncState(); tickAgo();
+      if (S.isAdmin) renderAdmin();
+      if (S.view === 'board') renderBoard();
+    } else {
+      sync._renderFp = renderFp; sync._renderAt = Date.now();
+      renderAll();
+    }
     // 印刷ページは開いたときに1回組み立てるだけだった。最初の同期が
     // 遅れたり失敗したりすると、ブースの載っていない紙マップ・
     // QRの無いQRシートが出たまま二度と直らない（そのまま刷られる）。
@@ -3135,12 +3258,18 @@ async function sync(manual){
     if (S.pendingLink && S.pendingLink()) S.pendingLink = null;
     if (manual) toast('最新の状況に更新しました');
     if (S.isAdmin){ flushUnsent(); flushVisitors(); }     // つながった＝送れなかった分を送る好機
-    flushLedger();                                       // スタンプの控えも、たまっていれば送る
+    // スタンプの控えも、たまっていれば送る。前回の失敗が電波のせいなら、つながった今すぐ送る
+    // （サーバーの混雑・旧版が理由なら、間隔を空けたまま）
+    if (flushLedger._net) flushLedger._nextAt = 0;
+    flushLedger();
+    if (S.view === 'stamp' && !document.hidden) pullLedger(90000);   // スタンプ画面を開きっぱなしでも追いつく
   }catch(err){
     S.online = false; S.failures++;
     // 通信断とサーバー側の異常を区別する（対処が違うため）
     const msg = String(err && err.message || err);
-    S.errKind = /Failed to fetch|NetworkError|aborted|The user aborted|timeout/i.test(msg) ? 'net'
+    // HTTP 5xx はサーバー側の不調（電波ではない）。「電波の良い場所へ」と案内しない
+    S.errKind = /Failed to fetch|NetworkError|Load failed|aborted|The user aborted|timeout/i.test(msg) ? 'net'
+              : /^HTTP 5\d\d/.test(msg) ? 'server'
               : /^HTTP/.test(msg) ? 'net' : 'server';
     console.warn('[sync]', S.errKind, msg);
     // JSONの代わりにHTML（Googleのログイン画面など）が返った＝デプロイの公開範囲の設定ミス。
@@ -3206,6 +3335,34 @@ document.addEventListener('visibilitychange', () => {
 /* =====================================================================
    同期ステータス表示
    ===================================================================== */
+/** 画面に出ている「◯分前」を、作り直さずにその場で進める（data-ago に時刻を持たせてある） */
+/**
+ * 最後に取れた情報が古くなったら「情報なし」にする（サーバーと同じ規則：更新から staleMinutes 分）。
+ * 圏外で開いた・通信できないまま使い続けると、3時間前の「空いています」を今の状況として
+ * すすめていた。時刻の差はサーバーの時計どうし（updatedAt − time）と、この端末の時計どうし
+ * （今 − 取得した時刻）で測る（端末の時計がずれていても狂わない）。
+ * @returns {boolean} 変わったか
+ */
+function ageStale(){
+  const lim = (S.staleMin || 45) * 60000;
+  const up = Date.parse(S.updatedAt), got = Number(S.fetchedAt) || 0;
+  if (!isFinite(up) || !got) return false;
+  let ch = false;
+  for (const b of S.booths){
+    if (b.stale || !b.time || !b.status) continue;
+    const t = Date.parse(b.time);
+    if (!isFinite(t)) continue;
+    if ((up - t) + (Date.now() - got) > lim){ b.stale = true; b.status = ''; b.wait = null; ch = true; }
+  }
+  return ch;
+}
+function tickAgo(){
+  if (ageStale()){ try{ renderAll(); }catch(e){} }
+  if (document.hidden) return;
+  $$('[data-ago]').forEach(el => { const t = ago(el.dataset.ago); if (el.textContent !== t) el.textContent = t; });
+}
+setInterval(tickAgo, 30000);
+document.addEventListener('visibilitychange', tickAgo);
 function ago(ts){
   const t = ts ? new Date(ts).getTime() : NaN;
   // 「未取得」は係員向けの言い方で、来場者には何のことか分からない
@@ -3293,10 +3450,17 @@ setInterval(() => {
  * 「入らないなら描かない」を徹底しないと、字が重なって地図全体が読めなくなる。
  */
 function mapScale(){
-  const view = document.getElementById('map-view');
-  const w = view ? view.clientWidth : 366;
-  return (w / 400) * (ZOOM.k || 1);
+  // 幅の読み取りはレイアウトの計算を強制する（同期のたびに数十〜数百ms）。覚えておき、
+  // 画面の大きさ・画面の切り替えで変わったときだけ測り直す
+  let w = mapScale._w;
+  if (!w){
+    const view = document.getElementById('map-view');
+    w = view ? view.clientWidth : 0;
+    if (w) mapScale._w = w;             // 隠れている（0）ときは覚えない
+  }
+  return ((w || 366) / 400) * (ZOOM.k || 1);
 }
+window.addEventListener('resize', () => { mapScale._w = 0; });
 /**
  * 部屋の名前に使ってよい、図面の単位での最小の字。
  * 画面の上で約8pxを保てる大きさにする。拡大するほど小さい値になり、
@@ -3361,6 +3525,8 @@ function hopLabel(f, za, zb){
   return '';
 }
 
+/** 棟の名札・「外に出る」札の字を、画面の上で約8.5pxに保つための倍率（6.6単位×0.915px×1.4） */
+const TAG_UP = 1.4;
 /** 「ここから外に出る」道の札。屋内の通路と取り違えると外に出られず迷う。 */
 function outLabel(st){
   // 札は1本の道につき1つだけ（データ側で label を付けた区間のみ）。
@@ -3371,7 +3537,7 @@ function outLabel(st){
   const t = st.label || '外に出る';
   // 「いったん外に出る」は道案内の要。等倍で 4.6px しかなく読めなかったので大きくする。
   // 拡大したときは倍率で割って、画面上の大きさを一定に保つ（棟の名札と同じ扱い）。
-  const zk = Math.max(1, Math.min(5, mapScale() / (366 / 400)));
+  const zk = Math.max(1, Math.min(5, mapScale() / (366 / 400))) / TAG_UP;
   const fs = 6.6 / zk, bh = 11.4 / zk;
   const w = (t.length * 7.0 + 7) / zk;
   // 縦の道は幅が8しかない。札を道の上に載せると文字が潰れるので、
@@ -3452,6 +3618,10 @@ function isEntrance(nm){ return /昇降口|玄関/.test(String(nm || '')); }
 function renderDeptLegend(floorNum){
   const box = $('#dept-legend');
   if (!box) return;
+  // 凡例は階と絞り込みだけで決まる。同じなら作り直さない（同期のたびの作り直しでレイアウトが走っていた）
+  const lk = floorNum + '|' + S.dept;
+  if (renderDeptLegend._k === lk && box.firstChild) return;
+  renderDeptLegend._k = lk;
   setTimeout(() => markScrollEdges(box), 0);
   const plan = FLOOR_PLAN[floorNum];
   const seen = [];
@@ -3507,9 +3677,21 @@ function defs(){ return ''; }
  *   拡大しているときは、同じ 1 単位が画面では何倍にもなるので、
  *   ここを小さくすれば「拡大したぶんだけ文字が増える」ようにできる。
  */
+/** 文字列を「見た目の1文字」ごとに分ける。絵文字（👨‍👩‍👧 など）を途中で切って文字化けさせない */
+function graphemes(str){
+  const s = String(str || '');
+  try{
+    if (typeof Intl !== 'undefined' && Intl.Segmenter){
+      const seg = graphemes._seg || (graphemes._seg = new Intl.Segmenter('ja', { granularity:'grapheme' }));
+      return Array.from(seg.segment(s), x => x.segment);
+    }
+  }catch(e){}
+  return Array.from(s);             // 古い端末：サロゲートペアだけは守る
+}
 function fitText(text, w, h, maxSize, minSize){
-  const t = String(text || '');
-  if (!t) return { lines:[], size:0, rot:false };
+  const g = graphemes(text);
+  const t = { length: g.length };   // 以下の長さの計算は見た目の文字数で行う
+  if (!g.length) return { lines:[], size:0, rot:false };
   // 2.2px まで縮めていたが、その大きさは誰にも読めない。
   // 読める下限を決めて、入りきらない名前は「…」で切る方が実用的。
   const MAX = maxSize || 5.4, MIN = minSize || 3.4;
@@ -3533,11 +3715,11 @@ function fitText(text, w, h, maxSize, minSize){
   const per = Math.max(1, Math.floor(bw / size));
   const rows = Math.max(1, Math.min(4, Math.floor(bh / (size * 1.18))));
   const cap = per * rows;
-  const body = t.length > cap ? t.slice(0, Math.max(1, cap - 1)) + '…' : t;
+  const body = g.length > cap ? g.slice(0, Math.max(1, cap - 1)).concat('…') : g;
   const nL = Math.min(rows, Math.ceil(body.length / per));
   const lines = [];
   for (let i = 0; i < nL; i++){
-    const seg = body.slice(i * per, (i + 1) * per);
+    const seg = body.slice(i * per, (i + 1) * per).join('');
     if (seg) lines.push(seg);
   }
   return { lines, size:Math.round(size * 10) / 10, rot };
@@ -3778,24 +3960,41 @@ function planViewBox(floorNum, tagRects){
 const SOON_MIN = 20;       // 何分前から「まもなく」と出すか
 const RUN_MIN  = 30;       // 開始後どれくらい「開催中」と見なすか
 function noteTimes(note){
+  return noteEvents(note).map(e => e.s);
+}
+/**
+ * メモの時刻を「始まり（と終わり）」の組にする。
+ * 「11:00〜11:30 体験会」を 11:00 と 11:30 の2つの開始と読むと、11:31〜11:59 に
+ * 終わったはずの体験会を「開催中」と出していた。〜・~・-・－・から でつながった2つは範囲として読む。
+ */
+function noteEvents(note){
+  const t = String(note || '');
   const out = [];
-  String(note || '').replace(/(\d{1,2})[:：](\d{2})/g, (_, h, m) => {
-    const v = Number(h) * 60 + Number(m);
-    if (v >= 0 && v < 24 * 60) out.push(v);
-    return _;
-  });
+  const re = /(\d{1,2})[:：](\d{2})(?:\s*(?:〜|～|~|-|－|ー|から)\s*(\d{1,2})[:：](\d{2}))?/g;
+  let m;
+  while ((m = re.exec(t))){
+    const s = Number(m[1]) * 60 + Number(m[2]);
+    if (!(s >= 0 && s < 24 * 60) || Number(m[2]) > 59) continue;
+    let e = null;
+    if (m[3] != null){
+      const v = Number(m[3]) * 60 + Number(m[4]);
+      if (v > s && v <= 24 * 60 && Number(m[4]) <= 59) e = v;
+    }
+    out.push({ s, e });
+  }
   return out;
 }
 function eventState(b){
-  const ts = noteTimes(b && b.note);
-  if (!ts.length) return null;
+  const evs = noteEvents(b && b.note);
+  if (!evs.length) return null;
   const now = new Date();
   const mins = now.getHours() * 60 + now.getMinutes();
   let best = null;
-  ts.forEach(t => {
-    const d = t - mins;
-    if (d >= 0 && d <= SOON_MIN){ if (!best || best.kind !== 'now') best = { kind:'soon', min:d, at:t }; }
-    else if (d < 0 && d >= -RUN_MIN) best = { kind:'now', min:-d, at:t };
+  evs.forEach(ev => {
+    const d = ev.s - mins;
+    const end = ev.e != null ? ev.e : ev.s + RUN_MIN;       // 終わりが書いていなければ、始まってから30分を開催中とみなす
+    if (d <= 0 && mins < end){ best = { kind:'now', min:-d, at:ev.s }; }   // ちょうど開始時刻も「開催中」
+    else if (d > 0 && d <= SOON_MIN){ if (!best || best.kind !== 'now') best = { kind:'soon', min:d, at:ev.s }; }
   });
   return best;
 }
@@ -3805,6 +4004,16 @@ function eventLabel(b){
   return e.kind === 'now' ? '開催中' : (e.min <= 1 ? 'まもなく' : `あと${e.min}分`);
 }
 
+/** 地図の部屋（ブース）を押せるようにする。作り直した部屋・差し替えた部屋のどちらにも使う */
+function bindRoom(g){
+  const id = g.dataset.id;
+  // 狭い部屋には名前が入りきらない。PCではカーソルを乗せれば全文が読める
+  const bb = S.booths.find(x => x.id === id);
+  if (bb) g.setAttribute('title', `${bb.name}（${id}）`);
+  const go = () => S.picking ? pickHere(id) : (S.edit ? openEditor(id) : openSheet(id));
+  g.addEventListener('click', go);
+  g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+}
 function drawFloor(floorNum){
   const plan = FLOOR_PLAN[floorNum];
   const svg = $('#plan-' + floorNum);
@@ -3861,7 +4070,8 @@ function drawFloor(floorNum){
   // 拡大しても名札まで大きくなると、部屋を覆い隠してしまう。
   // 倍率で割って、画面上の見た目の大きさを一定に保つ。
   const BASE = 366 / 400;                       // 縦向きスマホでの 1単位あたりのpx
-  const zk = Math.max(1, Math.min(6, mapScale() / BASE));
+  // 札の字は画面の上で約6pxしかなく、PCでもスマホでも読めなかった。画面上で約8.5pxにする
+  const zk = Math.max(1, Math.min(6, mapScale() / BASE)) / TAG_UP;
   // 名札は最後にまとめて描く（部屋より手前に出さないと下半分が隠れる）。
   // 位置は建物の上に完全に逃がす。建物と重ねると、どちらも読めなくなる。
   let zoneTags = '';
@@ -4036,6 +4246,7 @@ function drawFloor(floorNum){
     routeHops = hops;
   }
 
+  const roomFrags = new Map();          // ブースごとの <g class="room">（変わった部屋だけ差し替えるため）
   placed.forEach(({ b, s }) => {
     const L = lvOf(b);
     const dim = routeIds && !routeIds.includes(b.id) ? ' dimmed' : '';
@@ -4059,6 +4270,13 @@ function drawFloor(floorNum){
     const roomyMark = showNm ? (s.w >= 20 && s.h >= 16) : (s.w >= mkR * 5 && s.h >= mkR * 3.4);
     const markW = (S.stamps.has(b.id) && roomyMark) ? mkR * 2 + 2 : 0;
 
+    // 催し（まもなく／開催中）の札。画面の上で字が約9pxになる大きさ（倍率に合わせて図面の単位で縮める）。
+    // 名前・状態と同じ部屋に入れるときは、いちばん下に札の段を取り、状態の行をその上へずらす
+    const evl = (s.w >= 18) ? eventLabel(b) : '';
+    const efs = Math.max(2.6, Math.min(7, 9 / mapScale()));
+    const eh = efs * 1.5;
+    let evBottom = null;                 // 札の下端（部屋の中に置けるとき）。置けないときは null
+    let evPad = 0;
     if (showNm){
       // 番号バッジは左上に置き、そのぶん名前の場所を右へずらす。
       // 重ねるとどちらも読めなくなる（実際にそうなっていた）。
@@ -4085,7 +4303,14 @@ function drawFloor(floorNum){
       // 名前の高さは「部屋の高さ − 状態の行に要る高さ」から決める。
       // 割合（0.55）で決めていたときは、拡大すると名前と状態が数px重なっていた。
       const nmTop = s.y + 1.5;
-      const stBand = stTxt ? stSize * 1.75 + 1 : 1.5;
+      if (evl && s.h >= eh + 7){
+        // 札と状態の行の両方は入らない狭い部屋では、状態の行を札に譲る（混み具合は部屋の色で分かる）
+        const stNeed = stTxt ? stSize * 1.75 + 1 : 0;
+        if (s.h - stNeed - (eh + 2.6) < 7) stTxt = '';
+        evPad = eh + (stTxt ? 2.6 : 1.2);
+        evBottom = s.y + s.h - 0.8;
+      }
+      const stBand = (stTxt ? stSize * 1.75 + 1 : 1.5) + evPad;
       const nmH = Math.max(7, s.h - 1.5 - stBand);
       // 図面の単位での下限を、いまの倍率から決める。画面の上で約8pxを保つ。
       // ここを 3.4 に固定していたため、いくら拡大しても
@@ -4093,7 +4318,7 @@ function drawFloor(floorNum){
       t += fitTextSvg(b.name, s.x + padL, nmTop, s.w - padL - 2 - markW, nmH, 'nm', 8,
                       0, labelMin());
       if (stTxt){
-        t += `<text x="${cx}" y="${(s.y + s.h - 2.5).toFixed(1)}" text-anchor="middle" class="st"
+        t += `<text x="${cx}" y="${(s.y + s.h - 2.5 - evPad).toFixed(1)}" text-anchor="middle" class="st"
                 font-size="${stSize.toFixed(2)}">${esc(stTxt)}</text>`;
       }
       if (no && !onRoute){
@@ -4120,13 +4345,16 @@ function drawFloor(floorNum){
     // 固定の大きさで描くと、小さい部屋では番号もろとも塗りつぶしてしまう。
     const mk = mkR;                                                       // 印の半径
     const rx = s.x + s.w - mk - 1.5, ry = s.y + mk + 1.5;                 // 右上
-    const evl = eventLabel(b);
-    if (evl && s.w >= 26){
-      const ew = Math.min(34, s.w - 4);
+    if (evl){
+      // 固定の大きさだとPCでは24px近い札になり、自分の「23人待ち」や下の部屋の番号まで覆っていた
+      const ew = Math.min(s.w - 3, [...evl].length * efs * 1.02 + efs * 1.1);
+      // 部屋の中の最下段に置く。狭くて段を取れない部屋だけ、下の壁にまたがせる
+      const inside = evBottom != null;
+      const ry0 = inside ? evBottom - eh : s.y + s.h - eh / 2;
       extra += `<g class="ev-map" data-kind="${eventState(b).kind}">
-        <rect x="${(cx - ew / 2).toFixed(1)}" y="${(s.y + s.h - 5.5).toFixed(1)}"
-              width="${ew.toFixed(1)}" height="11" rx="5.5"/>
-        <text x="${cx}" y="${(s.y + s.h + 1.8).toFixed(1)}" text-anchor="middle">${esc(evl)}</text></g>`;
+        <rect x="${(cx - ew / 2).toFixed(1)}" y="${ry0.toFixed(1)}"
+              width="${ew.toFixed(1)}" height="${eh.toFixed(1)}" rx="${(eh / 2).toFixed(1)}"/>
+        <text x="${cx}" y="${(ry0 + eh * 0.68).toFixed(1)}" text-anchor="middle" style="font-size:${efs.toFixed(2)}px">${esc(evl)}</text></g>`;
     }
     // 訪問済みの印。小さい部屋に無理やり足すと番号と重なって
     // どちらも読めなくなるので、その場合は番号の輪を緑にして表す。
@@ -4160,24 +4388,57 @@ function drawFloor(floorNum){
 
     const dp = deptOf(s);
     const dimD = (S.dept === '__fac' || (S.dept && (!dp || dp.z !== S.dept))) ? ' dimmed' : '';
-    html += `<g class="room${dim}${dimD}${isHere ? ' here' : ''}${isChanged(b.id) ? ' changed' : ''}" data-lv="${L.lv}" data-id="${esc(b.id)}" role="button" tabindex="0"
+    const frag = `<g class="room${dim}${dimD}${isHere ? ' here' : ''}${isChanged(b.id) ? ' changed' : ''}" data-lv="${L.lv}" data-id="${esc(b.id)}" role="button" tabindex="0"
               ${dp ? `style="--dept:${dp.c}"` : ''}
               aria-label="${no ? no + '番 ' : ''}${esc(b.name)} ${esc(L.short)}${isHere ? '（いまここ）' : ''}">
         <rect class="fill" x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="7"/>
         ${dp ? `<rect class="dept-bar on" x="${s.x}" y="${s.y}" width="${Math.min(3.6, s.w / 6)}" height="${s.h}" rx="1.8"/>` : ''}
         ${t}${extra}
       </g>`;
+    html += frag;
+    roomFrags.set(b.id, frag);
   });
 
   // 拡大で引き伸ばされないよう、地図の中ではなく上に重ねて出す
   const emp = $('#map-empty');
   if (emp) emp.classList.toggle('hide', placed.length > 0);
   html += zoneTags;                       // 棟の名札はいちばん手前
-  svg.setAttribute('viewBox', planViewBox(floorNum, tagRects));
+  // 同じ値でも書き込むと図面全体のレイアウトがやり直しになる。変わったときだけ書く
+  const vb = planViewBox(floorNum, tagRects);
+  if (svg.getAttribute('viewBox') !== vb) svg.setAttribute('viewBox', vb);
   svg.classList.toggle('has-booth', placed.length > 0);
   renderDeptLegend(floorNum);
   html += routeHops;
-  svg.innerHTML = html;
+  // 部屋の並び・倍率・コース・現在地などが前回と同じなら、中身が変わった部屋だけ差し替える。
+  // 図面まるごと（1000要素超）を作り直すと、安い端末では1回0.3〜0.4秒のレイアウトになり、
+  // 係員が1件更新しただけでも地図を触っている指の下で全体が組み直されていた
+  const struct = [floorNum, S.route, S.dept, S.spot, hereId(), lod, S.edit, S.picking, zoneTags.length,
+                  placed.map(p => p.b.id + '@' + p.s.id).join(',')].join('|');
+  const prevFr = drawFloor._frags && drawFloor._frags[floorNum];
+  let patched = false;
+  if (prevFr && drawFloor._struct && drawFloor._struct[floorNum] === struct && svg.firstChild){
+    patched = true;
+    const changed = [];
+    roomFrags.forEach((frag, id) => { if (prevFr.get(id) !== frag) changed.push(id); });
+    if (changed.length > roomFrags.size / 2) patched = false;       // 半分以上変わったなら作り直す方が速い
+    else {
+      const holder = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      for (const id of changed){
+        const old = svg.querySelector(`.room[data-id="${CSS.escape(id)}"]`);
+        if (!old){ patched = false; break; }
+        holder.innerHTML = roomFrags.get(id);
+        const ng = holder.firstElementChild;
+        if (!ng){ patched = false; break; }
+        old.replaceWith(ng);
+        bindRoom(ng);
+      }
+    }
+  }
+  if (!patched) svg.innerHTML = html;
+  drawFloor._frags = drawFloor._frags || {};
+  drawFloor._struct = drawFloor._struct || {};
+  drawFloor._frags[floorNum] = roomFrags;
+  drawFloor._struct[floorNum] = struct;
 
   // 図面に置き場所が無いブースを取りこぼさない。
   // （シートにブースを増やしたのに FLOOR_PLAN を更新していないと起きる）
@@ -4190,15 +4451,7 @@ function drawFloor(floorNum){
     $$('button', note).forEach(el => el.addEventListener('click', () => openSheet(el.dataset.id)));
   }
 
-  $$('.room', svg).forEach(g => {
-    const id = g.dataset.id;
-    // 狭い部屋には名前が入りきらない。PCではカーソルを乗せれば全文が読める
-    const bb = S.booths.find(x => x.id === id);
-    if (bb) g.setAttribute('title', `${bb.name}（${id}）`);
-    const go = () => S.picking ? pickHere(id) : (S.edit ? openEditor(id) : openSheet(id));
-    g.addEventListener('click', go);
-    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
-  });
+  if (!patched) $$('.room', svg).forEach(bindRoom);
 
   // 編集モードのときだけ、まだブースでない部屋も押せるようにする。
   // ふだんの来場者画面では、押しても何も起きない部屋を押させない
@@ -4272,10 +4525,24 @@ async function checkServer(){
   const el = $('#srv-state');
   if (!el || checkServer._done) return;
   checkServer._done = true;
+  // 版の番号が届いていれば、それで決める（貼り替え忘れ・「新バージョン」でのデプロイ忘れを確実に見分ける）
+  if (S.serverVersion){
+    const ok = S.serverVersion >= (CONFIG.GAS_MIN || '');
+    el.className = 'srv-state' + (ok ? ' ok' : '');
+    el.textContent = ok
+      ? `サーバーは新しい版です（GAS-${S.serverVersion}）。スタンプの保存・引き継ぎ・二重交換の防止が働いています。`
+      : `サーバーが古い版です（GAS-${S.serverVersion}／必要なのは GAS-${CONFIG.GAS_MIN} 以降）。` + DEPLOY_STEPS;
+    el.classList.remove('hide');
+    return;
+  }
   const r = await probeServer();
-  if (r === 'new'){
-    el.className = 'srv-state ok';
-    el.textContent = 'サーバーは新しい版です。割り当ての保存・スタンプの控え・二重交換の防止が働いています。';
+  if (r === 'new' && S.booths.length){
+    // 地図のデータは届いているのに版の番号が無い＝ v127 以前の Code.gs のまま
+    el.className = 'srv-state';
+    el.textContent = `サーバーが古い版です（必要なのは GAS-${CONFIG.GAS_MIN} 以降）。スタンプ番号での保存・引き継ぎが働きません。` + DEPLOY_STEPS;
+  } else if (r === 'new'){
+    checkServer._done = false;          // まだ地図のデータが届いていない。届いたら版の番号で決め直す
+    el.classList.add('hide'); return;
   } else if (r === 'old'){
     el.className = 'srv-state';
     el.textContent = 'サーバーが古い版のままです。スタンプの控え（引き継ぎ・二重交換の防止）が働きません。' + DEPLOY_STEPS;
@@ -4286,6 +4553,7 @@ async function checkServer(){
 }
 
 function setEditMode(on){
+  mapScale._w = 0;                         // 割り当て中は係員の広い画面になり、地図の幅が変わる
   if (on && S.picking) setPickMode(false);   // 現在地えらびと同時には動かさない
   // 割り当てをやめるときは、開きっぱなしのパネルも畳む。
   // 残すと、別の画面の上に部屋の設定パネルだけが浮いたままになる
@@ -4663,7 +4931,7 @@ function renderHere(){
 function trapTab(e){
   if (e.key !== 'Tab' || !S.sheetId) return;
   const sh = $('#bsh');
-  const f = $$('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])', sh)
+  const f = $$('button,a[href],input,select,textarea,[tabindex]:not([tabindex="-1"])', sh)
     .filter(el => !el.disabled && el.offsetParent !== null);
   if (!f.length) return;
   const first = f[0], last = f[f.length - 1];
@@ -4806,7 +5074,7 @@ function renderSheet(){
         ? `<span class="ev-badge" data-kind="${eventState(b).kind}">${esc(eventLabel(b))}</span>` : ICON.note} ${esc(b.note)}</p>` : ''}
     ${altSuggest(b)}
     ${(() => { const sp = sparkline(b.history); return sp ? `<div class="bsh-foot">${sp}</div>` : ''; })()}
-    <p class="bsh-upd">${b.time ? '更新 ' + esc(ago(b.time)) : 'まだ係の人からの更新がありません'}</p>
+    <p class="bsh-upd">${b.time ? `更新 <span data-ago="${esc(b.time)}">${esc(ago(b.time))}</span>` : 'まだ係の人からの更新がありません'}</p>
     <div class="bsh-acts">
       ${got ? '<span class="bsh-got">✓ スタンプ済</span>'
             : '<span class="bsh-todo">入口のQRでスタンプ</span>'}
@@ -4929,21 +5197,25 @@ function zoomApply(animate){
     }
   }
   const zi = $('#zoom-in'), zo = $('#zoom-out'), zr = $('#zoom-reset'), zb = $('#zoom-booth');
-  const atMin = z.k <= (z.base0 || 1) + .01;
+  // 既定の見え方（箱の高さまで寄せた状態）は左右が画面の外に出ている。
+  // そこを下限にしていたため「−」も「全体を見る」も押せず、半分の部屋を見る手段がピンチしかなかった。
+  // 下限は図面まるごと（等倍）にし、「全体を見る」はそこまで引く
+  const atMin = z.k <= z.min + .01;
+  const atBase = z.k <= (z.base0 || 1) + .01;
   if (zi) zi.disabled = z.k >= z.max - .01;
   if (zo) zo.disabled = atMin;
   if (zr) zr.disabled = atMin;
   // 以前は押せないボタンを消していたが、消えるとその場で列が詰まり、
   // 押そうとしたボタンが指の下から逃げる。場所は常に保ち、押せるかどうかだけ変える。
   if (zr) zr.classList.toggle('dim', atMin);
-  if (zb) zb.classList.toggle('dim', !atMin);
+  if (zb) zb.classList.toggle('dim', !atBase);
   if (zo) zo.classList.toggle('dim', atMin);
   const lb = $('#zoom-lv');
   if (lb){
     lb.textContent = '×' + (Math.round(z.k * 10) / 10);
     // 既定倍率が1倍とはかぎらないので、既定より拡大したときだけ出す。
     // 1.01 と比べていたため、ずっと出たままで棟の名札と重なっていた
-    lb.classList.toggle('on', zoomedBeyondBase());
+    lb.classList.toggle('on', !atBase);         // 既定の倍率では出さない（棟の名札と重なる）
   }
 }
 
@@ -4984,7 +5256,7 @@ function initZoom(){
   $('#zoom-in').addEventListener('click', () => { z.touched = true; zoomTo(z.k * 1.6); });
   $('#zoom-out').addEventListener('click', () => { z.touched = true; zoomTo(z.k / 1.6); });
   $('#zoom-reset').addEventListener('click', () => {
-    z.touched = false; zoomReset(false); fitMapBox(S.floor); toast('地図を全体表示に戻しました');
+    z.touched = true; zoomTo(z.min, null, null, true); toast('地図の全体を表示しました（「ブース」で寄せ直せます）');
   });
   $('#zoom-booth').addEventListener('click', () => {
     const n = S.booths.filter(b => floorOfBooth(b) === S.floor).length;
@@ -5510,8 +5782,9 @@ function sparkline(hist){
 }
 
 function renderList(){
-  // 「◯分前」の表示を進めるため、1分ごとには描き直す
-  const fp = fingerprint(`list:${S.cat}:${S.sort}:${S.q}:${Math.floor(Date.now() / 60000)}`);
+  // 「◯分前」は tickAgo() がその場で書き換えるので、中身が同じなら作り直さない
+  // （以前は1分ごとに150件を作り直していて、安い端末では毎分1秒近く固まっていた）
+  const fp = fingerprint(`list:${S.cat}:${S.sort}:${S.q}`);
   if (renderList._fp === fp) return;
   renderList._fp = fp;
 
@@ -5520,7 +5793,8 @@ function renderList(){
   // 一覧は1分ごとに作り直すので、そのたびに上位8件が下から浮き上がり直し、
   // 読んでいる最中に画面が動いていた（中身は同じなのに）。
   const shape = `${S.cat}|${S.sort}|${S.q}`;
-  box.classList.toggle('stagger', renderList._shape !== shape);
+  const prevShape = renderList._shape;
+  box.classList.toggle('stagger', prevShape !== shape);
   renderList._shape = shape;
   // 一覧は「◯分前」を進めるために1分ごとに作り直す。カードは押せる（＝焦点が当たる）
   // ようになったので、作り直すとキーボードで選んでいた場所が毎分どこかへ飛んでいた。
@@ -5543,7 +5817,8 @@ function renderList(){
         const no = S.numbers.get(b.id);
         // 紙のマップに出ているのは通し番号。それで引けないと紙とアプリがつながらない
         hay = normalizeQ(withYomi((no != null ? '#' + no + ' ' : '')
-                + b.id + b.name + b.category + b.note + (sl ? sl.nm : '') + dept + (sl ? sl.z : '')));
+                + b.id + b.name + b.category + b.note + (sl ? sl.nm : '') + dept + (sl ? sl.z : '')
+                + ' ' + flLabel(b)));          // カードに「1階」と出しているので「1階」でも引けるように
         cache.set(b, hay);
       }
       return qs.every(t => hay.includes(t));
@@ -5552,9 +5827,20 @@ function renderList(){
   // 「空いている順」：空き→やや混雑→混雑→情報なし→準備中。
   // 状況が分からないものを先頭に出さない（内部値の -1 をそのまま使わない）
   const rank = b => { const lv = lvOf(b).lv; return lv === 3 ? 4 : lv < 0 ? 3 : lv; };
+  // 同じ混み具合の中では、待っている人が少ない方を先に（空き・38人待ちが 空き・4人待ちより前に出ていた）
+  const wk = b => { const lv = lvOf(b).lv; return lv >= 0 && lv <= 2 && b.wait != null ? b.wait : 999; };
   items.sort((a, b) => S.sort === 'free'
-    ? (rank(a) - rank(b)) || a.id.localeCompare(b.id, 'ja', { numeric:true })
-    : a.id.localeCompare(b.id, 'ja', { numeric:true }));
+    ? (rank(a) - rank(b)) || (wk(a) - wk(b)) || idCmp(a.id, b.id)
+    : idCmp(a.id, b.id));
+  // 読んでいる途中（下までスクロールしている）の自動更新では並び順を変えない。
+  // 並べ替えると指の下のブースが入れ替わり、押そうとしたのと別のブースが開く。
+  // 絞り込み・並び替えを自分で変えたとき、上の方にいるときは新しい順に並べる
+  const reading = S.view === 'list' && prevShape === shape && window.scrollY > 120 && renderList._order;
+  if (reading){
+    const pos = new Map(renderList._order.map((id, i) => [id, i]));
+    items.sort((a, b) => (pos.has(a.id) ? pos.get(a.id) : 1e6) - (pos.has(b.id) ? pos.get(b.id) : 1e6));
+  }
+  renderList._order = items.map(b => b.id);
   // 数字だけで探したら、紙のマップの番号がそれと一致するブースを先頭に出す
   const qn = String(S.q || '').normalize('NFKC').trim();
   if (/^\d+$/.test(qn)){
@@ -5600,7 +5886,7 @@ function renderList(){
             return (r ? `<span class="bm-room">${ICON.pin} ${esc(r)}</span>` : '')
                  + ((m != null && m >= 5)
                     ? `<span class="bm-sep"></span><span>約${m}分待ち</span>` : '');
-          })()}${b.time ? `<span class="bm-sep"></span><span>${esc(ago(b.time))}</span>` : ''}</p>
+          })()}${b.time ? `<span class="bm-sep"></span><span data-ago="${esc(b.time)}">${esc(ago(b.time))}</span>` : ''}</p>
           ${b.note ? `<p class="booth-note">${eventLabel(b)
               ? `<span class="ev-badge" data-kind="${eventState(b).kind}">${esc(eventLabel(b))}</span>` : ICON.note} ${esc(b.note)}</p>` : ''}
         </div>
@@ -5715,59 +6001,379 @@ function mergeSpent(list){
   if (ch) store('kuroko_spent_v1', S.spent);
 }
 
-/* ---------- スタンプの控え（サーバー）への送信 ----------
-   獲得・交換のたびに1件ずつ送るとサーバーが混むので、端末にためてまとめて送る。
-   送れなかった分は端末に残り、電波が戻る・次の同期のときに送り直す（何度送っても1回分として記録される）。 */
-function ledgerAdd(e){
-  const q = load('kuroko_ledger_q', []) || [];
-  q.push(Object.assign({ at: Date.now() }, e));
-  store('kuroko_ledger_q', q.slice(-300));
-  clearTimeout(ledgerAdd._t);
-  ledgerAdd._t = setTimeout(flushLedger, 3000);
-}
-async function flushLedger(){
-  if (flushLedger._on || navigator.onLine === false) return;
-  const q = load('kuroko_ledger_q', []) || [];
-  if (!q.length) return;
-  flushLedger._on = true;
-  const batch = q.slice(0, 40);
-  try{
-    await api({ body:{ action:'ledger', cid: deviceId(), ev: batch }, timeout: 15000 });
-    // 送っている間に増えた分は残す
-    const now = load('kuroko_ledger_q', []) || [];
-    const sent = new Set(batch.map(x => x.t + x.id + x.at));
-    store('kuroko_ledger_q', now.filter(x => !sent.has(x.t + x.id + x.at)));
-    if (now.length > batch.length) setTimeout(flushLedger, 1500);
-  }catch(e){ /* 次の機会に送る */ }
-  finally{ flushLedger._on = false; }
-}
-window.addEventListener('online', () => setTimeout(flushLedger, 1500));
+/* ---------- スタンプ番号とサーバーの台帳（同期） ----------
+   ブラウザの保存はアプリごとに別々（Safari・Chrome・LINEの中・ホーム画面に追加したアプリ）。
+   同じスマホでも開き方が変わると「スタンプが消えた」ように見える。
+   そこで一人ひとりに「スタンプ番号」を付け、スタンプと交換の記録はサーバーの台帳を正とする。
+   ・獲得・交換したらすぐ台帳へ送る（端末の中身をまるごと送る＝取りこぼしても次で埋まる）
+   ・画面を開いた／戻ったときは台帳から取り込む（別のアプリで増えた分が反映される）
+   ・別のアプリで開いたときは、番号を1回入れれば同じ記録につながる
+   電波が無いときは端末だけで動き、つながったら送る。 */
+const SID_ALPHA = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';   // 0/O・1/I/L など読み違えやすい字は使わない
 /**
- * 引き継ぎ。別のブラウザ・機種の端末番号を受け継ぎ、サーバーの控えからスタンプと交換済みを戻す。
- * この端末にすでにあったスタンプは消さずに足し、新しい番号の控えにも送る。
+ * この端末のスタンプ番号（8文字）。無ければ作る。
+ * 端末番号（kuroko_cid・推測できない乱数）から決まった手順で作る。v122 の引き継ぎで
+ * 同じ端末番号を持つようになったブラウザどうしは、同じスタンプ番号になって自動でつながる。
  */
-async function restoreFrom(cid){
+function stampId(){
+  let v = load('kuroko_sid', null);
+  if (!v || !/^[0-9A-Za-z]{6,40}$/.test(v)){
+    if (!load('kuroko_cid', null)) store('kuroko_migrated', 1);   // 旧版の記録は無い（引っ越し不要）
+    v = sidFrom(deviceId());
+    store('kuroko_sid', v);
+  }
+  return v;
+}
+/** 端末番号からスタンプ番号を作る。数字だけ・「123E45」の形はシートが数値に変えてしまうので避ける */
+function sidFrom(cid){
+  for (let salt = 0; salt < 50; salt++){
+    let out = '';
+    for (let i = 0; i < 8; i++) out += SID_ALPHA[hash32('sid|' + salt + '|' + i + '|' + cid) % SID_ALPHA.length];
+    if (!/^[0-9]*E?[0-9]*$/.test(out)) return out;
+  }
+  return 'K' + String(cid).replace(/[^0-9A-Za-z]/g, '').slice(0, 7).toUpperCase();
+}
+/** 画面に出す形（XXXX-XXXX） */
+function sidLabel(v){ v = String(v || stampId()); return v.length === 8 ? v.slice(0, 4) + '-' + v.slice(4) : v; }
+/** 入力された番号を整える。ハイフン・空白・小文字を吸収する */
+function normSid(v){
+  let raw = String(v || '').normalize('NFKC').trim();
+  // 引き継ぎ用のリンクをそのまま貼られたときは、restore= の値を使う
+  const m = raw.match(/[?&]restore=([0-9A-Za-z-]+)/);
+  if (m) raw = m[1];
+  const t = raw.replace(/[^0-9A-Za-z]/g, '');
+  // 8文字はスタンプ番号（大文字）。それより長いのは v122 までの端末番号（小文字のまま照合する）
+  if (/^[0-9A-Za-z]{6,8}$/.test(t)) return t.toUpperCase();
+  return /^[0-9a-z]{12,40}$/i.test(t) ? t : '';
+}
+/** 端末の中身の指紋（送ったかどうかの判定用） */
+function ledgerFp(){ return load('kuroko_sid', '') + '|' + Array.from(S.stamps).sort().join(',') + '|' + S.spent.slice().sort().join(','); }
+/** 旧版の呼び出し口。いまは「中身をまるごと送る」ので、送る合図だけ出す */
+function ledgerAdd(){ scheduleLedgerPush(600); }
+/**
+ * 送る予約。force=false のときは失敗後の待ち時間（_nextAt）を守る
+ * （台帳を読んだついでに送るときなど。サーバーが混んでいる間に叩き続けないため）。
+ */
+function scheduleLedgerPush(ms, force){
+  clearTimeout(scheduleLedgerPush._t);
+  scheduleLedgerPush._pending = true;
+  scheduleLedgerPush._t = setTimeout(() => { scheduleLedgerPush._pending = false; flushLedger(force !== false); }, ms == null ? 600 : ms);
+}
+/** サーバーが受け付けるブースidの形（Code.gs の cleanBoothId_ と同じ）。これ以外は送っても残らない */
+const LEDGER_ID_RE = /^[0-9A-Za-z_-]{1,24}$/;
+/** スタンプを取った時刻（振り返りで同じスタンプを二重に数えないための印） */
+function stampAt(){ const m = load('kuroko_stamp_at', {}); return m && typeof m === 'object' ? m : {}; }
+/** 送る中身（この端末のスタンプと交換済みをまるごと） */
+function ledgerEvents(){
+  const at = stampAt();
+  return Array.from(S.stamps).map(id => at[id] ? { t:'s', id, at: at[id] } : { t:'s', id })
+    .concat(S.spent.map(id => ({ t:'r', id })));
+}
+/** サーバーの返事に番号の付け替え（統合）があれば、その番号に乗り換える */
+function adoptServerCid(l){
+  const c = l && typeof l.cid === 'string' ? l.cid : '';
+  const cur = load('kuroko_sid', null);
+  if (c && cur && c !== cur && /^[0-9A-Za-z]{6,40}$/.test(c)){ store('kuroko_sid', c); store('kuroko_joined', 1); return true; }
+  return false;
+}
+/**
+ * 台帳へ送る。端末にあるスタンプと交換済みをまるごと送り、サーバー側で重複を除く。
+ * 1回送りそびれても、次に送るときに全部埋まる（1件ずつ送る方式は、落ちた1件が永久に抜けていた）。
+ * 失敗が続くときは間隔を 20秒→40秒→…→5分 と空ける（全員が20秒ごとに叩き続けないように）。
+ * @param {boolean} [force] 獲得・交換・番号の操作の直後。待ち時間を無視して送る
+ */
+async function flushLedger(force){
+  if (flushLedger._on) { flushLedger._again = true; return; }
+  if (!force && Date.now() < (flushLedger._nextAt || 0)) return;
+  pullStamps();
+  if (!S.stamps.size && !S.spent.length) return;
+  if (load('kuroko_pushed_fp', '') === ledgerFp()){ renderSyncBadge(); return; }
+  if (navigator.onLine === false){ renderSyncBadge(); return; }
+  flushLedger._on = true;
+  renderSyncBadge('sending');
+  // 送った時点の番号と中身を控える。返事が来るまでに番号が変わったり（つなぐ操作）、
+  // スタンプが増えたりしたら、その分は「送った」扱いにしない
+  const sid0 = stampId(), ev = ledgerEvents();
+  const sent = new Set(ev.map(e => e.t + ':' + e.id));
+  const from = load('kuroko_join_from', null);
+  try{
+    const body = { action:'ledger', cid: sid0, ev };
+    if (from && from !== sid0) body.from = from;
+    const r = await api({ body, timeout: 15000 });
+    if (from) store('kuroko_join_from', undefined);
+    if (load('kuroko_sid', null) !== sid0){
+      flushLedger._again = true;                           // 送っている間に番号が変わった。新しい番号へ送り直す
+    } else {
+      adoptServerCid(r);
+      // 新しいサーバーは台帳の中身を返す。別のアプリで増えた分もここで揃う
+      if (r && Array.isArray(r.stamps)) absorbLedger(r, sent);
+      else if (ledgerEvents().every(e => sent.has(e.t + ':' + e.id))) store('kuroko_pushed_fp', ledgerFp());
+      store('kuroko_pushed_at', Date.now());
+    }
+    flushLedger._fail = 0; flushLedger._nextAt = 0; flushLedger._old = false; flushLedger._net = false;
+    clearTimeout(flushLedger._retry);
+  }catch(e){
+    const m = String(e && e.message || e);
+    // 旧版のサーバー（Code.gs を貼り替える前）は8文字の番号を断る。端末だけで動かし、たまに確かめる
+    flushLedger._old = /bad cid|unknown action|bad request/i.test(m);
+    flushLedger._net = /Failed to fetch|NetworkError|Load failed|timeout|aborted|HTTP 5/i.test(m);
+    const n = flushLedger._fail = Math.min((flushLedger._fail || 0) + 1, 6);
+    const wait = flushLedger._old ? 600000 : Math.min(300000, 20000 * Math.pow(2, n - 1));
+    flushLedger._nextAt = Date.now() + wait;
+    clearTimeout(flushLedger._retry);
+    flushLedger._retry = setTimeout(() => flushLedger(true), wait);
+  }finally{
+    flushLedger._on = false;
+    renderSyncBadge();
+    if (flushLedger._again){ flushLedger._again = false; setTimeout(() => flushLedger(true), 300); }
+  }
+}
+window.addEventListener('online', () => {
+  flushLedger._nextAt = 0;
+  setTimeout(() => flushLedger(true), 1200); setTimeout(() => pullLedger(true), 1500);
+});
+/**
+ * 台帳の中身をこの端末に足し込む（和をとる。減らさない）。
+ * 端末にしか無い分が残っていれば送る予約をする。
+ * @param {object} l サーバーの台帳 {stamps, spent}
+ * @param {Set} [sent] 送った直後の返事なら、送った中身。サーバーが受け取らなかった分は
+ *   送り直さない（受け付けない id が混じると、送り直しが止まらなくなるため）
+ * @returns {boolean} 端末の中身が増えたか
+ */
+function absorbLedger(l, sent){
+  pullStamps();
+  const ls = (l && l.stamps) || [], lr = (l && l.spent) || [];
+  let changed = false;
+  ls.forEach(id => { id = String(id); if (!S.stamps.has(id)){ S.stamps.add(id); changed = true; } });
+  const have = new Set(S.spent);
+  lr.forEach(id => { id = String(id); if (!have.has(id)){ S.spent.push(id); have.add(id); changed = true; } });
+  if (changed){
+    store('kuroko_stamps_v2', Array.from(S.stamps));
+    store('kuroko_spent_v1', S.spent);
+    try{ renderStamps(); renderList(); recommend(); drawFloor(S.floor); if (showStampFx.refresh) showStampFx.refresh(); }catch(e){}
+  }
+  const ss = new Set(ls.map(String)), sr = new Set(lr.map(String));
+  const missing = Array.from(S.stamps).filter(id => !ss.has(id) && LEDGER_ID_RE.test(id)).map(id => 's:' + id)
+    .concat(S.spent.filter(id => !sr.has(id) && LEDGER_ID_RE.test(id)).map(id => 'r:' + id));
+  if (!missing.length || (sent && missing.every(k => sent.has(k)))) store('kuroko_pushed_fp', ledgerFp());
+  else { store('kuroko_pushed_fp', ''); scheduleLedgerPush(300, !!sent); }
+  return changed;
+}
+/**
+ * 台帳から取り込む。別のアプリ・別の端末で増えた分がここで反映される。
+ * @param {boolean|number} [gap] true=すぐ読む／数値=前回からこのミリ秒以上空いていれば読む（既定25秒）
+ */
+async function pullLedger(gap){
+  if (pullLedger._on || navigator.onLine === false) return false;
+  // 送っている最中・送る予約があるときは読まない（送った返事が台帳の中身そのもの）
+  if (flushLedger._on || scheduleLedgerPush._pending) return false;
+  const min = gap === true ? 0 : typeof gap === 'number' ? gap : 25000;
+  if (Date.now() - (pullLedger._at || 0) < min) return false;
+  const sid = load('kuroko_sid', null);
+  pullStamps();
+  if (!sid || (!S.stamps.size && !S.spent.length)) return false;   // まだ1つも集めていない人は見に行かない
+  if (flushLedger._old) return false;                               // サーバーが旧版のあいだは読みに行かない
+  pullLedger._on = true; pullLedger._at = Date.now();
+  let changed = false;
+  try{
+    const l = await fetchLedger(sid);
+    if (load('kuroko_sid', null) === sid){                          // 読んでいる間に番号が変わっていなければ
+      adoptServerCid(l);
+      changed = absorbLedger(l);
+      store('kuroko_pulled_at', Date.now());
+    }
+  }catch(e){ /* 次の機会に */ }
+  finally{ pullLedger._on = false; renderSyncBadge(); }
+  return changed;
+}
+/**
+ * v122 までに集めていた人の引っ越し。旧端末番号の台帳（交換済みを含む）を読み込んでから、
+ * 新しい番号で送る。これをしないと、旧番号で交換済みの印が新しい番号に移らない。
+ */
+async function migrateLegacy(){
+  if (load('kuroko_migrated', null) || navigator.onLine === false) return;
+  const cid = load('kuroko_cid', null);
+  if (!cid || !/^[a-z0-9]{12,40}$/i.test(cid)){ store('kuroko_migrated', 1); return; }
+  try{
+    const l = await fetchLedger(cid);
+    pullStamps();
+    const have = new Set(S.spent); let ch = false;
+    (l.stamps || []).forEach(id => { if (!S.stamps.has(id)){ S.stamps.add(id); ch = true; } });
+    (l.spent || []).forEach(id => { if (!have.has(id)){ S.spent.push(id); have.add(id); ch = true; } });
+    if (ch){ store('kuroko_stamps_v2', Array.from(S.stamps)); store('kuroko_spent_v1', S.spent); renderStamps(); }
+    store('kuroko_migrated', 1);
+  }catch(e){ /* サーバーが旧版・電波なし。次に開いたとき */ }
+}
+/** スタンプ画面・獲得演出の「保存の状態」表示 */
+function renderSyncBadge(state){
+  const pushed = load('kuroko_pushed_fp', '') === ledgerFp();
+  const nothing = !S.stamps.size && !S.spent.length;
+  const st = state === 'sending' || flushLedger._on ? 'sending' : nothing ? 'none' : pushed ? 'ok' : 'wait';
+  const el = $('#sid-sync');
+  if (el){
+    el.dataset.st = st;
+    // 読み上げ（aria-live）が同期のたびに同じ文を読み直さないよう、変わったときだけ書く
+    const txt = st === 'sending' ? 'サーバーに保存しています…'
+      : st === 'none' ? 'まだスタンプはありません。QRを読むと自動でサーバーにも保存されます'
+      : st === 'ok' ? 'サーバーに保存済み。別のアプリで開いても、この番号で戻せます'
+      : navigator.onLine === false ? '電波待ち：この端末には保存済み。つながったら自動でサーバーにも保存します'
+      : flushLedger._old ? 'この端末に保存済み（サーバーの準備ができしだい自動で保存します）'
+      : flushLedger._fail ? 'この端末に保存済み。サーバーが混み合っているため、少しあとで自動で保存します'
+      : '保存待ち：まもなく自動でサーバーにも保存します';
+    if (el.textContent !== txt) el.textContent = txt;
+  }
+  const n = $('#sid-no'); if (n) n.textContent = nothing && !load('kuroko_sid', null) ? '----' : sidLabel();
+  const env = $('#sid-env'), where = openedIn();
+  if (env){
+    env.classList.toggle('hide', !where);
+    if (where) env.textContent = `${where}の中で開いています。ここのスタンプは Safari・Chrome とは別の場所に保存されます。`
+      + '別の場所でも集めたときは、下の「つなぐ」に番号を入れると1つにまとまります。';
+  }
+  const fx = $('#sfx-sync');
+  if (fx){
+    fx.dataset.st = st;
+    const ft = st === 'ok' ? `サーバーに保存しました（スタンプ番号 ${sidLabel().replace('-', '\u2011')}）`
+      : st === 'sending' ? 'サーバーに保存しています…'
+      : 'この端末に保存しました。電波がつながったらサーバーにも保存します';
+    if (fx.textContent !== ft) fx.textContent = ft;
+  }
+}
+/**
+ * 動作チェック。スタンプが残らない・情報が古い等の相談を、その場の端末で切り分ける。
+ * 個人情報は出さない（スタンプ番号は後ろ4文字を伏せる）。サーバーへは読むだけで、何も書き込まない。
+ */
+async function runDiag(){
+  const out = $('#diag-out'); if (!out) return;
+  if (runDiag._on) return; runDiag._on = true;
+  out.innerHTML = '<p class="small-note">しらべています…</p>';
+  const rows = [];
+  const add = (st, k, v) => rows.push({ st, k, v: String(v) });
+  try{
+    add('ok', '画面の版', CONFIG.BUILD);
+    const where = openedIn();
+    add(where ? 'warn' : 'ok', '開いている場所', where ? `${where}（Safari・Chrome とは保存場所が別）` : 'ふつうのブラウザ');
+    // 端末に保存できるか（プライベートモード・容量不足で書けないことがある）
+    let canStore = false;
+    try{ localStorage.setItem('__diag', '1'); canStore = localStorage.getItem('__diag') === '1'; localStorage.removeItem('__diag'); }catch(e){}
+    add(canStore ? 'ok' : 'ng', '端末への保存', canStore ? 'できる' : 'できない（プライベートモード・容量不足の可能性）');
+    try{
+      if (navigator.storage && navigator.storage.estimate){
+        const est = await navigator.storage.estimate();
+        const mb = Math.round((est.quota || 0) / 1048576);
+        const persisted = navigator.storage.persisted ? await navigator.storage.persisted() : null;
+        add(mb && mb < 200 ? 'warn' : 'ok', '保存の容量', `${mb}MB${mb && mb < 200 ? '（少ない：プライベートモードの可能性）' : ''}${persisted ? '・消されにくい設定' : ''}`);
+      }
+    }catch(e){}
+    // スタンプ（未送信があれば、ふだんどおり送ってから結果を見る）
+    pullStamps();
+    if (S.stamps.size || S.spent.length){
+      stampId();
+      try{
+        await Promise.race([flushLedger(true), new Promise(r => setTimeout(r, 6000))]);
+        for (let i = 0; i < 30 && (flushLedger._on || scheduleLedgerPush._pending); i++) await new Promise(r => setTimeout(r, 200));
+      }catch(e){}
+    }
+    const sid = load('kuroko_sid', null);
+    add('ok', 'スタンプ（この端末）', `${S.stamps.size}個・交換済み${S.spent.length}個`);
+    add(sid ? 'ok' : (S.stamps.size ? 'warn' : 'ok'), 'スタンプ番号', sid ? sidLabel(sid).replace(/.{4}$/, '****') : 'まだ無し');
+    const pushed = load('kuroko_pushed_fp', '') === ledgerFp();
+    if (S.stamps.size || S.spent.length){
+      add(pushed ? 'ok' : 'warn', 'サーバーへの保存', pushed ? `済み（${ago(load('kuroko_pushed_at', null))}）` : '未送信（電波がつながれば自動で送ります）');
+    }
+    // サーバー
+    const t0 = Date.now();
+    let raw = null;
+    try{ raw = await api({ timeout: 12000 }); }catch(e){ add('ng', 'サーバー', '届きません：' + String(e.message || e).slice(0, 60)); }
+    if (raw){
+      const rtt = Date.now() - t0;
+      add(rtt > 6000 ? 'warn' : 'ok', 'サーバーの応答', `${(rtt / 1000).toFixed(1)}秒`);
+      const sv = raw.serverVersion || '';
+      const svOk = sv && sv >= (CONFIG.GAS_MIN || '');
+      add(svOk ? 'ok' : 'ng', 'サーバーの版', sv ? `GAS-${sv}${svOk ? '' : '（古い：Code.gs の貼り替えが必要）'}` : '古い版（Code.gs の貼り替えが必要）');
+      const up = Date.parse(raw.updatedAt);
+      if (isFinite(up)){
+        const skew = Math.round((Date.now() - up) / 60000);
+        add(Math.abs(skew) > 3 ? 'warn' : 'ok', '端末の時計', Math.abs(skew) > 3 ? `サーバーと約${Math.abs(skew)}分ずれています（交換の4桁が合わない原因になります）` : '合っています');
+      }
+      if (sid && svOk){
+        try{
+          const l = await fetchLedger(sid);
+          const miss = Array.from(S.stamps).filter(id => (l.stamps || []).indexOf(id) < 0).length;
+          add(miss ? 'warn' : 'ok', 'サーバーのスタンプ', `${(l.stamps || []).length}個${miss ? `（この端末の${miss}個がまだ届いていません）` : '（この端末と一致）'}`);
+        }catch(e){ add('warn', 'サーバーのスタンプ', '読めませんでした'); }
+      }
+    }
+    const sw = navigator.serviceWorker && navigator.serviceWorker.controller;
+    add('ok', 'オフライン対応', sw ? '有効' : 'まだ無効（2回目に開いたときから有効）');
+    add(navigator.onLine === false ? 'ng' : 'ok', '電波', navigator.onLine === false ? '圏外' : 'つながっている');
+  }finally{
+    runDiag._on = false;
+    runDiag._rows = rows;
+    const mark = { ok:'✓', warn:'!', ng:'✕' };
+    out.innerHTML = rows.map(r => `<div class="diag-row" data-st="${r.st}"><i aria-hidden="true">${mark[r.st]}</i><b>${esc(r.k)}</b><span>${esc(r.v)}</span></div>`).join('');
+  }
+}
+/** 保存場所が普通のブラウザと分かれる開き方なら、その名前。普通のブラウザなら '' */
+function openedIn(){
+  const ua = navigator.userAgent || '';
+  if (/\bLine\//i.test(ua)) return 'LINE';
+  if (/Instagram/i.test(ua)) return 'Instagram';
+  if (/FBAN|FBAV/i.test(ua)) return 'Facebook';
+  if (/\bTwitter|TwitterAndroid/i.test(ua)) return 'X（Twitter）';
+  // iPhone のホーム画面アプリだけ Safari と保存が分かれる（Android は Chrome と共有）
+  if (navigator.standalone === true) return 'ホーム画面のアイコン';
+  return '';
+}
+/** スタンプ画面の「番号でつなぐ」を開いて入力欄へ */
+function openSidJoin(){
+  switchView('stamp');
+  const box = $('#sid-join-box'); if (!box) return;
+  box.open = true;
+  setTimeout(() => { box.scrollIntoView({ block:'center', behavior:'smooth' }); const i = $('#sid-in'); i && i.focus({ preventScroll:true }); }, 250);
+}
+/**
+ * スタンプ番号でつなぐ。別のアプリ（Safari・LINE・ホーム画面のアプリ等）で集めた記録と合わせる。
+ * この端末にある分は消さずに足し、以後はその番号の台帳に保存する。
+ * @returns {Promise<string>} 結果の説明
+ */
+async function joinSid(input){
+  const sid = normSid(input);
+  if (!sid) throw new Error('番号は「XXXX-XXXX」の8文字です。もう一度確かめてください');
+  if (sid === stampId()) return 'この端末はすでにその番号です';
+  let l;
+  try{ l = await fetchLedger(sid); }
+  catch(e){ throw new Error('サーバーに届きませんでした。電波の良い場所でもう一度お試しください'); }
+  if (!(l.stamps || []).length && !(l.spent || []).length) throw new Error('その番号の記録が見つかりません。番号を確かめてください');
+  // その番号がさらに別の番号へつながれていれば、行き先の番号に乗る
+  const target = (typeof l.cid === 'string' && /^[0-9A-Za-z]{6,40}$/.test(l.cid)) ? l.cid : sid;
+  const prev = load('kuroko_sid', null);
+  if (prev && prev !== target && (S.stamps.size || S.spent.length)) store('kuroko_join_from', prev);   // 旧番号→新番号の付け替えをサーバーに残す
+  store('kuroko_sid', target);
+  store('kuroko_joined', 1);
+  flushLedger._nextAt = 0; flushLedger._fail = 0;
+  absorbLedger(l);
+  renderAll();
+  scheduleLedgerPush(100);                          // この端末にしか無かった分を送る
+  return `つなぎました。スタンプ${S.stamps.size}個（番号 ${sidLabel(target)}）`;
+}
+/**
+ * 引き継ぎ用リンク（?restore=番号）で開かれたとき。joinSid と同じだが、画面の案内つき。
+ */
+async function restoreFrom(sid){
   const strip = () => { try{ const u = new URL(location.href); u.searchParams.delete('restore');
     history.replaceState(history.state, '', u.pathname + u.search + u.hash); }catch(e){} };
-  if (cid === deviceId()){ strip(); return; }
   toast('スタンプを引き継いでいます…', null, 6000);
-  let l;
-  try{ l = await fetchLedger(cid); }
-  catch(e){ toast('引き継げませんでした。電波の良い場所で、もう一度リンクを開いてください', null, 8000); return; }
-  pullStamps();
-  const mine = Array.from(S.stamps);
-  store('kuroko_cid', cid); deviceId._v = cid;
-  (l.stamps || []).forEach(id => S.stamps.add(id));
-  store('kuroko_stamps_v2', Array.from(S.stamps));
-  mergeSpent(l.spent);
-  mine.filter(id => (l.stamps || []).indexOf(id) < 0).forEach(id => ledgerAdd({ t:'s', id }));
-  strip();
-  renderAll(); switchView('stamp');
-  toast(`引き継ぎました（スタンプ${S.stamps.size}個）。これからはこのブラウザで集められます`, null, 7000);
+  try{
+    const msg = await joinSid(sid);
+    strip(); switchView('stamp');
+    toast(msg + '。これからはこのアプリでも集められます', null, 7000);
+  }catch(e){
+    toast(String(e.message || e), null, 8000);
+  }
 }
-/** サーバーの控えを読む（引き継ぎ・交換の確認用） */
-async function fetchLedger(cid){
-  const url = CONFIG.GAS_URL + (CONFIG.GAS_URL.includes('?') ? '&' : '?') + 'ledger=' + encodeURIComponent(cid) + '&_=' + Date.now();
+/** サーバーの台帳を読む */
+async function fetchLedger(sid){
+  const url = CONFIG.GAS_URL + (CONFIG.GAS_URL.includes('?') ? '&' : '?') + 'ledger=' + encodeURIComponent(sid) + '&_=' + Date.now();
   const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 12000);
   try{
     const res = await fetch(url, { signal: ctl.signal, mode:'cors', redirect:'follow' });
@@ -5839,9 +6445,44 @@ function refreshStampsFromDisk(){
 window.addEventListener('storage', e => {
   if (e.key === 'kuroko_stamps_v2' || e.key === 'kuroko_spent_v1' || e.key === null) refreshStampsFromDisk();
 });
-window.addEventListener('pageshow', refreshStampsFromDisk);
-window.addEventListener('focus', refreshStampsFromDisk);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshStampsFromDisk(); });
+// 同じ端末の別の係員画面で未送信が増えたら、こちらにも取り込む（どちらの画面からでも再送できるように）
+window.addEventListener('storage', e => {
+  if (e.key !== 'kuroko_unsent' || !S.isAdmin) return;
+  const v = load('kuroko_unsent', {}) || {};
+  let ch = false;
+  for (const id of Object.keys(v)){
+    const sv = v[id], mine = S.unsent[id], gone = S.unsentGone[id];
+    if (!sv) continue;
+    if (!mine && !(gone != null && gone >= (sv.at || 0))){ S.unsent[id] = sv; ch = true; }
+    else if (mine && (sv.at || 0) > (mine.at || 0)){ S.unsent[id] = sv; ch = true; }
+  }
+  if (ch){ applyUnsent(S.booths); renderAdmin(); }
+});
+// アプリを切り替えて戻ってきたとき＝別のアプリで集めてきた直後。間隔を短くして読みに行く
+window.addEventListener('pageshow', () => { refreshStampsFromDisk(); pullLedger(3000); });
+window.addEventListener('focus', () => { refreshStampsFromDisk(); pullLedger(3000); });
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden){ beaconLedger._sent = false; refreshStampsFromDisk(); pullLedger(3000); return; }
+  beaconLedger();
+});
+window.addEventListener('pagehide', beaconLedger);
+/**
+ * 画面を閉じる・アプリを切り替える瞬間に、まだ送れていない分を送る。
+ * QRを読んで数秒で閉じる人が多い。fetch は閉じると打ち切られるので sendBeacon を使う
+ * （本文は text/plain。GAS は doPost で postData.contents をそのまま読む）。
+ */
+function beaconLedger(){
+  try{
+    if (document.hidden && beaconLedger._sent) return;              // 隠れるたびに1回まで
+    if (flushLedger._on || flushLedger._old || Date.now() < (flushLedger._nextAt || 0)) return;
+    pullStamps();
+    if (!S.stamps.size && !S.spent.length) return;
+    if (load('kuroko_pushed_fp', '') === ledgerFp()) return;
+    if (!navigator.sendBeacon || !CONFIG.GAS_URL) return;
+    beaconLedger._sent = navigator.sendBeacon(CONFIG.GAS_URL, JSON.stringify({ action:'ledger', cid: stampId(), ev: ledgerEvents() }));
+    // 届いたかは分からないので、指紋は更新しない（次に開いたとき pullLedger で確かめる）
+  }catch(e){}
+}
 
 function earnStamp(id){
   pullStamps();                                  // 他のタブで増えた分を消さないよう、先に取り込む
@@ -5852,7 +6493,8 @@ function earnStamp(id){
   S.justStamp = id;
   setTimeout(() => { S.justStamp = null; }, 1200);
   S.stamps.add(id);
-  ledgerAdd({ t:'s', id });                      // サーバーにも控えを送る（あとでまとめて）
+  try{ const at = stampAt(); at[id] = Date.now(); store('kuroko_stamp_at', at); }catch(e){}
+  scheduleLedgerPush(250);                       // サーバーの台帳にもすぐ送る（別のアプリで開いても残る）
   if (!store('kuroko_stamps_v2', Array.from(S.stamps))){
     // 画面を開いている間は有効。閉じると消えることを正直に伝える
     setTimeout(() => toast('この端末に保存できません（プライベートモードか空き容量不足）。画面を閉じるとスタンプが消えます'), 1800);
@@ -5942,7 +6584,7 @@ function stampArt(id, mini){
     ${mini ? `<text x="100" y="150" text-anchor="middle" font-size="40" font-weight="900" fill="${col}">${esc(L.no)}</text>`
       : `<text font-size="14" font-weight="900" fill="${col}" letter-spacing=".5"><textPath href="#${uid}a"
             startOffset="50%" text-anchor="middle">${esc(name)}</textPath></text>
-         <text x="100" y="146" text-anchor="middle" font-size="30" font-weight="900" fill="${col}">No.${esc(L.no)}</text>
+         ${L.no ? `<text x="100" y="146" text-anchor="middle" font-size="30" font-weight="900" fill="${col}">No.${esc(L.no)}</text>` : ''}
          <text x="100" y="166" text-anchor="middle" font-size="10" font-weight="800" fill="${col}" letter-spacing="3">KUROKO FES</text>`}
     ${L.shiny && !mini ? `<g fill="#f5d76e"><path d="M160 34l3 8 8 3-8 3-3 8-3-8-8-3 8-3z"/><path d="M40 150l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/></g>` : ''}
   </svg>`;
@@ -5988,31 +6630,60 @@ function showStampFx(id, fresh){
         <p class="sfx-kicker">${esc(kicker)}</p>
         <div class="sfx-stamp${reduce ? '' : ' slam'}">${stampArt(id)}<i class="sfx-ink" aria-hidden="true"></i></div>
         <h2 class="sfx-name">${esc(L.name)}</h2>
-        <p class="sfx-count"><b>${got}</b>${total ? ` / ${total}` : ''} ブース</p>
+        <p class="sfx-count"><b>${got}</b>${total ? ` / ${total} ブース` : ' 個目'}</p>
         ${total ? `<div class="sfx-bar"><i style="width:${Math.round(got / total * 100)}%"></i></div>` : ''}
         <p class="sfx-goal">${esc(goal)}</p>
         <div class="sfx-acts">
           <button class="btn" data-fx="book">スタンプ帳を見る</button>
           ${next ? `<button class="btn ghost" data-fx="next" data-id="${esc(next.id)}">次は空いている「${esc(next.name)}」へ</button>` : ''}
         </div>
-        <p class="sfx-note">スタンプはこのブラウザに保存されます。次のQRも同じ方法で読み取ってください</p>
+        <p class="sfx-note sid-sync" id="sfx-sync"></p>
+        ${fresh && got <= 2 && !load('kuroko_joined', null)
+          ? '<button class="sfx-link" data-fx="join">前に別のアプリで集めた人はこちら</button>' : ''}
       </div>`;
+    renderSyncBadge();
+    const jn = el.querySelector('[data-fx="join"]');
+    if (jn) jn.addEventListener('click', () => { close(); openSidJoin(); });
     el.querySelector('[data-fx="book"]').addEventListener('click', close);
     const nx = el.querySelector('[data-fx="next"]');
     if (nx) nx.addEventListener('click', () => { const t = nx.dataset.id; close(); switchView('map'); setTimeout(() => openSheet(t), 200); });
   };
   const close = () => {
-    showStampFx._open = null;
+    if (!showStampFx._open) return;
+    showStampFx._open = null; showStampFx.close = null;
     el.classList.add('out');
-    setTimeout(() => el.remove(), reduce ? 0 : 220);
+    if (reduce) el.style.opacity = '0';
+    // 閉じたあとも少しの間は透明なまま指を受け止める。すぐ消すと、続けて押した指が
+    // 後ろのスタンプ帳（閉じるときに位置が動く）に当たり、別のブースが開いていた
+    setTimeout(() => el.remove(), 420);
+    document.documentElement.classList.remove('sfx-open');
     document.removeEventListener('keydown', onKey);
     // 押したマスを見せる
     const t = document.querySelector(`#stamp-grid [data-sid="${CSS.escape(id)}"]`);
     if (t){ t.classList.add('just'); t.scrollIntoView({ block:'center', behavior: reduce ? 'auto' : 'smooth' });
             setTimeout(() => t.classList.remove('just'), 1400); }
   };
-  const onKey = e => { if (e.key === 'Escape') close(); };
-  showStampFx.refresh = () => { if (showStampFx._open && document.body.contains(el)) draw(); };
+  const onKey = e => {
+    if (e.key === 'Escape'){ close(); return; }
+    if (e.key !== 'Tab') return;
+    // aria-modal なので、Tab で後ろの画面へ出ていかないようにする
+    const f = $$('button,a[href],input,[tabindex]:not([tabindex="-1"])', el).filter(x => !x.disabled && x.offsetParent !== null);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && (document.activeElement === last || !el.contains(document.activeElement))){ e.preventDefault(); first.focus(); }
+  };
+  showStampFx.close = close;
+  document.documentElement.classList.add('sfx-open');
+  showStampFx.refresh = () => {
+    if (!showStampFx._open || !document.body.contains(el)) return;
+    // 描き直すとボタンが作り直され、押そうとしていたボタンからフォーカスが外れる。同じボタンに戻す
+    const a = document.activeElement;
+    const k = a && el.contains(a) ? a.dataset.fx : (a === document.body ? 'book' : null);
+    draw();
+    const b = k && el.querySelector(`[data-fx="${k}"]`);
+    if (b) b.focus({ preventScroll:true });
+  };
   draw();
   el.addEventListener('click', e => { if (e.target === el) close(); });
   document.addEventListener('keydown', onKey);
@@ -6156,6 +6827,7 @@ function renderStamps(){
   $('#stamp-share').classList.toggle('hide', got === 0);
   $('#stamp-handoff').classList.toggle('hide', S.stamps.size === 0);
   $('#stamp-reset').classList.toggle('hide', !S.isAdmin);
+  renderSyncBadge();
   $('#stamp-share').textContent = navigator.share ? 'スタンプカードを共有する' : 'スタンプカードを画像で保存';
 }
 
@@ -6427,6 +7099,11 @@ function renderInfo(){
   const toMin = s => { const m = /^(\d{1,2}):(\d{2})/.exec(s); return m ? +m[1] * 60 + +m[2] : -1; };
   let cur = -1;
   CONFIG.INFO.timetable.forEach(([t], i) => { if (toMin(t) <= mins) cur = i; });
+  // 開催日でない日・閉場のあとは「いまのコマ」を出さない（最後の行が夜中まで ▶ のままだった）。
+  // 最後の行は、始まってから1時間を過ぎたら終わったとみなす
+  const os = openState(now).state;
+  const tt = CONFIG.INFO.timetable;
+  if (os === 'otherday' || (os === 'after' && cur === tt.length - 1 && mins - toMin(tt[cur][0]) > 60)) cur = -1;
   // 15秒ごと・画面を開くたびに呼ばれる。コマが変わったときだけ描き直す
   if (renderInfo._cur === cur) return;
   renderInfo._cur = cur;
@@ -6741,7 +7418,10 @@ function renderBoard(){
   if (!S.online && S.fetchedAt){
     // 止まっているのはボード自身の通信。係員のせいにしない
     alertEl.classList.remove('hide');
-    alertEl.textContent = `このボードが通信できていません。表示は${ago(S.fetchedAt)}の情報です（自動で再接続します）`;
+    // 「たった今の情報です」は通信できていないのに最新に聞こえる。1分未満は秒で言う
+    const sec = S.fetchedAt ? Math.max(0, Math.round((Date.now() - new Date(S.fetchedAt).getTime()) / 1000)) : NaN;
+    const when = isFinite(sec) && sec < 60 ? `${sec}秒前` : ago(S.fetchedAt);
+    alertEl.textContent = `このボードが通信できていません。表示は${when}の情報です（自動で再接続します）`;
   } else if (overdue.length){
     alertEl.classList.remove('hide');
     alertEl.textContent =
@@ -6895,10 +7575,17 @@ function addVisitors(n){
   if (!store('kuroko_vis_q', q)){ toast('この端末に保存できません。プライベートモードを解除してください'); return; }
   renderVisitors();
   toast(`来場者 ${n > 0 ? '+' : ''}${n}`, { label:'元に戻す', fn: () => addVisitors(-n) });
-  flushVisitors();
+  flushVisitors(true);
 }
-async function flushVisitors(){
+/**
+ * 受付の人数を送る。失敗したら待ってから送り直すが、待っている間は同期のたびに送り直さない
+ * （同期ごとに再送の予約が積み重なり、混雑しているサーバーに5倍の頻度で送っていた）。
+ * @param {boolean} [force] 待ち時間を無視する（ボタンを押した・電波が戻った）
+ */
+async function flushVisitors(force){
+  if (!force && flushVisitors._t) return;
   if (flushVisitors._on || navigator.onLine === false) { renderVisitors(); return; }
+  clearTimeout(flushVisitors._t); flushVisitors._t = null;
   let q = load('kuroko_vis_q', []) || [];
   if (!q.length) return;
   flushVisitors._on = true;
@@ -6914,14 +7601,15 @@ async function flushVisitors(){
       renderVisitors();
     }
   }catch(e){
-    if (!authFailed(e)) setTimeout(flushVisitors, 20000);   // 少し待ってから送り直す（同じ番号なので二重にならない）
+    // 少し待ってから送り直す（同じ番号なので二重にならない）。予約は常に1つだけ
+    if (!authFailed(e)){ clearTimeout(flushVisitors._t); flushVisitors._t = setTimeout(() => { flushVisitors._t = null; flushVisitors(true); }, 20000); }
   }finally{
     flushVisitors._on = false;
     if (visCard) visCard.classList.remove('sending');
     renderVisitors();
   }
 }
-window.addEventListener('online', () => setTimeout(flushVisitors, 1200));
+window.addEventListener('online', () => setTimeout(() => flushVisitors(true), 1200));
 
 /**
  * いま開催中かどうか。
@@ -6998,7 +7686,20 @@ function renderNotice(){
   el.classList.remove('hide');
   el.dataset.level = n.level === 'alert' ? 'alert' : 'info';
   $('#banner-notice-icon').innerHTML = n.level === 'alert' ? ICON_ALERT : ICON_MEGA;
-  $('#banner-notice-text').textContent = n.text;
+  // 本部のお知らせに URL があれば押せるようにする（文字は textContent で入れ、http(s) だけをリンクにする）
+  const box = $('#banner-notice-text');
+  if (box.dataset.src !== n.text){
+    box.dataset.src = n.text;
+    box.textContent = '';
+    String(n.text).split(/(https?:\/\/[^\s<>"'「」、。）)]+)/).forEach((part, i) => {
+      if (!part) return;
+      if (i % 2 === 1){
+        const a = document.createElement('a');
+        a.href = part; a.textContent = part; a.target = '_blank'; a.rel = 'noopener';
+        box.appendChild(a);
+      } else box.appendChild(document.createTextNode(part));
+    });
+  }
 }
 
 function renderAlert(){
@@ -7152,6 +7853,8 @@ function switchView(v, fromHistory){
     zoomResetIfNeeded();
   }
   S.view = v;
+  mapScale._w = 0;                        // 係員の広い画面との行き来で地図の幅が変わる
+  if (v === 'stamp'){ pullLedger(5000); renderSyncBadge(); }   // 別のアプリで増えた分を見に行く
   ['map','list','stamp','info','auth','admin','qr','print','report','board'].forEach(k =>
     $('#v-' + k).classList.toggle('on', k === v));
   $$('#nav button').forEach(b => {
@@ -7207,6 +7910,14 @@ function switchView(v, fromHistory){
   if (v === 'qr')    setPrintReady('#btn-print',  S.booths.length > 0);
   if (v === 'list') renderList();       // 見えていない間は作っていないので、開いたときに描く
   if (v === 'info') renderInfo();       // 「いまのコマ」の印を時刻に合わせる
+  // 「戻る」で係員の画面に戻ったときも中身を組み立てる（以前は係員メニューから移ったときだけで、
+  // 読み込み直したあとの「戻る」ではレポートが空・ボードが止まったままだった）
+  if (fromHistory){
+    if (v === 'qr' && pw()) renderQrSheet();
+    else if (v === 'print') renderPrintSheet();
+    else if (v === 'report' && !S.report) renderReport();
+    else if (v === 'board'){ renderBoard(); initBoard(); }
+  }
   // 来場者向けの混雑アラートは係員画面では出さない（ノイズになる）
   // 一覧は「空いている順」に並んでいて先頭がその答えなので、同じ内容のバナーは出さない
   $('#banner-alert').classList.toggle('hide', v !== 'map' || !$('#banner-alert-text').textContent);
@@ -7233,6 +7944,12 @@ function switchView(v, fromHistory){
 
 window.addEventListener('popstate', e => {
   const st = e.state || {};
+  // スタンプの演出が出ているときの「戻る」は、まず演出を閉じる（アプリから出ていかない）
+  if (showStampFx.close){
+    showStampFx.close();
+    try{ history.pushState({ v: S.view }, '', location.pathname + location.search + location.hash); }catch(_){}
+    return;
+  }
   // シートが開いているときの「戻る」は、まずシートを閉じる（画面は動かさない）
   if (S.sheetId && !st.sheet){ closeSheet(true); return; }
   if (!S.sheetId && st.sheet){ openSheet(st.sheet, true); return; }
@@ -7470,6 +8187,11 @@ function renderAdmin(){
   renderNoticeState();
   const warn = [];
   if (S.dupIds.length) warn.push(`id が重なっています：${S.dupIds.join('・')}（後の行は無視しました）`);
+  // Code.gs の貼り替え・「新バージョン」でのデプロイ忘れ。スタンプの保存が端末だけになるので、いちばん上で知らせる
+  if (S.booths.length && S.serverVersion !== undefined && !(S.serverVersion && S.serverVersion >= (CONFIG.GAS_MIN || ''))){
+    warn.push(`サーバー（Code.gs）が古い版です${S.serverVersion ? `（GAS-${S.serverVersion}）` : ''}。スタンプがサーバーに保存されません。`
+      + `Code.gs を貼り替え、「デプロイを管理」→ 鉛筆 →「新バージョン」でデプロイしてください`);
+  }
   const noSlot = S.booths.filter(b => !slotOf(b.id));
   if (noSlot.length) warn.push(
     `図面に無い id：${noSlot.slice(0, 4).map(b => b.id).join('・')}` +
@@ -7651,10 +8373,14 @@ async function update(id, status, wait, retry){
     // 元の b は配列から切り離された孤児になるので、必ず id で引き直す。
     const cur = S.booths.find(x => x.id === id) || b;
     Object.assign(cur, { status, wait, stale:false, time:new Date().toISOString() });
+    // 送った直後の取得は、サーバーの作り直しの途中で「少し前の控え」が返ることがある。
+    // その控えで押した内容が元に戻って見えないよう、しばらくはこちらの値を優先する
+    // （サーバーの時刻が送信前のままの間だけ。誰かがその後に更新していればそちらを採る）
+    S.recent[id] = { status, wait, prevTime: prev.time || '', at: cur.time, exp: Date.now() + 90000 };
     delete S.draftWait[id]; delete S.draftAt[id]; saveDrafts();   // 送信できたので下書きを確定
     // 再送中に同じブースを押し直していたら、新しい方を残す
     const u0 = S.unsent[id];
-    if (!u0 || !retry || (u0.status === status && u0.wait === wait)){ delete S.unsent[id]; saveUnsent(); }
+    if (!u0 || !retry || (u0.status === status && u0.wait === wait)){ dropUnsent(id); saveUnsent(); }
     renderAdmin();
     if (retry){ toast(`送れていなかった更新を送りました：${b.name} → ${lvOf(status).short}`); return; }
     // 押し間違いをすぐ戻せるようにする
@@ -7674,7 +8400,10 @@ async function update(id, status, wait, retry){
     // （二重計上にならない）。以前は元に戻して短いトーストを出すだけで、
     // 状態ボタンで押した分は送れていないことが誰にも分からなかった
     const keepAt = retry && S.unsent[id] ? S.unsent[id].at : Date.now();
-    if (!retry || (id in S.unsent)) S.unsent[id] = { status, wait, at: keepAt };
+    // prevTime：押す前にサーバーで見えていた更新時刻。これより新しい更新がサーバーに入ったら、
+    // その後で再送しない（別の係員が後から押した値を、古い押し直しで上書きしないため）
+    const keepPrev = retry && S.unsent[id] ? S.unsent[id].prevTime : (prev.time || '');
+    if (!retry || (id in S.unsent)) S.unsent[id] = { status, wait, at: keepAt, prevTime: keepPrev };
     delete S.draftWait[id]; delete S.draftAt[id];
     saveUnsent();
     renderAdmin();
@@ -7697,7 +8426,48 @@ async function update(id, status, wait, retry){
 // これより古い未送信は送らない。10分前の「空いています」をいま送ると、今の状況として表示されてしまう
 const UNSENT_MAX_MS = 10 * 60000;
 // 画面やブラウザを閉じても残す（sessionStorage だとタブを閉じた瞬間に消えていた）
-function saveUnsent(){ store('kuroko_unsent', S.unsent); saveDrafts(); }
+/**
+ * 未送信の控えを保存する。同じ端末で係員画面を2つ開いていても消し合わないよう、
+ * 保存されている分と合わせてから書く（この画面で送った・捨てた分だけを消す）。
+ */
+function saveUnsent(){
+  const stored = load('kuroko_unsent', {}) || {};
+  if (stored && typeof stored === 'object' && !Array.isArray(stored)){
+    for (const id of Object.keys(stored)){
+      const sv = stored[id], mine = S.unsent[id];
+      if (!sv) continue;
+      const gone = S.unsentGone[id];
+      if (!mine){ if (!(gone != null && gone >= (sv.at || 0))) S.unsent[id] = sv; }
+      else if ((sv.at || 0) > (mine.at || 0)) S.unsent[id] = sv;
+    }
+  }
+  store('kuroko_unsent', S.unsent); saveDrafts();
+}
+/** 未送信の控えを1件消す（送れた・もう送らない）。ほかの画面が同じ控えを書き戻さないよう印を残す */
+function dropUnsent(id){
+  const u = S.unsent[id];
+  if (u) S.unsentGone[id] = Math.max(S.unsentGone[id] || 0, u.at || 0);
+  delete S.unsent[id];
+}
+/**
+ * 押す前より新しい更新がサーバーに入っていれば、その控えは送らない。
+ * （時間切れで実は届いていた・別の係員がその後に押した、のどちらでも再送は不要か有害）
+ * @returns {Array} 取り下げた控え
+ */
+function pruneUnsent(booths){
+  const out = [];
+  for (const id of Object.keys(S.unsent)){
+    const u = S.unsent[id], b = booths.find(x => x.id === id);
+    if (!u || !b || u.prevTime == null) continue;
+    if ((Date.parse(b.time) || 0) > (Date.parse(u.prevTime) || 0)){
+      const mine = b.status === u.status && (b.wait ?? null) === (u.wait ?? null);
+      out.push({ id, mine, name: b.name, status: b.status });
+      dropUnsent(id);
+    }
+  }
+  if (out.length) saveUnsent();
+  return out;
+}
 function loadUnsent(){
   const v = load('kuroko_unsent', {});
   if (v && typeof v === 'object' && !Array.isArray(v)) S.unsent = v;
@@ -7710,6 +8480,17 @@ function loadUnsent(){
   }
 }
 function saveDrafts(){ store('kuroko_drafts', { w: S.draftWait, a: S.draftAt }); }
+/** 送信済みなのに、少し前の控えで元に戻って見えるのを防ぐ（update の S.recent を参照） */
+function applyRecent(booths){
+  const now = Date.now();
+  for (const id of Object.keys(S.recent)){
+    const r = S.recent[id], b = booths.find(x => x.id === id);
+    if (!r || now > r.exp || !b){ delete S.recent[id]; continue; }
+    const t = Date.parse(b.time) || 0, p = Date.parse(r.prevTime) || 0;
+    if (t > p){ delete S.recent[id]; continue; }          // 送信が反映された（または他の係員が後から更新した）
+    b.status = r.status; b.wait = r.wait; b.stale = false; b.time = r.at;
+  }
+}
 /** 取得した一覧に、この端末でまだ送れていない変更を重ねる（係員の画面が元に戻って見えないように） */
 function applyUnsent(booths){
   for (const id of Object.keys(S.unsent)){
@@ -7728,8 +8509,9 @@ async function flushUnsent(){
       const u = S.unsent[id];
       if (!u) continue;
       if (!S.booths.some(x => x.id === id) || Date.now() - (u.at || 0) > UNSENT_MAX_MS){
-        delete S.unsent[id]; dropped++; continue;
+        dropUnsent(id); dropped++; continue;
       }
+
       await update(id, u.status, u.wait, true);
       if (id in S.unsent && S.unsent[id].at === u.at) break;   // まだ通らない。残りは次の機会に
     }
@@ -8397,7 +9179,13 @@ async function renderReport(){
     const day = new URLSearchParams(location.search).get('date') || '';
     const url = CONFIG.GAS_URL + (CONFIG.GAS_URL.includes('?') ? '&' : '?') + 'report=1'
               + (/^\d{4}-\d{2}-\d{2}$/.test(day) ? '&date=' + day : '') + '&_=' + Date.now();
-    const res = await fetch(url, { mode:'cors' });
+    // GAS が固まっても灰色の板のまま止まらないよう、15秒で打ち切って理由を出す
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 15000);
+    let res;
+    try{ res = await fetch(url, { mode:'cors', signal: ctl.signal }); }
+    catch(e2){ throw new Error(e2 && e2.name === 'AbortError' ? '応答がありません（15秒）。電波を確かめて、もう一度開いてください' : '通信できませんでした'); }
+    finally{ clearTimeout(to); }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     r = await res.json();
     if (!r || r.ok === false) throw new Error(r && r.error || '取得に失敗しました');
     S.report = r;
@@ -8671,6 +9459,7 @@ function init(){
     S.booths = cache.booths; S.notice = cache.notice || null;
     S.numbers = new Map(S.booths.map((b, i) => [b.id, i + 1]));
     S.updatedAt = cache.updatedAt; S.fetchedAt = cache.fetchedAt || 0;
+    ageStale();                         // 前回から時間がたっていれば、古い状況は「情報なし」で出す
     renderAll();
   }
   renderInfo();
@@ -8717,17 +9506,49 @@ function init(){
   // 記録のリセットは係員の試し用だけ。来場者が押せると、交換したあとに消して
   // 同じQRを読み直せば、お菓子をもう一度もらえてしまう（押し間違いで全部消える危険もある）
   // 引き継ぎ用のリンクとQR。開いたときにだけ作る（端末番号を画面に出しっぱなしにしない）
-  const handoffUrl = () => publicBase() + '?restore=' + encodeURIComponent(deviceId()) + '&openExternalBrowser=1';
+  const handoffUrl = () => publicBase() + '?restore=' + encodeURIComponent(stampId()) + '&openExternalBrowser=1';
   $('#stamp-handoff').addEventListener('toggle', () => {
     const box = $('#handoff-qr');
     box.innerHTML = $('#stamp-handoff').open ? QR.svgSafe(handoffUrl(), 180) : '';
-    if ($('#stamp-handoff').open) flushLedger();      // 引き継ぐ前に、控えを送り切っておく
+    if ($('#stamp-handoff').open) flushLedger(true);      // 引き継ぐ前に、控えを送り切っておく
   });
   $('#handoff-copy').addEventListener('click', async () => {
-    flushLedger();
+    flushLedger(true);
     try{ await navigator.clipboard.writeText(handoffUrl()); toast('リンクをコピーしました。引き継ぎ先のブラウザで開いてください'); }
     catch(e){ prompt('このリンクを引き継ぎ先で開いてください', handoffUrl()); }
   });
+  // スタンプ番号：コピー・つなぐ
+  $('#sid-copy').addEventListener('click', async () => {
+    const t = sidLabel();
+    try{ await navigator.clipboard.writeText(t); toast('スタンプ番号をコピーしました：' + t); }
+    catch(e){ prompt('スタンプ番号（別のアプリで入れてください）', t); }
+    flushLedger(true);
+  });
+  const sin = $('#sid-in'), serr = $('#sid-err'), sbtn = $('#sid-join');
+  sin.addEventListener('input', () => { serr.classList.add('hide'); });
+  sin.addEventListener('keydown', e => { if (e.key === 'Enter') sbtn.click(); });
+  sbtn.addEventListener('click', async () => {
+    if (sbtn.disabled) return;
+    const v = sin.value;
+    if (!normSid(v)){ serr.textContent = '番号は「XXXX-XXXX」の8文字です（0とO、1とIは使っていません）'; serr.classList.remove('hide'); return; }
+    sbtn.disabled = true; const lb = sbtn.textContent; sbtn.textContent = '確認中…';
+    try{
+      const msg = await joinSid(v);
+      sin.value = ''; $('#sid-join-box').open = false;
+      toast(msg, null, 6000);
+    }catch(e){
+      serr.textContent = String(e && e.message || e); serr.classList.remove('hide');
+    }finally{ sbtn.disabled = false; sbtn.textContent = lb; }
+  });
+  $('#sid-join-box').addEventListener('toggle', () => { if ($('#sid-join-box').open) flushLedger(true); });
+  // 動作チェック
+  $('#diag-box').addEventListener('toggle', () => { if ($('#diag-box').open) runDiag(); });
+  $('#diag-run').addEventListener('click', runDiag);
+  $('#diag-copy').addEventListener('click', async () => {
+    const t = '黒工マップ 動作チェック\n' + (runDiag._rows || []).map(r => `${r.st === 'ok' ? '○' : r.st === 'warn' ? '△' : '×'} ${r.k}：${r.v}`).join('\n');
+    try{ await navigator.clipboard.writeText(t); toast('結果をコピーしました'); }catch(e){ prompt('この内容を係の人に送ってください', t); }
+  });
+
   $('#stamp-reset').addEventListener('click', () => {
     if (!S.isAdmin) return;
     if (!confirm('【係員の試し用】この端末のスタンプと交換の記録を消します。よろしいですか？')) return;
@@ -8735,6 +9556,11 @@ function init(){
     S.spent = []; store('kuroko_spent_v1', []);
     store('kuroko_ledger_q', []);
     store('kuroko_cert_at', undefined);
+    // 試しの記録をサーバーの台帳から切り離す（番号を作り直す。台帳の行は消さない）
+    store('kuroko_sid', undefined); store('kuroko_pushed_fp', undefined);
+    store('kuroko_cid', undefined); deviceId._v = null;                 // 番号は端末番号から作るので、こちらも作り直す
+    store('kuroko_stamp_at', undefined); store('kuroko_join_from', undefined);
+    store('kuroko_pushed_at', undefined); store('kuroko_joined', undefined);
     renderAll(); toast('記録をリセットしました');
   });
 
@@ -8789,7 +9615,7 @@ function init(){
     let server = 'offline';
     try{
       if (navigator.onLine !== false){
-        const r = await api({ body:{ action:'redeem', cid: deviceId(), ids }, timeout: 8000 });
+        const r = await api({ body:{ action:'redeem', cid: stampId(), ids }, timeout: 12000 });
         server = 'ok';
         if (r && Array.isArray(r.spent)) mergeSpent(r.spent);
       }
@@ -8799,7 +9625,7 @@ function init(){
     }finally{ okBtn.disabled = false; okBtn.textContent = lb; }
     if (server === 'already'){
       // 別の画面で交換済みだった分を、この端末にも反映する
-      try{ const l = await fetchLedger(deviceId()); if (l) mergeSpent(l.spent); }catch(e){}
+      try{ absorbLedger(await fetchLedger(stampId())); }catch(e){}
       renderStamps();
       rerr.classList.remove('hide');
       rerr.textContent = 'このスタンプは別の画面ですでにお菓子と交換済みです。スタンプ帳を最新にしました';
@@ -8891,6 +9717,10 @@ function init(){
   } else if (mode === 'board'){
     switchView('board');
     initBoard();
+  } else if (mode === 'check'){
+    // ?mode=check … 動作チェックを開いた状態で出す（相談を受けた係員が案内するURL）
+    switchView('info');
+    const d = $('#diag-box'); if (d){ d.open = true; setTimeout(() => d.scrollIntoView({ block:'start' }), 300); }
   } else {
     const tab = params.get('tab') || location.hash.replace('#', '');
     if (['map','list','stamp','info'].indexOf(tab) >= 0) switchView(tab);
@@ -8921,6 +9751,9 @@ function init(){
       applyDeepLink._fx = true;
       const fresh = earnStamp(b);       // すでに持っていれば false
       if (fresh) setHere(b, 'qr');      // 読んだ場所＝いまいる場所
+      // 画面を移る（履歴が1つ増える）前に、QRの引数をURLから消す。後だと「戻る」で
+      // ?booth=…&qr=1 の入口へ戻り、読み込み直すと同じ演出がまた出ていた
+      stripLink();
       switchView('stamp');
       setTimeout(() => showStampFx(b, fresh), 120);
     }
@@ -8959,7 +9792,18 @@ function init(){
   if (!mode && params.get('qr') === '1') applyDeepLink();
   // 引き継ぎ用リンク（?restore=端末番号）で開かれたとき
   const restoreCid = params.get('restore');
-  if (restoreCid && /^[a-z0-9]{12,40}$/i.test(restoreCid)) restoreFrom(restoreCid);
+  if (restoreCid && normSid(restoreCid)) restoreFrom(restoreCid);
+  // 旧版でスタンプを集めていた人：番号を作って台帳へ送る。以後は開くたびに台帳と突き合わせる
+  if (!mode){
+    setTimeout(() => {
+      pullStamps();
+      if (S.stamps.size || S.spent.length){
+        stampId();
+        if (!load('kuroko_migrated', null)) migrateLegacy().then(() => flushLedger(true)); else flushLedger();
+      } else store('kuroko_migrated', 1);
+      pullLedger(3000);                         // 開いた直後の pageshow で読んでいれば重ねない
+    }, restoreCid ? 4000 : 1500);
+  }
 
   sync(false).then(() => {
     if (mode === 'qr'){ if (pw()) renderQrSheet(); return; }
@@ -8987,9 +9831,9 @@ function initSW(){
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
     .then(reg => {
       // 文化祭中は開きっぱなしになりやすいので、定期的に新版を探しにいく
-      setInterval(() => { try{ reg.update(); }catch(e){} }, 15 * 60 * 1000);
+      setInterval(() => { try{ reg.update().catch(() => {}); }catch(e){} }, 15 * 60 * 1000);
       document.addEventListener('visibilitychange', () => {
-        if (!document.hidden){ try{ reg.update(); }catch(e){} }
+        if (!document.hidden){ try{ reg.update().catch(() => {}); }catch(e){} }
       });
     })
     .catch(() => {});
@@ -9089,6 +9933,7 @@ function setFloor(n){
  * 逆に縦を埋めようとして左右が切れたりする。
  */
 function fitMapBox(floorNum){
+  mapScale._w = 0;                         // 地図の箱を測り直す場面では幅も測り直す
   const view = $('#map-view'), svg = $('#plan-' + floorNum);
   if (!view || !svg) return;
   // 画面が低いとき（横向き）は地図も低くする。270px 固定だと下が切れる

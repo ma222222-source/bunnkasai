@@ -4,7 +4,7 @@
   "description": "文化祭の校内マップとリアルタイム混雑状況",
   "start_url": "./index.html",
   "scope": "./",
-  "display": "standalone",
+  "display": "browser",
   "orientation": "portrait",
   "background_color": "#eef1f6",
   "theme_color": "#b91c1c",
