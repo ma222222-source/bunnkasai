@@ -69,7 +69,7 @@
 
 ## 5. 反映の手順（ユーザーが行う）
 
-AI には GitHub の書き込み権限が無い（2026-09-29 時点）。ユーザーが次の手順で反映する。
+2026-09-29 から、ユーザーの PC の Claude Code は GitHub に書き込める。作業用ブランチ（`claude/…`）へのコミットとプッシュは AI が自動で行い、**main へのマージ・プッシュはユーザーの承認を得てから**行う（詳細は `CLAUDE.md`）。それ以外の AI（Cowork・ChatGPT など）は従来どおり、ユーザーが次の手順で反映する。
 
 1. GitHub（`ma222222-source/bunnkasai` の main）の Web 画面から、`index.html` `sw.js` `manifest.json` `apple-touch-icon.png` `og.png` `SETUP.md` `部屋ID一覧.xlsx`、`SPEC.md` `RULES.md` `PROGRESS.md` をルートにアップロード（**ファイル名の末尾に `_1` などが付いていないこと**）
 2. `Code.gs` を変えたときは、スプレッドシート → 拡張機能 → Apps Script に全文を貼り付けて保存 → デプロイ → デプロイを管理 → 鉛筆 → **新バージョン** → デプロイ（URLは変わらない。保存だけでは反映されない）

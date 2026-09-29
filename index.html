@@ -557,6 +557,7 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 .ev-map[data-kind="now"] rect{fill:var(--busy)}
 .ev-map text{font-size:7px;font-weight:900;fill:var(--on-status);pointer-events:none}
 .tt-now{background:var(--surface-3)}
+.tt-day th{text-align:left;font-size:12px;font-weight:900;color:var(--text-dim);padding:10px 0 4px;border-bottom:1px solid var(--border)}
 /* 「地図で見る」は行の中に混ぜず、予定の下に置く。
    44px の高さのボタンを文中に置くと、その行だけ行間が44pxに広がり、
    時刻と予定の高さが行ごとにバラバラになって読みにくかった。 */
@@ -1728,6 +1729,20 @@ html.sheet-open{overflow:hidden}
   .sheet-list.many td{border-bottom:none}
   .sheet-list.many td:last-child{flex:1 1 auto}
   .sheet h2{break-after:avoid}
+  /* 多いとき：2枚目の頭に「屋外｜タイムテーブル・困ったとき」を並べ、その下に一覧（3段） */
+  /* 2階（部屋が多い）と3階（教室棟だけ）を並べる段は、2階に幅を多く配る。半々だと2階の番号が小さすぎた */
+  .sheet-body.many .sheet-maps{grid-template-columns:minmax(0,3fr) minmax(0,2fr)}
+  .sheet-body.many .sheet-maps > div:not(.wide) .sheet-plan{max-height:110mm}
+  .sheet-body.many .sheet-out{order:1;break-before:page}
+  .sheet-body.many .sheet-out .sheet-plan{max-height:92mm;width:auto;max-width:100%;margin:0 auto;display:block}
+  .sheet-body.many .sheet-info{order:2}
+  .sheet-body.many .sheet-list{order:3}
+  .sheet-body.many .sheet-list .sheet-table{column-count:3;column-gap:4mm;font-size:7.5pt}
+  .sheet-body.many .sheet-list td{padding:1.6px 3px}
+  .sheet-body.many .sheet-info .sheet-table{font-size:7.5pt}
+  .sheet-body.many .sheet-info td{padding:1.8px 3px}
+  .sheet-body.many .sheet-info h2{margin-top:6px !important}
+  .sheet-body.many .sheet-list small{font-size:6.5pt;color:#b91c1c;font-weight:900}
 }
 
 /* ========================= 文字を大きく =========================
@@ -2418,7 +2433,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-09-28b',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-29d',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -2445,10 +2460,17 @@ const CONFIG = {
   SLOW_MS: 4000,
   POLL_MS_HIDDEN: 0,       // バックグラウンド時は停止（0）
   STALE_MS: 90000,         // これを超えたら「情報が古い」表示
-  // 一般公開の時間。開場前・閉場後・別の日に開いた人へ、
+  // 公開の時間。開場前・閉場後・別の日に開いた人へ、
   // 「壊れている」ではなく「まだ始まっていない」と伝えるために使う。
-  // date は開催日（YYYY-MM-DD）。空にすると日付の判定はしない。
-  HOURS: { date: '', open: '09:30', close: '15:00' },
+  // days は開催日ごと（YYYY-MM-DD）。last は最終入場（無ければ省く）。
+  // label に「校内」を含む日は、一般の方向けの案内で「一般公開日」として扱わない。
+  // 出典：R8 黒工祭企画内容一覧（令和8年9月7日 黒工祭総務）
+  HOURS: {
+    days: [
+      { date: '2026-10-23', open: '10:00', close: '14:25', label: '校内公開日' },
+      { date: '2026-10-24', open: '09:30', close: '14:30', last: '14:00', label: '一般公開日' }
+    ]
+  },
   ADMIN_WARN_MIN: 15,      // 係員向け：15分未更新で注意
   ADMIN_DANGER_MIN: 30,    // 係員向け：30分未更新で警告（サーバー側45分で自動的に情報なしへ）
   ADMIN_HOLD_MS: 20000,    // 係員が操作した直後は並べ替えを止める時間
@@ -2473,26 +2495,37 @@ const CONFIG = {
   ROUTES: {
     // auto / free / flat は毎回自動で作り直す（ここに書いた内容は使われない）
     auto: [], free: [], flat: [],
-    denshi: ['4','1','7'],
-    all:    ['4','1','2','3','5','6','7','8'],
-    food:   ['8','7','4']
+    // R8 の配置（校舎平面図の赤字）。部屋IDは 部屋ID一覧.xlsx を参照
+    denshi: ['2F-12','2F-13','2F-18','1F-35'],
+    all:    ['1F-48','1F-50','1F-49','1F-36','1F-35','1F-34','1F-33','1F-42',
+             '1F-01','1F-24','1F-02','1F-03','1F-14','1F-05','1F-07',
+             '1F-08','1F-17','1F-19','1F-21','1F-11','1F-60','1F-25','1F-38',
+             '1F-29','1F-30','1F-39','1F-57','1F-61','1F-58',
+             '2F-17','2F-18','2F-19','2F-20','2F-28','2F-06','2F-07','2F-08','2F-09',
+             '2F-14','2F-21','2F-12','2F-13',
+             '3F-01','3F-02','3F-03','3F-04'],
+    food:   ['1F-57','1F-61','1F-36','1F-35','1F-34']
   },
   INFO: {
-    // 3つめは場所（部屋ID）。書いておくと、その行をタップして地図に飛べる。
-    // 部屋IDは 部屋ID一覧.xlsx を参照（例: 1F-42 = 第一体育館）
+    // [時刻, 内容, 場所（部屋ID）, 日付]。
+    // 場所を書いておくと、その行をタップして地図に飛べる（部屋IDは 部屋ID一覧.xlsx）。
+    // 日付（YYYY-MM-DD）を書いた行はその日だけ出る。省くと両日に出る。
+    // ステージ（カラオケ大会・吹奏楽部・合唱）の時刻が決まったらここへ足す。
     timetable: [
-      ['09:30', '開場・受付開始（正門）', '0F-01'],
-      ['10:00', 'オープニング（体育館）', '1F-42'],
-      ['11:00', '電子科 ロボット実演（第2校舎1F）'],
-      ['12:00', '各科ステージ発表（体育館）', '1F-42'],
-      ['13:30', '有志発表（体育館）', '1F-42'],
-      ['15:00', '閉会・完全撤収']
+      ['10:00', '校内公開 はじまり', '', '2026-10-23'],
+      ['14:25', '校内公開 おわり', '', '2026-10-23'],
+      ['09:30', '一般公開 開場・受付（南棟昇降口）', '1F-48', '2026-10-24'],
+      ['14:00', '最終入場', '1F-48', '2026-10-24'],
+      ['14:30', '一般公開 おわり', '', '2026-10-24']
     ],
     help: [
-      ['aid','救護室','本館1階 保健室。体調が悪くなったら、近くの係員に声をかけてください'],
+      ['flag','受付・入口','一般の方の受付は南棟昇降口です。来賓の方は本館玄関の来賓受付へ。本館（職員室・保健室側）は通り抜けできません'],
+      ['car','駐車場','一般の方は校舎南東の一般駐車場へ。そこから南棟昇降口の受付まで歩いてすぐです'],
+      ['aid','救護室','体調が悪くなったら、近くの係員か受付（南棟昇降口）に声をかけてください（保健室は本館1階）'],
+      ['food','飲食','第二体育館が飲食ブースです。キッチンカーは第二体育館の前に出ています'],
       ['wc','トイレ','各棟の1階・2階／体育館入口'],
-      ['bag','落とし物','受付・本部で預かっています'],
-      ['call','迷子・呼び出し','はぐれたら受付・本部へ。小さいお子さんとは、先に「はぐれたら本部に集合」と決めておくと安心です'],
+      ['bag','落とし物','受付（南棟昇降口）で預かっています'],
+      ['call','迷子・呼び出し','はぐれたら受付（南棟昇降口）へ。小さいお子さんとは、先に「はぐれたら受付に集合」と決めておくと安心です'],
       ['access','車椅子・ベビーカーの方','本校にエレベーターはありません。2階・3階へは階段のみです。1階と屋外は段差なしで回れます。「階段なしで回る」コースもお使いください'],
       ['nosmoke','喫煙・飲酒','校内は全面禁止です']
     ]
@@ -2528,6 +2561,8 @@ const ICON = (() => {
     food:   w('<path d="M5 3v5.4a1.9 1.9 0 0 0 3.8 0V3"/><path d="M6.9 8.4V17"/>'
               + '<path d="M14.6 3c-1.6.9-2.3 2.6-2.3 4.6s.9 3.3 2.3 3.3V17"/>'),
     note:   w('<path d="M7.2 3.6h5.6l-.9 4.6 2.4 2.4H5.7l2.4-2.4z"/><path d="M10 10.6v5.8"/>'),
+    car:    w('<path d="M3.4 13.4V10l1.9-4.2h9.4l1.9 4.2v3.4z"/><path d="M3.4 10h13.2"/>'
+              + '<circle cx="6.4" cy="14.6" r="1.5"/><circle cx="13.6" cy="14.6" r="1.5"/>'),
     tool:   w('<path d="M12.4 3.6a4.3 4.3 0 0 0-5.1 5.5l-3.8 3.8a1.7 1.7 0 0 0 2.4 2.4l3.8-3.8a4.3 4.3 0 0 0 5.5-5.1l-2.5 2.5-2.3-2.3z"/>')
   };
 })();
@@ -2622,12 +2657,16 @@ function waitText(b){
    薄く描かれる（目印になるので消さない）。
    この中身は xlsx の平面図から自動生成している。手で書き換えないこと
    （次に図面をもらって作り直したときに消える）。
+   【R8で手で足したもの（作り直したら足し直す）】R8 黒工祭校舎平面図の赤字より
+     1F-60 屋外特設会場（土木科 C②）／1F-61 キッチンカー出店場所／
+     2F-28 2階廊下（美術・家庭科の展示）／本館2階・3階の立入禁止（図の ✕ 印）／
+     1F-02 の名前（機械加工実習室 → 機械加工室）
    ===================================================================== */
 const FLOOR_PLAN = {
   0: {
     zones: [{"label":"■ 校舎エリア","x":143,"y":6}, {"label":"■ グラウンド","x":6,"y":155}, {"label":"■ 野球場","x":175,"y":381}],
     struct: [{"x":128,"y":166,"w":228,"h":9,"type":"road","label":"8m 道路"}, {"x":106,"y":166,"w":9,"h":196,"type":"road","label":""}, {"x":106,"y":166,"w":24,"h":9,"type":"road","label":""}, {"x":347,"y":0,"w":9,"h":262,"type":"road","label":""}, {"x":347,"y":253,"w":34,"h":9,"type":"road","label":""}, {"x":97,"y":353,"w":24,"h":9,"type":"road","label":""}, {"x":347,"y":88,"w":16,"h":8,"type":"road","label":""}, {"x":143,"y":9,"w":209,"h":155,"type":"bldg","label":"校舎（1F〜3F）"}, {"x":6,"y":158,"w":84,"h":137,"type":"outdoor","label":"陸上競技場"}, {"x":140,"y":197,"w":108,"h":155,"type":"outdoor","label":"ラグビー場"}, {"x":233,"y":266,"w":98,"h":86,"type":"outdoor","label":"ラグビー場"}, {"x":239,"y":202,"w":101,"h":37,"type":"outdoor","label":"テニスコート"}, {"x":175,"y":384,"w":94,"h":85,"type":"outdoor","label":"軟式野球場"}, {"x":245,"y":393,"w":95,"h":76,"type":"outdoor","label":"硬式野球場"}],
-    utils: [{"t":"正門","x":346,"y":248,"w":22,"h":14}, {"t":"通用門","x":98,"y":348,"w":24,"h":14}, {"t":"駐車場","x":275,"y":137,"w":71,"h":24}, {"t":"駐輪場","x":352,"y":127,"w":11,"h":31}, {"t":"駐輪場","x":374,"y":299,"w":11,"h":28}, {"t":"クラブハウス","x":374,"y":340,"w":11,"h":30}, {"t":"記念館","x":104,"y":45,"w":30,"h":15}, {"t":"北桜会館","x":104,"y":72,"w":30,"h":18}, {"t":"弓道場","x":78,"y":78,"w":19,"h":53}, {"t":"プール","x":104,"y":128,"w":24,"h":17}],
+    utils: [{"t":"正門","x":346,"y":248,"w":22,"h":14}, {"t":"通用門","x":98,"y":348,"w":24,"h":14}, {"t":"一般駐車場","x":275,"y":137,"w":71,"h":24}, {"t":"駐輪場","x":352,"y":127,"w":11,"h":31}, {"t":"駐輪場","x":374,"y":299,"w":11,"h":28}, {"t":"クラブハウス","x":374,"y":340,"w":11,"h":30}, {"t":"記念館","x":104,"y":45,"w":30,"h":15}, {"t":"北桜会館","x":104,"y":72,"w":30,"h":18}, {"t":"弓道場","x":78,"y":78,"w":19,"h":53}, {"t":"プール","x":104,"y":128,"w":24,"h":17}],
     rooms: [
       {"id":"0F-01","nm":"ふれあい広場","x":275,"y":115,"w":62,"h":16},
     ],
@@ -2726,7 +2765,7 @@ const FLOOR_PLAN = {
     ],
     rooms: [
       {"x":36.8,"y":292.0,"w":23.0,"h":22.0,"id":"1F-01","nm":"FA実習室","z":"電子機械科実習棟"},
-      {"x":59.8,"y":292.0,"w":32.2,"h":44.0,"id":"1F-02","nm":"機械加工実習室","z":"電子機械科実習棟"},
+      {"x":59.8,"y":292.0,"w":32.2,"h":44.0,"id":"1F-02","nm":"機械加工室","z":"電子機械科実習棟"},
       {"x":92.0,"y":292.0,"w":16.1,"h":20.0,"id":"1F-03","nm":"計測実習室","z":"電子機械科実習棟"},
       {"x":108.1,"y":292.0,"w":16.1,"h":20.0,"id":"1F-04","nm":"材料試験室","z":"機械科実習棟"},
       {"x":124.2,"y":292.0,"w":27.6,"h":20.0,"id":"1F-05","nm":"溶接実習室","z":"機械科実習棟"},
@@ -2783,7 +2822,9 @@ const FLOOR_PLAN = {
       {"x":372.6,"y":422.0,"w":29.9,"h":18.0,"id":"1F-55","nm":"計測室②","z":"電子科実習棟"},
       {"x":25.3,"y":458.0,"w":16.1,"h":36.0,"id":"1F-56","nm":"ボクシング場"},
       {"x":46.0,"y":458.0,"w":57.5,"h":36.0,"id":"1F-57","nm":"第二体育館"},
-      {"x":140.3,"y":462.0,"w":18.4,"h":12.0,"id":"1F-51","nm":"進路指導室","z":"本館"}
+      {"x":140.3,"y":462.0,"w":18.4,"h":12.0,"id":"1F-51","nm":"進路指導室","z":"本館"},
+      {"x":223.0,"y":344.0,"w":34.0,"h":15.0,"id":"1F-60","nm":"屋外特設会場"},
+      {"x":106.0,"y":442.0,"w":72.0,"h":14.0,"id":"1F-61","nm":"キッチンカー出店場所"}
     ],
     hidden: [
       {"x":333.5,"y":294.0,"w":11.5,"h":16.0,"id":"1X-21","nm":"準備室","z":"家庭科実習棟"},
@@ -2864,7 +2905,8 @@ const FLOOR_PLAN = {
       {"x":133.4,"y":254.0,"w":78.2,"h":4.0,"type":"corridor","link":1,"label":"廊下"},
       {"x":211.6,"y":254.0,"w":13.8,"h":4.0,"type":"corridor","link":1},
       {"x":225.4,"y":254.0,"w":4.6,"h":4.0,"type":"corridor","link":1},
-      {"x":211.6,"y":148.0,"w":4.6,"h":110.0,"type":"corridor","link":1}
+      {"x":211.6,"y":148.0,"w":4.6,"h":110.0,"type":"corridor","link":1},
+      {"x":124.2,"y":226.0,"w":128.8,"h":50.0,"type":"blocked","label":"本館2階（立入禁止）"}
     ],
     utils: [
       {"t":"WC","x":195.5,"y":152.0,"w":6.9,"h":12.0},
@@ -2902,7 +2944,8 @@ const FLOOR_PLAN = {
       {"x":181.7,"y":242.0,"w":23.0,"h":12.0,"id":"2F-27","nm":"会議室"},
       {"x":225.4,"y":242.0,"w":27.6,"h":12.0,"id":"2F-24","nm":"図書室"},
       {"x":133.4,"y":258.0,"w":32.2,"h":14.0,"id":"2F-25","nm":"化学実験室","z":"本館"},
-      {"x":184.0,"y":258.0,"w":32.2,"h":14.0,"id":"2F-26","nm":"物理実験室","z":"本館"}
+      {"x":184.0,"y":258.0,"w":32.2,"h":14.0,"id":"2F-26","nm":"物理実験室","z":"本館"},
+      {"x":204.0,"y":167.0,"w":26.0,"h":31.0,"id":"2F-28","nm":"2階廊下"}
     ],
     hidden: [
       {"x":356.5,"y":130.0,"w":4.6,"h":18.0,"id":"2X-08","nm":"通信準備室"},
@@ -2940,7 +2983,8 @@ const FLOOR_PLAN = {
       {"x":202.4,"y":42.0,"w":2.3,"h":4.0,"type":"corridor","link":1},
       {"x":119.6,"y":92.0,"w":13.8,"h":4.0,"type":"corridor","link":1},
       {"x":133.4,"y":92.0,"w":82.8,"h":4.0,"type":"corridor","link":1,"label":"廊下"},
-      {"x":216.2,"y":92.0,"w":11.5,"h":4.0,"type":"corridor","link":1}
+      {"x":216.2,"y":92.0,"w":11.5,"h":4.0,"type":"corridor","link":1},
+      {"x":119.6,"y":70.0,"w":133.4,"h":40.0,"type":"blocked","label":"本館3階（立入禁止）"}
     ],
     utils: [
       {"t":"WC","x":195.5,"y":10.0,"w":6.9,"h":12.0},
@@ -3122,6 +3166,13 @@ async function api(opts){
     let res;
     try{
       res = await fetch(url, init);
+      // GAS はときどき、処理は終わっているのに結果の受け渡し（googleusercontent）で
+      // 404「ファイルを開くことができません」を返す（本番で3回に1回ほど観測）。
+      // 読むだけの通信（GET）は同じものをもう1回取り直せば済む。書く通信は二重になり得るので取り直さない
+      if (!isPost && (res.status === 404 || res.status >= 500)){
+        await new Promise(r => setTimeout(r, 600));
+        res = await fetch(url.replace(/_=\d+/, '_=' + Date.now()), init);
+      }
     }catch(e){
       // 時間切れで打ち切った場合は、届いたかどうか分からない。
       // 「失敗した」と言い切ると、押し直して二重に入ることがある
@@ -3177,6 +3228,7 @@ function normalize(raw){
     floor: [0,1,2,3].indexOf(Number(b.floor)) >= 0 ? Number(b.floor) : 1,
     note: String(b.note || '').trim(),
     image: safeImg(b.image),               // javascript: などは取り込む時点で捨てる
+    dept: DEPT_BY_NAME[String(b.dept || '').trim()] ? String(b.dept).trim() : '',   // 知らない科名は捨てる（棟で判定に戻る）
     history: Array.isArray(b.history) ? b.history.slice(-12) : []
   })).sort((a, x) => idCmp(a.id, x.id));
 }
@@ -3215,6 +3267,9 @@ async function sync(manual){
     if (th && isFinite(+th.warn) && isFinite(+th.busy) && +th.warn < +th.busy){
       S.waitTh = { warn:+th.warn, busy:+th.busy };
     }
+    // 本部が GAS のスクリプトプロパティ POLL_SEC で間隔を延ばしたとき（当日 GAS が重いとき）に従う
+    const ps = raw ? Number(raw.pollSec) : 0;
+    S.pollMin = (ps >= 10 && ps <= 120) ? ps * 1000 : 0;
     S.updatedAt = (raw && raw.updatedAt) || new Date().toISOString();
     if (raw && isFinite(+raw.staleMinutes) && +raw.staleMinutes > 0) S.staleMin = +raw.staleMinutes;
     const sv = (raw && typeof raw.serverVersion === 'string') ? raw.serverVersion : '';
@@ -3268,9 +3323,11 @@ async function sync(manual){
     // 通信断とサーバー側の異常を区別する（対処が違うため）
     const msg = String(err && err.message || err);
     // HTTP 5xx はサーバー側の不調（電波ではない）。「電波の良い場所へ」と案内しない
-    S.errKind = /Failed to fetch|NetworkError|Load failed|aborted|The user aborted|timeout/i.test(msg) ? 'net'
-              : /^HTTP 5\d\d/.test(msg) ? 'server'
-              : /^HTTP/.test(msg) ? 'net' : 'server';
+    // 電波（届かない）／遅い（時間切れ）／サーバー側（HTTPエラー・JSONでない）を分ける。
+    // 本番の GAS は3秒前後が普通で、ときどき30秒近くかかる。時間切れを「電波の良い場所へ」と
+    // 案内すると、電波のせいではないのに来場者を歩かせてしまう
+    S.errKind = navigator.onLine === false || /Failed to fetch|NetworkError|Load failed/i.test(msg) ? 'net'
+              : /aborted|The user aborted|timeout/i.test(msg) ? 'slow' : 'server';
     console.warn('[sync]', S.errKind, msg);
     // JSONの代わりにHTML（Googleのログイン画面など）が返った＝デプロイの公開範囲の設定ミス。
     // 来場者には関係ないので、係員画面にだけ直し方を1回出す
@@ -3278,11 +3335,14 @@ async function sync(manual){
       sync._htmlWarned = true;
       toast('サーバーがJSONでなくWebページを返しました。Apps Scriptのデプロイで「アクセスできるユーザー：全員」になっているか確認してください', null, 9000);
     }
-    if (manual) toast(S.errKind === 'net' ? '通信できませんでした' : 'サーバーが応答しません');
+    if (manual) toast(S.errKind === 'net' ? '通信できませんでした' : S.errKind === 'slow' ? '応答が遅れています。少しあとで自動でつなぎ直します' : 'サーバーが応答しません');
     renderSyncState();
   }finally{
     sync._busy = false;
     clearTimeout(sync._slow);
+    // 取得中（1秒超）に描くと「取りに行っています…」のまま次の同期まで残っていた
+    // （本番の GAS は3秒前後かかるので、ほぼ常にこの表示になっていた）。終わった時点で描き直す
+    renderSyncState();
     schedule();
     if (sync._again){
       sync._again = false;
@@ -3319,11 +3379,14 @@ function syncIfStale(maxAgeMs){
 function schedule(){
   clearTimeout(S.timer);
   if (document.hidden && CONFIG.POLL_MS_HIDDEN === 0) return;
-  const base = (isActive() && !serverBusy()) ? CONFIG.POLL_MS_ACTIVE : CONFIG.POLL_MS;
+  const base = Math.max((isActive() && !serverBusy()) ? CONFIG.POLL_MS_ACTIVE : CONFIG.POLL_MS, S.pollMin || 0);
   // ボードは誰も「再試行」を押さないので、待ちの上限を1分にしておく
   const cap = S.view === 'board' ? 60000 : 5 * 60000;
   const backoff = Math.min(base * Math.pow(2, Math.min(S.failures, 4)), cap);
-  S.timer = setTimeout(() => sync(false), S.failures ? backoff : base);
+  // ±15%ずらす。同じ時刻に開いた（QRを読んだ・お知らせを見た）人たちの取得が
+  // いつまでも同じ瞬間に重なり、GAS の同時実行の上限に当たるのを避ける
+  const jitter = 0.85 + Math.random() * 0.3;
+  S.timer = setTimeout(() => sync(false), Math.round((S.failures ? backoff : base) * jitter));
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -3400,13 +3463,17 @@ function renderSyncState(){
   // 初回訪問（保存データなし）で通信できないときこそ、いちばん説明が要る。
   // 以前は !S.booths.length でバナーごと隠していたため、
   // 最も困る場面で灰色の枠だけが出て「壊れている」ようにしか見えなかった。
-  $('#banner-offline').classList.toggle('hide', S.online);
-  if (!S.online){
-    const net = S.errKind !== 'server';
+  // 1回だけの失敗（GAS のときどきの遅れ・404）で帯を出すと、来場者の画面が点滅して不安をあおる。
+  // 続けて失敗したとき（またはまだ何も表示できていないとき）だけ出す
+  const showDown = !S.online && (S.failures >= 2 || !S.booths.length);
+  $('#banner-offline').classList.toggle('hide', !showDown);
+  if (showDown){
+    const net = S.errKind === 'net';
     const has = S.booths.length > 0;
     $('#banner-offline-icon').innerHTML = net ? ICON_WIFI : ICON_WRENCH;
     $('#banner-offline-text').textContent = has
       ? (net ? '通信できません。電波の良い場所へ移動してください。最後に取得した情報を表示しています。'
+             : S.errKind === 'slow' ? '案内システムの応答が遅れています。最後に取得した情報を表示しています（自動でつなぎ直します）。'
              : '案内システムが一時的に応答していません。最後に取得した情報を表示しています。')
       // 初回で何も受け取れていないときは一覧も空。「下に出ています」とは言わない
       : '混雑状況を取れませんでした。校内マップは下で見られます。'
@@ -3609,7 +3676,31 @@ const DEPTS = [
   { z:'本館',             s:'本館',       c:'#88CCEE' }
 ];
 const DEPT_BY_ZONE = Object.fromEntries(DEPTS.map(d => [d.z, d]));
-function deptOf(room){ return room && room.z ? DEPT_BY_ZONE[room.z] : null; }
+const DEPT_BY_NAME = Object.fromEntries(DEPTS.map(d => [d.s, d]));
+/** id → ブース。S.booths が差し替わったときだけ作り直す */
+function boothMap(){
+  if (boothMap._src !== S.booths){
+    boothMap._src = S.booths;
+    boothMap._m = new Map((S.booths || []).map(b => [b.id, b]));
+    boothMap._sig = (S.booths || []).filter(b => b.dept).map(b => b.id + ':' + b.dept).join(',');
+  }
+  return boothMap._m;
+}
+/** ブースの科（シートの dept 列）。書いていなければ null */
+function boothDept(b){ return b && b.dept ? (DEPT_BY_NAME[String(b.dept).trim()] || null) : null; }
+/** 科の割り当ての指紋。凡例や地図の描き直しの判定に使う */
+function deptSig(){ boothMap(); return boothMap._sig || ''; }
+/**
+ * 部屋の科。R8 は「電子機械科の展示が材料技術科の棟にある（製図室 Em④）」のように
+ * 棟と出し物の科が一致しないので、ブースに科が書いてあればそちらを優先する。
+ * 書いていなければ、これまでどおり棟で決める。
+ */
+function deptOf(room){
+  if (!room) return null;
+  const bd = room.id ? boothDept(boothMap().get(room.id)) : null;
+  if (bd) return bd;
+  return room.z ? DEPT_BY_ZONE[room.z] : null;
+}
 
 /** 地図の下に出す「科の色」の凡例。その階にある科だけを出す */
 /** 出入口かどうか（昇降口・玄関） */
@@ -3619,7 +3710,7 @@ function renderDeptLegend(floorNum){
   const box = $('#dept-legend');
   if (!box) return;
   // 凡例は階と絞り込みだけで決まる。同じなら作り直さない（同期のたびの作り直しでレイアウトが走っていた）
-  const lk = floorNum + '|' + S.dept;
+  const lk = floorNum + '|' + S.dept + '|' + deptSig();
   if (renderDeptLegend._k === lk && box.firstChild) return;
   renderDeptLegend._k = lk;
   setTimeout(() => markScrollEdges(box), 0);
@@ -3835,6 +3926,15 @@ function mapFingerprint(extra){
     };
     // rooms だけでなく hidden も外す。hidden に残っていると
     // ブースが割り当てられた瞬間 restoreHiddenRooms() が地図へ戻してしまう。
+    // 入れない区画の中のトイレ記号も外す（使えないうえ、「立入禁止」の字に重なって読めなくなる）
+    plan.utils = (plan.utils || []).filter(u => !inside(u));
+    // 棟ごと入れない（本館2階・3階）なら棟の名札も外す。「本館2階（立入禁止）」が名札を兼ねる。
+    // 残すと画面・紙・ボードのどれでも「本館」の札が立入禁止の字に重なる
+    plan.zones = (plan.zones || []).filter(z => {
+      const nm = String(z.label || '').replace(/^[■●▪\s]+/, '');
+      const host = (plan.struct || []).find(st => st.zone === nm);
+      return !(host && inside(host));
+    });
     const dropped = (plan.rooms || []).filter(inside).concat((plan.hidden || []).filter(inside));
     if (!dropped.length) return;
     plan.rooms  = (plan.rooms  || []).filter(r => !inside(r));
@@ -4026,7 +4126,7 @@ function drawFloor(floorNum){
   // 700要素を差し替えるので、ちょうど地図を触っていた人は指の下から要素が消える。
   // 実際に出る文字だけを指紋に入れて、本当に変わったときだけ描き直す。
   const evs = boothsHere.map(b => eventLabel(b)).join(',');
-  const fp = mapFingerprint(`map:${floorNum}:${S.route}:${S.dept}:${S.spot}:${hereId()}:${lod}:${evs}`);
+  const fp = mapFingerprint(`map:${floorNum}:${S.route}:${S.dept}:${S.dept ? deptSig() : ''}:${S.spot}:${hereId()}:${lod}:${evs}`);
   if (drawFloor._fp === fp) return;
   // 指を置いている最中に作り直すと、つかんでいた部屋ごと消えて操作が途切れる。
   // 指が離れるまで待ってから描き直す（待っているあいだは指紋を進めない）。
@@ -4081,8 +4181,10 @@ function drawFloor(floorNum){
     .filter(st => st.type === 'corridor' && st.w >= st.h && st.h >= 3.5 && st.w >= 34)
     .map(st => ({ x: st.x + st.w / 2 - 9, y: st.y - 2, w: 18, h: st.h + 4 }))
     .concat(plan.utils.map(u => ({ x: u.x, y: u.y, w: u.w, h: u.h })))
-    .concat(plan.rooms.map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h })));
-  // 図面そのものの左右の端。名札がここを飛び出すと、地図全体が縮んで小さくなる。
+    .concat(plan.rooms.map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h })))
+    // 「本館2階（立入禁止）」の字の上に名札が乗らないようにする
+    .concat(plan.struct.filter(st => st.type === 'blocked').map(st => ({ x: st.x, y: st.y, w: st.w, h: st.h })));
+  // 図面の左右の端。名札がここを飛び出すと、地図全体が縮んで小さくなる。
   const bodyB = [].concat(plan.struct, plan.utils, plan.rooms);
   const bodyX0 = Math.min(...bodyB.map(o => o.x));
   const bodyX1 = Math.max(...bodyB.map(o => o.x + o.w));
@@ -4500,8 +4602,8 @@ function checkConfig(){
   const el = $('#cfg-state');
   if (!el) return;
   const bad = [];
-  if (!CONFIG.HOURS || !CONFIG.HOURS.date){
-    bad.push('<b>開催日（CONFIG.HOURS.date）</b>が空です。'
+  if (!festDays().length){
+    bad.push('<b>開催日（CONFIG.HOURS.days）</b>が空です。'
       + 'このままだと「まだ開場前です」「本日は終了しました」の案内が一度も出ません');
   }
   // 名前付きのコースは、割り当て前の仮のブースID（1・2・3…）のままだと
@@ -5476,7 +5578,7 @@ function zoomToBooths(floorNum){
 function zoomToDept(floorNum, zone){
   const plan = FLOOR_PLAN[floorNum];
   if (!plan || !zone) return false;
-  const rs = (plan.rooms || []).filter(r => r.z === zone);
+  const rs = (plan.rooms || []).filter(r => { const d = deptOf(r); return d && d.z === zone; });
   if (rs.length < 1) return false;
   return zoomToRooms(floorNum, rs, { pad:14, minRatio:0.2, maxK:4 });
 }
@@ -5567,8 +5669,11 @@ function autoRoute(){
  * 「空いている順コース」。混んでいるところを後回しにして、
  * いま空いている順に回る。実演の時間が決まっているものだけは先に入れる。
  */
+/** 見に行く先かどうか。受付は「空いているから行く」所ではないので、おすすめ・空いている順から外す */
+function isVenue(b){ return !!b && b.category !== '受付'; }
+
 function autoRouteFree(){
-  const cand = S.booths.filter(b => { const lv = lvOf(b).lv; return lv >= 0 && lv < 3; });
+  const cand = S.booths.filter(b => { const lv = lvOf(b).lv; return isVenue(b) && lv >= 0 && lv < 3; });
   const timed = cand.filter(b => eventState(b));
   const rest  = cand.filter(b => !eventState(b))
     .sort((a, b) => {
@@ -5657,7 +5762,7 @@ function recommend(){
   const scored = S.booths
     .map(b => {
       const L = lvOf(b);
-      if (L.lv < 0 || L.lv === 3) return null;
+      if (L.lv < 0 || L.lv === 3 || !isVenue(b)) return null;
       let sc = (2 - L.lv) * 10;
       if (!S.stamps.has(b.id)) sc += 6;
       // 「いまここ」が分かっているときは、同じ階を少しだけ優先する（移動が短い）
@@ -5686,7 +5791,7 @@ function recommend(){
     const msg = !S.booths.length
       ? (S.online ? 'ブースの情報がまだ登録されていません。' : '混雑状況を取れませんでした。下の地図はそのまま見られます。')
       : st === 'before' ? '開場したら、ここに「いま空いているブース」が出ます。'
-      : st === 'after'  ? '本日の一般公開は終了しました。'
+      : st === 'after'  ? esc((hm && hm.long) || '本日は終了しました。')
       : st === 'otherday' ? esc((hm && hm.long) || '当日はこの画面で混み具合が見られます。')
       : 'いまはおすすめできるブースがありません。<br>下の地図でようすを見てください。';
     box.innerHTML = `<p class="empty" style="padding:12px">${msg}</p>`;
@@ -5813,7 +5918,9 @@ function renderList(){
       let hay = cache.get(b);
       if (hay == null){
         const sl = slotOf(b.id);
-        const dept = sl && sl.z ? (DEPT_BY_ZONE[sl.z] ? DEPT_BY_ZONE[sl.z].s : sl.z) : '';
+        // 棟の科に加えて、出し物の科（シートの dept 列）でも引けるように（「電子機械科」で製図室 Em④ も出る）
+        const bd = boothDept(b);
+        const dept = (bd ? bd.s + ' ' : '') + (sl && sl.z ? (DEPT_BY_ZONE[sl.z] ? DEPT_BY_ZONE[sl.z].s : sl.z) : '');
         const no = S.numbers.get(b.id);
         // 紙のマップに出ているのは通し番号。それで引けないと紙とアプリがつながらない
         hay = normalizeQ(withYomi((no != null ? '#' + no + ' ' : '')
@@ -5826,7 +5933,8 @@ function renderList(){
   }
   // 「空いている順」：空き→やや混雑→混雑→情報なし→準備中。
   // 状況が分からないものを先頭に出さない（内部値の -1 をそのまま使わない）
-  const rank = b => { const lv = lvOf(b).lv; return lv === 3 ? 4 : lv < 0 ? 3 : lv; };
+  // 受付は行き先ではないので、空いていても「空いている順」の先頭に出さない（準備中の手前に置く）
+  const rank = b => { const lv = lvOf(b).lv; return lv === 3 ? 4 : lv < 0 ? 3 : !isVenue(b) ? 3 : lv; };
   // 同じ混み具合の中では、待っている人が少ない方を先に（空き・38人待ちが 空き・4人待ちより前に出ていた）
   const wk = b => { const lv = lvOf(b).lv; return lv >= 0 && lv <= 2 && b.wait != null ? b.wait : 999; };
   items.sort((a, b) => S.sort === 'free'
@@ -6087,7 +6195,11 @@ async function flushLedger(force){
   if (!force && Date.now() < (flushLedger._nextAt || 0)) return;
   pullStamps();
   if (!S.stamps.size && !S.spent.length) return;
-  if (load('kuroko_pushed_fp', '') === ledgerFp()){ renderSyncBadge(); return; }
+  // 「つなぐ」の付け替え（旧番号→新番号）がまだサーバーに届いていなければ、中身が同じでも送る。
+  // 本番で、付け替えの送信が失敗（GAS の 404）したあと台帳の読み込みで「保存済み」になり、
+  // 付け替えが二度と送られず、旧番号のまま開いている別のアプリが取り残されていた
+  const pendingFrom = load('kuroko_join_from', null);
+  if (!pendingFrom && load('kuroko_pushed_fp', '') === ledgerFp()){ renderSyncBadge(); return; }
   if (navigator.onLine === false){ renderSyncBadge(); return; }
   flushLedger._on = true;
   renderSyncBadge('sending');
@@ -6157,6 +6269,7 @@ function absorbLedger(l, sent){
     .concat(S.spent.filter(id => !sr.has(id) && LEDGER_ID_RE.test(id)).map(id => 'r:' + id));
   if (!missing.length || (sent && missing.every(k => sent.has(k)))) store('kuroko_pushed_fp', ledgerFp());
   else { store('kuroko_pushed_fp', ''); scheduleLedgerPush(300, !!sent); }
+  if (load('kuroko_join_from', null) && !flushLedger._on) scheduleLedgerPush(500, false);   // 付け替えが未送信なら送る
   return changed;
 }
 /**
@@ -6374,9 +6487,15 @@ async function restoreFrom(sid){
 /** サーバーの台帳を読む */
 async function fetchLedger(sid){
   const url = CONFIG.GAS_URL + (CONFIG.GAS_URL.includes('?') ? '&' : '?') + 'ledger=' + encodeURIComponent(sid) + '&_=' + Date.now();
-  const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 12000);
+  const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 20000);
   try{
-    const res = await fetch(url, { signal: ctl.signal, mode:'cors', redirect:'follow' });
+    let res = await fetch(url, { signal: ctl.signal, mode:'cors', redirect:'follow' });
+    // GAS のときどきの 404（結果の受け渡しの失敗）は、読むだけなので1回取り直す
+    if (res.status === 404 || res.status >= 500){
+      await new Promise(r => setTimeout(r, 600));
+      res = await fetch(url.replace(/_=\d+$/, '_=' + Date.now()), { signal: ctl.signal, mode:'cors', redirect:'follow' });
+    }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const j = await res.json();
     if (!j || j.ok === false) throw new Error(j && j.error || 'ledger');
     return j;
@@ -7092,32 +7211,68 @@ function showPlace(id){
   toast(`${room.nm} を地図で示しています`);
 }
 
+/**
+ * タイムテーブルの行。開催日には「その日の行（日付なしの行を含む）」だけ、
+ * それ以外の日（前の週に開いた人・印刷）は全部の日を日付順に返す。
+ * @returns {{t:string, v:string, where:string, date:string}[]}
+ */
+function ttRows(now, all){
+  const toMin = s => { const m = /^(\d{1,2}):(\d{2})/.exec(String(s || '')); return m ? +m[1] * 60 + +m[2] : -1; };
+  const rows = (CONFIG.INFO.timetable || [])
+    .filter(r => Array.isArray(r) && r[0] != null && r[1] != null)
+    .map(([t, v, where, date]) => ({ t:String(t), v:String(v), where:where ? String(where) : '', date:date ? String(date) : '' }));
+  const today = all ? null : festToday(now);
+  const pick = today ? rows.filter(r => !r.date || r.date === today.date) : rows;
+  return pick.map((r, i) => ({ r, i }))
+    .sort((a, b) => (today ? 0 : (a.r.date || '').localeCompare(b.r.date || '')) || (toMin(a.r.t) - toMin(b.r.t)) || (a.i - b.i))
+    .map(x => x.r);
+}
+/** 日付の違う行が混ざるときだけ、日の見出し行を差し込むための印を付ける */
+function ttWithDays(rows){
+  const dates = new Set(rows.map(r => r.date).filter(Boolean));
+  if (dates.size < 2) return rows.map(r => ({ r }));
+  const out = [];
+  let last = null;
+  rows.forEach(r => {
+    if (r.date && r.date !== last){
+      const d = festDays().find(x => x.date === r.date);
+      out.push({ head: dayLabel(r.date) + (d && d.label ? ' ' + d.label : '') });
+      last = r.date;
+    }
+    out.push({ r });
+  });
+  return out;
+}
+
 function renderInfo(){
   // 「今どのコマか」を強調する（現在時刻を過ぎた直近の行）
   const now = new Date();
   const mins = now.getHours() * 60 + now.getMinutes();
   const toMin = s => { const m = /^(\d{1,2}):(\d{2})/.exec(s); return m ? +m[1] * 60 + +m[2] : -1; };
+  const tt = ttRows(now);
   let cur = -1;
-  CONFIG.INFO.timetable.forEach(([t], i) => { if (toMin(t) <= mins) cur = i; });
   // 開催日でない日・閉場のあとは「いまのコマ」を出さない（最後の行が夜中まで ▶ のままだった）。
   // 最後の行は、始まってから1時間を過ぎたら終わったとみなす
   const os = openState(now).state;
-  const tt = CONFIG.INFO.timetable;
-  if (os === 'otherday' || (os === 'after' && cur === tt.length - 1 && mins - toMin(tt[cur][0]) > 60)) cur = -1;
-  // 15秒ごと・画面を開くたびに呼ばれる。コマが変わったときだけ描き直す
-  if (renderInfo._cur === cur) return;
-  renderInfo._cur = cur;
+  if (os !== 'otherday') tt.forEach((r, i) => { if (toMin(r.t) <= mins) cur = i; });
+  if (os === 'after' && cur === tt.length - 1 && mins - toMin(tt[cur].t) > 60) cur = -1;
+  // 15秒ごと・画面を開くたびに呼ばれる。コマか日が変わったときだけ描き直す
+  const key = ymd(now) + '|' + cur;
+  if (renderInfo._cur === key) return;
+  renderInfo._cur = key;
 
-  $('#tt-body').innerHTML = CONFIG.INFO.timetable
-    .map(([t, v, where], i) => {
-      const on = i === cur;
-      const room = where ? slotOf(where) : null;
+  $('#tt-body').innerHTML = ttWithDays(tt)
+    .map(x => {
+      if (x.head) return `<tr class="tt-day"><th colspan="2" scope="rowgroup">${esc(x.head)}</th></tr>`;
+      const r = x.r;
+      const on = tt.indexOf(r) === cur;
+      const room = r.where ? slotOf(r.where) : null;
       return `<tr${on ? ' class="tt-now"' : ''}>
-        <td>${esc(t)}</td>
-        <td>${on ? '<b>▶ ' + esc(v) + '</b>' : esc(v)}
-          ${room ? `<button class="tt-go" data-go="${esc(where)}">${ICON.pin} ${esc(room.nm)}を地図で見る</button>` : ''}
+        <td>${esc(r.t)}</td>
+        <td>${on ? '<b>▶ ' + esc(r.v) + '</b>' : esc(r.v)}
+          ${room ? `<button class="tt-go" data-go="${esc(r.where)}">${ICON.pin} ${esc(room.nm)}を地図で見る</button>` : ''}
         </td></tr>`;
-    }).join('');
+    }).join('') || '<tr><td colspan="2">決まりしだい載せます</td></tr>';
   $$('[data-go]', $('#tt-body')).forEach(el =>
     el.addEventListener('click', () => showPlace(el.dataset.go)));
   $('#help-list').innerHTML = CONFIG.INFO.help
@@ -7167,14 +7322,15 @@ function renderNextEvent(){
   const now = new Date();
   const mins = now.getHours() * 60 + now.getMinutes();
   const toMin = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t); return m ? +m[1] * 60 + +m[2] : -1; };
-  const next = CONFIG.INFO.timetable.find(([t]) => toMin(t) > mins);
-  if (!next){ el.classList.add('hide'); return; }
-  const left = toMin(next[0]) - mins;
+  // 開催日以外に「次は 10:00 …」と出すと、その日にあるように見える。開催日だけ出す
+  const nx = festToday(now) ? ttRows(now).find(r => toMin(r.t) > mins) : null;
+  if (!nx){ el.classList.add('hide'); return; }
+  const left = toMin(nx.t) - mins;
   el.classList.remove('hide');
-  el.innerHTML = `<span class="tm">${esc(next[0])}</span>
-                  <span class="tx">${esc(next[1])}</span>
+  el.innerHTML = `<span class="tm">${esc(nx.t)}</span>
+                  <span class="tx">${esc(nx.v)}</span>
                   <span class="left">${left <= 60 ? 'あと' + left + '分' : ''}</span>`;
-  el.onclick = () => { if (next[2] && slotOf(next[2])) showPlace(next[2]); else switchView('info'); };
+  el.onclick = () => { if (nx.where && slotOf(nx.where)) showPlace(nx.where); else switchView('info'); };
 }
 
 /**
@@ -7616,53 +7772,101 @@ window.addEventListener('online', () => setTimeout(() => flushVisitors(true), 12
  * @returns {{state:'before'|'open'|'after'|'otherday', minutes:number}}
  *   minutes は開場までの残り分（before のときだけ意味を持つ）
  */
-function openState(now){
+/** "YYYY-MM-DD"（端末の日付） */
+function ymd(d){
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+/** "HH:MM" → 分。読めなければ null */
+function hmMin(t){
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(t || ''));
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+/** "2026-10-24" → "10月24日（土）" */
+function dayLabel(date){
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(String(date || ''));
+  if (!m) return String(date || '');
+  const wd = '日月火水木金土'[new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getDay()];
+  return `${Number(m[2])}月${Number(m[3])}日（${wd}）`;
+}
+/**
+ * 開催日の一覧。CONFIG.HOURS.days（複数日）を正とし、
+ * 旧形式（HOURS.date / open / close の1日だけ）も読めるようにしておく。
+ */
+function festDays(){
   const H = CONFIG.HOURS || {};
+  const list = Array.isArray(H.days) && H.days.length ? H.days
+             : (H.date ? [{ date:H.date, open:H.open, close:H.close, last:H.last, label:H.label }] : []);
+  return list.filter(x => x && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && hmMin(x.open) != null && hmMin(x.close) != null)
+             .slice().sort((x, y) => x.date < y.date ? -1 : x.date > y.date ? 1 : 0);
+}
+/** 今日が開催日ならその日の設定 */
+function festToday(now){
+  const t = ymd(now || new Date());
+  return festDays().find(x => x.date === t) || null;
+}
+
+/**
+ * いま開催中かどうか。
+ * @returns {{state:'before'|'open'|'after'|'otherday', minutes:number, day:Object|null}}
+ *   minutes は開場までの残り分（before のときだけ意味を持つ）
+ */
+function openState(now){
   const d = now || new Date();
-  const mins = t => {
-    const m = /^(\d{1,2}):(\d{2})$/.exec(String(t || ''));
-    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
-  };
-  const o = mins(H.open), c = mins(H.close);
   // 開催日を入れるまでは時間の判定をしない。
   // 雛形のまま（09:30〜15:00）だと、設定し忘れたときに
   // 夕方から「本日は終了しました」と出てしまう。
-  if (o == null || c == null || !H.date) return { state:'open', minutes:0 };
-  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  if (today !== H.date) return { state:'otherday', minutes:0 };
+  if (!festDays().length) return { state:'open', minutes:0, day:null };
+  const day = festToday(d);
+  if (!day) return { state:'otherday', minutes:0, day:null };
   const cur = d.getHours() * 60 + d.getMinutes();
-  if (cur < o) return { state:'before', minutes: o - cur };
-  if (cur >= c) return { state:'after', minutes:0 };
-  return { state:'open', minutes:0 };
+  const o = hmMin(day.open), c = hmMin(day.close);
+  if (cur < o) return { state:'before', minutes: o - cur, day };
+  if (cur >= c) return { state:'after', minutes:0, day };
+  return { state:'open', minutes:0, day };
 }
 
 /**
  * 開場前・閉場後に開いた人へ状況を出す。
  * これが無いと、全ブースが「準備中」の画面を見て「壊れている」と思われる。
- */
-/**
- * 開場前・閉場後の案内文。短い版はヘッダーの状態行に、長い版はバナーに使う。
+ * 短い版はヘッダーの状態行に、長い版はバナーに使う。
  * ずっと変わらない状態なので、原則はバナーではなく状態行に出す。
  * バナーにすると、お知らせと合わせて画面の半分が案内文で埋まり、
  * 小さい端末（iPhone SE）では肝心の地図が画面の外へ出てしまう。
  */
-function hoursMessage(){
-  const H = CONFIG.HOURS || {};
-  const st = openState();
+function hoursMessage(now){
+  const d = now || new Date();
+  const st = openState(d);
+  const day = st.day;
+  const nm = day && day.label ? day.label : '一般公開';
+  // 一般の方が来られる日（label に「校内」が入っていない日）。校内公開日に開いた人へ案内するため
+  const pub = festDays().find(x => !/校内/.test(x.label || '') && x.date >= ymd(d));
   if (st.state === 'before'){
     const h = Math.floor(st.minutes / 60), m = st.minutes % 60;
-    return { short: `${H.open} 開場（あと${h ? h + '時間' : ''}${m}分）`,
-             long: `本日は ${H.open} 開場です。混雑状況は開場後に出ます。` };
+    return { short: `${day.open} 開場（あと${h ? h + '時間' : ''}${m}分）`,
+             long: `本日（${nm}）は ${day.open} 開場です。混雑状況は開場後に出ます。` };
   }
   if (st.state === 'after'){
-    return { short: `本日は終了しました（${H.close}）`,
-             long: `本日の一般公開は ${H.close} で終了しました。ご来場ありがとうございました。` };
+    const next = pub && pub.date > day.date ? `一般公開は${dayLabel(pub.date)} ${pub.open}〜${pub.close}です。` : 'ご来場ありがとうございました。';
+    return { short: `本日は終了しました（${day.close}）`,
+             long: `本日の${nm.replace(/日$/, '')}は ${day.close} で終了しました。${next}` };
   }
-  if (st.state === 'otherday' && H.date){
-    // 「11月03日」の 0 が残っていた。日付は人が読む形にする
-    const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(H.date);
-    const d = m ? `${Number(m[2])}月${Number(m[3])}日` : H.date;
-    return { short: `文化祭は ${d}です`, long: `文化祭は ${d}です。当日はこの画面で混み具合が見られます。` };
+  if (st.state === 'open'){
+    // 最終入場の30分前から、締め切り後は終了まで知らせる（来てから入れないのを防ぐ）
+    const cur = d.getHours() * 60 + d.getMinutes(), last = hmMin(day.last);
+    if (last != null && cur >= last) return { short: `最終入場（${day.last}）を過ぎました・${day.close}終了`,
+                                             long: `最終入場は ${day.last} で締め切りました。${day.close} に終了します。` };
+    if (last != null && cur >= last - 30) return { short: `最終入場は ${day.last} です（あと${last - cur}分）`,
+                                                  long: `最終入場は ${day.last} です。${day.close} に終了します。` };
+    return null;
+  }
+  if (st.state === 'otherday'){
+    const days = festDays();
+    if (!days.length) return null;
+    const t = ymd(d);
+    const up = pub || days.find(x => x.date > t);
+    if (!up) return { short: '今年の文化祭は終了しました', long: '今年の文化祭は終了しました。ご来場ありがとうございました。' };
+    return { short: `一般公開は ${dayLabel(up.date)}です`,
+             long: `一般公開は ${dayLabel(up.date)} ${up.open}〜${up.close}です${up.last ? `（最終入場 ${up.last}）` : ''}。当日はこの画面で混み具合が見られます。` };
   }
   return null;
 }
@@ -7707,7 +7911,7 @@ function renderAlert(){
   // すぐ上の「本日は終了しました」と矛盾して見える。出さない。
   const st = openState().state;
   const busy = st === 'open' ? S.booths.filter(b => lvOf(b).lv === 2) : [];
-  const free = S.booths.filter(b => lvOf(b).lv === 0);
+  const free = S.booths.filter(b => lvOf(b).lv === 0 && isVenue(b));
   const el = $('#banner-alert');
   // 混雑の案内が役に立つのは地図を見ているときだけ。
   // 一覧は「空いている順」に並んでいて先頭がその答えだし、
@@ -7717,7 +7921,11 @@ function renderAlert(){
   el.classList.remove('hide');
   // 混んでいるブースを何件も並べても読み切れないし、
   // どこが混んでいるかは下の地図の色で分かる。件数と「代わりにどこへ行くか」だけにする。
-  const alt = free.length ? `空いているのは「${free[0].name}」など` : '';
+  // 全員に同じ1件を勧めると、そこへ人が集まって次の混雑を作る。
+  // 待ちの少ない上位3件から端末ごとに決まった1件を出す（端末の中では変わらないのでちらつかない）
+  const top = free.slice().sort((a, b) => (a.wait ?? 99) - (b.wait ?? 99) || idCmp(a.id, b.id)).slice(0, 3);
+  const pickI = top.length ? (hash32(String(load('kuroko_cid', '') || 'x')) >>> 0) % top.length : 0;
+  const alt = top.length ? `空いているのは「${top[pickI].name}」など` : '';
   const head = busy.length >= 3
     ? `いま${busy.length}件が混雑中`
     : `${busy.map(b => b.name).join('・')} が混雑中`;
@@ -8861,6 +9069,11 @@ function publicBase(){
   const m = document.querySelector('meta[property="og:url"]');
   return m && m.content ? m.content.replace(/[^/]*$/, '') : here;
 }
+/** 平面図の記号（メモの先頭の Em① M② EL① など）。無ければ空 */
+function planCode(b){
+  const m = /^([A-Za-z]{1,2}[①-⑳]+)/.exec(String((b && b.note) || ''));
+  return m ? m[1] : '';
+}
 function renderQrSheet(){
   renderQrSheet._n = S.booths.length;
   const base = publicBase();
@@ -8872,7 +9085,7 @@ function renderQrSheet(){
   const ext = u => u + (u.includes('?') ? '&' : '?') + 'openExternalBrowser=1';
   const items = [
     { name:'黒工文化祭 校内マップ', url: ext(base), top:true,
-      where:'正門・受付・掲示板など、目につくところへ',
+      where:'受付（南棟昇降口）・正門・一般駐車場など、目につくところへ',
       note:'いまの混雑状況と待ち人数が見られます' },
     ...S.booths.map(b => {
       const sl = slotOf(b.id);
@@ -8881,7 +9094,8 @@ function renderQrSheet(){
         url: ext(`${base}?booth=${encodeURIComponent(b.id)}&qr=1&k=${sigOf(b.id)}`),
         // 部屋が決まっていないと「1階　の入口へ」と場所が空になり、
         // 刷ったあとで貼り先が分からなくなる。IDだけでも必ず出す
-        where: sl && sl.nm ? `${flLabel(b)}　${sl.nm}（${b.id}）の入口へ`
+        // 平面図の記号（Z① など）も添える。貼る係は平面図を見ながら回るので、図の赤字とそのまま突き合わせられる
+        where: sl && sl.nm ? `${flLabel(b)}　${sl.nm}（${b.id}${planCode(b) ? '・' + planCode(b) : ''}）の入口へ`
                            : `${flLabel(b)}　${b.id} の入口へ`,
         note: 'スタンプがたまります'
       };
@@ -9034,7 +9248,8 @@ function renderPrintSheet(){
     let zoneH = '';
     const placedTags = [];
     const avoid = (plan.rooms || []).map(r => ({ x:r.x, y:r.y, w:r.w, h:r.h }))
-      .concat((plan.utils || []).map(u => ({ x:u.x, y:u.y, w:u.w, h:u.h })));
+      .concat((plan.utils || []).map(u => ({ x:u.x, y:u.y, w:u.w, h:u.h })))
+      .concat((plan.struct || []).filter(st => st.type === 'blocked').map(st => ({ x:st.x, y:st.y, w:st.w, h:st.h })));
     plan.zones.forEach(z => {
       const nm = String(z.label || '').replace(/^[■●▪\s]+/, '');
       const host = plan.struct.find(st => st.zone === nm);
@@ -9098,7 +9313,18 @@ function renderPrintSheet(){
     return `<svg viewBox="${planViewBox(floorNum)}" class="sheet-plan">${h}${zoneH}</svg>`;
   };
 
-  const rows = S.booths.map(b => `
+  // ブースが多い（R8は46件）ときは、紙を A4 両面（2ページ）に収める。
+  //  1枚目：1階・2階・3階の地図／2枚目：屋外の地図＋タイムテーブル・困ったとき＋ブース一覧。
+  //  一覧はメモを外して3段組にする（メモまで載せると3ページになっていた）。
+  //  平面図の記号（Em① など）がメモの先頭にあれば残す。校内の掲示と照らし合わせられるように
+  const many = S.booths.length > 30;
+  const codeOf = planCode;
+  const rows = S.booths.map(b => many ? `
+    <tr>
+      <td class="no"><span>${S.numbers.get(b.id)}</span></td>
+      <td><b>${esc(b.name)}</b>${codeOf(b) ? ` <small>${esc(codeOf(b))}</small>` : ''}</td>
+      <td>${esc(flLabel(b))}</td>
+    </tr>` : `
     <tr>
       <td class="no"><span>${S.numbers.get(b.id)}</span></td>
       <td><b>${esc(b.name)}</b></td>
@@ -9106,6 +9332,7 @@ function renderPrintSheet(){
       <td>${esc(flLabel(b))}</td>
       <td>${esc(b.note || '')}</td>
     </tr>`).join('');
+  const outSvg = many && FLOOR_PLAN[0] && (FLOOR_PLAN[0].rooms || []).length ? planSvg(0) : '';
 
   $('#print-sheet').innerHTML = `
     <div class="sheet-head">
@@ -9118,14 +9345,14 @@ function renderPrintSheet(){
         <span>最新の混雑状況・待ち人数はこちら</span>
       </div>
     </div>
-    <div class="sheet-body">
+    <div class="sheet-body${many ? ' many' : ''}">
       <div class="sheet-maps sheet-col">
         ${(() => {
           // 屋外は「どこから入ってどこへ向かうか」の手がかりなので必ず載せる。
           // それ以外は、ブースが無い階の図面を刷っても紙を使うだけ。
           const use = FLOORS.filter(f =>
             (FLOOR_PLAN[f.n] && (FLOOR_PLAN[f.n].rooms || []).length) &&
-            (f.n === 0 || S.booths.some(b => floorOfBooth(b) === f.n)));
+            ((f.n === 0 && !outSvg) || (f.n !== 0 && S.booths.some(b => floorOfBooth(b) === f.n))));
           // 横1段を使う階（部屋が多い階）を先に置く。あとに残った細い図面どうしが
           // 2列に収まり、片側だけ空いた行ができない
           const wideN = f => ((FLOOR_PLAN[f.n].rooms || []).length >= 40) ? 0 : 1;
@@ -9143,7 +9370,8 @@ function renderPrintSheet(){
               <h2>${f.n === 0 ? '屋外' : f.n + '階'}</h2>${planSvg(f.n)}</div>`;
           }).join('')}
       </div>
-      <div class="sheet-list sheet-col${S.booths.length > 30 ? ' many' : ''}">
+      ${outSvg ? `<div class="sheet-out sheet-col"><h2>屋外</h2>${outSvg}</div>` : ''}
+      <div class="sheet-list sheet-col${many ? ' many' : ''}">
         <h2>ブース一覧</h2>
         <table class="sheet-table"><tbody>${rows}</tbody></table>
         <p class="sheet-note">
@@ -9154,8 +9382,9 @@ function renderPrintSheet(){
       <div class="sheet-info sheet-col">
         <h2>タイムテーブル</h2>
         <table class="sheet-table"><tbody>${
-          CONFIG.INFO.timetable.map(([t, v]) =>
-            `<tr><td class="tm">${esc(t)}</td><td>${esc(v)}</td></tr>`).join('')
+          ttWithDays(ttRows(null, true)).map(x => x.head
+            ? `<tr><td colspan="2"><b>${esc(x.head)}</b></td></tr>`
+            : `<tr><td class="tm">${esc(x.r.t)}</td><td>${esc(x.r.v)}</td></tr>`).join('')
         }</tbody></table>
         <h2 style="margin-top:10px">困ったときは</h2>
         <table class="sheet-table"><tbody>${

@@ -1,5 +1,7 @@
 /* 黒工文化祭 校内マップ — サーバー側 (Google Apps Script)
-   GAS-2026-09-28a
+   GAS-2026-09-28c
+   2026-09-28c: スタンプの控えは、足す行があるときだけシートを開く（送り直しを速く）。
+   2026-09-28b: 配信キャッシュを60秒に（書き込み・シートの手直し onEdit で即座に捨てる）。
    2026-09-28a: 版の番号（serverVersion）を返す。係員画面で貼り替え忘れを見分ける。
    2026-09-27a: 作り直しの途中で書き込みがあった結果で、控えを古い内容に差し替えない。
    2026-09-26c: 地図の再構築を係員のロックから切り離した（ピーク時の busy 連鎖）。つなぐ操作は写し終えてから付け替える。
@@ -45,7 +47,7 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-09-28a';
+var GAS_VERSION = '2026-09-29a';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
@@ -54,7 +56,10 @@ var SHEET_NOTICE_LOG = 'お知らせ履歴';  // 出したお知らせの控え
 
 var CACHE_KEY = 'payload_v3';
 var CACHE_BAK = 'payload_v3_bak';   // 再構築中に返す少し古い控え
-var CACHE_SEC = 15;                 // 画面は20秒間隔なので15秒でも体感は変わらない
+// 地図データの配信キャッシュ。係員の更新・お知らせ・受付・割り当ては書いた瞬間に捨てる（clearCache_）ので、
+// 長くしても古い状況は出ない。15秒だと来場者1人（20秒間隔）の取得は毎回作り直し（本番実測 +2〜3秒）になっていた。
+// シートを手で直したときも onEdit で捨てる
+var CACHE_SEC = 60;
 var BACKUP_SEC = 300;
 var CACHE_BUILDING = 'payload_v3_building';   // 再構築中の印（10秒で自然に消える）
 var CACHE_GEN = 'payload_v3_gen';             // 書き込みのたびに変わる番号
@@ -78,7 +83,9 @@ var STALE_MINUTES = 45;
 var WAIT_WARN = 6;    // これ以上で「やや混雑」
 var WAIT_BUSY = 16;   // これ以上で「混雑しています」
 
-var HEADERS = ['id', 'name', 'status', 'time', 'category', 'floor', 'note', 'wait', 'image'];
+// dept … 出し物をしている科（機械科・電子機械科など）。棟と科が違う部屋（製図室の電子機械科 Em④ など）でも
+//        科の絞り込みで正しく出すため。空でもよい（そのときは棟で判定する）
+var HEADERS = ['id', 'name', 'status', 'time', 'category', 'floor', 'note', 'wait', 'image', 'dept'];
 
 var STATUS_LEVEL = {
   '空いています': 0,
@@ -276,27 +283,140 @@ function floorOf_(v) {
   return [0, 1, 2, 3].indexOf(n) >= 0 ? n : 1;
 }
 
-/** ブースの初期データを流し込む。既にデータがあれば何もしない */
+/**
+ * R8（令和8年度）黒工祭のブース一覧。[部屋ID, ブース名, 分類, 科, メモ]
+ * 出典：R8 黒工祭企画内容一覧（9/7 黒工祭総務）と R8 黒工祭校舎平面図の赤字（Em① M② など）。
+ * 部屋IDは 部屋ID一覧.xlsx と index.html の FLOOR_PLAN。1F-60・1F-61・2F-28 は R8 で足した場所。
+ * 変更は setupR8() を実行し直せば反映される（混雑状況・待ち人数は消えない）。
+ */
+var R8_BOOTHS = [
+  ["1F-48", "受付（南棟昇降口）", "受付", "", "一般の方の受付。来賓の方は本館玄関の来賓受付へ"],
+  ["1F-01", "アームロボット・ライントレーサー", "展示", "電子機械科", "Em① アームロボットの実演、ライントレーサー、シーケンス制御（FA実習室）"],
+  ["1F-14", "LED点滅装置と単軸テーブル", "展示", "電子機械科", "Em② LED点滅装置と単軸テーブルの展示（電気実習室）"],
+  ["1F-24", "NC旋盤の実演", "展示", "電子機械科", "Em③ NC旋盤の実演（制御実習室）"],
+  ["1F-17", "3D CADと3Dプリンタ", "体験", "電子機械科", "Em④ 3D CADの演習と3Dプリンタの実演（製図室）"],
+  ["1F-02", "旋盤の加工実演", "展示", "機械科", "M① 旋盤の加工実演（機械加工室）"],
+  ["1F-03", "マシニングセンタでプレート製作", "展示", "機械科", "M② マシニングセンターによるプレートの製作（計測実習室）"],
+  ["1F-05", "溶接実演とバーベキューコンロ製作", "展示", "機械科", "M③ 溶接実演とバーベキューコンロの製作（溶接実習室）"],
+  ["1F-07", "エンジンの分解・組立", "展示", "機械科", "M④ エンジンの分解・組立（原動機実験室）"],
+  ["1F-08", "ミニ工場見学", "体験", "材料技術科", "Z① 旋盤・NCフライス盤を使って製作（切削加工室）"],
+  ["1F-19", "化学縁日", "体験", "材料技術科", "Z② 液体窒素を使った実験ほか（セラミック室）"],
+  ["1F-21", "射出成形・キーホルダー製作", "体験", "材料技術科", "Z③ 射出成形機の運転、プラ板キーホルダー・黒工キーホルダーの製作と配布（高分子材料室）"],
+  ["1F-25", "鉄筋の引張試験", "展示", "土木科", "C① 鉄筋の引張試験（材料試験室）"],
+  ["1F-60", "建設機材の運転体験", "体験", "土木科", "C② 屋外特設会場。雨天中止・小雨決行"],
+  ["1F-38", "ドローンの操縦体験", "体験", "土木科", "C③ ドローンの操縦体験（測量実習室）"],
+  ["1F-29", "電気のつくりかた・電磁石つり", "体験", "電気科", "E① 各種発電の原理／E② 電気で磁石をつくって釣りしよう／E④ シーケンスってなに？（工作工事実習室）"],
+  ["1F-30", "電気工事体験", "体験", "電気科", "E③ 配線結線、ものづくりコンテストの実演（製図実習室）"],
+  ["1F-39", "電気工事業組合の展示", "展示", "電気科", "E⑤ 電気工事業組合の展示（自動制御実習室）"],
+  ["2F-12", "電子科を知ろう！", "展示", "電子科", "EL① 電子科の学習と進路の紹介（計測実習室）"],
+  ["2F-13", "電子科を知ろう！（電子計算機室）", "展示", "電子科", "EL① 電子科の学習と進路の紹介（電子計算機室）"],
+  ["2F-14", "専攻科の紹介・レーザー加工", "体験", "専攻科", "S① 紹介映像、実習装置の展示と体験、岩手大学・デンソー岩手での作品展示、レーザー加工機でコースター製作"],
+  ["2F-21", "修了研究・グループ研究の作品", "展示", "専攻科", "S② 修了研究作品・グループ研究作品の展示（専攻科2年HR）"],
+  ["1F-11", "大会・技能検定の課題紹介", "展示", "専攻科", "S③ 若年者ものづくり競技会の課題、技能検定2級の課題、数値制御工作機械の作品"],
+  ["1F-33", "カラダ探し（電子機械科3年）", "体験", "電子機械科", "電子機械科3年のクラス企画"],
+  ["1F-34", "めんずお茶会クラブ（機械科3年）", "食べ物", "機械科", "機械科3年のクラス企画"],
+  ["1F-35", "メイド喫茶・カジノ（電子科3年）", "食べ物", "電子科", "電子科3年「推進力」メイド喫茶、ベイブレード広場、カジノ"],
+  ["1F-36", "コスプレ喫茶（土木科3年）", "食べ物", "土木科", "土木科3年のクラス企画。コスプレ喫茶、フォトスポット"],
+  ["2F-17", "新科紹介", "展示", "", ""],
+  ["2F-18", "無線の世界を体験しよう（無線部）", "体験", "", "無線・フィギュア展示、ドローン体験など"],
+  ["2F-19", "水泳部", "展示", "", "動画放映、用具・部の歴史の展示"],
+  ["2F-20", "写真部", "展示", "", "フォトスポット、ストリートスナップ、写真展示"],
+  ["2F-28", "美術・家庭科の作品展示", "展示", "", "2階廊下。美術の授業作品（てぬぐい）、ファスナーポーチ・ホームプロジェクト、美術部の作品"],
+  ["1F-50", "射的・仮装シールラリー（生徒会）", "体験", "", "10月24日（土）のみ（DXルーム）"],
+  ["1F-49", "PTA母親委員会", "展示", "", "内容は決まりしだいお知らせします（選択3）"],
+  ["1F-42", "ステージ（第一体育館）", "イベント", "", "カラオケ大会（1日目・生徒会）、吹奏楽部「一心同音」（23日のみ）、1学年音楽選択者による合唱"],
+  ["1F-57", "飲食ブース（第二体育館）", "食べ物", "", "飲食はここで。キッチンカーは第二体育館の前"],
+  ["1F-61", "キッチンカー", "食べ物", "", "業者による販売。食べる場所は第二体育館の飲食ブース"],
+  ["1F-58", "記念館公開（同窓会）", "展示", "", "黒工の資料展示"],
+  ["2F-06", "企業ブース（電子機2教室）", "展示", "", "各企業の紹介と製品の展示"],
+  ["2F-07", "企業ブース（機械2教室）", "展示", "", "各企業の紹介と製品の展示"],
+  ["2F-08", "企業ブース（材料2教室）", "展示", "", "各企業の紹介と製品の展示"],
+  ["2F-09", "企業ブース（土木2教室）", "展示", "", "各企業の紹介と製品の展示"],
+  ["3F-01", "企業ブース（電子機1教室）", "展示", "", "各企業の紹介と製品の展示"],
+  ["3F-02", "企業ブース（機械1教室）", "展示", "", "各企業の紹介と製品の展示"],
+  ["3F-03", "企業ブース（材料1教室）", "展示", "", "各企業の紹介と製品の展示"],
+  ["3F-04", "企業ブース（土木1教室）", "展示", "", "各企業の紹介と製品の展示"]
+];
+
+/** ブースの初期データ。空のシートに R8 の一覧を入れる（既にデータがあれば何もしない） */
 function seedBooths() {
   var sh = sheet_(SHEET_MAIN);
   if (sh.getLastRow() >= 2) {
-    Logger.log('既にデータがあります。中止しました。');
+    Logger.log('既にデータがあります。中止しました。R8 の一覧に合わせるなら setupR8() を実行してください');
     return;
   }
-  // 部屋IDは 部屋ID一覧.xlsx を参照（1F-02 = 機械加工実習室 など）
-  var rows = [
-    ['1F-32', '受付・本部',        '準備中', '', '受付',     1, 'パンフ配布中', 0, ''],
-    ['1F-01', '電子機械科 展示',   '準備中', '', '展示',     1, '', 0, ''],
-    ['1F-02', '機械科 実演',       '準備中', '', '展示',     1, '', 0, ''],
-    ['1F-33', '材料技術科 展示',   '準備中', '', '展示',     1, '', 0, ''],
-    ['1F-38', '土木科 体験',       '準備中', '', '体験',     1, '', 0, ''],
-    ['1F-42', '体育館ステージ',    '準備中', '', 'イベント', 1, '12:00 ステージ発表', 0, ''],
-    ['2F-24', '図書室 古本市',     '準備中', '', '展示',     2, '', 0, ''],
-    ['3F-12', 'CAI教室 体験',      '準備中', '', '体験',     3, '', 0, ''],
-    ['0F-01', 'ふれあい広場 屋台', '準備中', '', '食べ物',   0, '', 0, '']
-  ];
-  sh.getRange(2, 1, rows.length, HEADERS.length).setValues(rows);
-  Logger.log('ブース ' + rows.length + '件を登録しました。');
+  setupR8_(false);
+}
+
+/**
+ * R8 の一覧に合わせる（足りないブースを足し、名前・分類・科・メモを一覧どおりにする）。
+ * 状態・時刻・待ち人数は触らないので、当日に実行しても混雑表示は消えない。
+ * 一覧に無いブース（試しに作った 1〜8 など）は残す。消すなら setupR8AndArchiveOthers()。
+ */
+function setupR8() { return setupR8_(false); }
+/** setupR8 に加えて、一覧に無いブースを「削除したブース」シートへ移す（行の中身は控えに残る） */
+function setupR8AndArchiveOthers() { return setupR8_(true); }
+
+function setupR8_(archive) {
+  migrate();   // dept 列など、足りない列を先に作る
+  var res = withLock_(function () {
+    var sh = sheet_(SHEET_MAIN);
+    var idx = headerIndex_(sh);
+    requireCols_(idx, ['id', 'name', 'status', 'time']);
+    var width = sh.getLastColumn();
+    var last = sh.getLastRow();
+    var rows = last >= 2 ? sh.getRange(2, 1, last - 1, width).getValues() : [];
+    var head = sh.getRange(1, 1, 1, width).getValues()[0];
+    var idOf = function (r) { return String(r[idx['id']] == null ? '' : r[idx['id']]).trim(); };
+    var byId = {};
+    rows.forEach(function (r) { var id = idOf(r); if (id && !byId[id]) byId[id] = r; });
+
+    var want = {}, out = [], added = 0, updated = 0;
+    R8_BOOTHS.forEach(function (b) {
+      var id = b[0];
+      if (want[id]) return;             // 一覧の重複は最初の1件だけ
+      want[id] = true;
+      var row = byId[id];
+      if (row) updated++;
+      else {
+        row = []; for (var k = 0; k < width; k++) row.push('');
+        added++;
+      }
+      row[idx['id']] = id;
+      row[idx['name']] = safeText_(cut_(b[1], 40));
+      if (idx['category'] != null) row[idx['category']] = safeText_(cut_(b[2], 20));
+      if (idx['floor'] != null) row[idx['floor']] = floorOf_(id.charAt(0));
+      if (idx['note'] != null) row[idx['note']] = safeText_(cut_(b[4], 120));
+      if (idx['dept'] != null) row[idx['dept']] = safeText_(cut_(b[3], 12));
+      out.push(row);
+    });
+    // 一覧に無い行（空行は捨てる）
+    var others = rows.filter(function (r) { var id = idOf(r); return id && !want[id]; });
+    if (archive) {
+      others.forEach(function (r) {
+        appendTo_(SHEET_REMOVED, ['removedAt'].concat(head),
+          [new Date()].concat(r.map(function (v) { return typeof v === 'string' ? safeText_(v) : v; })));
+      });
+    } else {
+      out = out.concat(others);
+    }
+    // 一覧の順に並べ直して一度に書く（1行ずつ書くと遅く、途中で係員の更新と交互になる）
+    var need = 1 + out.length - sh.getMaxRows();
+    if (need > 0) sh.insertRowsAfter(sh.getMaxRows(), need);
+    if (out.length) sh.getRange(2, 1, out.length, width).setValues(out);
+    var extra = rows.length - out.length;
+    if (extra > 0) sh.deleteRows(2 + out.length, extra);
+    SpreadsheetApp.flush();
+    clearCache_();
+    return { added: added, updated: updated,
+             kept: archive ? 0 : others.length, archived: archive ? others.length : 0,
+             otherIds: others.map(idOf) };
+  });
+  Logger.log('R8 の一覧に合わせました：追加 ' + res.added + ' 件／更新 ' + res.updated + ' 件'
+    + (res.archived ? '／一覧に無い ' + res.archived + ' 件を「' + SHEET_REMOVED + '」へ移しました' : '')
+    + (res.kept ? '／一覧に無いブースが ' + res.kept + ' 件残っています（' + res.otherIds.join(', ')
+       + '）。消すなら setupR8AndArchiveOthers() を実行' : ''));
+  return res;
 }
 
 /* ============================== 共通 ============================== */
@@ -522,39 +642,7 @@ function doGet(e) {
     if (hit) return out_(hit);
     var bak = cache.get(CACHE_BAK);
     if (bak && cache.get(CACHE_BUILDING)) return out_(bak);   // 誰かが作っている最中。数秒古いだけなので待たずに返す
-    try { cache.put(CACHE_BUILDING, '1', 10); } catch (eB) {}
-    // 作っている間に係員の更新が入ったら、作った結果はキャッシュに置かない（古い内容を15秒焼き付けない）
-    var gen0 = cache.get(CACHE_GEN) || '';
-    var data = buildPayload_();
-    var payload = JSON.stringify(data);
-    // 1件100KB（バイト）を超えると put が失敗する。日本語は1文字3バイトなので文字数では測れない。
-    // まず推移を半分の点数に間引き、それでも大きければ推移を外す
-    var LIMIT = 98000;
-    if (bytes_(payload) > LIMIT) {
-      data.booths.forEach(function (b) { b.history = (b.history || []).filter(function (_, i, a) { return (a.length - 1 - i) % 2 === 0; }); });
-      payload = JSON.stringify(data);
-    }
-    if (bytes_(payload) > LIMIT) {
-      data.booths.forEach(function (b) { b.history = []; });
-      payload = JSON.stringify(data);
-    }
-    // 置けなかったとしても、作った結果は必ず返す（ここで投げると全員に「失敗」が返る）
-    try {
-      // 控えは常に新しくする（書き込みが続いても、控えが古いまま止まらないように）。
-      // 本体のキャッシュは、作っている間に書き込みが無かったときだけ置く
-      // 作っている間に書き込みがあった結果は、読んだ時点より前の内容かもしれない。
-      // 控えは「書き込みが無かった」か「控えが30秒以上古い」ときだけ差し替える
-      // （書き込みが続いても控えが古いまま止まらず、かつ直前の更新を古い内容で上書きしない）
-      var same = (cache.get(CACHE_GEN) || '') === gen0;
-      var bakAt = Number(cache.get(CACHE_BAK_AT) || 0);
-      if (same || Date.now() - bakAt > 30000) {
-        cache.put(CACHE_BAK, payload, BACKUP_SEC);
-        cache.put(CACHE_BAK_AT, String(Date.now()), BACKUP_SEC);
-      }
-      if (same) cache.put(CACHE_KEY, payload, CACHE_SEC);
-      cache.remove(CACHE_BUILDING);
-    } catch (eC) { console.warn('cache put failed: ' + bytes_(payload) + ' bytes'); }
-    return out_(payload);
+    return out_(buildAndCache_(cache, CACHE_SEC));
   } catch (err) {
     // 障害時も、直前の控えがあればそれを返す（画面が真っさらになるより良い）
     try {
@@ -563,6 +651,89 @@ function doGet(e) {
     } catch (e2) {}
     return json_({ ok: false, error: String(err.message || err) });
   }
+}
+
+/**
+ * 表示用データを作ってキャッシュに置き、JSON文字列を返す。
+ * 来場者の GET と、定期実行の warmCache の両方から使う。
+ * ttl … 本体キャッシュの秒数（定期実行は次の実行まで切れないよう長めに置く）
+ */
+function buildAndCache_(cache, ttl) {
+  try { cache.put(CACHE_BUILDING, '1', 10); } catch (eB) {}
+  // 作っている間に係員の更新が入ったら、作った結果はキャッシュに置かない（古い内容を15秒焼き付けない）
+  var gen0 = cache.get(CACHE_GEN) || '';
+  var data = buildPayload_();
+  var payload = JSON.stringify(data);
+  // 1件100KB（バイト）を超えると put が失敗する。日本語は1文字3バイトなので文字数では測れない。
+  // まず推移を半分の点数に間引き、それでも大きければ推移を外す
+  var LIMIT = 98000;
+  if (bytes_(payload) > LIMIT) {
+    data.booths.forEach(function (b) { b.history = (b.history || []).filter(function (_, i, a) { return (a.length - 1 - i) % 2 === 0; }); });
+    payload = JSON.stringify(data);
+  }
+  if (bytes_(payload) > LIMIT) {
+    data.booths.forEach(function (b) { b.history = []; });
+    payload = JSON.stringify(data);
+  }
+  // 置けなかったとしても、作った結果は必ず返す（ここで投げると全員に「失敗」が返る）
+  try {
+    // 控えは常に新しくする（書き込みが続いても、控えが古いまま止まらないように）。
+    // 本体のキャッシュは、作っている間に書き込みが無かったときだけ置く
+    // 作っている間に書き込みがあった結果は、読んだ時点より前の内容かもしれない。
+    // 控えは「書き込みが無かった」か「控えが30秒以上古い」ときだけ差し替える
+    // （書き込みが続いても控えが古いまま止まらず、かつ直前の更新を古い内容で上書きしない）
+    var same = (cache.get(CACHE_GEN) || '') === gen0;
+    var bakAt = Number(cache.get(CACHE_BAK_AT) || 0);
+    if (same || Date.now() - bakAt > 30000) {
+      cache.put(CACHE_BAK, payload, BACKUP_SEC);
+      cache.put(CACHE_BAK_AT, String(Date.now()), BACKUP_SEC);
+    }
+    if (same) cache.put(CACHE_KEY, payload, ttl);
+    cache.remove(CACHE_BUILDING);
+  } catch (eC) { console.warn('cache put failed: ' + bytes_(payload) + ' bytes'); }
+  return payload;
+}
+
+/**
+ * 画面の自動更新の間隔（秒）を、画面を配り直さずに延ばすためのつまみ。
+ * スクリプトプロパティ POLL_SEC に 10〜120 の数を入れると、全員の端末がそれより速くは取りに来なくなる。
+ * 当日 GAS が重い（「混み合っています」が続く）ときに 40 などへ上げる。空なら画面の設定のまま。
+ */
+function pollSec_() {
+  try {
+    var v = Number(PropertiesService.getScriptProperties().getProperty('POLL_SEC') || 0);
+    return (v >= 10 && v <= 120) ? Math.round(v) : 0;
+  } catch (e) { return 0; }
+}
+
+/**
+ * 定期実行：表示用データを先に作ってキャッシュに置いておく。
+ * キャッシュが切れた直後に来た来場者がシートの読み込み（数秒）を待たずに済む。
+ * installWarmTrigger() を1回実行すると1分ごとに動く。開催時間外は何もしない（実行時間の節約）。
+ */
+var WARM_FROM_HOUR = 8;    // この時刻から
+var WARM_TO_HOUR = 16;     // この時刻まで（この時は含まない）
+function warmCache() {
+  var h = Number(Utilities.formatDate(new Date(), TZ, 'H'));
+  if (h < WARM_FROM_HOUR || h >= WARM_TO_HOUR) return;
+  var cache = CacheService.getScriptCache();
+  if (cache.get(CACHE_BUILDING)) return;              // 来場者のリクエストが作っている最中
+  // 次の実行（約1分後）まで切れないよう、本体は90秒置く。係員の更新は clearCache_ で即座に消えるので古くならない
+  buildAndCache_(cache, 90);
+}
+/** warmCache を1分ごとに動かす（2回実行しても2本にはならない） */
+function installWarmTrigger() {
+  removeWarmTrigger();
+  ScriptApp.newTrigger('warmCache').timeBased().everyMinutes(1).create();
+  Logger.log('warmCache を1分ごとに実行するようにしました（' + WARM_FROM_HOUR + '時〜' + WARM_TO_HOUR + '時だけ動きます）');
+}
+/** 文化祭が終わったら実行する */
+function removeWarmTrigger() {
+  var n = 0;
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'warmCache') { ScriptApp.deleteTrigger(t); n++; }
+  });
+  if (n) Logger.log('warmCache の定期実行を ' + n + ' 本止めました');
 }
 
 /** UTF-8 でのバイト数 */
@@ -617,6 +788,7 @@ function buildPayload_() {
         floor: idx['floor'] != null ? floorOf_(r[idx['floor']]) : 1,
         note: idx['note'] != null ? cut_(r[idx['note']], 120) : '',
         image: idx['image'] != null ? cut_(r[idx['image']], 300) : '',
+        dept: idx['dept'] != null ? cut_(r[idx['dept']], 12) : '',
         history: hist[id] || []
       });
     });
@@ -628,6 +800,7 @@ function buildPayload_() {
     updatedAt: new Date().toISOString(),
     staleMinutes: STALE_MINUTES,
     waitThresholds: { warn: WAIT_WARN, busy: WAIT_BUSY },
+    pollSec: pollSec_(),
     notice: readNotice_(),
     visitors: readVisitors_(),
     booths: booths
@@ -1081,6 +1254,7 @@ function upsertBooth_(id, b) {
     if ('category' in b && idx['category'] != null) row[idx['category']] = safeText_(cut_(String(b.category || ''), 20));
     if ('note'     in b && idx['note']     != null) row[idx['note']]     = safeText_(cut_(String(b.note || ''), 120));
     if ('floor'    in b && idx['floor']    != null) row[idx['floor']]    = floorOf_(b.floor);
+    if ('dept'     in b && idx['dept']     != null) row[idx['dept']]     = safeText_(cut_(String(b.dept || ''), 12));
 
     // 新しく作った行は「まだ状況が入っていない」状態にしておく。
     // 適当な状態を入れると、係員が触っていないのに空き表示になってしまう
@@ -1185,6 +1359,13 @@ function writeBooth_(ids, status, wait) {
  * 来場者に「少し古い控え」を返して待たせないため。控えが返るのは再構築中だけなので、
  * 古い内容が返り続けることはない。書き込みの番号も変え、作りかけの古い結果を置かせない。
  */
+/**
+ * スプレッドシートを手で直したとき（先生がブース名やメモを書き換えた等）に、配信キャッシュを捨てる。
+ * スプレッドシートに付いたスクリプト（拡張機能 → Apps Script）なら自動で動く（設定は要らない）。
+ */
+function onEdit(e) {
+  try { clearCache_(); } catch (err) {}
+}
 function clearCache_() {
   try {
     var c = CacheService.getScriptCache();
@@ -1420,7 +1601,9 @@ function appendLedger_(body) {
 function appendEvents_(cid, ev, fresh) {
   var have = ledgerOf_(cid, !!fresh);
   if (!ev.length) return { ok: true, cid: cid, added: 0, stamps: have.stamps, spent: have.spent };
-  var sh = ledgerSheet_();
+  // シートは足す行があるときだけ開く。同じ中身の送り直し（大半）はキャッシュだけで返せる
+  // （スプレッドシートを開くだけで1〜2秒かかり、本番のスタンプ保存が約5秒になっていた）
+  var sh = null;
   var hs = {}, hr = {};
   have.stamps.forEach(function (x) { hs[x] = 1; });
   have.spent.forEach(function (x) { hr[x] = 1; });
@@ -1435,6 +1618,7 @@ function appendEvents_(cid, ev, fresh) {
     // at はスタンプを取った時刻（端末から）。無いもの＝別の番号からの写しは空欄にする
     // （振り返りでは at のある行だけを、ブース×時刻で重複を除いて数える）
     var n = Number(e.at), at = n > 1.6e12 && n < Date.now() + 864e5 ? new Date(n) : '';
+    if (!sh) sh = ledgerSheet_();
     sh.appendRow([new Date(), cid, t, id, at]);
     if (t === 's') { hs[id] = 1; have.stamps.push(id); } else { hr[id] = 1; have.spent.push(id); }
     added++;
