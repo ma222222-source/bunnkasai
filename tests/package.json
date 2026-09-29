@@ -1,0 +1,12 @@
+{
+  "name": "bunnkasai-tests",
+  "private": true,
+  "description": "黒工文化祭マップの自動テスト（本番のGASには触らない。GASの応答は fixtures で模擬）",
+  "scripts": {
+    "test": "node static.test.js && playwright test",
+    "static": "node static.test.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}
