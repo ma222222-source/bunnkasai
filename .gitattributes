@@ -1,0 +1,2 @@
+# シェルスクリプトは CRLF になると bash で動かなくなるので LF に固定
+*.sh text eol=lf
