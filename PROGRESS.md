@@ -12,13 +12,12 @@
 | 場所 | 版 | 確認 |
 |---|---|---|
 | **最新の成果物** | **v137**：`BUILD 2026-09-29d`／`CACHE kuroko-map-v137`／`GAS_VERSION 2026-09-29a` | 【確認済み】ユーザーのPC `Downloads\bunnkasai-v137-deploy\`（index.html・sw.js・Code.gs・SETUP.md・manifest.json・apple-touch-icon.png・og.png・部屋ID一覧.xlsx）|
-| GitHub main | **v130**：commit `649801f`（BUILD 2026-09-28b／CACHE v130／Code.gs GAS 2026-09-28a） | 【確認済み】2026-09-29 に clone して確認 |
-| GitHub ブランチ `claude/v137-sync` | **v137**（`Downloads\bunnkasai-v137-deploy\` の一式＋`CLAUDE.md`） | 【確認済み】2026-09-29 Claude Code がプッシュ。main へのマージはユーザーの承認待ち |
-| 公開中の画面 | v130（BUILD 2026-09-28b） | 【確認済み】2026-09-29 `?mode=check` |
-| 公開中の GAS | GAS-2026-09-28a | 【確認済み】2026-09-29 `?mode=check`。clasp で取り出したエディタのコードも 2026-09-28a（GitHub main の Code.gs と同じ）。本番のデプロイは `AKfycbyUZ…` の版21 |
+| GitHub main | **v137**（PR #1 のマージ後。BUILD 2026-09-29d／CACHE v137） | 【確認済み】2026-09-29 Claude Code が PR #1 をマージ |
+| 公開中の画面 | v137（BUILD 2026-09-29d）※GitHub Pages の反映に数分かかる | 2026-09-29 マージ後に確認（下の変更履歴） |
+| 公開中の GAS | **GAS-2026-09-29a**：本番のデプロイ `AKfycbyUZ…` を版22に（clasp、`tools/gas.sh deploy`） | 【確認済み】2026-09-29 本番URLの応答 `serverVersion 2026-09-29a` |
 | 公開中のブースシート | 試しのブース11件（id `1`〜`8`、`1F-42`、`1F-57`、`2F-03`）。R8 の46件はまだ入っていない | 【確認済み】2026-09-29 |
 
-**→ v131〜v137 は未反映。** 最初にやることは §6 の P0。
+**→ v137 を GitHub と GAS に反映済み（2026-09-29）。** 次は §6 P0-2（`setupR8AndArchiveOthers`）。
 
 ## 2. 完成済みの機能（v137 のコードに入っている）【確認済み：コードと自動テスト】
 
@@ -38,7 +37,7 @@
 
 | 項目 | 状態 | 次の一手 |
 |---|---|---|
-| v131〜v137 の反映 | 成果物はできている。GitHub と GAS に未反映 | §6 P0-1 |
+| v131〜v137 の反映 | 2026-09-29 反映済み（GitHub main・GAS 版22） | — |
 | R8 のブース46件の登録 | `Code.gs` の `R8_BOOTHS` に入っている。シートには未登録 | GAS で `setupR8AndArchiveOthers` を1回実行（試しのブースは「削除したブース」へ移る） |
 | 先生への確認事項 | 未回答（下の表） | ユーザー経由で確認 → `R8_BOOTHS` を直して `setupR8` を再実行 |
 | ステージの時刻 | 資料に無い | 決まったら `CONFIG.INFO.timetable` に足す |
@@ -85,7 +84,7 @@
 
 **P0（本番前に必須）**
 
-1. **v137 を反映する**（RULES.md §5）：GitHub に `Downloads\bunnkasai-v137-deploy\` の一式と `SPEC.md` `RULES.md` `PROGRESS.md` をアップロード → Apps Script に `Code.gs` を貼って「新バージョン」でデプロイ
+1. ~~v137 を反映する~~（2026-09-29 済み）（RULES.md §5）：GitHub に `Downloads\bunnkasai-v137-deploy\` の一式と `SPEC.md` `RULES.md` `PROGRESS.md` をアップロード → Apps Script に `Code.gs` を貼って「新バージョン」でデプロイ
 2. Apps Script で `setupR8AndArchiveOthers` を1回実行 → `validate` を実行
 3. `?mode=check` で「画面の版 2026-09-29d」「サーバーの版 GAS-2026-09-29a」を確認。地図に46件が載り「地図にのっていないブース」が出ないことを確認
 4. §3 の先生確認事項を回答してもらい、`R8_BOOTHS` と `CONFIG.INFO.timetable` を直す
@@ -121,6 +120,7 @@
 
 | 日付 | 担当 | 版 | 内容 |
 |---|---|---|---|
+| 2026-09-29 | Claude Code | v137 | GAS を clasp で本番に反映（デプロイ `AKfycbyUZ…` 版21→22、`serverVersion 2026-09-29a` を確認）。PR #1 を main にマージ |
 | 2026-09-29 | Claude Code | — | clasp で GAS を更新できるようにした（`tools/gas.sh`、`appsscript.json`、`.gitignore`、CLAUDE.md に手順）。GAS のコードはまだ変えていない（控えは PC の `gas-backup/`） |
 | 2026-09-29 | Claude Code | v137 | v137 一式をブランチ `claude/v137-sync` にプッシュ。`CLAUDE.md`（GitHub 操作のルール）を追加、RULES.md §5 を更新（ソースは v137 のまま変更なし） |
 | 2026-09-29 | Claude | — | 引き継ぎ用の `SPEC.md` `RULES.md` `PROGRESS.md` を作成（ソースは変更なし） |
