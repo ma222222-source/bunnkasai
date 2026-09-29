@@ -40,14 +40,17 @@
 | `backup` | いま GAS にあるコードを `gas-backup/<日時>/` に保存 | 不要 |
 | `diff` | GAS のコードと手元の `Code.gs` の差分（先に backup する） | 不要 |
 | `status` | push したら送られるファイルの確認（送らない） | 不要 |
-| `push` | backup → check → GAS のエディタのコードを置き換える | **要** |
+| `push` | backup → check → GAS のエディタのコードを置き換える | 不要（2026-09-29 ユーザー了承） |
 | `deploy "説明"` | push → 版を作る → 本番のデプロイを新しい版に（URL は変わらない） | **要** |
 
-- **`push` も承認を取る**：サイトが呼ぶ本番のデプロイは版で固定されているので push だけでは来場者に影響しないが、エディタから手で動かす関数（`setupR8` など）と時間主導トリガー（`installWarmTrigger`）は push したコードで動くため
+- `push` は承認なしでよい：サイトが呼ぶ本番のデプロイは版で固定されているので、push だけでは来場者に影響しない。ただしエディタから手で動かす関数（`setupR8` など）と時間主導トリガー（`installWarmTrigger`）は push したコードで動くので、push したら報告する
+- `deploy` と main へのマージは本番の公開なので、承認をもらってから。Claude Code の自動モードでは安全チェックで止められることがあるので、そのときはユーザーに下の「ユーザーが自分で反映するとき」を案内する
 - 本番のデプロイID は `index.html` の `CONFIG` の URL から取る（別に書かない）。新しいデプロイは作らない（URL が変わりサイトがつながらなくなる）
 - GAS 側のファイル名は `コード`。`tools/gas.sh` が送る直前に `.gas-build/コード.js` に写す。clasp push はプロジェクトを丸ごと置き換えるので、`.gas-build` を通さずに push しない
 - `setupR8AndArchiveOthers` など本番のシートを書き換える関数を `clasp run` で動かさない（動かすなら承認を取る）
 - デプロイ後は `?mode=check` の「サーバーの版」で確かめる。`Code.gs` を変えたら `GAS_VERSION` を上げる（RULES.md §4）
+
+ユーザーが自分で反映するとき（リポジトリのフォルダでターミナルを開いて）：`bash tools/gas.sh deploy "vNNN GAS-YYYY-MM-DDx"`
 
 接続の準備（このPCでは済み。別のPCで始めるときだけ）：
 
