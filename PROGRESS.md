@@ -15,7 +15,7 @@
 | GitHub main | **v130**：commit `649801f`（BUILD 2026-09-28b／CACHE v130／Code.gs GAS 2026-09-28a） | 【確認済み】2026-09-29 に clone して確認 |
 | GitHub ブランチ `claude/v137-sync` | **v137**（`Downloads\bunnkasai-v137-deploy\` の一式＋`CLAUDE.md`） | 【確認済み】2026-09-29 Claude Code がプッシュ。main へのマージはユーザーの承認待ち |
 | 公開中の画面 | v130（BUILD 2026-09-28b） | 【確認済み】2026-09-29 `?mode=check` |
-| 公開中の GAS | GAS-2026-09-28a | 【確認済み】2026-09-29 `?mode=check` |
+| 公開中の GAS | GAS-2026-09-28a | 【確認済み】2026-09-29 `?mode=check`。clasp で取り出したエディタのコードも 2026-09-28a（GitHub main の Code.gs と同じ）。本番のデプロイは `AKfycbyUZ…` の版21 |
 | 公開中のブースシート | 試しのブース11件（id `1`〜`8`、`1F-42`、`1F-57`、`2F-03`）。R8 の46件はまだ入っていない | 【確認済み】2026-09-29 |
 
 **→ v131〜v137 は未反映。** 最初にやることは §6 の P0。
@@ -121,6 +121,7 @@
 
 | 日付 | 担当 | 版 | 内容 |
 |---|---|---|---|
+| 2026-09-29 | Claude Code | — | clasp で GAS を更新できるようにした（`tools/gas.sh`、`appsscript.json`、`.gitignore`、CLAUDE.md に手順）。GAS のコードはまだ変えていない（控えは PC の `gas-backup/`） |
 | 2026-09-29 | Claude Code | v137 | v137 一式をブランチ `claude/v137-sync` にプッシュ。`CLAUDE.md`（GitHub 操作のルール）を追加、RULES.md §5 を更新（ソースは v137 のまま変更なし） |
 | 2026-09-29 | Claude | — | 引き継ぎ用の `SPEC.md` `RULES.md` `PROGRESS.md` を作成（ソースは変更なし） |
 | 2026-09-29 | Claude | v137 | QR カードの貼り先に平面図の記号（例「1F-08・Z①」）。案内カードの貼り先を「受付（南棟昇降口）・正門・一般駐車場など」に |

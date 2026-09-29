@@ -1,0 +1,7 @@
+# clasp：GAS プロジェクトとの接続情報（scriptId）と認証情報は GitHub に上げない
+.clasp.json
+.clasprc.json
+# GAS から取り出したバックアップ（本番の控え。リポジトリには入れない）
+gas-backup/
+# tools/gas.sh が GAS に送る直前に作る作業フォルダ
+.gas-build/

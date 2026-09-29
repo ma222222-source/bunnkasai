@@ -30,9 +30,36 @@
 - 版を上げるルール（RULES.md §4）を守る
 - 作業に応じて `PROGRESS.md`（毎回：変更履歴に1行）と `SPEC.md`（仕様を変えたとき）を更新する
 
+## GAS（Apps Script）— clasp で更新する
+
+`Code.gs` は Apps Script にも置かれている。clasp（Google 公式の CLI、`npm install -g @google/clasp`）で更新する。**clasp を直接たたかず `bash tools/gas.sh <コマンド>` を使う。**
+
+| コマンド | 何をするか | 承認 |
+|---|---|---|
+| `check` | `Code.gs`・`appsscript.json` の構文チェック | 不要 |
+| `backup` | いま GAS にあるコードを `gas-backup/<日時>/` に保存 | 不要 |
+| `diff` | GAS のコードと手元の `Code.gs` の差分（先に backup する） | 不要 |
+| `status` | push したら送られるファイルの確認（送らない） | 不要 |
+| `push` | backup → check → GAS のエディタのコードを置き換える | **要** |
+| `deploy "説明"` | push → 版を作る → 本番のデプロイを新しい版に（URL は変わらない） | **要** |
+
+- **`push` も承認を取る**：サイトが呼ぶ本番のデプロイは版で固定されているので push だけでは来場者に影響しないが、エディタから手で動かす関数（`setupR8` など）と時間主導トリガー（`installWarmTrigger`）は push したコードで動くため
+- 本番のデプロイID は `index.html` の `CONFIG` の URL から取る（別に書かない）。新しいデプロイは作らない（URL が変わりサイトがつながらなくなる）
+- GAS 側のファイル名は `コード`。`tools/gas.sh` が送る直前に `.gas-build/コード.js` に写す。clasp push はプロジェクトを丸ごと置き換えるので、`.gas-build` を通さずに push しない
+- `setupR8AndArchiveOthers` など本番のシートを書き換える関数を `clasp run` で動かさない（動かすなら承認を取る）
+- デプロイ後は `?mode=check` の「サーバーの版」で確かめる。`Code.gs` を変えたら `GAS_VERSION` を上げる（RULES.md §4）
+
+接続の準備（このPCでは済み。別のPCで始めるときだけ）：
+
+1. https://script.google.com/home/usersettings で「Google Apps Script API」をオン
+2. `clasp login`（ユーザーがブラウザで許可する。認証は `~/.clasprc.json` に入り、リポジトリには入らない）
+3. リポジトリ直下に `.clasp.json` を作る：`{"scriptId":"<スクリプトID>","rootDir":".gas-build"}`。スクリプトIDは Apps Script の URL の `/projects/` と `/edit` の間。`.clasp.json` は `.gitignore` 済み
+4. `bash tools/gas.sh diff` でつながることを確かめる
+
 ## 機密情報
 
 - APIキー・パスワード・トークン・`ADMIN_PASS`・`SPREADSHEET_ID` の値をコミットしない。コミット前に差分を確かめる
+- スプレッドシートID をリポジトリに書かない（RULES.md §6）。`gas-backup/`・`.clasp.json`・`.gas-build/` は GitHub に上げない
 - 認証が必要なときだけユーザーに操作を頼む（`gh auth login` など）。認証情報を受け取らない
 
 ## 報告
