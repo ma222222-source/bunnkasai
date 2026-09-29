@@ -1212,6 +1212,15 @@ html.sfx-open,html.sfx-open body{overflow:hidden}
          background:var(--surface-3);border:1px solid var(--border);color:var(--text-dim)}
 .help-ic .ic-svg{width:18px;height:18px;vertical-align:0}
 .help:last-child{border-bottom:none}
+/* 一覧の検索で「トイレ」などを引いたときの案内（ブースのカードと見分けがつくよう点線の枠） */
+.qhelp{display:flex;gap:11px;align-items:flex-start;padding:12px;margin-bottom:10px;border-radius:var(--r);
+       background:var(--surface);border:1.5px dashed var(--border-strong, var(--border));font-size:13px}
+.qhelp-tx{display:flex;flex-direction:column;gap:3px;min-width:0}
+.qhelp-tx b{font-size:14px}
+.qhelp-tx span{color:var(--text-dim);line-height:1.55}
+.qhelp-map{align-self:flex-start;margin-top:6px;min-height:44px;padding:0 14px;border-radius:999px;
+           border:1px solid var(--border);background:var(--surface-3);font:inherit;font-weight:800;color:inherit;cursor:pointer}
+.qhelp-map .ic-svg{width:16px;height:16px;vertical-align:-3px}
 .help b{display:block;font-size:12px}
 .help span{font-size:11px;color:var(--text-dim)}
 
@@ -2433,7 +2442,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-09-29d',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-29e',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5886,6 +5895,51 @@ function sparkline(hist){
          `<span class="trend">${tr}</span>`;
 }
 
+/**
+ * 検索語から「困ったときは」（CONFIG.INFO.help）の項目を引く。
+ * 見出しと本文に加えて、来場者が打ちそうな言い方（お手洗い・保健室・忘れ物…）でも当たるようにする。
+ * キーは help のアイコン名。項目を足したら、ここにも言い換えを足す
+ */
+const HELP_SYN = {
+  wc: 'お手洗い 便所 化粧室 WC',
+  flag: '入口 入り口 出口 出入口 玄関 昇降口 受付',
+  aid: '保健室 けが ケガ 体調 気分 救急 具合',
+  car: '車 パーキング 駐輪場 自転車',
+  food: '食べ物 ごはん 昼食 お昼 休憩 キッチンカー',
+  bag: '忘れ物 わすれもの なくし物 落とした',
+  call: '迷子 まいご はぐれた 呼び出し',
+  access: 'エレベーター 段差 バリアフリー ベビーカー 車いす',
+  nosmoke: 'たばこ タバコ 喫煙所 お酒'
+};
+/** 地図の「トイレ・出入口」表示へつなぐ項目 */
+const HELP_ON_MAP = ['wc', 'flag'];
+function helpHits(q){
+  const qs = String(q || '').normalize('NFKC').split(/\s+/).map(normalizeQ).filter(Boolean);
+  if (!qs.length || !CONFIG.INFO || !Array.isArray(CONFIG.INFO.help)) return [];
+  // 1文字だけ（「1」「階」など）で何でも当たらないよう、2文字以上の語で探す
+  if (qs.every(t => t.length < 2)) return [];
+  const hay = helpHits._hay || (helpHits._hay = CONFIG.INFO.help.map(([i, t, d]) =>
+    normalizeQ(withYomi(t + ' ' + d + ' ' + (HELP_SYN[i] || '')))));
+  // 見出し・言い換えで当たったものを先に（「保健室」で「受付・入口」の本文より「救護室」を上に）
+  const head = helpHits._head || (helpHits._head = CONFIG.INFO.help.map(([i, t]) =>
+    normalizeQ(withYomi(t + ' ' + (HELP_SYN[i] || '')))));
+  return CONFIG.INFO.help
+    .map((h, k) => ({ h, k, strong: qs.every(t => head[k].includes(t)) }))
+    .filter(x => qs.every(t => hay[x.k].includes(t)))
+    .sort((a, b) => (b.strong - a.strong) || (a.k - b.k))
+    .map(x => x.h);
+}
+/** 「地図でトイレ・出入口を見る」：1階の地図でトイレ・出入口を目立たせる */
+function wireHelpHits(box){
+  $$('[data-fac]', box).forEach(el => el.addEventListener('click', () => {
+    S.dept = '__fac';
+    switchView('map');
+    setFloor(1);
+    drawFloor(S.floor);
+    toast('トイレと出入口を目立たせています。上の「屋外・2階」でも切り替えられます');
+  }));
+}
+
 function renderList(){
   // 「◯分前」は tickAgo() がその場で書き換えるので、中身が同じなら作り直さない
   // （以前は1分ごとに150件を作り直していて、安い端末では毎分1秒近く固まっていた）
@@ -5963,13 +6017,21 @@ function renderList(){
     cnt.textContent = filtered ? `${items.length}件 / 全${S.booths.length}件` : '';
     cnt.classList.toggle('hide', !filtered);
   }
+  // 「トイレ」「救護」「駐車場」などはブースではないので、以前は0件になっていた。
+  // インフォの「困ったときは」の答えを一覧の先頭に出す（カテゴリで絞っているときは出さない）
+  const helps = S.cat === 'all' ? helpHits(S.q) : [];
+  const helpHtml = helps.map(([i, t, d]) => `<div class="qhelp" role="note"><span class="help-ic">${ICON[i] || ''}</span>
+      <span class="qhelp-tx"><b>${esc(t)}</b><span>${esc(d)}</span>${
+        HELP_ON_MAP.indexOf(i) >= 0 ? `<button class="qhelp-map" type="button" data-fac="1">${ICON.wc || ''} 地図でトイレ・出入口を見る</button>` : ''
+      }</span></div>`).join('');
   if (!items.length){
-    box.innerHTML = `<p class="empty">さがしたブースは見つかりませんでした。<br>
+    box.innerHTML = helpHtml || `<p class="empty">さがしたブースは見つかりませんでした。<br>
       文字をけすか、上のボタンで「すべて」をえらんでください。</p>`;
+    wireHelpHits(box);
     return;
   }
 
-  box.innerHTML = items.map(b => {
+  box.innerHTML = helpHtml + items.map(b => {
     const L = lvOf(b);
     const got = S.stamps.has(b.id);
     return `
@@ -6021,6 +6083,7 @@ function renderList(){
       if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openSheet(el.dataset.sid); }
     });
   });
+  wireHelpHits(box);
   if (focusedId){
     const again = box.querySelector(`[data-sid="${CSS.escape(focusedId)}"]`);
     if (again) again.focus({ preventScroll:true });
@@ -9998,12 +10061,16 @@ function init(){
       if (!signed){
         setTimeout(() => toast('このリンクではスタンプが付きません。ブース入口のQRを読み取ってください'), 400);
         openBooth(b);
+        requestAnimationFrame(() => openSheet(b));
       } else {
         renderAll();                    // 名前・番号が届いたので演出の中身も最新にする
         if (showStampFx._open) showStampFx.refresh();
       }
     } else {
+      // 一覧の該当ブースを光らせたうえで、詳細（場所・混雑・待ち時間）を開く。
+      // リンクで来た人が知りたいのは「どこで・いま混んでいるか」なので、一覧だけでは1手多い
       openBooth(b);
+      requestAnimationFrame(() => openSheet(b));
     }
     stripLink();
     return true;

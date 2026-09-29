@@ -2,7 +2,7 @@
 
 > **このファイルの位置づけ**：このプロジェクトを触るAI・人が守るルールの正本。
 > 仕様は `SPEC.md`、進み具合と次の作業は `PROGRESS.md`。**3つとも読んでから作業を始める。**
-> 最終更新：2026-09-29（Claude / Cowork）
+> 最終更新：2026-09-29（Claude Code：自動運用・自動テスト）
 
 ---
 
@@ -65,11 +65,18 @@
 | `Code.gs` | `GAS_VERSION` を変える（`YYYY-MM-DD` ＋ 英小文字）。画面が前提とする最低版は `index.html` の `CONFIG.GAS_MIN` |
 | 納品 | 版番号 vNNN ごとにフォルダを分ける（例：ユーザーのPCの `Downloads\bunnkasai-vNNN-deploy\`）。**一式**を入れる |
 
-版番号の対応（v137 時点）：v137 ＝ `BUILD 2026-09-29d` ／ `CACHE kuroko-map-v137` ／ `GAS_VERSION 2026-09-29a`。
+版番号の対応（v138 時点）：v138 ＝ `BUILD 2026-09-29e` ／ `CACHE kuroko-map-v138` ／ `GAS_VERSION 2026-09-29a`（GAS は v137 から変更なし）。
 
-## 5. 反映の手順（ユーザーが行う）
+## 5. 反映の手順
 
-2026-09-29 から、ユーザーの PC の Claude Code は GitHub に書き込める。作業用ブランチ（`claude/…`）へのコミットとプッシュは AI が自動で行い、**main へのマージ・プッシュはユーザーの承認を得てから**行う（詳細は `CLAUDE.md`）。GAS も Claude Code が clasp（`tools/gas.sh`）で更新でき、`push`・`deploy` はユーザーの承認後に行う。それ以外の AI（Cowork・ChatGPT など）は従来どおり、ユーザーが次の手順で反映する。
+**Claude Code（ユーザーのPC）：自動で反映する**（2026-09-29 ユーザーが許可。手順の正本は `CLAUDE.md` の「自動運用」）
+
+- 作業用ブランチ → `tests/` の自動テスト → 通ったら main へマージ（GitHub Pages が公開）→ `Code.gs` を変えたら clasp で既存の本番デプロイを新しい版に → 公開中の版を確かめて報告
+- **テストが失敗したら本番に反映しない。** 本番に出したあと重大な問題が見つかったら、新しい更新を止めて報告する
+- 自動の対象外（必ずユーザーに聞く）：データの削除、シートの初期化・行の移動、認証設定（`ADMIN_PASS`・共有・デプロイのアクセス権）の変更、本番のシートに書き込むテスト
+- 公開URLと GAS の本番デプロイID は変えない。強制プッシュ禁止。機密情報をコミットしない
+
+**それ以外の AI（Cowork・ChatGPT など）：ユーザーが次の手順で反映する**
 
 1. GitHub（`ma222222-source/bunnkasai` の main）の Web 画面から、`index.html` `sw.js` `manifest.json` `apple-touch-icon.png` `og.png` `SETUP.md` `部屋ID一覧.xlsx`、`SPEC.md` `RULES.md` `PROGRESS.md` をルートにアップロード（**ファイル名の末尾に `_1` などが付いていないこと**）
 2. `Code.gs` を変えたときは、スプレッドシート → 拡張機能 → Apps Script に全文を貼り付けて保存 → デプロイ → デプロイを管理 → 鉛筆 → **新バージョン** → デプロイ（URLは変わらない。保存だけでは反映されない）
@@ -97,7 +104,7 @@
 
 ## 8. テスト
 
-**自動テストの置き場所に注意**：これまでのテスト（Playwright と Node の GAS 模擬環境、約25本）は **Claude の作業環境（クラウドの一時領域）にしかなく、GitHub にも ユーザーのPC にも入っていない**。次の AI は再利用できない前提で、下の手順で確かめる。
+**自動テストは `tests/` にある**（v138〜）。`cd tests && npm install && npm test`。GAS は模擬するので本番には触らない。GitHub Actions でも push・PR ごとに動く。中身は `CLAUDE.md` の「テスト」。Node が無い環境の AI は、下の手動の確認で代える。
 
 最低限、変更のたびに確かめること：
 
