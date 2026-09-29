@@ -13,7 +13,7 @@
 |---|---|---|
 | **最新の成果物** | **v137**：`BUILD 2026-09-29d`／`CACHE kuroko-map-v137`／`GAS_VERSION 2026-09-29a` | 【確認済み】ユーザーのPC `Downloads\bunnkasai-v137-deploy\`（index.html・sw.js・Code.gs・SETUP.md・manifest.json・apple-touch-icon.png・og.png・部屋ID一覧.xlsx）|
 | GitHub main | **v130**：commit `649801f`（BUILD 2026-09-28b／CACHE v130／Code.gs GAS 2026-09-28a） | 【確認済み】2026-09-29 に clone して確認 |
-| GitHub ブランチ `claude/v137-sync` | **v137**（`Downloadsunnkasai-v137-deploy\` の一式＋`CLAUDE.md`） | 【確認済み】2026-09-29 Claude Code がプッシュ。main へのマージはユーザーの承認待ち |
+| GitHub ブランチ `claude/v137-sync` | **v137**（`Downloads\bunnkasai-v137-deploy\` の一式＋`CLAUDE.md`） | 【確認済み】2026-09-29 Claude Code がプッシュ。main へのマージはユーザーの承認待ち |
 | 公開中の画面 | v130（BUILD 2026-09-28b） | 【確認済み】2026-09-29 `?mode=check` |
 | 公開中の GAS | GAS-2026-09-28a | 【確認済み】2026-09-29 `?mode=check` |
 | 公開中のブースシート | 試しのブース11件（id `1`〜`8`、`1F-42`、`1F-57`、`2F-03`）。R8 の46件はまだ入っていない | 【確認済み】2026-09-29 |
