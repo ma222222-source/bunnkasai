@@ -65,7 +65,7 @@
 | `Code.gs` | `GAS_VERSION` を変える（`YYYY-MM-DD` ＋ 英小文字）。画面が前提とする最低版は `index.html` の `CONFIG.GAS_MIN` |
 | 納品 | 版番号 vNNN ごとにフォルダを分ける（例：ユーザーのPCの `Downloads\bunnkasai-vNNN-deploy\`）。**一式**を入れる |
 
-版番号の対応（v138 時点）：v138 ＝ `BUILD 2026-09-29e` ／ `CACHE kuroko-map-v138` ／ `GAS_VERSION 2026-09-29a`（GAS は v137 から変更なし）。
+版番号の対応（v139 時点）：v139 ＝ `BUILD 2026-09-29f` ／ `CACHE kuroko-map-v139` ／ `GAS_VERSION 2026-09-29a`（GAS は v137 から変更なし）。
 
 ## 5. 反映の手順
 
@@ -96,7 +96,7 @@
 
 - 基準の画面幅：**320 / 390 / 768px** で横はみ出し 0。PC 1280px でも崩れない
 - 触る部分は高さ 44px 以上
-- 地図は指1本で移動、2本指で拡大（ダブルタップ拡大は使わない）
+- 地図は指1本で移動、2本指で拡大（ダブルタップ拡大は使わない）。部屋の外を押しても16px（`NEAR_TAP_PX`）以内のブースは開く
 - iPhone（Safari）・Android（Chrome）・LINE のアプリ内ブラウザで開かれる前提。アプリ内ブラウザでは保存先が分かれる（`SPEC.md` §6）
 - 文字の大きさ「特大」でも崩れない
 - `prefers-reduced-motion` では動きを止める。暗い配色でも読める

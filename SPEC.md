@@ -5,7 +5,7 @@
 > 新しいAI（ChatGPT / Claude）は **SPEC.md → RULES.md → PROGRESS.md** の順に読むこと。
 >
 > - 最終更新：2026-09-29（Claude Code）
-> - 記述の対象：**v138**（`BUILD '2026-09-29e'` ／ `sw.js` の `CACHE 'kuroko-map-v138'` ／ Code.gs `GAS_VERSION '2026-09-29a'`）
+> - 記述の対象：**v139**（`BUILD '2026-09-29f'` ／ `sw.js` の `CACHE 'kuroko-map-v139'` ／ Code.gs `GAS_VERSION '2026-09-29a'`）
 > - 表記の約束：**【確認済み】**＝コード・実機・リポジトリで確かめた事実／**【推測】**＝資料から読み取った解釈／**【未確認】**＝確かめられていない
 
 ---

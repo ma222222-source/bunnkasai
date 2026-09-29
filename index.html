@@ -2442,7 +2442,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-09-29e',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-29f',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5222,6 +5222,8 @@ function renderSheet(){
      発動して倍率が変わるため廃止した）
    拡大していないときは縦スクロールを邪魔しない（touch-action:pan-y）。
    ===================================================================== */
+/** 地図で、部屋の外を押してもこの距離（画面のpx）以内のブースは押したことにする */
+const NEAR_TAP_PX = 16;
 const ZOOM = { k:1, x:0, y:0, min:1, max:6, el:null, wrap:null,
                // 動かしている指は常に1本だけ覚える。指の数を数えて拡大か移動かを
                // 決めるのはやめた（pointerup を1つ取りこぼすと「指1本なのに2本」と
@@ -5434,6 +5436,26 @@ function initZoom(){
     z.noClick = false;
     e.stopPropagation(); e.preventDefault();
   }, true);
+
+  // 全体表示では小さいブースが 20px 前後しかなく、指の先（約 44px）では押し外しやすい。
+  // 部屋の外を押したときは、指の先の範囲（16px）にいちばん近いブースを押したことにする。
+  // 部屋の上を押したときと、編集・現在地えらびの最中は何もしない（押した部屋そのものを使う）
+  z.el.addEventListener('click', e => {
+    if (e.target.closest && e.target.closest('.room[data-id]')) return;
+    if (S.edit || S.picking) return;
+    const svg = $('#plan-' + S.floor);
+    if (!svg) return;
+    let best = null, bestD = NEAR_TAP_PX;
+    svg.querySelectorAll('.room[data-id]').forEach(g => {
+      const r = g.getBoundingClientRect();
+      if (!r.width) return;
+      const dx = Math.max(r.left - e.clientX, 0, e.clientX - r.right);
+      const dy = Math.max(r.top - e.clientY, 0, e.clientY - r.bottom);
+      const d = Math.hypot(dx, dy);
+      if (d <= bestD){ bestD = d; best = g; }
+    });
+    if (best) best.dispatchEvent(new MouseEvent('click', { bubbles:true }));
+  });
 
   /* ここがスマホ操作の要。
      pointermove の preventDefault ではブラウザのスクロールは止まらない
