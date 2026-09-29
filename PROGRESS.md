@@ -11,9 +11,9 @@
 
 | 場所 | 版 | 確認 |
 |---|---|---|
-| **最新の成果物** | **v138**：`BUILD 2026-09-29e`／`CACHE kuroko-map-v138`／`GAS_VERSION 2026-09-29a`（GAS は v137 と同じ） | 【確認済み】GitHub のブランチ `claude/v138-quality`（マージ後は main）。`Downloads\bunnkasai-vNNN-deploy\` は v137 が最後 |
-| GitHub main | v137（PR #1 のマージ `bfc3ca7`）→ v138 は PR のマージ後 | 【確認済み】2026-09-29 |
-| 公開中の画面 | v137（BUILD 2026-09-29d）→ v138 はマージ後に確認して変更履歴に書く | 【確認済み】2026-09-29 `?mode=check` |
+| **最新の成果物** | **v138**：`BUILD 2026-09-29e`／`CACHE kuroko-map-v138`／`GAS_VERSION 2026-09-29a`（GAS は v137 と同じ） | 【確認済み】GitHub の main。`Downloads\bunnkasai-vNNN-deploy\` は v137 が最後 |
+| GitHub main | **v138**（PR #2 のマージ `e19005c`）。GitHub Actions のテスト・Pages・Cloudflare とも成功 | 【確認済み】2026-09-29 |
+| 公開中の画面 | **v138**（BUILD 2026-09-29e）。公開URLで「トイレ」検索の案内・46件の表示を確認 | 【確認済み】2026-09-29 |
 | 公開中の GAS | **GAS-2026-09-29a**：本番のデプロイ `AKfycbyUZ…` を版22に（clasp、`tools/gas.sh deploy`） | 【確認済み】2026-09-29 本番URLの応答 `serverVersion 2026-09-29a` |
 | 公開中のブースシート | **R8 の46件**（`setupR8AndArchiveOthers` 実行済み。試しの11件は「削除したブース」へ）。`validate` の実行は【未確認】 | 【確認済み】2026-09-29 本番の応答で46件 |
 | 公開中のお知らせ | 「落とし忘れが届いてます」（重要＝赤帯）が全員の画面に出ている | 【確認済み】2026-09-29。テストの残りなら係員画面の「お知らせ」で消す（§5-11） |
