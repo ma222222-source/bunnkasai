@@ -7,7 +7,7 @@ const path = require('path');
 const BASE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'booths.json'), 'utf8'));
 const STATUSES = ['空いています', 'やや混雑', '混雑しています', '準備中', ''];
 
-function snapshot({ notice = null } = {}) {
+function snapshot({ notice = null, mutate = null } = {}) {
   const now = new Date().toISOString();
   const j = JSON.parse(JSON.stringify(BASE));
   j.updatedAt = now;
@@ -19,16 +19,17 @@ function snapshot({ notice = null } = {}) {
     b.time = b.status ? now : null;
     b.stale = false;
   });
+  if (mutate) mutate(j);
   return j;
 }
 
 /**
- * @param {import('@playwright/test').Page} page
- * @param {{mode?: 'ok'|'fail'|'slow', delayMs?: number, notice?: object}} opt
+ * @param {import('@playwright/test').Page | import('@playwright/test').BrowserContext} page  context を渡すと Service Worker の通信も差し替わる
+ * @param {{mode?: 'ok'|'fail'|'slow', delayMs?: number, notice?: object, mutate?: Function, verifyOk?: boolean}} opt
  * @returns {{posts: object[], gets: string[]}} 送られた内容（テストで確かめる用）
  */
 async function mockGas(page, opt = {}) {
-  const log = { posts: [], gets: [] };
+  const log = { posts: [], gets: [], failPosts: !!opt.failPosts };
   const mode = opt.mode || 'ok';
   await page.route(/script\.google(usercontent)?\.com\//, async route => {
     const req = route.request();
@@ -40,8 +41,11 @@ async function mockGas(page, opt = {}) {
       let body = {};
       try { body = JSON.parse(req.postData() || '{}'); } catch (e) {}
       log.posts.push(body);
+      // 書き込みだけ失敗させる（係員の「未送信の自動再送」を確かめる）。log.failPosts を途中で false にすると復旧
+      if (log.failPosts && body.action !== 'verify') return route.fulfill({ status: 404, contentType: 'text/html', body: '<html>404</html>' });
       const ok = { ok: true, sv: BASE.serverVersion };
-      if (body.action === 'verify') return route.fulfill({ status: 200, headers, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'パスワードが違います' }) });
+      if (body.action === 'verify') return route.fulfill({ status: 200, headers, contentType: 'application/json',
+        body: JSON.stringify(opt.verifyOk ? { ok: true, sv: BASE.serverVersion } : { ok: false, error: 'パスワードが違います' }) });
       return route.fulfill({ status: 200, headers, contentType: 'application/json', body: JSON.stringify(ok) });
     }
     log.gets.push(url.search);

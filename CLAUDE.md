@@ -46,6 +46,8 @@
 
 - `cd tests && npm install`（初回だけ）→ `npm test`
   - `static.test.js`：構文、版の整合（GAS_VERSION ≧ GAS_MIN、PROGRESS.md に今の版）、**刷ったQRの署名の控え（`fixtures/sigs.json`）**、localStorage のキー名、R8 の46件が地図にあるか、GAS の数式注入対策
+  - `hardening.spec.js`：XSS（悪い文字列を全画面・係員画面に流す）、地図の押しやすさ、Service Worker でのオフライン
+  - `staff.spec.js`：係員の待ち人数・混雑度の送信、送れなかった更新の再送
   - `app.spec.js`：幅 320/390/768/1280px と文字「特大」で横はみ出し・コンソールのエラー、4画面、階の切り替え、検索、`?booth=`、QR のスタンプ（正しい署名・違う署名）、5個で交換の案内、`?mode=` の6画面、係員ログインの拒否、GAS の失敗・遅延
 - GAS は `tests/mock.js` が模擬する（`fixtures/booths.json` は本番の応答の写し）。本番のシートには届かない
 - スクリーンショット：`SHOTS=shots npx playwright test shots.spec.js`（`tests/shots/` は GitHub に上げない）
