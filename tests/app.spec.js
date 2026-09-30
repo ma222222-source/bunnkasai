@@ -195,3 +195,23 @@ test('一覧の検索：「トイレ」「保健室」「忘れ物」で案内�
   await expect(page.locator('#fl-1')).toHaveAttribute('aria-pressed', 'true');
   expect(errors).toEqual([]);
 });
+
+test('スタンプ：0個は手順、3個は「お菓子まであと2個」、6個は交換の案内と下のタブの印', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await expect(page.locator('#stamp-prize .prize-steps li')).toHaveCount(3);
+  await expect(page.locator('#nav .nav-badge')).toHaveCount(0);
+
+  await page.evaluate(() => { ['1F-02', '1F-03', '1F-05'].forEach(id => S.stamps.add(id)); renderStamps(); });
+  await expect(page.locator('#stamp-prize')).toContainText('あと 2個');
+  await expect(page.locator('#stamp-prize .prize-dots i.on')).toHaveCount(3);
+
+  await page.evaluate(() => { ['1F-07', '1F-08', '1F-01'].forEach(id => S.stamps.add(id)); renderStamps(); });
+  await expect(page.locator('#stamp-prize')).toContainText('交換できます');
+  await expect(page.locator('#nav .nav-badge')).toHaveText('1');
+  await page.locator('#prize-go').click();
+  await expect(page.locator('#redeem-open')).toBeInViewport();
+  await expect(page.locator('#redeem-open')).toBeEnabled();
+});
