@@ -11,7 +11,7 @@
 
 | 場所 | 版 | 確認 |
 |---|---|---|
-| **最新の成果物** | **v139**：`BUILD 2026-09-29f`／`CACHE kuroko-map-v139`／`GAS_VERSION 2026-09-29a`（GAS は v137 と同じ） | 【確認済み】GitHub の main。`Downloads\bunnkasai-vNNN-deploy\` は v137 が最後 |
+| **最新の成果物** | **v140**：`BUILD 2026-09-30a`／`CACHE kuroko-map-v140`／`GAS_VERSION 2026-09-29a`（GAS は v137 と同じ） | 【確認済み】GitHub の main。`Downloads\bunnkasai-vNNN-deploy\` は v137 が最後 |
 | GitHub main | **v139**（PR #4 のマージ `f9a48a7`）。GitHub Actions のテスト・Pages とも成功 | 【確認済み】2026-09-30 |
 | 公開中の画面 | **v139**（BUILD 2026-09-29f）。公開URLで、9×10px のブース（記念館公開）の5px外を押して開くことを確認 | 【確認済み】2026-09-30 |
 | 公開中の GAS | **GAS-2026-09-29a**：本番のデプロイ `AKfycbyUZ…` を版22に（clasp、`tools/gas.sh deploy`） | 【確認済み】2026-09-29 本番URLの応答 `serverVersion 2026-09-29a` |
@@ -121,6 +121,7 @@
 
 | 日付 | 担当 | 版 | 内容 |
 |---|---|---|---|
+| 2026-09-30 | Claude Code | v140 | ユーザーの依頼：①QRを読むカメラのボタン（見出し・スタンプ・ブースの詳細。Android の Chrome などは画面の中で読む、iPhone は標準カメラの手順を案内）②地図を Google マップ風に（淡い配色、階は右上・＋−は右下に重ねる、絞り込みのチップは地図の上、凡例は折りたたみ、狭いブースは混雑の色の丸い印、線と角は倍率によらず一定）。テスト追加 `scan.spec.js`（GAS の変更なし） |
 | 2026-09-29 | Claude Code | v139 | 地図で小さいブースの外側16px以内を押しても開くように（全体表示で20px前後のブースが押しにくかった）。テスト追加：XSS（来場者画面・紙マップ・ボード・係員画面）、地図の押しやすさ、Service Worker でのオフライン、係員の更新・未送信の再送。低速回線＋CPU 1/4 で表示 3.6秒・転送 191KB（gzip）を計測（GAS の変更なし） |
 | 2026-09-29 | Claude Code | v138 | 一覧の検索で「トイレ」「保健室」「忘れ物」「駐車場」「迷子」などに「困ったときは」の案内を出し、地図のトイレ・出入口へ移れるように。`?booth=` で詳細も開く。`tests/`（静的14件＋画面26件）と GitHub Actions を追加。SETUP.md の古い記述を直した。自動運用のルールを CLAUDE.md・RULES.md に（GAS の変更なし） |
 | 2026-09-29 | Claude Code | v137 | GAS を clasp で本番に反映（デプロイ `AKfycbyUZ…` 版21→22、`serverVersion 2026-09-29a` を確認）。PR #1 を main にマージ |
