@@ -1,7 +1,7 @@
 /* 黒工文化祭マップ Service Worker
    目的：校内Wi-Fiが不安定でも「アプリの外側」が必ず開くようにする。
    混雑データ(GAS)は絶対にキャッシュしない（古い混雑状況を見せないため）。 */
-const CACHE = 'kuroko-map-v142';
+const CACHE = 'kuroko-map-v143';
 // 画面は SHELL_KEY（./index.html）1つにまとめて保存する。
 // './' も入れると同じHTMLが別の控えとして2つ残り、使われない方が約400KBを占める。
 const SHELL = ['./index.html', './manifest.json', './apple-touch-icon.png'];
@@ -11,9 +11,14 @@ self.addEventListener('install', e => {
   // addAll は1つでも404だと全体が失敗し、SWがインストールされない＝オフライン対応が
   // まるごと効かなくなる（manifest.json のアップロード漏れで実際に起きうる）。
   // 1件ずつ入れて、取れなかったものは諦める。index.html だけは必須。
+  // 【v143】ふつうに取ると、ブラウザと GitHub Pages の配信サーバーの控え（最大10分）から
+  // 「1つ前の版」の index.html が返り、新しい版の SW が古い画面を保存してしまっていた
+  // （公開して2回開き直しても前の版のままだった）。版ごとに違う引数を付けて取り、控えを通さない
   e.waitUntil((async () => {
     const cache = await caches.open(CACHE);
-    await Promise.all(SHELL.map(u => cache.add(u).catch(() => {})));
+    await Promise.all(SHELL.map(u => freshFetch(u, CACHE)
+      .then(res => (res && res.ok) ? cache.put(new URL(u, self.location.href).href, res) : null)
+      .catch(() => {})));
     if (!(await cache.match('./index.html'))) {
       try { await cache.add('./index.html'); } catch (err) { /* 次回の取得に任せる */ }
     }
@@ -43,6 +48,17 @@ self.addEventListener('fetch', e => {
 
   e.respondWith(handle(e.request, e));
 });
+
+/**
+ * 控え（ブラウザの HTTP キャッシュ・配信サーバー）を通さずに取る。
+ * GitHub Pages は同じ URL を最大10分控えるので、引数（tag）を変えて別の URL として取る。
+ * 引数が違っても中身は同じファイル（静的配信なので引数は無視される）
+ */
+function freshFetch(u, tag){
+  const url = new URL(u, self.location.href);
+  url.searchParams.set('sw', tag);
+  return fetch(new Request(url.href, { cache: 'reload' }));
+}
 
 /** アプリ本体（HTML）かどうか。中身の差分を見る対象をここだけに絞る。 */
 function isShell(request){
@@ -84,7 +100,9 @@ async function handle(request, event){
 
   const refresh = (async () => {
     try{
-      const res = await fetch(request, { cache: 'no-cache' });
+      // 本体は1分ごとに変わる引数を付けて取る（配信サーバーの10分の控えを避ける。1分なら負荷も増えない）
+      const res = shell ? await freshFetch('./index.html', 'm' + Math.floor(Date.now() / 60000))
+                        : await fetch(request, { cache: 'no-cache' });
       if (!res || !res.ok) return res;
       if (shell && cached){
         const [a, b] = await Promise.all([res.clone().text(), cached.clone().text()]);

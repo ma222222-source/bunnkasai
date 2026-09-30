@@ -146,4 +146,19 @@ test.describe('オフライン（Service Worker あり）', () => {
     await expect(page.locator('#booth-list .booth').first()).toBeVisible();
     await context.setOffline(false);
   });
+
+  test('新しい版の SW は、配信の控えを通さずに（引数つきで）画面を取る', async ({ page, context }) => {
+    await mockGas(context);
+    const shellReqs = [];
+    context.on('request', r => { const u = new URL(r.url()); if (u.pathname.endsWith('/index.html') && u.searchParams.get('sw')) shellReqs.push(u.searchParams.get('sw')); });
+    await page.goto('/?tab=map');
+    await ready(page);
+    await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+    // インストール時：版の名前つき
+    const ver = await page.evaluate(() => fetch('sw.js').then(r => r.text()).then(t => t.match(/const CACHE = '([^']+)'/)[1]));
+    await expect.poll(() => shellReqs).toContain(ver);
+    // 開き直すと：1分ごとの引数つきで取り直す
+    await page.reload();
+    await expect.poll(() => shellReqs.some(t => /^m\d+$/.test(t)), { timeout: 10000 }).toBe(true);
+  });
 });
