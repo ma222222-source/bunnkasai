@@ -201,6 +201,21 @@ p{margin:0}
    ==================================================== */
 
 /* ---- 端正：生成りの紙と製図。既定に近い落ち着きで、骨格をはっきりさせた版 ---- */
+:root{
+  /* v140 の地図（Google マップ風）。地面は薄い灰、建物は一段濃い灰、部屋は白、通路は白、
+     屋外は薄い緑、トイレなどの施設は青。混雑は淡い塗り＋柄＋濃い枠＋記号＋人数（色だけに頼らない） */
+  --g-ground:#eef0f3; --g-edge:#dadce0; --g-ctl:#ffffff; --g-ctl-edge:#dadce0;
+  --g-bldg:#e3e6ea; --g-bldg-edge:#c6cbd2; --g-room:#fbfbfc; --g-room-edge:#d2d6dc;
+  --g-walk:#ffffff; --g-walk-edge:#d7dbe0; --g-outdoor:#dff0dc; --g-road:#ffffff; --g-road-edge:#cfd3d9;
+  --g-label:#3c4043; --g-ink-soft:#6b7075; --g-halo:#ffffff; --g-room-text:#202124;
+  --g-sel:#1a73e8; --g-sel-bg:#e8f0fe;
+  --g-poi:#e8f0fe; --g-poi-edge:#a8c7fa; --g-poi-ink:#1a73e8;
+  --g-free:#e2f3e6; --g-free-edge:#1e8e3e; --g-free-ink:#137333;
+  --g-warn:#fdf0cf; --g-warn-line:#f4c95d; --g-warn-edge:#d56e0c; --g-warn-ink:#9a4a00;
+  --g-busy:#fbe3e1; --g-busy-line:#ef9a96; --g-busy-edge:#c5221f; --g-busy-ink:#a50e0e;
+  --g-prep:#eceef1; --g-prep-line:#c3c7cd; --g-prep-edge:#80868b;
+  --g-unk:#f1f3f4; --g-unk-edge:#9aa0a6; --g-marker-text:#ffffff;
+}
 :root[data-theme="paper"]{
   --bg:#e6e2d9; --surface:#fbfaf6; --surface-2:#f4f1ea; --surface-3:#eae6dc;
   --border:#d8d2c4; --border-strong:#ada494;
@@ -235,6 +250,17 @@ p{margin:0}
 
 /* ---- 重厚：黒地に赤。角を斜めに落とした板が形の言語 ---- */
 :root[data-theme="heavy"]{
+  --g-ground:#1c1f24; --g-edge:#3a404a; --g-ctl:#2a2e35; --g-ctl-edge:#454c57;
+  --g-bldg:#262a31; --g-bldg-edge:#434a55; --g-room:#30353d; --g-room-edge:#4a525e;
+  --g-walk:#3a4049; --g-walk-edge:#4a515c; --g-outdoor:#1e2b21; --g-road:#3a4049; --g-road-edge:#4a515c;
+  --g-label:#e8eaed; --g-ink-soft:#aab0b8; --g-halo:#1c1f24; --g-room-text:#f1f3f4;
+  --g-sel:#8ab4f8; --g-sel-bg:#2f3a4d;
+  --g-poi:#23324a; --g-poi-edge:#3d5a85; --g-poi-ink:#8ab4f8;
+  --g-free:#16331f; --g-free-edge:#81c995; --g-free-ink:#81c995;
+  --g-warn:#3a2d10; --g-warn-line:#6b5316; --g-warn-edge:#fdd663; --g-warn-ink:#fdd663;
+  --g-busy:#3e1a1a; --g-busy-line:#7a2e2b; --g-busy-edge:#f28b82; --g-busy-ink:#f6aea9;
+  --g-prep:#2b2f35; --g-prep-line:#454b54; --g-prep-edge:#9aa0a6;
+  --g-unk:#2a2e34; --g-unk-edge:#80868b; --g-marker-text:#1c1f24;
   --bg:#0b0d11; --surface:#151920; --surface-2:#1b2028; --surface-3:#232a35;
   --border:#2b323e; --border-strong:#414b5c;
   --text:#f4f7fb; --text-dim:#b3bdcb; --text-mute:#a3aebd;
@@ -595,6 +621,121 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 .outdoor{fill:var(--outdoor)}
 /* 「ブースがありません」は地図(SVG)の中に描くと拡大で一緒に引き伸ばされ、
    既定の倍率でも文の両端が画面の外へ出てしまう。地図の上に重ねて出す */
+/* ========================= v140：Google マップ風の地図 =========================
+   #map-card.gmap の中だけに効かせる（紙マップ・本部ボードは今まで通り）。
+   ID つきにして、テーマ（paper / heavy）の地図の指定より必ず優先させる */
+#map-card.gmap .map-stage{position:relative}
+#map-card.gmap .map-view{background:var(--g-ground);background-image:none;
+  border:1px solid var(--g-edge);border-radius:16px;box-shadow:none}
+/* 地図の上の操作は白い板＋影（地図の中身と見分けがつくように） */
+#map-card.gmap .map-floors,#map-card.gmap .map-ctl button{background:var(--g-ctl);color:var(--g-label);
+  box-shadow:0 1px 3px rgba(60,64,67,.28),0 1px 1px rgba(60,64,67,.12)}
+#map-card.gmap .map-floors{position:absolute;right:8px;top:8px;z-index:4;flex-direction:column;
+  padding:3px;gap:2px;border-radius:12px;border:none}
+#map-card.gmap .map-floors button{min-height:44px;min-width:52px;padding:0 8px;font-size:12.5px;font-weight:800;
+  border-radius:9px;color:var(--g-label);background:transparent;box-shadow:none;justify-content:center}
+#map-card.gmap .map-floors button[aria-pressed="true"]{background:var(--g-sel-bg);color:var(--g-sel);box-shadow:none}
+#map-card.gmap .map-floors .fl-n{background:transparent;color:var(--g-ink-soft);min-width:0;height:auto;
+  margin-left:3px;padding:0;font-size:10px}
+#map-card.gmap .map-floors button[aria-pressed="true"] .fl-n{color:var(--g-sel)}
+#map-card.gmap .map-ctl{position:absolute;z-index:4;display:flex}
+#map-card.gmap .map-ctl button{min-height:44px;border:none;font-weight:800;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;transition:transform var(--t-fast) var(--ease)}
+#map-card.gmap .map-ctl button:active{transform:scale(.95)}
+#map-card.gmap .map-ctl button:disabled{opacity:.45}
+#map-card.gmap .map-ctl button.dim{opacity:.32;pointer-events:none}
+#map-card.gmap .map-zoom-ctl{right:8px;bottom:8px;flex-direction:column;gap:6px}
+#map-card.gmap .map-zoom-ctl button{width:44px;border-radius:12px;font-size:22px;line-height:1}
+#map-card.gmap .map-fit-ctl{left:8px;bottom:8px;gap:6px}
+#map-card.gmap .map-fit-ctl button{padding:0 14px;border-radius:999px;font-size:12px}
+#map-card.gmap .zoom-lv{left:50%;transform:translateX(-50%);top:8px}
+/* 絞り込みのチップ（Google マップの「レストラン」「ホテル」の列） */
+#map-card.gmap .dept-legend{border:none;background:transparent;padding:0 0 8px;gap:8px}
+#map-card.gmap .dept-legend button{background:var(--g-ctl);color:var(--g-label);border:1px solid var(--g-ctl-edge);
+  font-size:11.5px;box-shadow:0 1px 2px rgba(60,64,67,.18)}
+#map-card.gmap .dept-legend button[aria-pressed="true"]{background:var(--g-sel-bg);color:var(--g-sel);border-color:var(--g-sel)}
+#map-card.gmap .dept-legend button.fac[aria-pressed="true"]{background:var(--g-sel-bg);color:var(--g-sel);border-color:var(--g-sel)}
+#map-card.gmap .legend-box{margin-top:8px;border-top:1px solid var(--border)}
+#map-card.gmap .legend-box > summary{min-height:44px;display:flex;align-items:center;gap:6px;cursor:pointer;
+  font-size:12px;font-weight:800;color:var(--text-dim);padding:0 4px;list-style:none}
+#map-card.gmap .legend-box > summary::-webkit-details-marker{display:none}
+#map-card.gmap .legend-box > summary::before{content:'';width:7px;height:7px;border-right:2px solid currentColor;
+  border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform var(--t-fast) var(--ease);margin:0 4px}
+#map-card.gmap .legend-box[open] > summary::before{transform:rotate(45deg)}
+#map-card.gmap .legend{border-top:none;padding:0 4px 10px}
+
+/* 図面：地面・建物・部屋・通路 */
+#map-card.gmap .bldg,#map-card.gmap .bldg.tinted{fill:var(--g-bldg);stroke:var(--g-bldg-edge);stroke-width:calc(1.2px / var(--ms,1))}
+#map-card.gmap .struct{fill:var(--g-bldg)}
+#map-card.gmap .outdoor{fill:var(--g-outdoor)}
+#map-card.gmap .corridor{fill:var(--g-walk);stroke:var(--g-walk-edge);stroke-width:calc(.6px / var(--ms,1))}
+#map-card.gmap .corridor-line,#map-card.gmap .road-line{display:none}
+#map-card.gmap .corridor-t{fill:var(--g-ink-soft);stroke:var(--g-walk);font-weight:700;letter-spacing:.12em}
+#map-card.gmap .road{fill:var(--g-road);stroke:var(--g-road-edge);stroke-width:calc(.8px / var(--ms,1))}
+#map-card.gmap .road-t{fill:var(--g-ink-soft)}
+#map-card.gmap .blocked{fill:url(#gpat-blocked);stroke:var(--g-bldg-edge);stroke-width:calc(1px / var(--ms,1));stroke-dasharray:none}
+#map-card.gmap .blocked-t{fill:var(--g-ink-soft);font-weight:700}
+#map-card.gmap .bldg-tap .bldg{fill:var(--g-bldg);stroke:var(--g-sel);stroke-width:calc(1.6px / var(--ms,1));stroke-dasharray:none}
+#map-card.gmap .plan.has-booth .room-bg{opacity:1}
+#map-card.gmap .room-bg rect,#map-card.gmap .room-bg rect.dept{fill:var(--g-room);stroke:var(--g-room-edge);stroke-width:calc(1px / var(--ms,1))}
+#map-card.gmap .room-bg .dept-bar{display:none}
+#map-card.gmap .room-bg text.bg-nm{fill:var(--g-ink-soft);font-weight:600}
+#map-card.gmap .room-bg.entrance rect{fill:var(--g-free);stroke:var(--g-free-edge);stroke-width:calc(1.1px / var(--ms,1))}
+#map-card.gmap .room-bg.entrance text{fill:var(--g-free-ink);font-weight:800}
+#map-card.gmap .room-bg.faded{opacity:.35}
+/* 棟の名前は札にせず、白いふち取りの文字だけ（地図の地名と同じ） */
+#map-card.gmap .zone-tag rect{fill:none;stroke:none;filter:none}
+#map-card.gmap .zone-tag text{fill:var(--g-label);font-weight:800;paint-order:stroke fill;
+  stroke:var(--g-halo);stroke-width:.32em;stroke-linejoin:round}
+/* トイレなどの施設は青（地図の施設の色） */
+#map-card.gmap .util-box{fill:var(--g-poi);stroke:var(--g-poi-edge);stroke-width:calc(.8px / var(--ms,1))}
+#map-card.gmap .wc-icon{fill:var(--g-poi-ink)}
+#map-card.gmap .util{fill:var(--g-ink-soft)}
+#map-card.gmap .util-box.hot{fill:var(--g-poi-ink);fill-opacity:.28;stroke:var(--g-poi-ink);stroke-width:calc(1.6px / var(--ms,1))}
+#map-card.gmap .out-tag rect{fill:var(--g-ctl);stroke:var(--g-warn-edge);stroke-width:calc(.7px / var(--ms,1))}
+#map-card.gmap .out-tag text{fill:var(--g-warn-ink)}
+
+/* ブース：淡い塗り＋柄＋濃い枠。名前は濃い字に白いふち */
+#map-card.gmap .room .fill{fill:var(--g-unk);stroke:var(--g-unk-edge);stroke-width:calc(1.5px / var(--ms,1))}
+#map-card.gmap .room[data-lv="0"] .fill{fill:var(--g-free);stroke:var(--g-free-edge);stroke-width:calc(2px / var(--ms,1))}
+#map-card.gmap .room[data-lv="1"] .fill{fill:url(#gpat-warn);stroke:var(--g-warn-edge);stroke-width:calc(2px / var(--ms,1))}
+#map-card.gmap .room[data-lv="2"] .fill{fill:url(#gpat-busy);stroke:var(--g-busy-edge);stroke-width:calc(2.4px / var(--ms,1))}
+#map-card.gmap .room[data-lv="3"] .fill{fill:url(#gpat-prep);stroke:var(--g-prep-edge);stroke-width:calc(1.5px / var(--ms,1))}
+#map-card.gmap .room .nm,#map-card.gmap .room .st{fill:var(--g-room-text);stroke:var(--g-halo);stroke-width:.24em}
+#map-card.gmap .room[data-lv="0"] .st{fill:var(--g-free-ink)}
+#map-card.gmap .room[data-lv="1"] .st{fill:var(--g-warn-ink)}
+#map-card.gmap .room[data-lv="2"] .st{fill:var(--g-busy-ink)}
+/* 狭いブースは、混み具合の色の丸い印（地図のピン）に番号を入れて出す */
+#map-card.gmap .room-no.big circle{fill:var(--g-unk-edge);stroke:var(--g-halo);stroke-width:1.2}
+#map-card.gmap .room[data-lv="0"] .room-no.big circle{fill:var(--g-free-edge)}
+#map-card.gmap .room[data-lv="1"] .room-no.big circle{fill:var(--g-warn-edge)}
+#map-card.gmap .room[data-lv="2"] .room-no.big circle{fill:var(--g-busy-edge)}
+#map-card.gmap .room[data-lv="3"] .room-no.big circle{fill:var(--g-prep-edge)}
+#map-card.gmap .room .room-no.big text{fill:var(--g-marker-text);stroke:none}
+#map-card.gmap .visited-ring .room-no.big circle{stroke:var(--g-free-edge);stroke-width:2.2}
+#map-card.gmap .room-no circle{fill:var(--g-ctl)}
+#map-card.gmap .room-no text{fill:var(--g-room-text)}
+/* 凡例も地図と同じ色・柄 */
+#map-card.gmap .lg-free{background:var(--g-free);border-color:var(--g-free-edge)}
+#map-card.gmap .lg-warn{background:var(--g-warn);border-color:var(--g-warn-edge);
+  background-image:repeating-linear-gradient(45deg,var(--g-warn-line) 0 2.2px,transparent 2.2px 7px)}
+#map-card.gmap .lg-busy{background:var(--g-busy);border-color:var(--g-busy-edge);
+  background-image:repeating-linear-gradient(45deg,var(--g-busy-line) 0 2px,transparent 2px 6px),
+                   repeating-linear-gradient(135deg,var(--g-busy-line) 0 2px,transparent 2px 6px)}
+#map-card.gmap .lg-prep{background:var(--g-prep);border-color:var(--g-prep-edge);
+  background-image:repeating-linear-gradient(135deg,var(--g-prep-line) 0 1.8px,transparent 1.8px 8px)}
+#map-card.gmap .lg-unk{background:var(--g-unk);border-color:var(--g-unk-edge)}
+#map-card.gmap .mk-way{background:var(--g-walk);border-color:var(--g-walk-edge)}
+#map-card.gmap .mk-way::after{display:none}
+/* 角は小さく、線は拡大しても太らない（地図アプリと同じ。拡大すると枠が太って部屋が「カプセル」に見えていた） */
+#map-card.gmap .room .fill{rx:calc(4px / var(--ms,1));ry:calc(4px / var(--ms,1))}
+#map-card.gmap .room-bg rect{rx:calc(3px / var(--ms,1));ry:calc(3px / var(--ms,1))}
+/* 科の色の帯はブースの中にも出さない（科は番号の輪の色で分かる。帯があると混み具合の色と混ざる） */
+#map-card.gmap .room .dept-bar{display:none}
+@media print{ #map-card.gmap .map-floors,#map-card.gmap .map-ctl{display:none} }
+/* 見出しの右にカメラのボタンが増えたので、幅の狭い端末では題を少し小さくして1行に収める */
+@media (max-width:430px){ .head h1{font-size:min(var(--head-size,18px),4.5vw);letter-spacing:.02em} }
+
 /* ========================= 地図で割り当て（係員） ========================= */
 /* 係員向けの画面（ログイン・QR・紙マップ・振り返り・本部モニタ）は
    下のタブを隠すので、戻る手段が無いとURLを打ち直すしかなくなる。
@@ -987,6 +1128,31 @@ text.util:not([font-size]){font-size:7.5px}
   font-size:12px;font-weight:900;padding:0 14px;min-height:44px;border-radius:10px;white-space:nowrap}
 .bsh-got{background:var(--free-soft);color:var(--free)}
 .bsh-todo{background:var(--surface-3);color:var(--text-mute)}
+/* ===== QRの読み取り ===== */
+.bsh-scan{cursor:pointer;color:var(--text);border:1px solid var(--border-strong);display:inline-flex;align-items:center;gap:6px}
+.bsh-scan .ic,.scan-cta .ic{width:18px;height:18px}
+.scan-btn .ic{width:20px;height:20px}
+.scan-cta{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:12px;
+  min-height:52px;border-radius:12px;background:var(--accent);color:var(--on-accent);
+  font-size:15px;font-weight:900;cursor:pointer;box-shadow:var(--shadow)}
+.scan-cta:active{transform:scale(.98)}
+.scan{position:fixed;inset:0;z-index:120;background:#000;color:#fff;display:flex;flex-direction:column}
+.scan.hide{display:none}
+.scan-top{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:calc(env(safe-area-inset-top,0px) + 8px) 12px 8px 16px;font-size:16px}
+.scan-x{min-width:48px;min-height:48px;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:18px;cursor:pointer}
+.scan-stage{position:relative;flex:1;min-height:0;overflow:hidden}
+.scan-stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.scan-frame{position:absolute;left:50%;top:50%;width:min(68vw,300px);aspect-ratio:1;transform:translate(-50%,-50%);
+  border-radius:18px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45);border:3px solid #fff}
+.scan-help{padding:14px 18px calc(env(safe-area-inset-bottom,0px) + 18px);font-size:14px;font-weight:700;line-height:1.7;background:#000}
+.scan-help ol{margin:6px 0 0 1.2em}
+.scan-help button{margin-top:12px;min-height:48px;width:100%;border-radius:12px;background:#fff;color:#111;font-weight:900;font-size:15px;cursor:pointer}
+.scan.no-cam .scan-stage{display:none}
+.scan.no-cam{background:var(--bg);color:var(--text)}
+.scan.no-cam .scan-help{background:transparent;flex:1}
+.scan.no-cam .scan-x{background:var(--surface-3);color:var(--text)}
+.scan.no-cam .scan-help button{background:var(--accent);color:var(--on-accent)}
 /* 引換確認コード。係員が見比べる数字なので、いちばん大きく出す */
 /* 取得・使える・交換済みの内訳。ここを見れば「あと何個で交換できるか」が分かる */
 .tally{display:flex;gap:8px;margin:10px 0}
@@ -1899,6 +2065,8 @@ html.sheet-open{overflow:hidden}
         <p class="sub" id="head-sub">岩手県立黒沢尻工業高等学校</p>
       </div>
       <div class="head-actions">
+        <!-- スタンプのQRを読むカメラ。どのタブからでも1回で開けるよう見出しに置く -->
+        <button class="icon-btn scan-btn" id="btn-scan" data-scan aria-label="カメラでQRを読む" title="カメラでQRを読む"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8" y="8" width="3" height="3"/><rect x="13" y="8" width="3" height="3"/><rect x="8" y="13" width="3" height="3"/><path d="M13 13h3v3"/></svg></button>
         <button class="icon-btn" id="btn-theme" aria-label="テーマ切替" title="テーマ切替">◐</button>
         <button class="icon-btn" id="btn-reload" aria-label="今すぐ更新" title="今すぐ更新">⟳</button>
       </div>
@@ -1936,18 +2104,13 @@ html.sheet-open{overflow:hidden}
         <div class="reco-list" id="reco-list"></div>
       </div>
 
-      <div class="card" id="map-card" style="padding:12px 12px 0">
-        <div class="map-head">
-          <!-- 「校内マップ」の見出しは外した。下のタブで「マップ」が光っているので
-               同じことを2か所で言っており、そのぶん地図が下へ押し下げられていた。 -->
-          <div class="seg" role="group" aria-label="フロア切替">
-            <button id="fl-0" aria-pressed="false">屋外</button>
-            <button id="fl-1" aria-pressed="true">1階</button>
-            <button id="fl-2" aria-pressed="false">2階</button>
-            <button id="fl-3" aria-pressed="false">3階</button>
-          </div>
-        </div>
+      <div class="card gmap" id="map-card" style="padding:12px 12px 0">
+        <!-- v140：Google マップの配置にそろえた。階は地図の右上、拡大・縮小は右下、
+             「ブースに寄せる／全体」は左下に重ね、科とトイレの絞り込みは地図のすぐ上のチップ。
+             地図の外に操作を並べていたぶん、地図そのものを大きく取れる -->
         <div class="map-wrap">
+          <div class="dept-legend hide" id="dept-legend" aria-label="科・トイレで絞り込む" role="group" tabindex="0"></div>
+          <div class="map-stage">
           <div class="zoom-lv" id="zoom-lv" aria-hidden="true"></div>
 
           <div class="map-view" id="map-view">
@@ -1957,19 +2120,28 @@ html.sheet-open{overflow:hidden}
             <svg class="plan hide" id="plan-2" viewBox="0 0 400 500" role="group" aria-label="2階の校内マップ"></svg>
             <svg class="plan hide" id="plan-3" viewBox="0 0 400 500" role="group" aria-label="3階の校内マップ"></svg>
           </div>
-          <p class="map-empty hide" id="map-empty">この階にはブースがありません（上のボタンで階をえらべます）</p>
+          <p class="map-empty hide" id="map-empty">この階にはブースがありません（右上のボタンで階をえらべます）</p>
           </div>
-          <div class="map-tools">
-            <button id="zoom-out" class="sq" aria-label="地図を縮小" disabled>−</button>
+          <!-- 上の階ほど上に並べる（エレベーターの表示と同じ向き） -->
+          <div class="seg map-floors" role="group" aria-label="フロア切替">
+            <button id="fl-3" aria-pressed="false">3階</button>
+            <button id="fl-2" aria-pressed="false">2階</button>
+            <button id="fl-1" aria-pressed="true">1階</button>
+            <button id="fl-0" aria-pressed="false">屋外</button>
+          </div>
+          <div class="map-ctl map-zoom-ctl">
             <button id="zoom-in" class="sq" aria-label="地図を拡大">＋</button>
+            <button id="zoom-out" class="sq" aria-label="地図を縮小" disabled>−</button>
+          </div>
+          <div class="map-ctl map-fit-ctl">
             <button id="zoom-booth" aria-label="この階のブースに寄せる">ブースに寄せる</button>
-            <button id="zoom-reset" aria-label="地図の拡大を元に戻す" disabled>全体を見る</button>
+            <button id="zoom-reset" aria-label="地図の拡大を元に戻す" disabled>全体</button>
+          </div>
           </div>
           <div class="unplaced hide" id="map-unplaced"></div>
-          <div class="dept-legend hide" id="dept-legend" aria-label="科ごとの色" role="group" tabindex="0"></div>
-          <!-- 混雑の見本と記号の見本を別々の箱に分けていたので、地図の下に
-               167px ぶんの説明が常時居座り、肝心の地図を押し下げていた。
-               1つにまとめて、端末の幅に合わせて詰めてもらう -->
+          <!-- 見かたは「読みたいときに開く」。常に出していると地図の下を占めて地図が小さくなる -->
+          <details class="legend-box">
+          <summary>地図の見かた</summary>
           <div class="legend" aria-label="地図の見かた">
             <span><i class="lg-free"></i>空き</span>
             <span><i class="lg-warn"></i>やや混雑</span>
@@ -1982,6 +2154,7 @@ html.sheet-open{overflow:hidden}
             <span><b class="mk-no">3</b>紙マップの番号</span>
             <span class="legend-tip">上の<b>科のボタン</b>をおすと、その棟に寄って名前が出ます。数字をおすとくわしく出ます</span>
           </div>
+          </details>
         </div>
         <div class="route-steps hide" id="route-steps"></div>
         <div class="card-t" style="padding:10px 0 0">おすすめの回りかた（おすと順番が地図に出ます）</div>
@@ -2024,6 +2197,7 @@ html.sheet-open{overflow:hidden}
         <p style="font-size:12px;color:var(--text-dim);font-weight:700;line-height:1.7">
           各ブース入口の<b>QRコード</b>を読むとスタンプが付きます。手で付けることはできません。
         </p>
+        <button class="scan-cta" id="stamp-scan" data-scan><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8" y="8" width="3" height="3"/><rect x="13" y="8" width="3" height="3"/><rect x="8" y="13" width="3" height="3"/><path d="M13 13h3v3"/></svg> カメラでQRを読む</button>
         <div style="display:flex;align-items:baseline;gap:6px;margin-top:10px">
           <span style="font-size:26px;font-weight:900" id="stamp-n">0</span>
           <span style="font-size:12px;font-weight:800;color:var(--text-mute)">/ <span id="stamp-total">0</span> ブース</span>
@@ -2400,6 +2574,24 @@ html.sheet-open{overflow:hidden}
       <rect width="9" height="9" fill="var(--closed-fill)"/>
       <rect width="3" height="9" fill="var(--closed-edge)" opacity=".55"/>
     </pattern>
+    <!-- v140 の地図（.gmap）用。淡い地に同じ向き・同じ密度の柄。混むほど密になる約束は同じ -->
+    <pattern id="gpat-warn" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="7" height="7" fill="var(--g-warn)"/>
+      <rect width="2.2" height="7" fill="var(--g-warn-line)"/>
+    </pattern>
+    <pattern id="gpat-busy" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="6" height="6" fill="var(--g-busy)"/>
+      <rect width="2" height="6" fill="var(--g-busy-line)"/>
+      <rect width="6" height="2" fill="var(--g-busy-line)"/>
+    </pattern>
+    <pattern id="gpat-prep" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(135)">
+      <rect width="8" height="8" fill="var(--g-prep)"/>
+      <rect width="1.8" height="8" fill="var(--g-prep-line)"/>
+    </pattern>
+    <pattern id="gpat-blocked" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="8" height="8" fill="var(--g-bldg)"/>
+      <rect width="1.4" height="8" fill="var(--g-bldg-edge)"/>
+    </pattern>
     <pattern id="pat-blocked" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
       <rect width="9" height="9" fill="var(--surface-3)"/>
       <rect width="3.4" height="9" fill="var(--border)"/>
@@ -2432,6 +2624,19 @@ html.sheet-open{overflow:hidden}
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+<!-- QRの読み取り。BarcodeDetector がある端末（Android の Chrome など）はこの画面で読む。
+     無い端末（iPhone の Safari など）は、標準のカメラで読む方法を案内する -->
+<div class="scan hide" id="scan" role="dialog" aria-modal="true" aria-labelledby="scan-ttl">
+  <div class="scan-top">
+    <b id="scan-ttl">QRを読む</b>
+    <button class="scan-x" id="scan-close" aria-label="閉じる">✕</button>
+  </div>
+  <div class="scan-stage" id="scan-stage">
+    <video id="scan-video" playsinline muted autoplay></video>
+    <div class="scan-frame" aria-hidden="true"></div>
+  </div>
+  <div class="scan-help" id="scan-help"></div>
+</div>
 
 <script>
 "use strict";
@@ -2442,7 +2647,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-09-29f',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-09-30a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4546,6 +4751,8 @@ function drawFloor(floorNum){
     }
   }
   if (!patched) svg.innerHTML = html;
+  // 画面の上の線の太さ・角の丸みを倍率によらず一定にするため、いまの倍率を CSS に渡す（v140 の地図）
+  svg.style.setProperty('--ms', Math.max(.3, mapScale()).toFixed(3));
   drawFloor._frags = drawFloor._frags || {};
   drawFloor._struct = drawFloor._struct || {};
   drawFloor._frags[floorNum] = roomFrags;
@@ -5188,13 +5395,15 @@ function renderSheet(){
     <p class="bsh-upd">${b.time ? `更新 <span data-ago="${esc(b.time)}">${esc(ago(b.time))}</span>` : 'まだ係の人からの更新がありません'}</p>
     <div class="bsh-acts">
       ${got ? '<span class="bsh-got">✓ スタンプ済</span>'
-            : '<span class="bsh-todo">入口のQRでスタンプ</span>'}
+            : `<button class="bsh-todo bsh-scan" data-scan>${ICON_QR} 入口のQRを読む</button>`}
       <button data-act="jump">${jumpLabel}</button>
     </div>`;
 
   $('#bsh-x').addEventListener('click', () => closeSheet());
   const alt = $('#bsh-body [data-alt]');
   if (alt) alt.addEventListener('click', () => openSheet(alt.dataset.alt));
+  const sc = $('#bsh-body [data-scan]');
+  if (sc) sc.addEventListener('click', () => openScanner());
   $$('#bsh-body [data-act]').forEach(el => el.addEventListener('click', () => {
     const a = el.dataset.act;
     if (fromList){
@@ -5222,6 +5431,120 @@ function renderSheet(){
      発動して倍率が変わるため廃止した）
    拡大していないときは縦スクロールを邪魔しない（touch-action:pan-y）。
    ===================================================================== */
+/* =====================================================================
+   QRの読み取り（スタンプ）
+   カメラアプリで読むと、iPhone では Safari、Android では既定のブラウザで開く。
+   この画面の中で読めば、いま使っているブラウザの保存先にそのまま付く。
+   BarcodeDetector（Android の Chrome など）が無い端末では読めないので、
+   標準のカメラで読む方法を案内する（外部ライブラリは持ち込まない：RULES.md §3）
+   ===================================================================== */
+const ICON_QR = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8" y="8" width="3" height="3"/><rect x="13" y="8" width="3" height="3"/><rect x="8" y="13" width="3" height="3"/><path d="M13 13h3v3"/></svg>`;
+const SCAN = { stream:null, timer:0, det:null, last:'', lastAt:0 };
+
+/** 読み取った文字列が黒工祭のブースQR（?booth=…&qr=1&k=…）なら、この画面の場所に直したURLを返す */
+function stampUrlFrom(raw){
+  let u;
+  try{ u = new URL(String(raw || '').trim(), location.href); }catch(e){ return null; }
+  if (!/^https?:$/.test(u.protocol)) return null;
+  const q = u.searchParams;
+  const booth = q.get('booth'), k = q.get('k');
+  if (!booth || q.get('qr') !== '1' || !k) return null;
+  // 読んだQRが公式アドレスでも、いま開いているのが別の場所（手元の確認など）なら
+  // こちらで開く。保存先（スタンプ）はブラウザ×アドレスごとなので、今の場所に付けたい
+  const out = new URLSearchParams({ booth, qr:'1', k });
+  return location.pathname + '?' + out.toString();
+}
+
+async function openScanner(){
+  const box = $('#scan'), help = $('#scan-help');
+  box.classList.remove('hide', 'no-cam');
+  document.documentElement.classList.add('sheet-open');
+  help.textContent = 'ブース入口のQRコードを、白い枠の中に入れてください';
+  setTimeout(() => { const x = $('#scan-close'); x && x.focus({ preventScroll:true }); }, 60);
+  let ok = false;
+  try{
+    if ('BarcodeDetector' in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+      const fm = await window.BarcodeDetector.getSupportedFormats().catch(() => []);
+      if (fm.indexOf('qr_code') >= 0) ok = true;
+    }
+  }catch(e){}
+  if (!ok){ scanFallback(''); return; }
+  try{
+    SCAN.det = SCAN.det || new window.BarcodeDetector({ formats:['qr_code'] });
+    SCAN.stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:'environment' } }, audio:false });
+    if (box.classList.contains('hide')){ stopScanner(); return; }      // 許可を待つあいだに閉じられた
+    const v = $('#scan-video');
+    v.srcObject = SCAN.stream;
+    await v.play().catch(() => {});
+    scanLoop();
+  }catch(e){
+    const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+    scanFallback(denied ? 'カメラの使用が許可されていません。' : 'カメラを開けませんでした。');
+  }
+}
+
+function scanLoop(){
+  clearTimeout(SCAN.timer);
+  const v = $('#scan-video');
+  if (!SCAN.stream || $('#scan').classList.contains('hide')) return;
+  const next = () => { SCAN.timer = setTimeout(scanLoop, 220); };
+  if (v.readyState < 2){ next(); return; }
+  SCAN.det.detect(v).then(codes => {
+    const raw = codes && codes[0] && codes[0].rawValue;
+    if (!raw){ next(); return; }
+    const url = stampUrlFrom(raw);
+    if (url){
+      stopScanner();
+      try{ navigator.vibrate && navigator.vibrate(40); }catch(e){}
+      // 読み込み直して、QRから来たときと同じ流れ（署名の照合→スタンプ→演出）に乗せる
+      location.assign(url);
+      return;
+    }
+    // 同じ違うQRを写し続けているあいだは、案内を出し続けない
+    if (SCAN.last !== raw || Date.now() - SCAN.lastAt > 4000){
+      SCAN.last = raw; SCAN.lastAt = Date.now();
+      $('#scan-help').textContent = '黒工祭のブースのQRではないようです。ブース入口のQRを写してください';
+    }
+    next();
+  }).catch(() => next());
+}
+
+/** この画面で読めない端末：標準のカメラで読む方法を出す */
+function scanFallback(why){
+  const box = $('#scan');
+  box.classList.add('no-cam');
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  $('#scan-help').innerHTML = `${why ? `<p>${esc(why)}</p>` : '<p>この端末では、画面の中でQRを読めません。</p>'}
+    <p style="margin-top:8px">スマホの<b>カメラ</b>でQRを読んでください：</p>
+    <ol>${ios
+      ? '<li>このあとホーム画面の<b>カメラ</b>アプリを開く</li><li>ブース入口のQRに向ける</li><li>出てきた黄色い表示をタップ（Safari で開いてスタンプが付きます）</li>'
+      : '<li><b>カメラ</b>アプリ（または Google レンズ）を開く</li><li>ブース入口のQRに向ける</li><li>出てきたリンクをタップ（いつものブラウザで開いてスタンプが付きます）</li>'}</ol>
+    <button type="button" id="scan-ok">わかった</button>`;
+  const okb = $('#scan-ok');
+  if (okb){ okb.addEventListener('click', () => closeScanner()); setTimeout(() => okb.focus({ preventScroll:true }), 60); }
+}
+
+function stopScanner(){
+  clearTimeout(SCAN.timer);
+  if (SCAN.stream){ SCAN.stream.getTracks().forEach(t => { try{ t.stop(); }catch(e){} }); SCAN.stream = null; }
+  const v = $('#scan-video');
+  if (v) v.srcObject = null;
+}
+function closeScanner(){
+  stopScanner();
+  $('#scan').classList.add('hide');
+  if (!S.sheetId) document.documentElement.classList.remove('sheet-open');
+}
+// 見出し・スタンプのカードのボタン（シートのボタンは開くたびに作るので renderSheet で付ける）
+document.addEventListener('click', e => {
+  if (e.target.closest && e.target.closest('#scan-close')){ closeScanner(); return; }
+  const b = e.target.closest && e.target.closest('[data-scan]');
+  if (!b || b.closest('#bsh-body')) return;
+  openScanner();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#scan').classList.contains('hide')) closeScanner(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && SCAN.stream) closeScanner(); });
+
 /** 地図で、部屋の外を押してもこの距離（画面のpx）以内のブースは押したことにする */
 const NEAR_TAP_PX = 16;
 const ZOOM = { k:1, x:0, y:0, min:1, max:6, el:null, wrap:null,
@@ -10274,7 +10597,8 @@ function fitMapBox(floorNum){
   const navH = (navEl && !navEl.classList.contains('hide')) ? navEl.offsetHeight : 0;
   const avail = window.innerHeight - top - (navH + 12);
   // 横向きは縦が狭いぶん、地図に回せる割合を上げないと地図が帯になる
-  const cap = Math.round(window.innerHeight * (land ? 0.82 : 0.62));
+  // v140：操作を地図の上に重ねたので、そのぶん地図を高くとる（Google マップのように地図を主役に）
+  const cap = Math.round(window.innerHeight * (land ? 0.82 : 0.7));
   // 横向きは縦が足りない。下限を下げないと、下のタブに地図が潜り込む
   const floorH = land ? 110 : 150;
   const maxH = Math.max(floorH, Math.min(560, cap, Math.round(avail)));
