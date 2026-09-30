@@ -5,7 +5,7 @@
 > 新しいAI（ChatGPT / Claude）は **SPEC.md → RULES.md → PROGRESS.md** の順に読むこと。
 >
 > - 最終更新：2026-09-29（Claude Code）
-> - 記述の対象：**v142**（`BUILD '2026-10-01b'` ／ `sw.js` の `CACHE 'kuroko-map-v142'` ／ Code.gs `GAS_VERSION '2026-09-29a'`）
+> - 記述の対象：**v143**（`BUILD '2026-10-01c'` ／ `sw.js` の `CACHE 'kuroko-map-v143'` ／ Code.gs `GAS_VERSION '2026-09-29a'`）
 > - 表記の約束：**【確認済み】**＝コード・実機・リポジトリで確かめた事実／**【推測】**＝資料から読み取った解釈／**【未確認】**＝確かめられていない
 
 ---
@@ -63,7 +63,7 @@ LINE のリッチメニューのURLには `openExternalBrowser=1` を付ける�
 | 層 | 中身 | 状態 |
 |---|---|---|
 | 画面 | `index.html` 1ファイル（HTML・CSS・JS をすべて内包、約9,800行）。外部ライブラリ・CDN・ビルド工程なし。QRコードも自前生成 | 【確認済み】 |
-| オフライン | `sw.js`（Service Worker。画面の枠は stale-while-revalidate、混雑データはキャッシュしない） | 【確認済み】 |
+| オフライン | `sw.js`（Service Worker。画面の枠は stale-while-revalidate、混雑データはキャッシュしない）。v143〜：画面の本体は `?sw=<版>`（インストール時）・`?sw=m<分>`（開くたび）を付けて取り、ブラウザと GitHub Pages の配信の控え（最大10分）を通さない。公開から約1分で「新しい版があります」が出る | 【確認済み】 |
 | PWA | `manifest.json`（`display: "browser"`）、`apple-touch-icon.png`、`og.png` | 【確認済み】 |
 | サーバー | Google Apps Script `Code.gs`（ウェブアプリ：実行=自分／アクセス=全員）。`doGet`（表示データ・台帳・振り返り）と `doPost`（更新系） | 【確認済み】 |
 | データ | Google スプレッドシート（下の §7） | 【確認済み】 |
