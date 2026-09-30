@@ -1128,6 +1128,28 @@ text.util:not([font-size]){font-size:7.5px}
   font-size:12px;font-weight:900;padding:0 14px;min-height:44px;border-radius:10px;white-space:nowrap}
 .bsh-got{background:var(--free-soft);color:var(--free)}
 .bsh-todo{background:var(--surface-3);color:var(--text-mute)}
+/* ===== お菓子までの目盛り（v141） ===== */
+.prize{margin-top:12px;padding:12px;border-radius:12px;background:var(--surface-2);border:1px solid var(--border)}
+.prize-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.prize-dots{display:flex;gap:6px}
+.prize-dots i{width:22px;height:22px;border-radius:50%;border:2px dashed var(--border-strong);background:var(--surface);
+  display:grid;place-items:center;font-style:normal;font-size:12px;font-weight:900;color:var(--on-accent)}
+.prize-dots i.on{border:2px solid var(--accent);background:var(--accent)}
+.prize-tx{font-size:13px;font-weight:800;line-height:1.5}
+.prize-tx b{font-size:17px;color:var(--accent-ink)}
+.prize.ready{background:var(--free-soft);border-color:var(--free)}
+.prize.ready .prize-tx b{color:var(--free)}
+.prize-go{margin-top:10px;width:100%;min-height:48px;border-radius:12px;background:var(--free);color:#fff;
+  font-size:14.5px;font-weight:900;cursor:pointer}
+.prize-steps{list-style:none;margin:0;padding:0;display:grid;gap:8px;counter-reset:ps}
+.prize-steps li{display:flex;align-items:center;gap:9px;font-size:12.5px;font-weight:800;line-height:1.45;counter-increment:ps}
+.prize-steps li::before{content:counter(ps);flex:none;width:24px;height:24px;border-radius:50%;
+  display:grid;place-items:center;background:var(--accent);color:var(--on-accent);font-size:12px;font-weight:900}
+[data-fs="xl"] .prize-tx,[data-fs="xl"] .prize-steps li{font-size:15.5px}
+/* 下のタブの「スタンプ」に、交換できるときだけ印を付ける */
+.nav button .nav-badge{position:absolute;top:5px;left:calc(50% + 8px);min-width:18px;height:18px;padding:0 5px;
+  border-radius:9px;background:var(--free);color:#fff;font-size:10.5px;font-weight:900;line-height:18px;
+  box-shadow:0 0 0 2px var(--surface)}
 /* ===== QRの読み取り ===== */
 .bsh-scan{cursor:pointer;color:var(--text);border:1px solid var(--border-strong);display:inline-flex;align-items:center;gap:6px}
 .bsh-scan .ic,.scan-cta .ic{width:18px;height:18px}
@@ -2205,6 +2227,9 @@ html.sheet-open{overflow:hidden}
           <span style="margin-left:auto;font-size:11px;font-weight:800;color:var(--free)" id="stamp-msg"></span>
         </div>
         <div class="progress"><i id="stamp-bar" style="width:0%"></i></div>
+        <!-- v141：いちばん気になる「お菓子まであと何個か」を最初のカードに出す。
+             以前は3枚目のカードまで下りないと分からなかった -->
+        <div class="prize" id="stamp-prize" aria-live="polite"></div>
       </div>
 
       <!-- スタンプ番号：サーバーの台帳の鍵。別のアプリ・別の端末で開いても、この番号で同じ記録につながる -->
@@ -2232,7 +2257,7 @@ html.sheet-open{overflow:hidden}
         </details>
       </div>
 
-      <div class="card">
+      <div class="card" id="redeem-card">
         <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9z"/><path d="M3 5h18v4H3z"/><path d="M12 5v16"/><path d="M12 5S10.5 2 8.6 2.6 7.4 5.6 9 5.6zM12 5s1.5-3 3.4-2.4S16.6 5.6 15 5.6z"/></svg> お菓子と交換</div>
         <p class="redeem-msg" id="redeem-msg"></p>
         <div class="tally" id="stamp-tally"></div>
@@ -2647,7 +2672,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-09-30a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-01a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -7255,6 +7280,56 @@ function tickCode(){
   }
 }
 
+/**
+ * 上のカードの「お菓子まで」。0個の人には手順、たまっている人には目盛り、
+ * 交換できる人には大きく知らせて交換のカードへ案内する。下のタブにも印を付ける。
+ * 交換の条件（PRIZE_COST・消費方式）は変えない。表示だけ
+ */
+function renderPrize(got, left, need, canGet){
+  const box = $('#stamp-prize');
+  if (box){
+    const fp = [got, left, need, canGet].join('|');
+    if (renderPrize._fp !== fp){
+      renderPrize._fp = fp;
+      box.classList.toggle('ready', canGet > 0);
+      if (got === 0 && !S.spent.length){
+        box.innerHTML = `<ol class="prize-steps">
+            <li>ブース入口のQRを読む（上の赤いボタン、またはスマホのカメラ）</li>
+            <li>スタンプが1つ付く</li>
+            <li>スタンプ${need}個で、お菓子1個と交換（係の人に画面を見せる）</li>
+          </ol>`;
+      } else if (canGet){
+        box.innerHTML = `<div class="prize-row"><span class="prize-dots" aria-hidden="true">${
+            Array.from({ length: need }, () => '<i class="on">✓</i>').join('')}</span>
+            <span class="prize-tx">お菓子と交換できます <b>${canGet}個</b></span></div>
+          <button type="button" class="prize-go" id="prize-go">交換のしかたを見る</button>`;
+        const go = $('#prize-go');
+        if (go) go.addEventListener('click', () => {
+          const c = $('#redeem-card');
+          if (c) c.scrollIntoView({ behavior: smoothBehavior(), block:'start' });
+          const o = $('#redeem-open');
+          if (o) setTimeout(() => o.focus({ preventScroll:true }), 350);
+        });
+      } else {
+        const have = left % need;
+        box.innerHTML = `<div class="prize-row"><span class="prize-dots" aria-hidden="true">${
+            Array.from({ length: need }, (x, i) => `<i class="${i < have ? 'on' : ''}">${i < have ? '✓' : ''}</i>`).join('')}</span>
+            <span class="prize-tx">お菓子まで あと <b>${need - have}個</b></span></div>`;
+      }
+    }
+  }
+  // 下のタブの印（交換できる数）
+  const tab = document.querySelector('#nav button[data-view="stamp"]');
+  if (tab){
+    let bd = tab.querySelector('.nav-badge');
+    if (canGet && !bd){ bd = document.createElement('span'); bd.className = 'nav-badge'; tab.appendChild(bd); }
+    if (bd){
+      if (canGet){ bd.textContent = canGet; tab.setAttribute('aria-label', `スタンプ（お菓子と交換できます：${canGet}個）`); }
+      else { bd.remove(); tab.removeAttribute('aria-label'); }
+    }
+  }
+}
+
 function renderStamps(){
   const total = S.booths.length;
   const got = S.booths.filter(b => S.stamps.has(b.id)).length;
@@ -7285,6 +7360,7 @@ function renderStamps(){
     `<div class="${spentN ? 'used' : ''}"><b>${spentN}</b><span>交換済み</span></div>`;
 
   const canGet = Math.floor(left / need);
+  renderPrize(got, left, need, canGet);
   const msg = $('#redeem-msg'), open = $('#redeem-open'), log = $('#redeem-log');
   // 「あと◯個」は下のボタンにも出る。説明文とボタンで同じことを二度言わない
   if (msg){
