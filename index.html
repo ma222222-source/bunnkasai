@@ -733,6 +733,44 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 /* 科の色の帯はブースの中にも出さない（科は番号の輪の色で分かる。帯があると混み具合の色と混ざる） */
 #map-card.gmap .room .dept-bar{display:none}
 @media print{ #map-card.gmap .map-floors,#map-card.gmap .map-ctl{display:none} }
+/* v142：階の切り替えを細くする（数は角の小さな印に）。幅58pxあった板が右端のブースを隠していた */
+#map-card.gmap .map-floors button{min-width:48px;padding:0 6px;position:relative}
+#map-card.gmap .map-floors .fl-n{position:absolute;top:2px;right:2px;margin:0;min-width:15px;height:15px;padding:0 3px;
+  border-radius:8px;background:var(--g-bldg);color:var(--g-ink-soft);font-size:9px;line-height:15px;display:block;text-align:center}
+#map-card.gmap .map-floors button[aria-pressed="true"] .fl-n{background:var(--g-sel);color:#fff}
+/* v142：地図の検索窓 */
+.map-search{position:relative;display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:0 6px 0 14px;
+  min-height:48px;border-radius:24px;background:var(--g-ctl,var(--surface));border:1px solid var(--g-ctl-edge,var(--border));
+  box-shadow:0 1px 3px rgba(60,64,67,.24)}
+.map-search > .ic{width:20px;height:20px;flex:none;color:var(--g-ink-soft,var(--text-mute))}
+.map-search input{flex:1;min-width:0;height:46px;border:none;background:transparent;font:inherit;font-size:15px;
+  font-weight:700;color:var(--g-label,var(--text));outline:none}
+.map-search input::-webkit-search-cancel-button{display:none}
+.map-search:focus-within{box-shadow:0 1px 6px rgba(60,64,67,.35);border-color:var(--g-sel,var(--accent))}
+.map-q-x{flex:none;width:44px;height:44px;border-radius:50%;color:var(--g-ink-soft,var(--text-mute));font-size:16px;cursor:pointer}
+.map-sug{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:20;max-height:min(60vh,420px);overflow:auto;
+  background:var(--g-ctl,var(--surface));border:1px solid var(--g-ctl-edge,var(--border));border-radius:16px;
+  box-shadow:0 4px 16px rgba(60,64,67,.28);padding:6px 0}
+.map-sug.hide{display:none}
+.map-sug button{display:flex;align-items:center;gap:10px;width:100%;min-height:52px;padding:6px 14px;text-align:left;
+  background:transparent;color:var(--g-label,var(--text));cursor:pointer;font:inherit}
+.map-sug button[aria-selected="true"],.map-sug button:hover{background:var(--g-sel-bg,var(--surface-3))}
+.map-sug .sg-ic{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+  background:var(--g-bldg,var(--surface-3));color:var(--g-label,var(--text));font-size:12px;font-weight:900}
+.map-sug .sg-ic .ic-svg,.map-sug .sg-ic .ic{width:16px;height:16px}
+.map-sug .sg-ic.poi{background:var(--g-poi,var(--surface-3));color:var(--g-poi-ink,var(--text))}
+.map-sug .sg-tx{flex:1;min-width:0}
+.map-sug .sg-tx b{display:block;font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.map-sug .sg-tx small{display:block;font-size:11.5px;font-weight:700;color:var(--g-ink-soft,var(--text-mute));
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.map-sug .sg-st{flex:none;font-size:11px;font-weight:900}
+.map-sug .sg-st[data-lv="0"]{color:var(--g-free-ink,var(--free))}
+.map-sug .sg-st[data-lv="1"]{color:var(--g-warn-ink,var(--warn))}
+.map-sug .sg-st[data-lv="2"]{color:var(--g-busy-ink,var(--busy))}
+.map-sug .sg-st[data-lv="3"],.map-sug .sg-st[data-lv="-1"]{color:var(--g-ink-soft,var(--text-mute))}
+.map-sug .sg-none{padding:12px 16px;font-size:13px;font-weight:700;color:var(--g-ink-soft,var(--text-mute))}
+[data-fs="xl"] .map-search input{font-size:18px}
+[data-fs="xl"] .map-sug .sg-tx b{font-size:17px}
 /* 見出しの右にカメラのボタンが増えたので、幅の狭い端末では題を少し小さくして1行に収める */
 @media (max-width:430px){ .head h1{font-size:min(var(--head-size,18px),4.5vw);letter-spacing:.02em} }
 
@@ -2131,6 +2169,15 @@ html.sheet-open{overflow:hidden}
              「ブースに寄せる／全体」は左下に重ね、科とトイレの絞り込みは地図のすぐ上のチップ。
              地図の外に操作を並べていたぶん、地図そのものを大きく取れる -->
         <div class="map-wrap">
+          <!-- v142：Google マップの検索窓。打つと候補が出て、選ぶとその場所に寄って詳細を開く -->
+          <div class="map-search" role="search">
+            <svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="map-q" type="search" enterkeyhint="search" autocomplete="off" spellcheck="false"
+                   placeholder="ブース・トイレ・科・番号でさがす" aria-label="地図でさがす"
+                   role="combobox" aria-autocomplete="list" aria-controls="map-sug" aria-expanded="false">
+            <button type="button" class="map-q-x hide" id="map-q-x" aria-label="検索の文字を消す">✕</button>
+            <div class="map-sug hide" id="map-sug" role="listbox" aria-label="候補"></div>
+          </div>
           <div class="dept-legend hide" id="dept-legend" aria-label="科・トイレで絞り込む" role="group" tabindex="0"></div>
           <div class="map-stage">
           <div class="zoom-lv" id="zoom-lv" aria-hidden="true"></div>
@@ -2672,7 +2719,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-01a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-01b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5570,6 +5617,106 @@ document.addEventListener('click', e => {
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#scan').classList.contains('hide')) closeScanner(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && SCAN.stream) closeScanner(); });
 
+/* =====================================================================
+   地図の検索（v142）：Google マップの検索窓と同じ。打つと候補、選ぶとそこへ寄って詳細を開く
+   ===================================================================== */
+/** 候補を作る。「困ったときは」（トイレ・救護室…）を先に、ブースは最大6件 */
+function mapSuggest(q){
+  const qs = String(q || '').normalize('NFKC').split(/\s+/).map(normalizeQ).filter(Boolean);
+  if (!qs.length) return [];
+  const out = helpHits(q).slice(0, 2).map(h => ({ kind:'help', h }));
+  const qn = String(q).normalize('NFKC').trim();
+  let bs = S.booths.filter(b => { const hay = boothHay(b); return qs.every(t => hay.includes(t)); });
+  // 数字だけなら紙マップの番号が一致するものを先頭に
+  if (/^\d+$/.test(qn)){
+    const hit = bs.filter(b => String(S.numbers.get(b.id)) === String(+qn));
+    bs = hit.concat(bs.filter(b => hit.indexOf(b) < 0));
+  }
+  bs.slice(0, 6).forEach(b => out.push({ kind:'booth', b }));
+  return out;
+}
+
+/** 地図でそのブースに寄せて、詳細を開く */
+function focusBoothOnMap(id){
+  const b = S.booths.find(x => x.id === id);
+  const sl = slotOf(id);
+  if (!b) return;
+  if (!sl){ openSheet(id); return; }
+  switchView('map');
+  const f = floorOfBooth(b);
+  if (f != null && f !== S.floor) setFloor(f);
+  const card = $('#map-card');
+  if (card && card.scrollIntoView) card.scrollIntoView({ behavior: smoothBehavior(), block:'start' });
+  setTimeout(() => {
+    try{ zoomToRooms(S.floor, [sl], { pad:30, minRatio:0.32, maxK:3 }); }catch(e){}
+    const g = document.querySelector(`#plan-${S.floor} .room[data-id="${CSS.escape(id)}"]`);
+    if (g){ g.classList.add('flash'); setTimeout(() => g.classList.remove('flash'), 2400); }
+    setTimeout(() => openSheet(id), 380);
+  }, 200);
+}
+
+(function initMapSearch(){
+  const inp = $('#map-q'), box = $('#map-sug'), clr = $('#map-q-x');
+  if (!inp || !box) return;
+  let items = [], sel = -1;
+  const close = () => { box.classList.add('hide'); inp.setAttribute('aria-expanded', 'false'); sel = -1; };
+  const pick = i => {
+    const it = items[i];
+    if (!it) return;
+    close();
+    inp.blur();
+    if (it.kind === 'booth'){ focusBoothOnMap(it.b.id); return; }
+    const [ic, title, desc] = it.h;
+    if (HELP_ON_MAP.indexOf(ic) >= 0){
+      S.dept = '__fac';
+      switchView('map');
+      if (S.floor === 0) setFloor(1);
+      drawFloor(S.floor);
+      toast(`${title}：${desc}`);
+    } else {
+      toast(`${title}：${desc}`);
+    }
+  };
+  const mark = () => $$('button', box).forEach((el, i) => el.setAttribute('aria-selected', String(i === sel)));
+  const render = () => {
+    const q = inp.value;
+    clr.classList.toggle('hide', !q);
+    items = mapSuggest(q);
+    sel = -1;
+    if (!q.trim()){ close(); return; }
+    box.innerHTML = items.length ? items.map((it, i) => {
+      if (it.kind === 'help'){
+        const [ic, title, desc] = it.h;
+        return `<button type="button" role="option" id="sg-${i}" data-i="${i}"><span class="sg-ic poi">${ICON[ic] || ''}</span>
+          <span class="sg-tx"><b>${esc(title)}</b><small>${esc(desc)}</small></span></button>`;
+      }
+      const b = it.b, L = lvOf(b), no = S.numbers.get(b.id);
+      const st = L.lv >= 0 && L.lv < 3 && b.wait != null ? `${L.short}・${b.wait}人` : L.short;
+      return `<button type="button" role="option" id="sg-${i}" data-i="${i}"><span class="sg-ic">${no ? esc(String(no)) : '•'}</span>
+        <span class="sg-tx"><b>${esc(b.name)}</b><small>${esc(flLabel(b))}${slotOf(b.id) && slotOf(b.id).nm ? '・' + esc(slotOf(b.id).nm) : ''}</small></span>
+        <span class="sg-st" data-lv="${L.lv}">${esc(st)}</span></button>`;
+    }).join('') : '<p class="sg-none">見つかりませんでした。別のことばでさがしてください</p>';
+    box.classList.remove('hide');
+    inp.setAttribute('aria-expanded', 'true');
+    $$('button', box).forEach(el => {
+      // 候補を押した瞬間に入力欄の blur で候補が消えないよう、pointerdown で先に止める
+      el.addEventListener('pointerdown', e => e.preventDefault());
+      el.addEventListener('click', () => pick(+el.dataset.i));
+    });
+  };
+  inp.addEventListener('input', render);
+  inp.addEventListener('focus', () => { if (inp.value.trim()) render(); });
+  inp.addEventListener('blur', () => setTimeout(close, 150));
+  inp.addEventListener('keydown', e => {
+    const n = $$('button', box).length;
+    if (e.key === 'ArrowDown' && n){ e.preventDefault(); sel = (sel + 1) % n; mark(); }
+    else if (e.key === 'ArrowUp' && n){ e.preventDefault(); sel = (sel - 1 + n) % n; mark(); }
+    else if (e.key === 'Enter'){ e.preventDefault(); if (n) pick(sel >= 0 ? sel : 0); }
+    else if (e.key === 'Escape'){ close(); }
+  });
+  clr.addEventListener('click', () => { inp.value = ''; render(); inp.focus(); });
+})();
+
 /** 地図で、部屋の外を押してもこの距離（画面のpx）以内のブースは押したことにする */
 const NEAR_TAP_PX = 16;
 const ZOOM = { k:1, x:0, y:0, min:1, max:6, el:null, wrap:null,
@@ -6310,6 +6457,19 @@ function wireHelpHits(box){
   }));
 }
 
+/** ブースの検索用の文字列（一覧と地図の検索で共通） */
+function boothHay(b){
+  const sl = slotOf(b.id);
+  // 棟の科に加えて、出し物の科（シートの dept 列）でも引けるように（「電子機械科」で製図室 Em④ も出る）
+  const bd = boothDept(b);
+  const dept = (bd ? bd.s + ' ' : '') + (sl && sl.z ? (DEPT_BY_ZONE[sl.z] ? DEPT_BY_ZONE[sl.z].s : sl.z) : '');
+  const no = S.numbers.get(b.id);
+  // 紙のマップに出ているのは通し番号。それで引けないと紙とアプリがつながらない
+  return normalizeQ(withYomi((no != null ? '#' + no + ' ' : '')
+          + b.id + b.name + b.category + b.note + (sl ? sl.nm : '') + dept + (sl ? sl.z : '')
+          + ' ' + flLabel(b)));          // カードに「1階」と出しているので「1階」でも引けるように
+}
+
 function renderList(){
   // 「◯分前」は tickAgo() がその場で書き換えるので、中身が同じなら作り直さない
   // （以前は1分ごとに150件を作り直していて、安い端末では毎分1秒近く固まっていた）
@@ -6340,18 +6500,7 @@ function renderList(){
     const cache = renderList._hay || (renderList._hay = new WeakMap());
     items = items.filter(b => {
       let hay = cache.get(b);
-      if (hay == null){
-        const sl = slotOf(b.id);
-        // 棟の科に加えて、出し物の科（シートの dept 列）でも引けるように（「電子機械科」で製図室 Em④ も出る）
-        const bd = boothDept(b);
-        const dept = (bd ? bd.s + ' ' : '') + (sl && sl.z ? (DEPT_BY_ZONE[sl.z] ? DEPT_BY_ZONE[sl.z].s : sl.z) : '');
-        const no = S.numbers.get(b.id);
-        // 紙のマップに出ているのは通し番号。それで引けないと紙とアプリがつながらない
-        hay = normalizeQ(withYomi((no != null ? '#' + no + ' ' : '')
-                + b.id + b.name + b.category + b.note + (sl ? sl.nm : '') + dept + (sl ? sl.z : '')
-                + ' ' + flLabel(b)));          // カードに「1階」と出しているので「1階」でも引けるように
-        cache.set(b, hay);
-      }
+      if (hay == null){ hay = boothHay(b); cache.set(b, hay); }
       return qs.every(t => hay.includes(t));
     });
   }

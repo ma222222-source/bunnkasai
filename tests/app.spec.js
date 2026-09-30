@@ -215,3 +215,28 @@ test('スタンプ：0個は手順、3個は「お菓子まであと2個」、6�
   await expect(page.locator('#redeem-open')).toBeInViewport();
   await expect(page.locator('#redeem-open')).toBeEnabled();
 });
+
+test('地図の検索：打つと候補が出て、選ぶとそのブースに寄って詳細が開く', async ({ page }) => {
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.locator('#map-q').fill('旋盤');
+  await expect(page.locator('#map-sug')).toBeVisible();
+  await expect(page.locator('#map-sug button').first()).toContainText('旋盤');
+  await page.locator('#map-sug button').first().click();
+  await expect(page.locator('#bsh')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('#bsh-nm')).toContainText('旋盤');
+  expect(await page.evaluate(() => ZOOM.k)).toBeGreaterThan(1.05);
+  // 番号でも引ける／トイレは施設の候補が先
+  await page.keyboard.press('Escape');
+  await page.locator('#map-q').fill('トイレ');
+  await expect(page.locator('#map-sug button').first()).toContainText('トイレ');
+  await page.locator('#map-q').press('Enter');
+  await expect(page.locator('#map-sug')).toBeHidden();
+  expect(await page.evaluate(() => S.dept)).toBe('__fac');
+  await page.locator('#map-q').fill('ぜったいに無い名前');
+  await expect(page.locator('#map-sug')).toContainText('見つかりませんでした');
+  expect(errors).toEqual([]);
+});
