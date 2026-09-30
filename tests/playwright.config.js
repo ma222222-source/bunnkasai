@@ -6,7 +6,8 @@ module.exports = defineConfig({
   testDir: '.',
   testMatch: /.*\.spec\.js$/,
   timeout: 45000,
-  retries: 0,
+  // GitHub Actions では1回だけやり直す（やり直して通ったものは flaky と表示されるので、見落とさない）
+  retries: process.env.CI ? 1 : 0,
   workers: 4,
   reporter: [['list']],
   use: {

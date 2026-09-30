@@ -45,8 +45,11 @@ test('カメラで黒工祭のQRを読むと、スタンプが付く', async ({ 
   await page.goto('/?tab=stamp');
   await ready(page);
   await page.locator('#stamp-scan').click();
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('kuroko_stamps_v2') || '[]')), { timeout: 15000 })
-    .toContain('1F-03');
+  // 読み取ると画面を開き直す。開き直している瞬間に調べると「ページが消えた」になるので、その回は空として数え直す
+  // （GitHub Actions で1回それで落ちた。アプリの不具合ではない）
+  const stamps = () => page.evaluate(() => JSON.parse(localStorage.getItem('kuroko_stamps_v2') || '[]')).catch(() => []);
+  await expect.poll(stamps, { timeout: 15000 }).toContain('1F-03');
+  await page.waitForLoadState('load');
   // 公式アドレスのQRでも、いま開いている場所（ここでは手元のサーバー）で付く
   expect(new URL(page.url()).host).toBe('127.0.0.1:8732');
   expect(errors).toEqual([]);
