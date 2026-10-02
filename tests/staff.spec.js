@@ -61,6 +61,7 @@ test('送れなかった更新は端末に残り、電波が戻ると自動で�
 test('更新の画面：科・場所ごとにまとまり、開くとカードが出る。開いた状態は自動同期・開き直しでも残る', async ({ page }) => {
   const errors = watchErrors(page);
   await login(page, { grouped: true });
+  await page.locator('#adm-mode [data-m="dept"]').click();          // 科ごとで確かめる（既定は階ごと）
   const grps = page.locator('#admin-list .adm-grp');
   await expect.poll(() => grps.count()).toBeGreaterThan(5);
   // はじめは全部閉じている（46件が一度に並ばない）
@@ -102,4 +103,24 @@ test('担当ブースえらび：科・場所を押すとそのブースが開�
   await page.locator('#assign-q').fill('旋盤');
   await page.locator('#assign-q').dispatchEvent('input');
   await expect(page.locator('#assign-chips .as-chip').first()).toContainText('旋盤');
+});
+
+test('まとめ方：既定は「階ごと」（中は科の小見出し）、「科ごと」に切り替えられ、選んだ方を覚える', async ({ page }) => {
+  await login(page, { grouped: true });
+  const labels = () => page.locator('#admin-list .adm-grp .g-nm').allTextContents();
+  await expect.poll(labels).toEqual(expect.arrayContaining(['1階', '2階', '3階']));
+  const g1 = page.locator('#admin-list .adm-grp').first();
+  await g1.locator('summary').click();
+  await expect(g1.locator('.adm-sub').first()).toBeVisible();                 // 階の中は科で区切る
+  expect(await g1.locator('.adm-sub').count()).toBeGreaterThan(1);
+  // 担当えらびも階で出る
+  await expect(page.locator('#assign-chips .as-grp').first()).toContainText('1階');
+  // 科ごとへ
+  await page.locator('#adm-mode [data-m="dept"]').click();
+  await expect.poll(labels).toEqual(expect.arrayContaining(['電子機械科', '機械科', '電子科']));
+  await expect(page.locator('#admin-list .adm-sub')).toHaveCount(0);
+  await expect(page.locator('#assign-chips .as-grp').first()).toContainText('科');
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
+  await expect(page.locator('#adm-mode [data-m="dept"]')).toHaveAttribute('aria-pressed', 'true');
 });
