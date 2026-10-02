@@ -65,7 +65,7 @@
 | `Code.gs` | `GAS_VERSION` を変える（`YYYY-MM-DD` ＋ 英小文字）。画面が前提とする最低版は `index.html` の `CONFIG.GAS_MIN` |
 | 納品 | 版番号 vNNN ごとにフォルダを分ける（例：ユーザーのPCの `Downloads\bunnkasai-vNNN-deploy\`）。**一式**を入れる |
 
-版番号の対応（v148 時点）：v148 ＝ `BUILD 2026-10-02e` ／ `CACHE kuroko-map-v148` ／ `GAS_VERSION 2026-09-29a`（GAS は v137 から変更なし）。
+版番号の対応（v149 時点）：v149 ＝ `BUILD 2026-10-02f` ／ `CACHE kuroko-map-v149` ／ `GAS_VERSION 2026-09-29a`（GAS は v137 から変更なし）。
 
 ## 5. 反映の手順
 
@@ -105,7 +105,7 @@
 
 ## 8. テスト
 
-**自動テストは `tests/` にある**（v138〜）。`cd tests && npm install && npm test`。GAS は模擬するので本番には触らない。GitHub Actions でも push・PR ごとに動く。中身は `CLAUDE.md` の「テスト」。Node が無い環境の AI は、下の手動の確認で代える。
+**自動テストは `tests/` にある**（v138〜）。サーバー（Code.gs）も `tests/gas.test.js` で模擬の上でそのまま動かして確かめる（v149〜。Code.gs を変えたら必ず通す）。`cd tests && npm install && npm test`。GAS は模擬するので本番には触らない。GitHub Actions でも push・PR ごとに動く。中身は `CLAUDE.md` の「テスト」。Node が無い環境の AI は、下の手動の確認で代える。
 
 最低限、変更のたびに確かめること：
 
