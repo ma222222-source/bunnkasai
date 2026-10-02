@@ -648,6 +648,9 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 #map-card.gmap .map-zoom-ctl{right:8px;bottom:8px;flex-direction:column;gap:6px}
 #map-card.gmap .map-zoom-ctl button{width:44px;border-radius:12px;font-size:22px;line-height:1}
 #map-card.gmap .map-fit-ctl{left:8px;bottom:8px;gap:6px}
+#map-card.gmap .map-zoom-ctl .locate{color:var(--g-sel)}
+#map-card.gmap .map-zoom-ctl .locate .ic{width:22px;height:22px}
+#map-card.gmap .map-zoom-ctl .locate[data-on="1"]{background:var(--g-sel-bg)}
 #map-card.gmap .map-fit-ctl button{padding:0 14px;border-radius:999px;font-size:12px}
 #map-card.gmap .zoom-lv{left:50%;transform:translateX(-50%);top:8px}
 /* 絞り込みのチップ（Google マップの「レストラン」「ホテル」の列） */
@@ -2236,6 +2239,8 @@ html.sheet-open{overflow:hidden}
             <button id="fl-0" aria-pressed="false">屋外</button>
           </div>
           <div class="map-ctl map-zoom-ctl">
+            <!-- v148：Google マップの「現在地」ボタン。いまここ（QRを読んだ場所・えらんだ場所）へ寄せる -->
+            <button id="map-locate" class="sq locate" aria-label="いまいる場所を地図で見る"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg></button>
             <button id="zoom-in" class="sq" aria-label="地図を拡大">＋</button>
             <button id="zoom-out" class="sq" aria-label="地図を縮小" disabled>−</button>
           </div>
@@ -2763,7 +2768,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-02d',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-02e',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5269,6 +5274,29 @@ function renderEditProgress(){
   el.textContent = `割り当て済み ${S.booths.length}件（${top}）　部屋をおすと変えられます`;
 }
 
+/**
+ * 「現在地」ボタン（v148）。いまここが決まっていれば、その階へ移って寄せる。
+ * 決まっていなければ、地図をおしてえらぶモードにする（GPS は使わない：setPickMode の説明どおり）
+ */
+function locateHere(){
+  const id = hereId();
+  if (!id){ setPickMode(true); return; }
+  const ri = ROOM_INDEX.get(id);
+  if (!ri){ toast('いまいる場所が地図に見つかりません。えらび直してください'); setPickMode(true); return; }
+  switchView('map');
+  if (ri.f !== S.floor) setFloor(ri.f);
+  setTimeout(() => {
+    try{ zoomToRooms(S.floor, [ri.r], { pad:40, minRatio:0.35, maxK:2.6 }); }catch(e){}
+    const g = document.querySelector(`#plan-${S.floor} .room[data-id="${CSS.escape(id)}"]`);
+    if (g){ g.classList.add('flash'); setTimeout(() => g.classList.remove('flash'), 2000); }
+  }, 120);
+  toast(`いまここ：${placeName(id)}`);
+}
+function renderLocateBtn(){
+  const b = $('#map-locate');
+  if (b) b.dataset.on = hereId() ? '1' : '0';
+}
+
 function pickHere(id){
   setPickMode(false);
   setHere(id);
@@ -5301,6 +5329,7 @@ function placeName(id){
 }
 
 function renderHere(){
+  renderLocateBtn();
   const bar = $('#here-bar');
   if (!bar) return;
   const id = hereId();
@@ -5746,6 +5775,8 @@ function focusBoothOnMap(id){
     setTimeout(() => openSheet(id), 380);
   }, 200);
 }
+
+{ const lb = $('#map-locate'); if (lb) lb.addEventListener('click', () => locateHere()); }
 
 (function initMapSearch(){
   const inp = $('#map-q'), box = $('#map-sug'), clr = $('#map-q-x');

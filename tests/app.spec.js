@@ -240,3 +240,21 @@ test('地図の検索：打つと候補が出て、選ぶとそのブースに�
   await expect(page.locator('#map-sug')).toContainText('見つかりませんでした');
   expect(errors).toEqual([]);
 });
+
+test('現在地ボタン：いまここが無ければえらぶモード、あればその階へ移って寄せる', async ({ page }) => {
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.locator('#map-locate').click();
+  expect(await page.evaluate(() => S.picking)).toBe(true);
+  await page.evaluate(() => setPickMode(false));
+  // 2階のブースを現在地にして、1階を見ているところから押す
+  await page.evaluate(() => { setHere('2F-12', 'qr'); setFloor(1); zoomReset(false); });
+  await page.locator('#map-locate').click();
+  await expect(page.locator('#fl-2')).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => page.evaluate(() => ZOOM.k)).toBeGreaterThan(1.05);
+  await expect(page.locator('#map-locate')).toHaveAttribute('data-on', '1');
+  expect(errors).toEqual([]);
+});
