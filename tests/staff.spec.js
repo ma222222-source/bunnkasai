@@ -4,6 +4,8 @@ const { mockGas, watchErrors } = require('./mock');
 
 async function login(page, opt = {}) {
   const log = await mockGas(page, { verifyOk: true, ...opt });
+  // 既定は「科・場所ごと」（閉じたまとめ）。カードを直接押すテストは「古い順（全部）」で見る
+  if (!opt.grouped) await page.addInitScript(() => localStorage.setItem('kuroko_adm_mode', JSON.stringify('flat')));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?mode=admin');
   await page.locator('#pw').fill('test-password-1234');
@@ -54,4 +56,50 @@ test('送れなかった更新は端末に残り、電波が戻ると自動で�
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
   await expect.poll(() => page.evaluate(() => localStorage.getItem('kuroko_unsent') || ''), { timeout: 60000 }).not.toContain(id);
   expect(log.posts.slice(okBefore).some(p => JSON.stringify(p).includes(id))).toBe(true);
+});
+
+test('更新の画面：科・場所ごとにまとまり、開くとカードが出る。開いた状態は自動同期・開き直しでも残る', async ({ page }) => {
+  const errors = watchErrors(page);
+  await login(page, { grouped: true });
+  const grps = page.locator('#admin-list .adm-grp');
+  await expect.poll(() => grps.count()).toBeGreaterThan(5);
+  // はじめは全部閉じている（46件が一度に並ばない）
+  await expect(page.locator('#admin-list .adm-booth:visible')).toHaveCount(0);
+  await expect(grps.first().locator('.g-n')).toContainText('件');
+  const second = grps.nth(1);
+  const key = await second.getAttribute('data-g');
+  await second.locator('summary').click();
+  await expect(second.locator('.adm-booth').first()).toBeVisible();
+  const n = await second.locator('.adm-booth').count();
+  expect(n).toBeGreaterThan(0);
+  // 自動同期（描き直し）でも閉じない
+  await page.evaluate(() => renderAdmin());
+  await expect(page.locator(`.adm-grp[data-g="${key}"]`)).toHaveAttribute('open', '');
+  // 開き直しても開いたまま
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
+  await expect(page.locator(`.adm-grp[data-g="${key}"]`)).toHaveAttribute('open', '', { timeout: 10000 });
+  // 「古い順（全部）」に切り替えるとまとめずに並ぶ
+  await page.locator('#adm-mode [data-m="flat"]').click();
+  await expect(page.locator('#admin-list .adm-grp')).toHaveCount(0);
+  await expect(page.locator('#admin-list > .adm-booth')).toHaveCount(46);
+  expect(errors).toEqual([]);
+});
+
+test('担当ブースえらび：科・場所を押すとそのブースが開き、「ぜんぶ」で科ごと担当にできる', async ({ page }) => {
+  await login(page, { grouped: true });
+  const g = page.locator('#assign-chips .as-grp').nth(2);
+  await expect(page.locator('#assign-chips .as-chip')).toHaveCount(0);          // はじめはブースを並べない
+  await g.click();
+  await expect(page.locator('#assign-chips .as-sub .as-chip').first()).toBeVisible();
+  const n = await page.locator('#assign-chips .as-sub .as-chip').count();
+  await page.locator('#assign-chips [data-asall]').click();
+  expect(await page.evaluate(() => S.assigned.size)).toBe(n);
+  // 担当が数件なら、まとめずにそのカードだけ並ぶ
+  await expect(page.locator('#admin-list > .adm-booth')).toHaveCount(n);
+  // 検索するとブースがそのまま出る
+  await page.locator('#assign-chips [data-as="__all"]').click();
+  await page.locator('#assign-q').fill('旋盤');
+  await page.locator('#assign-q').dispatchEvent('input');
+  await expect(page.locator('#assign-chips .as-chip').first()).toContainText('旋盤');
 });
