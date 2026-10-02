@@ -2768,7 +2768,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-02e',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-02f',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5586,6 +5586,17 @@ function renderSheet(){
    BarcodeDetector（Android の Chrome など）が無い端末では読めないので、
    標準のカメラで読む方法を案内する（外部ライブラリは持ち込まない：RULES.md §3）
    ===================================================================== */
+/**
+ * 端末を短く震わせる。画面をまだ一度も押していないとき（QRから開いた直後など）に呼ぶと、
+ * Chrome が「押す前の振動は止めました」とコンソールにエラーを出す。押したあとだけ震わせる（v149）
+ */
+function buzz(pattern){
+  try{
+    const ua = navigator.userActivation;
+    if (ua && !ua.hasBeenActive) return;
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  }catch(e){}
+}
 const ICON_QR = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8" y="8" width="3" height="3"/><rect x="13" y="8" width="3" height="3"/><rect x="8" y="13" width="3" height="3"/><path d="M13 13h3v3"/></svg>`;
 const SCAN = { stream:null, timer:0, tip:0, det:null, last:'', lastAt:0, mode:'native', cv:null };
 
@@ -5674,7 +5685,7 @@ function scanLoop(){
     const url = stampUrlFrom(raw);
     if (url){
       stopScanner();
-      try{ navigator.vibrate && navigator.vibrate(40); }catch(e){}
+      buzz(40);
       // 読み込み直して、QRから来たときと同じ流れ（署名の照合→スタンプ→演出）に乗せる
       location.assign(url);
       return;
@@ -7514,7 +7525,7 @@ function showStampFx(id, fresh){
   setTimeout(() => { const b = el.querySelector('[data-fx="book"]'); b && b.focus({ preventScroll:true }); }, 60);
   if (fresh){
     ding();
-    try{ navigator.vibrate && navigator.vibrate([18, 40, 70]); }catch(e){}
+    buzz([18, 40, 70]);
     const total = S.booths.length, got = S.booths.filter(b => S.stamps.has(b.id)).length;
     const left = stampsLeft(), need = Math.max(1, CONFIG.PRIZE_COST | 0);
     // 節目だけ紙吹雪（毎回だと特別感がなくなる）

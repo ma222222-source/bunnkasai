@@ -3,8 +3,9 @@
   "private": true,
   "description": "黒工文化祭マップの自動テスト（本番のGASには触らない。GASの応答は fixtures で模擬）",
   "scripts": {
-    "test": "node static.test.js && playwright test",
-    "static": "node static.test.js"
+    "test": "node static.test.js && node --test gas.test.js && playwright test",
+    "static": "node static.test.js",
+    "gas": "node --test gas.test.js"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
