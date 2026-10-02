@@ -1473,6 +1473,12 @@ html.sfx-open,html.sfx-open body{overflow:hidden}
 .adm-grp .g-b.busy{background:var(--busy-soft);color:var(--busy-ink)}
 .adm-grp .g-b.ok{background:var(--free-soft);color:var(--free)}
 .adm-grp-body{display:flex;flex-direction:column;gap:9px;padding:0 8px 10px}
+/* 階ごとのとき、中を科で区切る小見出し */
+.adm-sub{display:flex;align-items:center;gap:7px;margin:6px 2px -2px;font-size:12px;font-weight:900;color:var(--text-dim)}
+.adm-sub i{width:10px;height:10px;border-radius:50%;background:var(--g,var(--text-mute));flex:none}
+.adm-sub span{font-weight:800;color:var(--text-mute)}
+.as-sub .as-subh{flex-basis:100%;display:flex;align-items:center;gap:6px;font-size:11px;font-weight:900;color:var(--text-dim);margin-top:4px}
+.as-sub .as-subh i{width:9px;height:9px;border-radius:50%;background:var(--g,var(--text-mute))}
 /* 担当ブースえらび：まず科・場所、開くとそのブース */
 .as-grp{display:inline-flex;align-items:center;gap:6px}
 .as-grp i{width:10px;height:10px;border-radius:50%;background:var(--g,var(--text-mute));flex:none}
@@ -2471,8 +2477,9 @@ html.sheet-open{overflow:hidden}
         <div id="adm-warn" class="hide" style="margin-bottom:8px;line-height:1.6"></div>
         <!-- v146：ブースが多いので、科・場所ごとにまとめて開いて選ぶ。見回り用に「古い順」も残す -->
         <div class="seg adm-mode" id="adm-mode" role="group" aria-label="ブースの並べ方">
-          <button type="button" data-m="dept" aria-pressed="true">科・場所ごと</button>
-          <button type="button" data-m="flat" aria-pressed="false">更新が古い順（全部）</button>
+          <button type="button" data-m="floor" aria-pressed="true">階ごと</button>
+          <button type="button" data-m="dept" aria-pressed="false">科ごと</button>
+          <button type="button" data-m="flat" aria-pressed="false">古い順</button>
         </div>
         <div id="admin-list" style="display:flex;flex-direction:column;gap:9px"></div>
       </div>
@@ -2756,7 +2763,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-02c',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-02d',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3375,7 +3382,7 @@ const S = {
   spent: [],               // お菓子と交換して消費したブースid（取った順に消える）
   assigned: new Set(),
   admOpen: new Set(),   // 係員画面で開いている科・場所のまとめ（v146）
-  admMode: 'dept',      // 係員画面の並べ方：dept＝科・場所ごと／flat＝更新が古い順
+  admMode: 'floor',     // 係員画面の並べ方：floor＝階ごと（中は科で区切る）／dept＝科・場所ごと／flat＝更新が古い順
   assignGrp: null,      // 担当ブースえらびで開いている科・場所
   edit: false,          // 係員の「地図で割り当て」モード
   picking: false,       // 現在地を地図でえらんでいる最中
@@ -8993,7 +9000,21 @@ async function login(){
  * 係員画面でブースをまとめる単位。出し物の科（シートの dept 列）→ 部屋のある棟 → 階、の順に決める。
  * 順番は DEPTS の並び（科 → 教室棟 → 本館）、そのあと屋外・その他
  */
-function admGroupOf(b){
+function admDeptOf(b){
+  const sl = slotOf(b.id);
+  const d = boothDept(b) || (sl && sl.z ? DEPT_BY_ZONE[sl.z] : null);
+  if (d){ const i = DEPTS.indexOf(d); return { k: 'd:' + d.s, label: d.s, c: d.c, order: i >= 0 ? i : 50 }; }
+  return { k: 'd:-', label: 'そのほか', c: '', order: 99 };
+}
+/**
+ * 係員画面のまとめ。mode が 'floor' なら階（1階・2階・3階・屋外の順）、それ以外は科・場所
+ * （v147：階ごとを追加。ユーザーの依頼「階層ごとと科ごとでまとめて」）
+ */
+function admGroupOf(b, mode){
+  if (mode === 'floor'){
+    const f = floorOfBooth(b);
+    return { k: 'F:' + f, label: f === 0 ? '屋外・体育館など' : f + '階', c: '', order: f === 0 ? 9 : f };
+  }
   const sl = slotOf(b.id);
   const d = boothDept(b) || (sl && sl.z ? DEPT_BY_ZONE[sl.z] : null);
   if (d){
@@ -9004,15 +9025,23 @@ function admGroupOf(b){
   return { k: 'f:' + fl, label: fl === '屋外' ? '屋外・体育館など' : fl + '（そのほか）', c: '', order: 100 + (floorOfBooth(b) || 0) };
 }
 /** ブースの並びを、まとめ（グループ）の並びに分ける */
-function admGroups(list){
+function admGroups(list, mode){
   const map = new Map();
   list.forEach(b => {
-    const g = admGroupOf(b);
+    const g = admGroupOf(b, mode);
     if (!map.has(g.k)) map.set(g.k, { ...g, items: [] });
     map.get(g.k).items.push(b);
   });
-  return Array.from(map.values()).sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, 'ja'));
+  const out = Array.from(map.values()).sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, 'ja'));
+  // 階ごとのときは、中を科の順に並べる（同じ科の中は元の並び＝更新が古い順のまま）
+  if (mode === 'floor') out.forEach(g => {
+    const pos = new Map(g.items.map((b, i) => [b.id, i]));
+    g.items.sort((a, b) => admDeptOf(a).order - admDeptOf(b).order || pos.get(a.id) - pos.get(b.id));
+  });
+  return out;
 }
+/** 係員画面のいまのまとめ方（担当えらびと更新カードで共通） */
+function admGroupMode(){ return S.admMode === 'dept' ? 'dept' : 'floor'; }
 
 function renderAssign(){
   renderAssign._n = S.booths.length;
@@ -9046,14 +9075,25 @@ function renderAssign(){
       body = S.booths.filter(b => hit(b) || S.assigned.has(b.id)).map(chip).join('');
     } else {
       // 【v146】46ブースを1列に並べると探せない。まず科・場所を出し、押すとそのブースが開く
-      body = picked.map(chip).join('') + admGroups(S.booths).map(g => {
+      const gm = admGroupMode();
+      body = picked.map(chip).join('') + admGroups(S.booths, gm).map(g => {
         const n = g.items.filter(b => S.assigned.has(b.id)).length;
         const open = S.assignGrp === g.k;
         return `<button class="chip as-grp" data-asg="${esc(g.k)}" aria-expanded="${open}" style="--g:${esc(g.c || '')}"
             ><i aria-hidden="true"></i>${esc(g.label)} <b>${g.items.length}${n ? `・${n}選択中` : ''}</b></button>` +
           (open ? `<div class="as-sub">${g.items.length > 1
-              ? `<button class="chip" data-asall="${esc(g.k)}">この${g.k.startsWith('d:') ? '科・棟' : '場所'}をぜんぶ</button>` : ''}${
-              g.items.filter(b => !S.assigned.has(b.id)).map(chip).join('') || '<small style="color:var(--text-mute);font-weight:700">ぜんぶ選んであります</small>'}</div>` : '');
+              ? `<button class="chip" data-asall="${esc(g.k)}">${gm === 'floor' ? 'この階' : g.k.startsWith('d:') ? 'この科・棟' : 'この場所'}をぜんぶ</button>` : ''}${
+              (() => {
+                const rest = g.items.filter(b => !S.assigned.has(b.id));
+                if (!rest.length) return '<small style="color:var(--text-mute);font-weight:700">ぜんぶ選んであります</small>';
+                if (gm !== 'floor') return rest.map(chip).join('');
+                // 階の中は科ごとに小見出しを付ける
+                let last = '', html = '';
+                rest.forEach(b => { const d = admDeptOf(b);
+                  if (d.k !== last){ last = d.k; html += `<span class="as-subh" style="--g:${esc(d.c)}"><i aria-hidden="true"></i>${esc(d.label)}</span>`; }
+                  html += chip(b); });
+                return html;
+              })()}</div>` : '');
       }).join('');
     }
     box.innerHTML =
@@ -9064,7 +9104,7 @@ function renderAssign(){
       renderAssign();
     }));
     $$('#assign-chips [data-asall]').forEach(el => el.addEventListener('click', () => {
-      const g = admGroups(S.booths).find(x => x.k === el.dataset.asall);
+      const g = admGroups(S.booths, admGroupMode()).find(x => x.k === el.dataset.asall);
       if (g) g.items.forEach(b => S.assigned.add(b.id));
       S.assignOpen = true;            // ほかの科も受け持つ人がいるので、「えらび終わった」まで開いたまま
       store('kuroko_assigned_v2', Array.from(S.assigned));
@@ -9332,10 +9372,11 @@ function renderAdmin(){
   const cardOf = b => container.querySelector(`.adm-booth[data-id="${CSS.escape(b.id)}"]`);
   // 【v146】科・場所ごとにまとめる。担当を数件に絞っている人・「古い順」を選んだ人は、まとめずに並べる
   const grouped = S.admMode !== 'flat' && list.length > 6;
+  const gm = admGroupMode();
   const mode = $('#adm-mode');
   if (mode){
     mode.classList.toggle('hide', list.length <= 6);
-    $$('button', mode).forEach(el => el.setAttribute('aria-pressed', String(el.dataset.m === (S.admMode === 'flat' ? 'flat' : 'dept'))));
+    $$('button', mode).forEach(el => el.setAttribute('aria-pressed', String(el.dataset.m === (S.admMode === 'flat' ? 'flat' : gm))));
   }
   if (!grouped){
     // 並び順を反映（DOMを作り直さないのでフォーカスや押下状態は保たれる）
@@ -9343,7 +9384,7 @@ function renderAdmin(){
     $$('.adm-grp', container).forEach(g => g.remove());
     return;
   }
-  const groups = admGroups(list);
+  const groups = admGroups(list, gm);
   const live = new Set();
   groups.forEach(g => {
     live.add(g.k);
@@ -9370,7 +9411,24 @@ function renderAdmin(){
     badge.textContent = late ? `未更新${late}${busyN ? `・混雑${busyN}` : ''}` : busyN ? `混雑${busyN}` : '更新OK';
     container.appendChild(det);
     const body = det.querySelector('.adm-grp-body');
-    g.items.forEach(b => { const c = cardOf(b); if (c) body.appendChild(c); });
+    // 階ごとのときは、科の小見出しを付け直す（カードは作り直さず並べ替えるだけ）
+    $$('.adm-sub', body).forEach(x => x.remove());
+    let lastD = '';
+    g.items.forEach(b => {
+      if (gm === 'floor'){
+        const d = admDeptOf(b);
+        if (d.k !== lastD){
+          lastD = d.k;
+          const n = g.items.filter(x => admDeptOf(x).k === d.k).length;
+          const h = document.createElement('div');
+          h.className = 'adm-sub';
+          h.style.setProperty('--g', d.c || '');
+          h.innerHTML = `<i aria-hidden="true"></i>${esc(d.label)}<span>${n}件</span>`;
+          body.appendChild(h);
+        }
+      }
+      const c = cardOf(b); if (c) body.appendChild(c);
+    });
   });
   $$('.adm-grp', container).forEach(d => { if (!live.has(d.dataset.g)) d.remove(); });
 }
@@ -10925,11 +10983,13 @@ function init(){
   S.spent    = Array.from(new Set(load('kuroko_spent_v1', []) || []));
   S.assigned = new Set(load('kuroko_assigned_v2', []));
   S.admOpen = new Set(load('kuroko_adm_open', []));
-  S.admMode = load('kuroko_adm_mode', 'dept') === 'flat' ? 'flat' : 'dept';
+  { const m = load('kuroko_adm_mode', 'floor'); S.admMode = ['floor', 'dept', 'flat'].indexOf(m) >= 0 ? m : 'floor'; }
   $$('#adm-mode button').forEach(el => el.addEventListener('click', () => {
-    S.admMode = el.dataset.m === 'flat' ? 'flat' : 'dept';
+    S.admMode = ['floor', 'dept', 'flat'].indexOf(el.dataset.m) >= 0 ? el.dataset.m : 'floor';
     store('kuroko_adm_mode', S.admMode);
+    S.assignGrp = null;              // まとめ方が変わったら、担当えらびの開いている所も閉じる
     renderAdmin();
+    if (typeof renderAssign === 'function') renderAssign();
   }));
   loadUnsent();
   // カードの見出しを読み上げの「見出し」として扱う（見出しジャンプで画面内を移動できるように）
