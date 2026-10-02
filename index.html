@@ -207,8 +207,9 @@ p{margin:0}
   --g-ground:#eef0f3; --g-edge:#dadce0; --g-ctl:#ffffff; --g-ctl-edge:#dadce0;
   --g-bldg:#e3e6ea; --g-bldg-edge:#c6cbd2; --g-room:#fbfbfc; --g-room-edge:#d2d6dc;
   --g-walk:#ffffff; --g-walk-edge:#d7dbe0; --g-outdoor:#dff0dc; --g-road:#ffffff; --g-road-edge:#cfd3d9;
-  --g-label:#3c4043; --g-ink-soft:#6b7075; --g-halo:#ffffff; --g-room-text:#202124;
-  --g-sel:#1a73e8; --g-sel-bg:#e8f0fe;
+  /* 文字の色は背景との差 4.5:1 以上（axe で確認）。#6b7075・#1a73e8 は淡い灰・水色の上で 4:1 を切っていた */
+  --g-label:#3c4043; --g-ink-soft:#5a5f64; --g-halo:#ffffff; --g-room-text:#202124;
+  --g-sel:#1558b8; --g-sel-bg:#e8f0fe; --g-on-sel:#ffffff;
   --g-poi:#e8f0fe; --g-poi-edge:#a8c7fa; --g-poi-ink:#1a73e8;
   --g-free:#e2f3e6; --g-free-edge:#1e8e3e; --g-free-ink:#137333;
   --g-warn:#fdf0cf; --g-warn-line:#f4c95d; --g-warn-edge:#d56e0c; --g-warn-ink:#9a4a00;
@@ -254,7 +255,7 @@ p{margin:0}
   --g-bldg:#262a31; --g-bldg-edge:#434a55; --g-room:#30353d; --g-room-edge:#4a525e;
   --g-walk:#3a4049; --g-walk-edge:#4a515c; --g-outdoor:#1e2b21; --g-road:#3a4049; --g-road-edge:#4a515c;
   --g-label:#e8eaed; --g-ink-soft:#aab0b8; --g-halo:#1c1f24; --g-room-text:#f1f3f4;
-  --g-sel:#8ab4f8; --g-sel-bg:#2f3a4d;
+  --g-sel:#8ab4f8; --g-sel-bg:#2f3a4d; --g-on-sel:#14171b;
   --g-poi:#23324a; --g-poi-edge:#3d5a85; --g-poi-ink:#8ab4f8;
   --g-free:#16331f; --g-free-edge:#81c995; --g-free-ink:#81c995;
   --g-warn:#3a2d10; --g-warn-line:#6b5316; --g-warn-edge:#fdd663; --g-warn-ink:#fdd663;
@@ -737,7 +738,7 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 #map-card.gmap .map-floors button{min-width:48px;padding:0 6px;position:relative}
 #map-card.gmap .map-floors .fl-n{position:absolute;top:2px;right:2px;margin:0;min-width:15px;height:15px;padding:0 3px;
   border-radius:8px;background:var(--g-bldg);color:var(--g-ink-soft);font-size:9px;line-height:15px;display:block;text-align:center}
-#map-card.gmap .map-floors button[aria-pressed="true"] .fl-n{background:var(--g-sel);color:#fff}
+#map-card.gmap .map-floors button[aria-pressed="true"] .fl-n{background:var(--g-sel);color:var(--g-on-sel)}
 /* v142：地図の検索窓 */
 .map-search{position:relative;display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:0 6px 0 14px;
   min-height:48px;border-radius:24px;background:var(--g-ctl,var(--surface));border:1px solid var(--g-ctl-edge,var(--border));
@@ -1177,7 +1178,7 @@ text.util:not([font-size]){font-size:7.5px}
 .prize-tx b{font-size:17px;color:var(--accent-ink)}
 .prize.ready{background:var(--free-soft);border-color:var(--free)}
 .prize.ready .prize-tx b{color:var(--free)}
-.prize-go{margin-top:10px;width:100%;min-height:48px;border-radius:12px;background:var(--free);color:#fff;
+.prize-go{margin-top:10px;width:100%;min-height:48px;border-radius:12px;background:var(--free);color:var(--on-status);
   font-size:14.5px;font-weight:900;cursor:pointer}
 .prize-steps{list-style:none;margin:0;padding:0;display:grid;gap:8px;counter-reset:ps}
 .prize-steps li{display:flex;align-items:center;gap:9px;font-size:12.5px;font-weight:800;line-height:1.45;counter-increment:ps}
@@ -1186,7 +1187,7 @@ text.util:not([font-size]){font-size:7.5px}
 [data-fs="xl"] .prize-tx,[data-fs="xl"] .prize-steps li{font-size:15.5px}
 /* 下のタブの「スタンプ」に、交換できるときだけ印を付ける */
 .nav button .nav-badge{position:absolute;top:5px;left:calc(50% + 8px);min-width:18px;height:18px;padding:0 5px;
-  border-radius:9px;background:var(--free);color:#fff;font-size:10.5px;font-weight:900;line-height:18px;
+  border-radius:9px;background:var(--free);color:var(--on-status);font-size:10.5px;font-weight:900;line-height:18px;
   box-shadow:0 0 0 2px var(--surface)}
 /* ===== QRの読み取り ===== */
 .bsh-scan{cursor:pointer;color:var(--text);border:1px solid var(--border-strong);display:inline-flex;align-items:center;gap:6px}
@@ -1624,10 +1625,11 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
                font-variant-numeric:tabular-nums}
 .board-stats span{display:block;font-size:clamp(9px,.9vw,12px);font-weight:800;color:var(--text-mute)}
 #board-sync[data-bad="true"]{color:var(--busy)}
-.board-alert{background:var(--busy);color:#fff;border-radius:var(--r);padding:10px 16px;
+.board-alert{background:var(--busy);color:var(--on-status);border-radius:var(--r);padding:10px 16px;
              font-size:clamp(12px,1.3vw,18px);font-weight:900;letter-spacing:.02em;
              animation:board-blink 2.4s ease-in-out infinite}
-@keyframes board-blink{50%{opacity:.72}}
+/* 点滅は枠の光だけにする。全体を薄くすると、薄い瞬間に字が背景と 3:1 を切って読みにくかった（axe で確認） */
+@keyframes board-blink{50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--busy) 35%,transparent)}}
 .board-grid{flex:1;display:grid;gap:clamp(8px,1vw,14px);align-content:stretch;min-height:0;overflow:hidden;
             grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
             grid-auto-rows:minmax(0,1fr)}
@@ -2719,7 +2721,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-01c',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-02a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
