@@ -65,7 +65,7 @@
 | `Code.gs` | `GAS_VERSION` を変える（`YYYY-MM-DD` ＋ 英小文字）。画面が前提とする最低版は `index.html` の `CONFIG.GAS_MIN` |
 | 納品 | 版番号 vNNN ごとにフォルダを分ける（例：ユーザーのPCの `Downloads\bunnkasai-vNNN-deploy\`）。**一式**を入れる |
 
-版番号の対応（v143 時点）：v143 ＝ `BUILD 2026-10-01c` ／ `CACHE kuroko-map-v143` ／ `GAS_VERSION 2026-09-29a`（GAS は v137 から変更なし）。
+版番号の対応（v144 時点）：v144 ＝ `BUILD 2026-10-02a` ／ `CACHE kuroko-map-v144` ／ `GAS_VERSION 2026-09-29a`（GAS は v137 から変更なし）。
 
 ## 5. 反映の手順
 
@@ -100,6 +100,7 @@
 - iPhone（Safari）・Android（Chrome）・LINE のアプリ内ブラウザで開かれる前提。アプリ内ブラウザでは保存先が分かれる（`SPEC.md` §6）
 - 文字の大きさ「特大」でも崩れない
 - `prefers-reduced-motion` では動きを止める。暗い配色でも読める
+- 文字と背景の色の差は 4.5:1 以上（大きい字は 3:1）。`tests/a11y.spec.js`（axe-core）が2テーマで見張る。点滅などで全体を薄くしない
 - 電波が弱い校内で使う前提：オフラインでも最後の情報を出す、送れなかった更新は端末に保持して再送
 
 ## 8. テスト
