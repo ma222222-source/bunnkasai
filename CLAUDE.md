@@ -47,7 +47,7 @@
 - `cd tests && npm install`（初回だけ）→ `npm test`
   - `static.test.js`：構文、版の整合（GAS_VERSION ≧ GAS_MIN、PROGRESS.md に今の版）、**刷ったQRの署名の控え（`fixtures/sigs.json`）**、localStorage のキー名、R8 の46件が地図にあるか、GAS の数式注入対策
   - `hardening.spec.js`：XSS（悪い文字列を全画面・係員画面に流す）、地図の押しやすさ、Service Worker でのオフライン
-  - `staff.spec.js`：係員の待ち人数・混雑度の送信、送れなかった更新の再送
+  - `staff.spec.js`：係員の待ち人数・混雑度の送信、送れなかった更新の再送、科・場所ごとのまとめ（開く・覚える・古い順）、担当ブースえらび（科→ブース・ぜんぶ）
   - `a11y.spec.js`：アクセシビリティ（axe-core、WCAG 2 A/AA）。ふつう・暗いの2テーマ×主な11画面で重大な違反0
   - `scan.spec.js`：QRを読むカメラ（BarcodeDetector あり・なし（自前の読み取り）の両方で読めばスタンプが付く・ほかのQRは付かない・カメラが無い／許可しないときの案内）、自前の読み取りの精度（誤り訂正・回転・斜め・遠近・ぼけ・雑音・遠く）
   - `app.spec.js`：幅 320/390/768/1280px と文字「特大」で横はみ出し・コンソールのエラー、4画面、階の切り替え、検索、`?booth=`、QR のスタンプ（正しい署名・違う署名）、5個で交換の案内、`?mode=` の6画面、係員ログインの拒否、GAS の失敗・遅延

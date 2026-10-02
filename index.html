@@ -1455,6 +1455,32 @@ html.sfx-open,html.sfx-open body{overflow:hidden}
 .help span{font-size:11px;color:var(--text-dim)}
 
 /* ========================= 管理者 ========================= */
+/* ===== v146：係員の更新画面を科・場所ごとにまとめる ===== */
+.adm-mode{margin-bottom:10px}
+.adm-mode button{flex:1}
+.adm-grp{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r)}
+.adm-grp > summary{display:flex;align-items:center;gap:8px;min-height:52px;padding:6px 12px;cursor:pointer;list-style:none;
+  font-size:14px;font-weight:900}
+.adm-grp > summary::-webkit-details-marker{display:none}
+.adm-grp > summary::before{content:'';flex:none;width:8px;height:8px;border-right:2.5px solid currentColor;
+  border-bottom:2.5px solid currentColor;transform:rotate(-45deg);transition:transform var(--t-fast) var(--ease);margin-right:2px}
+.adm-grp[open] > summary::before{transform:rotate(45deg)}
+.adm-grp .g-dot{flex:none;width:12px;height:12px;border-radius:50%;background:var(--g,var(--text-mute))}
+.adm-grp .g-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adm-grp .g-n{flex:none;font-size:11.5px;font-weight:800;color:var(--text-mute)}
+.adm-grp .g-b{flex:none;font-size:11px;font-weight:900;padding:3px 8px;border-radius:999px}
+.adm-grp .g-b.warn{background:var(--warn-soft);color:var(--warn)}
+.adm-grp .g-b.busy{background:var(--busy-soft);color:var(--busy-ink)}
+.adm-grp .g-b.ok{background:var(--free-soft);color:var(--free)}
+.adm-grp-body{display:flex;flex-direction:column;gap:9px;padding:0 8px 10px}
+/* 担当ブースえらび：まず科・場所、開くとそのブース */
+.as-grp{display:inline-flex;align-items:center;gap:6px}
+.as-grp i{width:10px;height:10px;border-radius:50%;background:var(--g,var(--text-mute));flex:none}
+.as-grp b{font-size:10.5px;color:var(--text-mute);font-weight:800}
+.as-grp[aria-expanded="true"]{background:var(--text);color:var(--surface);border-color:var(--text)}
+.as-grp[aria-expanded="true"] b{color:inherit;opacity:.8}
+.as-sub{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;padding:8px;margin:2px 0 4px;border-radius:12px;
+  background:var(--surface-2);border:1px dashed var(--border-strong)}
 .adm-booth{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
            padding:11px 12px;box-shadow:var(--shadow)}
 .adm-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
@@ -2443,6 +2469,11 @@ html.sheet-open{overflow:hidden}
         </div>
 
         <div id="adm-warn" class="hide" style="margin-bottom:8px;line-height:1.6"></div>
+        <!-- v146：ブースが多いので、科・場所ごとにまとめて開いて選ぶ。見回り用に「古い順」も残す -->
+        <div class="seg adm-mode" id="adm-mode" role="group" aria-label="ブースの並べ方">
+          <button type="button" data-m="dept" aria-pressed="true">科・場所ごと</button>
+          <button type="button" data-m="flat" aria-pressed="false">更新が古い順（全部）</button>
+        </div>
         <div id="admin-list" style="display:flex;flex-direction:column;gap:9px"></div>
       </div>
 
@@ -2725,7 +2756,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-02b',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-02c',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3343,6 +3374,9 @@ const S = {
   stamps: new Set(),
   spent: [],               // お菓子と交換して消費したブースid（取った順に消える）
   assigned: new Set(),
+  admOpen: new Set(),   // 係員画面で開いている科・場所のまとめ（v146）
+  admMode: 'dept',      // 係員画面の並べ方：dept＝科・場所ごと／flat＝更新が古い順
+  assignGrp: null,      // 担当ブースえらびで開いている科・場所
   edit: false,          // 係員の「地図で割り当て」モード
   picking: false,       // 現在地を地図でえらんでいる最中
   editId: null,         // いま開いている部屋
@@ -8619,6 +8653,35 @@ function renderAlert(){
 /* =====================================================================
    まとめて再描画
    ===================================================================== */
+/**
+ * 【v146】タブを初めて開くときの「配置の計算」が遅い端末で 0.7〜1 秒かかっていた
+ * （日本語の字の形の準備など。2回目からは数十ms）。地図を見ている間の空き時間に、
+ * 見えないまま一度だけ配置しておく。1回に1画面ずつ、空き時間にだけ行う
+ */
+function prewarmViews(){
+  if (prewarmViews._done) return;
+  prewarmViews._done = true;
+  const ric = window.requestIdleCallback || ((f) => setTimeout(() => f({ timeRemaining: () => 50 }), 400));
+  const queue = ['v-stamp', 'v-list', 'v-info'];
+  const step = () => {
+    const id = queue.shift();
+    if (!id) return;
+    const el = document.getElementById(id);
+    if (el && !el.classList.contains('on') && !S.sheetId && NAV_VIEWS.indexOf(S.view) >= 0){
+      try{
+        if (id === 'v-list') renderList();
+        const main = document.querySelector('main');
+        el.style.cssText = 'display:flex;position:absolute;left:0;top:0;width:' + (main ? main.clientWidth : innerWidth)
+                         + 'px;visibility:hidden;pointer-events:none';
+        void el.offsetHeight;
+      }catch(e){}
+      el.style.cssText = '';
+    }
+    ric(step, { timeout: 5000 });
+  };
+  ric(step, { timeout: 5000 });
+}
+
 function renderAll(){
   markChanges();
   const hadBooths = renderAll._had;
@@ -8640,7 +8703,10 @@ function renderAll(){
   // どの階に何があるのか分からないままだった
   renderFloorCounts();
   // 見えていない一覧は作らない（150件で毎回0.4秒かかっていた）。一覧に切り替えたときに描く
-  if (S.view === 'list') renderList(); else renderList._fp = null;
+  // 【v146】見えていないときに指紋を捨てるのをやめた。指紋は中身（ブースの状態）から作るので、
+  // 変わっていなければ一覧に切り替えたときも作り直さない（作り直すと遅い端末で配置の計算に約1秒かかる）
+  if (S.view === 'list') renderList();
+  if (S.booths.length && NAV_VIEWS.indexOf(S.view) >= 0) prewarmViews();
   renderRouteChips();
   renderRouteSteps();
   renderStamps();
@@ -8689,8 +8755,29 @@ function scrollListTop(){
   const top = box.getBoundingClientRect().top + window.scrollY - 120;
   window.scrollTo({ top: Math.max(0, top), behavior: smoothBehavior() });
 }
+/**
+ * 【v146】列ごとに「幅を読む→印を付ける」を繰り返すと、付けるたびに次の列で配置の計算が
+ * やり直しになっていた（遅い端末で起動時に約0.6秒）。次のこまでまとめて、先に全部読んでから全部書く。
+ * 隠れている列（別のタブ）は読まない
+ */
 function refreshScrollEdges(){
-  $$('.chips, .dept-legend').forEach(markScrollEdges);
+  if (refreshScrollEdges._q) return;
+  refreshScrollEdges._q = requestAnimationFrame(() => {
+    refreshScrollEdges._q = 0;
+    const els = $$('.chips, .dept-legend');
+    els.forEach(el => {
+      if (el._edgeBound) return;
+      el._edgeBound = true;
+      el.addEventListener('scroll', () => markScrollEdges(el), { passive:true });
+    });
+    const st = els.map(el => el.getClientRects().length
+      ? [el.scrollWidth - el.clientWidth - el.scrollLeft > 4, el.scrollLeft > 4] : null);
+    els.forEach((el, i) => {
+      if (!st[i]) return;
+      el.classList.toggle('has-more', st[i][0]);
+      el.classList.toggle('has-prev', st[i][1]);
+    });
+  });
 }
 /**
  * 見出しは position:sticky で画面の上に貼りついている。
@@ -8902,6 +8989,31 @@ async function login(){
  * 40ブースあると折り返しで600pxを超え、当日いちばん使う更新カードが
  * そのぶん毎回下へ押し下げられる。選び終わっていれば1行に畳む。
  */
+/**
+ * 係員画面でブースをまとめる単位。出し物の科（シートの dept 列）→ 部屋のある棟 → 階、の順に決める。
+ * 順番は DEPTS の並び（科 → 教室棟 → 本館）、そのあと屋外・その他
+ */
+function admGroupOf(b){
+  const sl = slotOf(b.id);
+  const d = boothDept(b) || (sl && sl.z ? DEPT_BY_ZONE[sl.z] : null);
+  if (d){
+    const i = DEPTS.indexOf(d);
+    return { k: 'd:' + d.s, label: d.s, c: d.c, order: i >= 0 ? i : 50 };
+  }
+  const fl = flLabel(b);
+  return { k: 'f:' + fl, label: fl === '屋外' ? '屋外・体育館など' : fl + '（そのほか）', c: '', order: 100 + (floorOfBooth(b) || 0) };
+}
+/** ブースの並びを、まとめ（グループ）の並びに分ける */
+function admGroups(list){
+  const map = new Map();
+  list.forEach(b => {
+    const g = admGroupOf(b);
+    if (!map.has(g.k)) map.set(g.k, { ...g, items: [] });
+    map.get(g.k).items.push(b);
+  });
+  return Array.from(map.values()).sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, 'ja'));
+}
+
 function renderAssign(){
   renderAssign._n = S.booths.length;
   const box = $('#assign-chips');
@@ -8922,18 +9034,44 @@ function renderAssign(){
       `<span class="as-now">担当：<b>${picked.map(b => esc(b.name)).join('・')}</b></span>` +
       `<button class="chip" data-as="__open">変える</button>`;
   } else {
+    const chip = b => {
+      // 場所も出す。名前が似ていると、担当でないブースを選んでしまう
+      const r = roomLabel(b);
+      return `<button class="chip as-chip" data-as="${esc(b.id)}" aria-pressed="${S.assigned.has(b.id)}"
+        >${esc(b.name)}<small>${esc(flLabel(b))}${r ? '・' + esc(r) : ''}</small></button>`;
+    };
+    let body;
+    if (q){
+      // 検索しているときは、当たったブースをそのまま並べる
+      body = S.booths.filter(b => hit(b) || S.assigned.has(b.id)).map(chip).join('');
+    } else {
+      // 【v146】46ブースを1列に並べると探せない。まず科・場所を出し、押すとそのブースが開く
+      body = picked.map(chip).join('') + admGroups(S.booths).map(g => {
+        const n = g.items.filter(b => S.assigned.has(b.id)).length;
+        const open = S.assignGrp === g.k;
+        return `<button class="chip as-grp" data-asg="${esc(g.k)}" aria-expanded="${open}" style="--g:${esc(g.c || '')}"
+            ><i aria-hidden="true"></i>${esc(g.label)} <b>${g.items.length}${n ? `・${n}選択中` : ''}</b></button>` +
+          (open ? `<div class="as-sub">${g.items.length > 1
+              ? `<button class="chip" data-asall="${esc(g.k)}">この${g.k.startsWith('d:') ? '科・棟' : '場所'}をぜんぶ</button>` : ''}${
+              g.items.filter(b => !S.assigned.has(b.id)).map(chip).join('') || '<small style="color:var(--text-mute);font-weight:700">ぜんぶ選んであります</small>'}</div>` : '');
+      }).join('');
+    }
     box.innerHTML =
-      `<button class="chip" data-as="__all" aria-pressed="${S.assigned.size === 0}">すべて表示</button>` +
-      picked.concat(S.booths.filter(b => !S.assigned.has(b.id))).map(b => {
-        // 場所も出す。名前が似ていると、担当でないブースを選んでしまう
-        const r = roomLabel(b);
-        const hide = !hit(b) && !S.assigned.has(b.id);
-        return `<button class="chip as-chip" data-as="${esc(b.id)}" aria-pressed="${S.assigned.has(b.id)}"${hide ? ' hidden' : ''}
-          >${esc(b.name)}<small>${esc(flLabel(b))}${r ? '・' + esc(r) : ''}</small></button>`;
-      }).join('') +
+      `<button class="chip" data-as="__all" aria-pressed="${S.assigned.size === 0}">すべて表示</button>` + body +
       (picked.length ? `<button class="chip" data-as="__done">えらび終わった</button>` : '');
+    $$('#assign-chips [data-asg]').forEach(el => el.addEventListener('click', () => {
+      S.assignGrp = S.assignGrp === el.dataset.asg ? null : el.dataset.asg;
+      renderAssign();
+    }));
+    $$('#assign-chips [data-asall]').forEach(el => el.addEventListener('click', () => {
+      const g = admGroups(S.booths).find(x => x.k === el.dataset.asall);
+      if (g) g.items.forEach(b => S.assigned.add(b.id));
+      S.assignOpen = true;            // ほかの科も受け持つ人がいるので、「えらび終わった」まで開いたまま
+      store('kuroko_assigned_v2', Array.from(S.assigned));
+      renderAssign(); renderAdmin();
+    }));
   }
-  $$('#assign-chips .chip').forEach(el => el.addEventListener('click', () => {
+  $$('#assign-chips .chip[data-as]').forEach(el => el.addEventListener('click', () => {
     const v = el.dataset.as;
     if (v === '__open'){ S.assignOpen = true; renderAssign(); return; }
     if (v === '__done'){ S.assignOpen = false; renderAssign(); return; }
@@ -9190,12 +9328,51 @@ function renderAdmin(){
 
   // 表示対象外になったカードを取り除く
   const keep = new Set(list.map(b => b.id));
-  Array.from(container.children).forEach(c => { if (!keep.has(c.dataset.id)) c.remove(); });
-  // 並び順を反映（DOMを作り直さないのでフォーカスや押下状態は保たれる）
-  list.forEach(b => {
-    const c = container.querySelector(`.adm-booth[data-id="${CSS.escape(b.id)}"]`);
-    if (c) container.appendChild(c);
+  $$('.adm-booth', container).forEach(c => { if (!keep.has(c.dataset.id)) c.remove(); });
+  const cardOf = b => container.querySelector(`.adm-booth[data-id="${CSS.escape(b.id)}"]`);
+  // 【v146】科・場所ごとにまとめる。担当を数件に絞っている人・「古い順」を選んだ人は、まとめずに並べる
+  const grouped = S.admMode !== 'flat' && list.length > 6;
+  const mode = $('#adm-mode');
+  if (mode){
+    mode.classList.toggle('hide', list.length <= 6);
+    $$('button', mode).forEach(el => el.setAttribute('aria-pressed', String(el.dataset.m === (S.admMode === 'flat' ? 'flat' : 'dept'))));
+  }
+  if (!grouped){
+    // 並び順を反映（DOMを作り直さないのでフォーカスや押下状態は保たれる）
+    list.forEach(b => { const c = cardOf(b); if (c) container.appendChild(c); });
+    $$('.adm-grp', container).forEach(g => g.remove());
+    return;
+  }
+  const groups = admGroups(list);
+  const live = new Set();
+  groups.forEach(g => {
+    live.add(g.k);
+    let det = container.querySelector(`.adm-grp[data-g="${CSS.escape(g.k)}"]`);
+    if (!det){
+      det = document.createElement('details');
+      det.className = 'adm-grp';
+      det.dataset.g = g.k;
+      det.innerHTML = '<summary><span class="g-dot" aria-hidden="true"></span><span class="g-nm"></span><span class="g-n"></span><span class="g-b"></span></summary><div class="adm-grp-body"></div>';
+      // 開いた・閉じたを覚えておく（自動同期で閉じない・次に開いても同じ）
+      if (S.admOpen.has(g.k)) det.open = true;
+      det.addEventListener('toggle', () => {
+        det.open ? S.admOpen.add(g.k) : S.admOpen.delete(g.k);
+        store('kuroko_adm_open', Array.from(S.admOpen));
+      });
+    }
+    det.style.setProperty('--g', g.c || '');
+    det.querySelector('.g-nm').textContent = g.label;
+    det.querySelector('.g-n').textContent = g.items.length + '件';
+    const late = g.items.filter(b => elapsedMin(b) >= CONFIG.ADMIN_WARN_MIN).length;
+    const busyN = g.items.filter(b => lvOf(b).lv === 2).length;
+    const badge = det.querySelector('.g-b');
+    badge.className = 'g-b ' + (late ? 'warn' : busyN ? 'busy' : 'ok');
+    badge.textContent = late ? `未更新${late}${busyN ? `・混雑${busyN}` : ''}` : busyN ? `混雑${busyN}` : '更新OK';
+    container.appendChild(det);
+    const body = det.querySelector('.adm-grp-body');
+    g.items.forEach(b => { const c = cardOf(b); if (c) body.appendChild(c); });
   });
+  $$('.adm-grp', container).forEach(d => { if (!live.has(d.dataset.g)) d.remove(); });
 }
 
 function bindAdminCard(card){
@@ -10747,6 +10924,13 @@ function init(){
   // 交換済みの印は、スタンプ側が消えても残す（消すと、同じQRを読み直して二重に交換できてしまう）
   S.spent    = Array.from(new Set(load('kuroko_spent_v1', []) || []));
   S.assigned = new Set(load('kuroko_assigned_v2', []));
+  S.admOpen = new Set(load('kuroko_adm_open', []));
+  S.admMode = load('kuroko_adm_mode', 'dept') === 'flat' ? 'flat' : 'dept';
+  $$('#adm-mode button').forEach(el => el.addEventListener('click', () => {
+    S.admMode = el.dataset.m === 'flat' ? 'flat' : 'dept';
+    store('kuroko_adm_mode', S.admMode);
+    renderAdmin();
+  }));
   loadUnsent();
   // カードの見出しを読み上げの「見出し」として扱う（見出しジャンプで画面内を移動できるように）
   $$('.card-t').forEach(el => { el.setAttribute('role', 'heading'); el.setAttribute('aria-level', '2'); });
@@ -11240,7 +11424,6 @@ function setFloor(n){
  * 逆に縦を埋めようとして左右が切れたりする。
  */
 function fitMapBox(floorNum){
-  mapScale._w = 0;                         // 地図の箱を測り直す場面では幅も測り直す
   const view = $('#map-view'), svg = $('#plan-' + floorNum);
   if (!view || !svg) return;
   // 画面が低いとき（横向き）は地図も低くする。270px 固定だと下が切れる
@@ -11252,6 +11435,9 @@ function fitMapBox(floorNum){
   const key = floorNum + '|' + vb + '|' + window.innerWidth
             + 'x' + Math.round(window.innerHeight / 100);
   if (fitMapBox._key === key && view.style.height){ if (!ZOOM.mNat) zoomMeasure(); zoomApply(false); return; }
+  // 地図の箱を測り直す場面では幅も測り直す。【v146】以前は上の「変わっていない」ときにも
+  // 覚えた幅を捨てていたため、そのたびに次の mapScale() が画面全体の配置の計算をやり直していた
+  mapScale._w = 0;
 
   // 「画面の何割」ではなく「実際に空いている高さ」から決める。
   // 割合で決めると、上のバナーが増えた分だけ地図が下のタブに隠れる。
