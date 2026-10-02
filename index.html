@@ -1201,6 +1201,9 @@ text.util:not([font-size]){font-size:7.5px}
 .scan.hide{display:none}
 .scan-top{display:flex;align-items:center;justify-content:space-between;gap:10px;
   padding:calc(env(safe-area-inset-top,0px) + 8px) 12px 8px 16px;font-size:16px}
+.scan-torch{margin-left:auto;min-height:44px;padding:0 16px;border-radius:999px;background:rgba(255,255,255,.14);
+  color:#fff;font-weight:800;font-size:13px;cursor:pointer}
+.scan-torch[aria-pressed="true"]{background:#fff;color:#111}
 .scan-x{min-width:48px;min-height:48px;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:18px;cursor:pointer}
 .scan-stage{position:relative;flex:1;min-height:0;overflow:hidden}
 .scan-stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -2703,6 +2706,7 @@ html.sheet-open{overflow:hidden}
 <div class="scan hide" id="scan" role="dialog" aria-modal="true" aria-labelledby="scan-ttl">
   <div class="scan-top">
     <b id="scan-ttl">QRを読む</b>
+    <button class="scan-torch hide" id="scan-torch" type="button" aria-pressed="false">ライト</button>
     <button class="scan-x" id="scan-close" aria-label="閉じる">✕</button>
   </div>
   <div class="scan-stage" id="scan-stage">
@@ -2721,7 +2725,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-02a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-02b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5513,7 +5517,24 @@ function renderSheet(){
    標準のカメラで読む方法を案内する（外部ライブラリは持ち込まない：RULES.md §3）
    ===================================================================== */
 const ICON_QR = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8" y="8" width="3" height="3"/><rect x="13" y="8" width="3" height="3"/><rect x="8" y="13" width="3" height="3"/><path d="M13 13h3v3"/></svg>`;
-const SCAN = { stream:null, timer:0, det:null, last:'', lastAt:0 };
+const SCAN = { stream:null, timer:0, tip:0, det:null, last:'', lastAt:0, mode:'native', cv:null };
+
+/**
+ * 自前の読み取り（QR.scanImageData）で1こま読む。BarcodeDetector の無い端末（iPhone の Safari など）用。
+ * こまは長い辺 640px に縮めて読む（それ以上大きくしても読める距離はほとんど変わらず、遅くなるだけ）
+ */
+function jsDetect(v){
+  const vw = v.videoWidth, vh = v.videoHeight;
+  if (!vw || !vh) return [];
+  const k = Math.min(1, 640 / Math.max(vw, vh));
+  const w = Math.round(vw * k), h = Math.round(vh * k);
+  const cv = SCAN.cv || (SCAN.cv = document.createElement('canvas'));
+  if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+  const ctx = cv.getContext('2d', { willReadFrequently:true });
+  ctx.drawImage(v, 0, 0, w, h);
+  const txt = QR.scanImageData(ctx.getImageData(0, 0, w, h));
+  return txt ? [{ rawValue: txt }] : [];
+}
 
 /** 読み取った文字列が黒工祭のブースQR（?booth=…&qr=1&k=…）なら、この画面の場所に直したURLを返す */
 function stampUrlFrom(raw){
@@ -5535,21 +5556,33 @@ async function openScanner(){
   document.documentElement.classList.add('sheet-open');
   help.textContent = 'ブース入口のQRコードを、白い枠の中に入れてください';
   setTimeout(() => { const x = $('#scan-close'); x && x.focus({ preventScroll:true }); }, 60);
-  let ok = false;
+  // カメラが使えない（古い端末・http で開いた等）ときだけ、標準カメラの案内に回す
+  if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){ scanFallback(''); return; }
+  // 端末に QR を読む機能（BarcodeDetector）があればそれを使い、無ければ自前で読む（v145）
+  SCAN.mode = 'js';
   try{
-    if ('BarcodeDetector' in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+    if ('BarcodeDetector' in window){
       const fm = await window.BarcodeDetector.getSupportedFormats().catch(() => []);
-      if (fm.indexOf('qr_code') >= 0) ok = true;
+      if (fm.indexOf('qr_code') >= 0){ SCAN.mode = 'native'; SCAN.det = SCAN.det || new window.BarcodeDetector({ formats:['qr_code'] }); }
     }
-  }catch(e){}
-  if (!ok){ scanFallback(''); return; }
+  }catch(e){ SCAN.mode = 'js'; }
   try{
-    SCAN.det = SCAN.det || new window.BarcodeDetector({ formats:['qr_code'] });
     SCAN.stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:'environment' } }, audio:false });
     if (box.classList.contains('hide')){ stopScanner(); return; }      // 許可を待つあいだに閉じられた
     const v = $('#scan-video');
     v.srcObject = SCAN.stream;
     await v.play().catch(() => {});
+    // 暗い教室用のライト。使える端末（主に Android）だけボタンを出す
+    try{
+      const tr = SCAN.stream.getVideoTracks()[0];
+      const cap = tr && tr.getCapabilities ? tr.getCapabilities() : {};
+      $('#scan-torch').classList.toggle('hide', !cap.torch);
+    }catch(e){ $('#scan-torch').classList.add('hide'); }
+    // しばらく読めないときのこつ（ピンぼけ・遠すぎ・明るすぎが多い）
+    clearTimeout(SCAN.tip);
+    SCAN.tip = setTimeout(() => {
+      if (SCAN.stream) $('#scan-help').textContent = '読めないときは：QRに15〜25cmまで近づけて、ピントが合うまで少し止めてください。光が反射するときは少し斜めから';
+    }, 8000);
     scanLoop();
   }catch(e){
     const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
@@ -5561,9 +5594,11 @@ function scanLoop(){
   clearTimeout(SCAN.timer);
   const v = $('#scan-video');
   if (!SCAN.stream || $('#scan').classList.contains('hide')) return;
-  const next = () => { SCAN.timer = setTimeout(scanLoop, 220); };
+  // 自前の読み取りは1こま10〜70ms。続けて回すと電池と熱がもったいないので少し間を空ける
+  const next = () => { SCAN.timer = setTimeout(scanLoop, SCAN.mode === 'native' ? 220 : 120); };
   if (v.readyState < 2){ next(); return; }
-  SCAN.det.detect(v).then(codes => {
+  const detect = SCAN.mode === 'native' ? SCAN.det.detect(v) : new Promise(res => res(jsDetect(v)));
+  detect.then(codes => {
     const raw = codes && codes[0] && codes[0].rawValue;
     if (!raw){ next(); return; }
     const url = stampUrlFrom(raw);
@@ -5588,11 +5623,14 @@ function scanFallback(why){
   const box = $('#scan');
   box.classList.add('no-cam');
   const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  $('#scan-help').innerHTML = `${why ? `<p>${esc(why)}</p>` : '<p>この端末では、画面の中でQRを読めません。</p>'}
+  $('#scan-help').innerHTML = `${why ? `<p>${esc(why)}</p>` : '<p>この端末では、画面の中でカメラを使えません。</p>'}
     <p style="margin-top:8px">スマホの<b>カメラ</b>でQRを読んでください：</p>
     <ol>${ios
       ? '<li>このあとホーム画面の<b>カメラ</b>アプリを開く</li><li>ブース入口のQRに向ける</li><li>出てきた黄色い表示をタップ（Safari で開いてスタンプが付きます）</li>'
       : '<li><b>カメラ</b>アプリ（または Google レンズ）を開く</li><li>ブース入口のQRに向ける</li><li>出てきたリンクをタップ（いつものブラウザで開いてスタンプが付きます）</li>'}</ol>
+    ${why && /許可/.test(why) ? `<p style="margin-top:8px;font-size:12.5px">カメラを許可するには：${ios
+      ? 'アドレスバーの「ぁあ」→「Webサイトの設定」→「カメラ」を「許可」にして、もう一度ボタンを押してください。'
+      : 'アドレスバーの左の印（鍵など）→「権限」→「カメラ」を許可にして、もう一度ボタンを押してください。'}</p>` : ''}
     <button type="button" id="scan-ok">わかった</button>`;
   const okb = $('#scan-ok');
   if (okb){ okb.addEventListener('click', () => closeScanner()); setTimeout(() => okb.focus({ preventScroll:true }), 60); }
@@ -5600,6 +5638,9 @@ function scanFallback(why){
 
 function stopScanner(){
   clearTimeout(SCAN.timer);
+  clearTimeout(SCAN.tip);
+  const tb = $('#scan-torch');
+  if (tb){ tb.classList.add('hide'); tb.setAttribute('aria-pressed', 'false'); }
   if (SCAN.stream){ SCAN.stream.getTracks().forEach(t => { try{ t.stop(); }catch(e){} }); SCAN.stream = null; }
   const v = $('#scan-video');
   if (v) v.srcObject = null;
@@ -5612,6 +5653,14 @@ function closeScanner(){
 // 見出し・スタンプのカードのボタン（シートのボタンは開くたびに作るので renderSheet で付ける）
 document.addEventListener('click', e => {
   if (e.target.closest && e.target.closest('#scan-close')){ closeScanner(); return; }
+  if (e.target.closest && e.target.closest('#scan-torch')){
+    const tb = $('#scan-torch'), on = tb.getAttribute('aria-pressed') !== 'true';
+    const tr = SCAN.stream && SCAN.stream.getVideoTracks()[0];
+    if (tr) tr.applyConstraints({ advanced:[{ torch:on }] })
+      .then(() => tb.setAttribute('aria-pressed', String(on)))
+      .catch(() => { tb.classList.add('hide'); toast('この端末ではライトを使えません'); });
+    return;
+  }
   const b = e.target.closest && e.target.closest('[data-scan]');
   if (!b || b.closest('#bsh-body')) return;
   openScanner();
@@ -9688,7 +9737,397 @@ const QR = (() => {
     }
   }
 
-  return { encode, svg, svgSafe };
+
+  /* -------------------------------------------------------------------
+     読み取り（v145）。iPhone の Safari などブラウザに QR を読む機能
+     （BarcodeDetector）が無い端末でも、カメラの映像から読めるようにする。
+     外部ライブラリは使わない（RULES.md §3）。読む対象は自前で刷った QR
+     （バイトモード・誤り訂正 M・版1〜10）に絞り、そのぶん小さく保つ。
+     ------------------------------------------------------------------- */
+  const div = (a, b) => a === 0 ? 0 : EXP[(LOG[a] + 255 - LOG[b]) % 255];
+  /** 多項式（係数は低い次数から）に x を代入 */
+  const polyEval = (pl, x) => { let y = 0; for (let i = pl.length - 1; i >= 0; i--) y = mul(y, x) ^ pl[i]; return y; };
+
+  /**
+   * リード・ソロモン符号の誤り訂正。cw は先頭が最高次。直せたら直した配列、直せなければ null。
+   * 刷った紙のよごれ・ピンぼけで数バイト読み違えても、ここで直してから中身を読む
+   */
+  function rsCorrect(cw, nsym){
+    const N = cw.length;
+    const S = [];
+    let bad = false;
+    for (let i = 0; i < nsym; i++){
+      let v = 0;
+      for (let j = 0; j < N; j++) v = mul(v, EXP[i]) ^ cw[j];      // ホーナー法：C(α^i)
+      S.push(v); if (v) bad = true;
+    }
+    if (!bad) return cw.slice();
+    // バーレカンプ・マッシー法で誤り位置多項式 Λ を求める
+    let C = [1], B = [1], L = 0, m = 1, b = 1;
+    for (let n = 0; n < nsym; n++){
+      let d = S[n];
+      for (let i = 1; i <= L; i++) d ^= mul(C[i] || 0, S[n - i]);
+      if (d === 0){ m++; continue; }
+      const coef = div(d, b);
+      const T = C.slice();
+      const need = B.length + m;
+      while (C.length < need) C.push(0);
+      for (let i = 0; i < B.length; i++) C[i + m] ^= mul(coef, B[i]);
+      if (2 * L <= n){ L = n + 1 - L; B = T; b = d; m = 1; } else m++;
+    }
+    if (L * 2 > nsym) return null;
+    // チェン探索：Λ(α^-deg) = 0 となる次数が誤りの場所
+    const errDeg = [];
+    for (let deg = 0; deg < N; deg++) if (polyEval(C, EXP[(255 - deg) % 255]) === 0) errDeg.push(deg);
+    if (errDeg.length !== L) return null;
+    // フォーニーの式で誤りの大きさを求める（最初の根は α^0）
+    const Om = new Array(nsym).fill(0);
+    for (let i = 0; i < nsym; i++) for (let j = 0; j <= i && j < C.length; j++) Om[i] ^= mul(S[i - j], C[j]);
+    const dC = [];
+    for (let i = 1; i < C.length; i++) dC.push(i % 2 ? C[i] : 0);
+    const out = cw.slice();
+    for (const deg of errDeg){
+      const X = EXP[deg % 255], Xi = EXP[(255 - deg) % 255];
+      const den = polyEval(dC, Xi);
+      if (!den) return null;
+      const e = mul(X, div(polyEval(Om, Xi), den));
+      out[N - 1 - deg] ^= e;
+    }
+    return out;
+  }
+
+  /** フォーマット情報（15ビット）から模様（mask）を決める。誤り訂正 M のものだけ読む */
+  function readMask(get, size){
+    const P = [[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[7,8],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8]];
+    const Q = [];
+    for (let i = 0; i < 7; i++) Q.push([size - 1 - i, 8]);
+    for (let i = 7; i < 15; i++) Q.push([8, size - 15 + i]);
+    let a = 0, b = 0;
+    for (let k = 0; k < 15; k++){ a = (a << 1) | get(P[k][0], P[k][1]); b = (b << 1) | get(Q[k][0], Q[k][1]); }
+    const pop = x => { let n = 0; while (x){ n += x & 1; x >>= 1; } return n; };
+    let best = -1, bd = 99;
+    for (let mask = 0; mask < 8; mask++){
+      const f = fmtBits(mask);
+      const d = Math.min(pop(a ^ f), pop(b ^ f));
+      if (d < bd){ bd = d; best = mask; }
+    }
+    return bd <= 3 ? best : -1;
+  }
+
+  /** モジュールの並び（get(r,c) → 0/1）から文字列を取り出す。読めなければ null */
+  function decodeGrid(get, size){
+    const v = (size - 17) / 4;
+    if (!ECC_M[v]) return null;
+    const mask = readMask(get, size);
+    if (mask < 0) return null;
+    const { fn } = newMatrix(v);
+    const [ecLen, groups] = ECC_M[v];
+    const blocks = [];
+    groups.forEach(([n, d]) => { for (let i = 0; i < n; i++) blocks.push({ d, data: [], ec: [] }); });
+    const total = blocks.reduce((t, k) => t + k.d + ecLen, 0);
+    const cw = [];
+    let cur = 0, nb = 0, up = true;
+    for (let c = size - 1; c > 0 && cw.length < total; c -= 2){
+      if (c === 6) c--;
+      for (let i = 0; i < size && cw.length < total; i++){
+        const r = up ? size - 1 - i : i;
+        for (const cc of [c, c - 1]){
+          if (fn[r][cc]) continue;
+          cur = (cur << 1) | (get(r, cc) ^ (MASKS[mask](r, cc) ? 1 : 0));
+          if (++nb === 8){ cw.push(cur); cur = 0; nb = 0; if (cw.length >= total) break; }
+        }
+      }
+      up = !up;
+    }
+    if (cw.length < total) return null;
+    // インターリーブを戻す
+    let p = 0;
+    const maxD = Math.max(...blocks.map(k => k.d));
+    for (let i = 0; i < maxD; i++) blocks.forEach(k => { if (i < k.d) k.data.push(cw[p++]); });
+    for (let i = 0; i < ecLen; i++) blocks.forEach(k => k.ec.push(cw[p++]));
+    const data = [];
+    for (const k of blocks){
+      const fixed = rsCorrect(k.data.concat(k.ec), ecLen);
+      if (!fixed) return null;
+      for (let i = 0; i < k.d; i++) data.push(fixed[i]);
+    }
+    // バイトモードの中身を読む
+    let bit = 0;
+    const take = n => { let x = 0; for (let i = 0; i < n; i++){ x = (x << 1) | ((data[bit >> 3] >> (7 - (bit & 7))) & 1); bit++; } return x; };
+    if (take(4) !== 0b0100) return null;
+    const len = take(v >= 10 ? 16 : 8);
+    if ((len + 3) > data.length) return null;
+    const bytes = [];
+    for (let i = 0; i < len; i++) bytes.push(take(8));
+    try{ return decodeURIComponent(escape(String.fromCharCode(...bytes))); }catch(e){ return null; }
+  }
+
+  /** 白黒にする（近くの明るさの平均と比べる。照明のむら・影に強い） */
+  function binarize(gray, w, h){
+    const I = new Uint32Array((w + 1) * (h + 1));
+    for (let y = 0; y < h; y++){
+      let row = 0;
+      for (let x = 0; x < w; x++){ row += gray[y * w + x]; I[(y + 1) * (w + 1) + x + 1] = I[y * (w + 1) + x + 1] + row; }
+    }
+    const r = Math.max(8, Math.round(Math.min(w, h) / 16));
+    const bin = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++){
+      const y0 = Math.max(0, y - r), y1 = Math.min(h, y + r + 1);
+      for (let x = 0; x < w; x++){
+        const x0 = Math.max(0, x - r), x1 = Math.min(w, x + r + 1);
+        const sum = I[y1 * (w + 1) + x1] - I[y0 * (w + 1) + x1] - I[y1 * (w + 1) + x0] + I[y0 * (w + 1) + x0];
+        const mean = sum / ((x1 - x0) * (y1 - y0));
+        bin[y * w + x] = gray[y * w + x] < mean * 0.88 ? 1 : 0;
+      }
+    }
+    return bin;
+  }
+
+  /** 1:1:3:1:1（黒白黒白黒）の並びか */
+  function finderRatio(c){
+    const tot = c[0] + c[1] + c[2] + c[3] + c[4];
+    if (tot < 7) return 0;
+    const m = tot / 7, v = m * 0.7;
+    return (Math.abs(c[0] - m) < v && Math.abs(c[1] - m) < v && Math.abs(c[2] - 3 * m) < 3 * v &&
+            Math.abs(c[3] - m) < v && Math.abs(c[4] - m) < v) ? m : 0;
+  }
+  /** (x,y) を通る縦（dx=0,dy=1）か横の線で 1:1:3:1:1 を確かめ、中心を返す */
+  function crossCheck(bin, w, h, x, y, dx, dy, maxRun){
+    const at = (i) => { const xx = Math.round(x + dx * i), yy = Math.round(y + dy * i);
+      return (xx < 0 || yy < 0 || xx >= w || yy >= h) ? -1 : bin[yy * w + xx]; };
+    if (at(0) !== 1) return null;
+    const c = [0, 0, 0, 0, 0];
+    let i = 0;
+    while (at(i) === 1 && c[2] <= maxRun){ c[2]++; i--; }
+    while (at(i) === 0 && c[1] <= maxRun){ c[1]++; i--; }
+    while (at(i) === 1 && c[0] <= maxRun){ c[0]++; i--; }
+    const start = i + 1;
+    i = 1;
+    while (at(i) === 1 && c[2] <= maxRun * 3){ c[2]++; i++; }
+    while (at(i) === 0 && c[3] <= maxRun){ c[3]++; i++; }
+    while (at(i) === 1 && c[4] <= maxRun){ c[4]++; i++; }
+    const m = finderRatio(c);
+    if (!m) return null;
+    const center = start + c[0] + c[1] + c[2] / 2;
+    return { pos: center, m };
+  }
+
+  /** ファインダ（四隅の大きな□）を探す。横に1:1:3:1:1を見つけたら、縦・横でもう一度確かめて中心を出す */
+  function findFinders(bin, w, h){
+    const found = [];
+    const check = (c, x, y) => {
+      const m = finderRatio(c);
+      if (!m) return;
+      const cx = x - c[4] - c[3] - c[2] / 2;
+      const vy = crossCheck(bin, w, h, cx, y, 0, 1, c[2] * 2);
+      if (!vy) return;
+      const hy = y + vy.pos;
+      const hx = crossCheck(bin, w, h, cx, hy, 1, 0, c[2] * 2);
+      if (!hx) return;
+      const fx = cx + hx.pos, fy = hy, fm = (m + vy.m + hx.m) / 3;
+      // まとめるのは 1.5 モジュール以内だけ。広くとると、近くの紛らわしい模様に中心が引っぱられて格子がずれた
+      const near = found.find(f => Math.abs(f.x - fx) < fm * 1.5 && Math.abs(f.y - fy) < fm * 1.5);
+      if (near){
+        near.x = (near.x * near.n + fx) / (near.n + 1); near.y = (near.y * near.n + fy) / (near.n + 1);
+        near.m = (near.m * near.n + fm) / (near.n + 1); near.n++;
+      } else found.push({ x: fx, y: fy, m: fm, n: 1 });
+    };
+    for (let y = 0; y < h; y += 2){
+      const c = [0, 0, 0, 0, 0];
+      let st = 0;
+      for (let x = 0; x < w; x++){
+        if (bin[y * w + x] === 1){            // 黒
+          if (st & 1) st++;
+          c[st]++;
+        } else if (st & 1){                   // 白を数えている途中
+          c[st]++;
+        } else if (st === 4){                 // 黒白黒白黒がそろった
+          check(c, x, y);
+          c[0] = c[2]; c[1] = c[3]; c[2] = c[4]; c[3] = 1; c[4] = 0; st = 3;
+        } else {
+          st++; c[st]++;
+        }
+      }
+      if (st === 4) check(c, w, y);
+    }
+    return found.filter(f => f.n >= 2);
+  }
+
+  /** 3つのファインダの組み合わせを、直角二等辺に近い順に選ぶ */
+  function pickThree(fs){
+    const cands = [];
+    const list = fs.slice().sort((a, b) => b.n - a.n).slice(0, 8);
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) for (let k = j + 1; k < list.length; k++){
+      const P = [list[i], list[j], list[k]];
+      const ms = P.map(q => q.m);
+      if (Math.max(...ms) > Math.min(...ms) * 1.6) continue;
+      const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+      const sides = [[d(P[1], P[2]), 0], [d(P[0], P[2]), 1], [d(P[0], P[1]), 2]].sort((a, b) => b[0] - a[0]);
+      const [hyp, legA, legB] = sides;
+      const tl = P[hyp[1]];
+      const err = Math.abs(legA[0] - legB[0]) / legA[0] + Math.abs(hyp[0] - Math.hypot(legA[0], legB[0])) / hyp[0];
+      if (err > 0.35) continue;
+      const o = P.filter(q => q !== tl);
+      const cross = (o[0].x - tl.x) * (o[1].y - tl.y) - (o[0].y - tl.y) * (o[1].x - tl.x);
+      cands.push({ err, tl, tr: cross > 0 ? o[0] : o[1], bl: cross > 0 ? o[1] : o[0] });
+    }
+    return cands.sort((a, b) => a.err - b.err).slice(0, 4);
+  }
+
+  /** ファインダの中心を、縦・横に測り直して正確にする */
+  function refine(bin, w, h, f){
+    let x = f.x, y = f.y, m = f.m;
+    for (let k = 0; k < 2; k++){
+      const vy = crossCheck(bin, w, h, x, y, 0, 1, m * 6);
+      if (!vy) break;
+      y = y + vy.pos;
+      const hx = crossCheck(bin, w, h, x, y, 1, 0, m * 6);
+      if (!hx) break;
+      x = x + hx.pos; m = (vy.m + hx.m) / 2;
+    }
+    return { x, y, m, n: f.n };
+  }
+
+  /** 4点の対応から射影変換（モジュールの座標 → 画像の座標）を作る */
+  function homography(src, dst){
+    const A = [], B = [];
+    for (let i = 0; i < 4; i++){
+      const [x, y] = src[i], [u, v] = dst[i];
+      A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); B.push(u);
+      A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); B.push(v);
+    }
+    const n = 8;
+    for (let c = 0; c < n; c++){
+      let piv = c;
+      for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[piv][c])) piv = r;
+      if (Math.abs(A[piv][c]) < 1e-9) return null;
+      [A[c], A[piv]] = [A[piv], A[c]]; [B[c], B[piv]] = [B[piv], B[c]];
+      for (let r = 0; r < n; r++){
+        if (r === c) continue;
+        const f = A[r][c] / A[c][c];
+        for (let k = c; k < n; k++) A[r][k] -= f * A[c][k];
+        B[r] -= f * B[c];
+      }
+    }
+    const h = B.map((b, i) => b / A[i][i]);
+    return (x, y) => { const z = h[6] * x + h[7] * y + 1; return [(h[0] * x + h[1] * y + h[2]) / z, (h[3] * x + h[4] * y + h[5]) / z]; };
+  }
+
+  /** 右下の位置合わせパターン（小さな□）を、見込みの場所の近くで探す */
+  function findAlign(bin, w, h, ex, ey, m){
+    // 斜めから写すと、見込みの場所から数モジュールずれ、大きさも 1.5 倍ほど変わる。広めに・ゆるめに探す
+    const R = Math.round(m * 7);
+    const found = [];
+    for (let y = Math.round(ey - R); y <= ey + R; y++){
+      if (y < 0 || y >= h) continue;
+      for (let x = Math.round(ex - R); x <= ex + R; x++){
+        if (x < 1 || x >= w - 1 || bin[y * w + x] !== 1) continue;
+        // 中心の黒（1モジュール）の左右・上下が白、その外が黒
+        const ok = (dx, dy) => {
+          let i = 1;
+          const at = k => { const yy = Math.round(y + dy * k), xx = Math.round(x + dx * k);
+            return (xx < 0 || yy < 0 || xx >= w || yy >= h) ? -1 : bin[yy * w + xx]; };
+          while (i < m * 2 && at(i) === 1) i++;
+          const a = i;
+          while (i < m * 4 && at(i) === 0) i++;
+          const b = i - a;
+          return a <= m * 1.6 && b >= m * 0.4 && b <= m * 2 && at(i) === 1;
+        };
+        if (ok(1, 0) && ok(-1, 0) && ok(0, 1) && ok(0, -1)){
+          const d = Math.hypot(x - ex, y - ey);
+          const near = found.find(q => Math.abs(q.x - x) < m && Math.abs(q.y - y) < m);
+          if (near){ near.sx += x; near.sy += y; near.n++; near.d = Math.min(near.d, d); }
+          else found.push({ sx: x, sy: y, n: 1, d, x, y });
+        }
+      }
+    }
+    // 似た模様を拾うこともあるので、近い順に何か所か返す（読めるかどうかは誤り訂正で確かめる）
+    return found.map(q => ({ x: q.sx / q.n, y: q.sy / q.n, d: q.d })).sort((a, b) => a.d - b.d).slice(0, 5);
+  }
+
+  /**
+   * 画像（明るさの配列）から QR を読む。読めたら文字列、読めなければ null。
+   * 斜めから・少し傾けて写しても読めるように、4点の射影変換で格子を取る
+   */
+  function scanGray(gray, w, h){
+    const bin = binarize(gray, w, h);
+    const fs = findFinders(bin, w, h);
+    if (fs.length < 3) return null;
+    for (const t0 of pickThree(fs)){
+      const t = { tl: refine(bin, w, h, t0.tl), tr: refine(bin, w, h, t0.tr), bl: refine(bin, w, h, t0.bl) };
+      const txt = readAt(bin, w, h, t);
+      if (txt != null) return txt;
+    }
+    return null;
+  }
+
+  /**
+   * ファインダの中心から相手の方向へ進み、外枠を抜けるまでの長さ（3.5 モジュール）から
+   * モジュールの大きさを測る。縦横で測ると、斜めに写したときに √2 倍に見えてしまう
+   */
+  function modAlong(bin, w, h, a, b){
+    const L = Math.hypot(b.x - a.x, b.y - a.y), ux = (b.x - a.x) / L, uy = (b.y - a.y) / L;
+    let st = 0;                                         // 0:中心の黒 1:白 2:外枠の黒 3:外へ出た
+    for (let i = 0; i < L / 2; i += 0.5){
+      const x = Math.round(a.x + ux * i), y = Math.round(a.y + uy * i);
+      if (x < 0 || y < 0 || x >= w || y >= h) return 0;
+      const px = bin[y * w + x];
+      if ((st === 0 || st === 2) && px === 0) st++;
+      else if (st === 1 && px === 1) st++;
+      if (st === 3) return i / 3.5;
+    }
+    return 0;
+  }
+
+  function readAt(bin, w, h, t){
+    const along = [modAlong(bin, w, h, t.tl, t.tr), modAlong(bin, w, h, t.tr, t.tl),
+                   modAlong(bin, w, h, t.tl, t.bl), modAlong(bin, w, h, t.bl, t.tl)].filter(x => x > 0);
+    const ms = (along.length >= 2 ? along : [t.tl.m, t.tr.m, t.bl.m]).sort((a, b) => a - b);
+    const m = (ms[Math.floor((ms.length - 1) / 2)] + ms[Math.ceil((ms.length - 1) / 2)]) / 2;   // 真ん中の値
+    const dTR = Math.hypot(t.tr.x - t.tl.x, t.tr.y - t.tl.y) / m;
+    const dBL = Math.hypot(t.bl.x - t.tl.x, t.bl.y - t.tl.y) / m;
+    let dim = Math.round((dTR + dBL) / 2) + 7;
+    const r4 = dim & 3;
+    if (r4 === 0) dim++; else if (r4 === 2) dim--; else if (r4 === 3) dim -= 2;
+    for (const size of [dim, dim + 4, dim - 4]){
+      const v = (size - 17) / 4;
+      if (!ECC_M[v]) continue;
+      // まず3点のアフィン変換で、右下の位置合わせパターンの場所を見込む
+      const ax = (mx, my) => [t.tl.x + (t.tr.x - t.tl.x) * (mx - 3.5) / (size - 7) + (t.bl.x - t.tl.x) * (my - 3.5) / (size - 7),
+                              t.tl.y + (t.tr.y - t.tl.y) * (mx - 3.5) / (size - 7) + (t.bl.y - t.tl.y) * (my - 3.5) / (size - 7)];
+      const tries = [];
+      if (v >= 2){
+        const ap = size - 7 + 0.5;               // 位置合わせパターンの中心（モジュール座標）
+        const [ex, ey] = ax(ap, ap);
+        for (const al of findAlign(bin, w, h, ex, ey, m))
+          tries.push(homography([[3.5, 3.5], [size - 3.5, 3.5], [3.5, size - 3.5], [ap, ap]],
+                                [[t.tl.x, t.tl.y], [t.tr.x, t.tr.y], [t.bl.x, t.bl.y], [al.x, al.y]]));
+      }
+      tries.push(ax);
+      for (const map of tries){
+        if (!map) continue;
+        const get = (r, c) => {
+          const [x, y] = map(c + 0.5, r + 0.5);
+          const xi = Math.round(x), yi = Math.round(y);
+          if (xi < 0 || yi < 0 || xi >= w || yi >= h) return 0;
+          return bin[yi * w + xi];
+        };
+        const txt = decodeGrid(get, size);
+        if (txt != null) return txt;
+      }
+    }
+    return null;
+  }
+
+  /** 画像（ImageData 互換：data・width・height）から読む */
+  function scanImageData(img){
+    const { data, width:w, height:h } = img;
+    const gray = new Uint8Array(w * h);
+    for (let i = 0, j = 0; i < gray.length; i++, j += 4) gray[i] = (data[j] + data[j + 1] * 2 + data[j + 2]) >> 2;
+    return scanGray(gray, w, h);
+  }
+
+  return { encode, svg, svgSafe, decodeGrid, rsCorrect, scanImageData };
 })();
 
 /* =====================================================================
