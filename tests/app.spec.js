@@ -297,3 +297,26 @@ test('共有：ブースのリンク（スタンプの署名なし）を共有�
   expect(d.url).not.toContain('qr=');
   expect(d.text).toContain('黒工文化祭');
 });
+
+test('★行きたい所を回る：★が2つ以上でコースが出て、★のブースだけを順にたどる', async ({ page }) => {
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const chip = page.locator('.chip[data-route="wish"]');
+  await expect(chip).toBeHidden();
+  await page.evaluate(() => { toggleWish('1F-02'); toggleWish('2F-12'); toggleWish('1F-08'); });
+  await expect(chip).toBeVisible();
+  await chip.click();
+  await expect(page.locator('#route-steps')).toBeVisible();
+  const ids = await page.evaluate(() => CONFIG.ROUTES.wish);
+  expect(ids.slice().sort()).toEqual(['1F-02', '1F-08', '2F-12']);
+  // 1階から先に（階ごとの順）
+  expect(ids.indexOf('2F-12')).toBe(2);
+  await expect(page.locator('#route-steps')).toContainText('旋盤');
+  // ★を外して1つになるとコースは消える
+  await page.evaluate(() => { toggleWish('1F-02'); toggleWish('2F-12'); });
+  await expect(chip).toBeHidden();
+  expect(errors).toEqual([]);
+});

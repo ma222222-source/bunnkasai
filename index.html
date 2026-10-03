@@ -2279,6 +2279,8 @@ html.sheet-open{overflow:hidden}
         <div class="route-steps hide" id="route-steps"></div>
         <div class="card-t" style="padding:10px 0 0">おすすめの回りかた（おすと順番が地図に出ます）</div>
         <div class="chips" style="padding:8px 0 12px">
+          <!-- v151：★を付けたブースだけを近い順に回る（★が2つ以上のときだけ出る） -->
+          <button class="chip wish-chip" data-route="wish" aria-pressed="false">★ 行きたい所を回る</button>
           <button class="chip" data-route="auto" aria-pressed="false"><i class="ic" data-ic="flag"></i> 短い道で一周</button>
           <button class="chip" data-route="free" aria-pressed="false"><i class="ic" data-ic="leaf"></i> 空いている順</button>
           <!-- 車いすの記号(U+267F)は端末側で必ずカラー絵文字として描かれる。
@@ -2778,7 +2780,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-03a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-03b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -2838,8 +2840,8 @@ const CONFIG = {
     _default: 45
   },
   ROUTES: {
-    // auto / free / flat は毎回自動で作り直す（ここに書いた内容は使われない）
-    auto: [], free: [], flat: [],
+    // auto / free / flat / wish は毎回自動で作り直す（ここに書いた内容は使われない）
+    auto: [], free: [], flat: [], wish: [],
     // R8 の配置（校舎平面図の赤字）。部屋IDは 部屋ID一覧.xlsx を参照
     denshi: ['2F-12','2F-13','2F-18','1F-35'],
     all:    ['1F-48','1F-50','1F-49','1F-36','1F-35','1F-34','1F-33','1F-42',
@@ -5526,6 +5528,8 @@ function toggleWish(id){
   toast(on ? '★「行きたい」に入れました。一覧の「★ 行きたい」で見られます' : '「行きたい」から外しました');
   renderSheet._fp = null; renderSheet();
   renderList();
+  renderRouteChips();                       // ★が2つ以上になったら「行きたい所を回る」を出す
+  if (S.route === 'wish') renderRouteSteps();
   drawFloor(S.floor);
 }
 /**
@@ -6415,9 +6419,21 @@ function autoRouteFlat(){
   });
 }
 
+/**
+ * 「★行きたい所を回る」（v151）。一周コースの順（階ごと・近い順）のうち★を付けたものだけ。
+ * 準備中を外す一周コースと違い、★は本人が選んだものなので準備中でも残す（あとで開くかもしれない）
+ */
+function autoRouteWish(){
+  if (!S.wish.size) return [];
+  const order = autoRoute();
+  const rest = S.booths.filter(b => S.wish.has(b.id) && order.indexOf(b.id) < 0).map(b => b.id);
+  return order.filter(id => S.wish.has(id)).concat(rest);
+}
+
 /** ブースが2件以上そろっているコースだけボタンを出す */
 function renderRouteChips(){
   CONFIG.ROUTES.auto = autoRoute();
+  CONFIG.ROUTES.wish = autoRouteWish();
   CONFIG.ROUTES.free = autoRouteFree();
   CONFIG.ROUTES.flat = autoRouteFlat();
   $$('.chip[data-route]').forEach(el => {
