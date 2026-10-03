@@ -2800,7 +2800,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-04c',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-04d',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -2843,6 +2843,7 @@ const CONFIG = {
   ADMIN_HOLD_MS: 20000,    // 係員が操作した直後は並べ替えを止める時間
   CACHE_MAX_AGE_MS: 6 * 3600000,  // これより古い保存データは使わない（前日の状況を見せない）
   TIMEOUT_MS: 12000,
+  HEDGE_MS: 5000,          // 最初の表示で、これだけ待っても返らなければもう1本出す（v155）
   // 係員の送信は「取りに行く」より長く待つ。GASは前回の実行から数分空くと
   // 起動に時間がかかり、実測で最初の1回だけ20秒かかることがある。
   // 12秒で切ると、書き込みは通っているのに画面には失敗と出て、
@@ -3524,20 +3525,33 @@ function load(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.par
 async function earlyOrApi(){
   const e = window.__earlyGas;
   window.__earlyGas = null;
-  // 【v154】待つのは、ふつうの取得と同じ時間（取り始めから TIMEOUT_MS）まで。
-  // v153 は先に取った通信の結果を最大20秒待っていたため、GAS が重いときに
-  // 「取りに行っています…」のまま20秒止まり、以前より遅くなっていた
+  // 待つのは、ふつうの取得と同じ時間（取り始めから TIMEOUT_MS）まで（v154）
   const left = e ? e.at + CONFIG.TIMEOUT_MS - Date.now() : 0;
-  if (left > 0){
-    let t;
-    try{
-      const j = await Promise.race([e.p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error('timeout')), left); })]);
-      if (j && j.ok !== false && (Array.isArray(j) || Array.isArray(j.booths))) return j;
-    }catch(_){
-      // 時間切れ・失敗：ふつうの取得（再試行つき）へ。時間切れなら次の自動更新を待たずにすぐ取り直す
-    }finally{ clearTimeout(t); }
-  }
-  return api();
+  if (left <= 0) return api();
+  const valid = j => j && j.ok !== false && (Array.isArray(j) || Array.isArray(j.booths));
+  const early = new Promise((res, rej) => {
+    const t = setTimeout(() => rej(new Error('timeout')), left);
+    e.p.then(j => { clearTimeout(t); valid(j) ? res(j) : rej(new Error('bad')); },
+             err => { clearTimeout(t); rej(err); });
+  });
+  // 【v155】GAS はときどき1本だけ固まる（本番で 12 秒打ち切り → 取り直しが 1 秒で返るのを観測）。
+  // 最初の表示に限り、HEDGE_MS 待っても返らなければもう1本出し、先に返った方を使う。
+  // 先の通信が失敗したら待たずにすぐ出す。自動更新では出さない（混んでいるときに通信を倍にしない）
+  let settled = false;
+  const hedgeWait = Math.max(0, e.at + CONFIG.HEDGE_MS - Date.now());
+  const hedge = new Promise(r => {
+    const t = setTimeout(r, hedgeWait);
+    early.then(() => clearTimeout(t), () => { clearTimeout(t); r(); });
+  }).then(() => settled ? new Promise(() => {}) : api());
+  try{ const j = await anyOf([early, hedge]); settled = true; return j; }
+  catch(err){ settled = true; throw err; }
+}
+/** どれか1つでも成功したらその値。全部失敗したら最後の失敗（Promise.any の代わり。古い端末用） */
+function anyOf(ps){
+  return new Promise((res, rej) => {
+    let n = ps.length;
+    ps.forEach(p => p.then(res, err => { if (--n === 0) rej(err); }));
+  });
 }
 
 async function api(opts){
