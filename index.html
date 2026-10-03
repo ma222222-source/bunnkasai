@@ -1240,6 +1240,7 @@ text.util:not([font-size]){font-size:7.5px}
 .scan-help{padding:14px 18px calc(env(safe-area-inset-bottom,0px) + 18px);font-size:14px;font-weight:700;line-height:1.7;background:#000}
 .scan-help ol{margin:6px 0 0 1.2em}
 .scan-help button{margin-top:12px;min-height:48px;width:100%;border-radius:12px;background:#fff;color:#111;font-weight:900;font-size:15px;cursor:pointer}
+.scan.read-ok .scan-frame{border-color:#4ade80;box-shadow:0 0 0 100vmax rgba(0,0,0,.6)}
 .scan.no-cam .scan-stage{display:none}
 .scan.no-cam{background:var(--bg);color:var(--text)}
 .scan.no-cam .scan-help{background:transparent;flex:1}
@@ -1917,6 +1918,19 @@ html.sheet-open{overflow:hidden}
   font-size:12.5px;font-weight:700;line-height:1.6}
 .bsh-route .ic-svg{width:16px;height:16px;vertical-align:-3px}
 [data-fs="xl"] .bsh-route{font-size:15px}
+.intro-card{margin-bottom:10px;padding:12px 14px;border-radius:var(--r);background:var(--surface);border:1.5px solid var(--accent);
+  box-shadow:var(--shadow);font-size:13px;line-height:1.6}
+.intro-card b{font-size:14px}
+.intro-card ol{margin:6px 0 8px 1.3em;font-weight:700}
+.intro-card .btn{width:100%;min-height:44px}
+[data-fs="xl"] .intro-card{font-size:16px}
+.fix-sug{margin-top:10px;text-align:left}
+.fix-sug button{display:block;width:100%;min-height:44px;margin-top:6px;padding:8px 12px;border-radius:10px;border:1px solid var(--border);
+  background:var(--surface);color:var(--text);font:inherit;font-weight:800;text-align:left;cursor:pointer}
+.stale-list{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+.stale-list button{display:flex;justify-content:space-between;gap:8px;width:100%;min-height:44px;padding:8px 12px;border-radius:10px;
+  border:1px solid var(--border);background:var(--surface);color:var(--text);font:inherit;font-weight:800;text-align:left;cursor:pointer}
+.stale-list button span{color:var(--busy-ink);font-size:12px;white-space:nowrap}
 .wish-btn{min-width:44px;min-height:44px;margin:-6px -6px -8px 0;border-radius:50%;font-size:20px;line-height:1;
   color:var(--text-mute);background:transparent;cursor:pointer}
 .wish-btn[aria-pressed="true"]{color:#d18f00}
@@ -2237,6 +2251,16 @@ html.sheet-open{overflow:hidden}
 
     <!-- ============ マップ ============ -->
     <section class="view on" id="v-map">
+      <!-- v158：はじめて開いた人への3行の案内。「わかった」で二度と出さない（kuroko_intro_v1） -->
+      <div class="intro-card hide" id="intro-card" role="note">
+        <b>はじめての方へ</b>
+        <ol>
+          <li>地図の色で、いまの混み具合が分かります（ブースを押すと待ち時間）</li>
+          <li>ブース入口のQRを読むとスタンプ（右上のカメラのボタンでも読めます）</li>
+          <li>スタンプ5個でお菓子1個と交換できます</li>
+        </ol>
+        <button type="button" class="btn ghost" id="intro-ok">わかった</button>
+      </div>
       <div class="here-bar hide" id="here-bar" aria-live="polite"></div>
       <!-- 地図はこのタブの主役。ここより上に何かを積むと、
            小さい端末（iPhone SE）では地図が画面の外に出てしまう。 -->
@@ -2583,6 +2607,11 @@ html.sheet-open{overflow:hidden}
           <p class="adm-hint">チェックは日付ごとに保存され、日が変われば自動でリセットされます。</p>
         </details>
 
+        <!-- v158：更新が止まっているブース（長い順に5件）。押すとそのブースの更新カードへ -->
+        <div class="card" id="stale-card">
+          <div class="card-t">更新が止まっているブース</div>
+          <ul class="stale-list" id="stale-list"></ul>
+        </div>
         <div class="bulk-row">
           <button class="btn ghost" id="btn-bulk" data-st="空いています">開場：全ブースを「空いています」に</button>
           <button class="btn ghost" id="btn-bulk-close" data-st="準備中">閉場：全ブースを「準備中」に</button>
@@ -2832,7 +2861,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-04f',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-04g',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3820,10 +3849,26 @@ function syncIfStale(maxAgeMs){
   if (!S.fetchedAt || Date.now() - S.fetchedAt > maxAgeMs) sync(false);
 }
 
+/**
+ * 電池が20%以下で充電していないときは、自動更新の間隔を2倍にする（v158）。
+ * 文化祭の後半は電池が減った端末が多く、地図を開きっぱなしで電池が切れるとスタンプも見せられない。
+ * 電池の状態が分かるのは一部の端末（Android の Chrome など）だけ。分からない端末は今まで通り
+ */
+const BATT = { low:false };
+try{
+  if (navigator.getBattery) navigator.getBattery().then(b => {
+    const u = () => { BATT.low = !b.charging && b.level <= 0.2; };
+    u();
+    b.addEventListener('levelchange', u);
+    b.addEventListener('chargingchange', u);
+  }).catch(() => {});
+}catch(e){}
+
 function schedule(){
   clearTimeout(S.timer);
   if (document.hidden && CONFIG.POLL_MS_HIDDEN === 0) return;
-  const base = Math.max((isActive() && !serverBusy()) ? CONFIG.POLL_MS_ACTIVE : CONFIG.POLL_MS, S.pollMin || 0);
+  const base = Math.max((isActive() && !serverBusy()) ? CONFIG.POLL_MS_ACTIVE : CONFIG.POLL_MS, S.pollMin || 0)
+             * (BATT.low ? 2 : 1);
   // ボードは誰も「再試行」を押さないので、待ちの上限を1分にしておく
   const cap = S.view === 'board' ? 60000 : 5 * 60000;
   const backoff = Math.min(base * Math.pow(2, Math.min(S.failures, 4)), cap);
@@ -5442,8 +5487,19 @@ function placeName(id){
   return id;
 }
 
+function renderIntro(){
+  const el = $('#intro-card');
+  if (!el) return;
+  // スタンプを1つでも持っている人は、もう使い方を知っている
+  const show = S.view === 'map' && S.booths.length > 0 && !S.stamps.size && load('kuroko_intro_v1', null) == null;
+  el.classList.toggle('hide', !show);
+}
+{ const ok = document.getElementById('intro-ok');
+  if (ok) ok.addEventListener('click', () => { store('kuroko_intro_v1', 1); renderIntro(); }); }
+
 function renderHere(){
   renderLocateBtn();
+  renderIntro();
   const bar = $('#here-bar');
   if (!bar) return;
   const id = hereId();
@@ -5874,9 +5930,12 @@ function scanLoop(){
     const url = stampUrlFrom(raw);
     if (url){
       stopScanner();
+      // v158：開き直すまでの一瞬に「読めた」ことを見せる（何も出ないと固まったように見える）
+      $('#scan-help').textContent = '✓ 読み取りました。スタンプを押しています…';
+      $('#scan').classList.add('read-ok');
       buzz(40);
       // 読み込み直して、QRから来たときと同じ流れ（署名の照合→スタンプ→演出）に乗せる
-      location.assign(url);
+      setTimeout(() => location.assign(url), 150);
       return;
     }
     // 同じ違うQRを写し続けているあいだは、案内を出し続けない
@@ -6830,6 +6889,25 @@ function boothHay(b){
           + ' ' + flLabel(b) + ' ' + (CAT_SYN[b.category] || '')));   // 「1階」・分類の言い換えでも引けるように
 }
 
+/**
+ * 検索で0件のとき、名前が近いブースを3件まで出す（v158）。
+ * 2文字ずつの重なり（バイグラム）の割合で比べる。打ち間違い・言い方の違い（「ロボ」と「ロボット」など）を拾う
+ */
+function fixSuggest(q){
+  const t = normalizeQ(String(q || ''));
+  if (t.length < 2) return '';
+  const grams = x => { const g = new Set(); for (let i = 0; i < x.length - 1; i++) g.add(x.slice(i, i + 2)); return g; };
+  const gq = grams(t);
+  const sc = S.booths.map(b => {
+    const gb = grams(normalizeQ(withYomi(b.name)));
+    let hit = 0; gq.forEach(x => { if (gb.has(x)) hit++; });
+    return { b, s: (2 * hit) / (gq.size + Math.min(gb.size, gq.size * 3) || 1) };
+  }).filter(x => x.s >= 0.25).sort((a, b) => b.s - a.s).slice(0, 3);
+  if (!sc.length) return '';
+  return `<span class="fix-sug" style="display:block">もしかして：${sc.map(x =>
+    `<button type="button" data-fix="${esc(x.b.id)}">${esc(x.b.name)}</button>`).join('')}</span>`;
+}
+
 function renderList(){
   // 「◯分前」は tickAgo() がその場で書き換えるので、中身が同じなら作り直さない
   // （以前は1分ごとに150件を作り直していて、安い端末では毎分1秒近く固まっていた）
@@ -6918,8 +6996,9 @@ function renderList(){
       ? `<p class="empty">★を付けたブースはまだありません。<br>
           ブースの詳細で「★ 行きたい」を押すと、ここに集まります。</p>`
       : `<p class="empty">さがしたブースは見つかりませんでした。<br>
-      文字をけすか、上のボタンで「すべて」をえらんでください。</p>`);
+      文字をけすか、上のボタンで「すべて」をえらんでください。${fixSuggest(S.q)}</p>`);
     wireHelpHits(box);
+    $$('[data-fix]', box).forEach(el => el.addEventListener('click', () => openSheet(el.dataset.fix)));
     return;
   }
 
@@ -7701,10 +7780,9 @@ function showStampFx(id, fresh){
     const goal = done ? 'すべてのブースを回りました。おめでとうございます！'
       : left >= need ? `スタンプ${need}個でお菓子1個と交換できます。受付で係の人に見せてください`
       : `あと${need - left}個でお菓子と交換できます`;
-    // 次に行く先：同じ階の、まだ行っていない空いているブース
-    const fl = (() => { const b0 = S.booths.find(x => x.id === id); return b0 ? floorOfBooth(b0) : null; })();
-    const cand = S.booths.filter(x => !S.stamps.has(x.id) && lvOf(x).lv === 0);
-    const next = cand.find(x => floorOfBooth(x) === fl) || cand[0] || null;
+    // 次に行く先：まだ行っていない空いているブースのうち、ここからいちばん近いもの（v158：同じ階の先頭から距離順へ）
+    const cand = S.booths.filter(x => !S.stamps.has(x.id) && lvOf(x).lv === 0 && isVenue(x));
+    const next = cand.slice().sort((a, b) => placeDist(id, a.id) - placeDist(id, b.id))[0] || null;
     el.innerHTML = `
       <div class="sfx-card" data-kind="${esc(kicker)}">
         <p class="sfx-kicker">${esc(kicker)}</p>
@@ -9620,6 +9698,7 @@ function renderAdmin(){
 
   const overdue = list.filter(b => elapsedMin(b) >= CONFIG.ADMIN_WARN_MIN).length;
   renderAdmTabCount(list.length, overdue);
+  renderStaleList();
   renderNoticeState();
   const warn = [];
   if (S.dupIds.length) warn.push(`id が重なっています：${S.dupIds.join('・')}（後の行は無視しました）`);
@@ -9812,6 +9891,35 @@ function admPreview(card, n){
   const sec = P[b.category] != null ? P[b.category] : (P._default || 45);
   const m = sec ? Math.round(n * sec / 60) : 0;
   el.textContent = `送ると：${lvName}${m >= 1 ? `・およそ${m <= 5 ? m : Math.round(m / 5) * 5}分待ち` : ''}`;
+}
+
+/** 本部：更新が止まっているブース（15分以上・長い順に5件） */
+function renderStaleList(){
+  const box = $('#stale-list');
+  if (!box) return;
+  const list = S.booths.filter(b => isVenue(b) && lvOf(b).lv !== 3 && elapsedMin(b) >= CONFIG.ADMIN_WARN_MIN)
+    .sort((a, b) => elapsedMin(b) - elapsedMin(a)).slice(0, 5);
+  const fp = list.map(b => b.id + ':' + Math.min(elapsedMin(b), 999)).join(',');
+  if (renderStaleList._fp === fp) return;
+  renderStaleList._fp = fp;
+  box.innerHTML = list.length ? list.map(b => `<li><button type="button" data-goto="${esc(b.id)}">${esc(b.name)}
+      <span>${elapsedMin(b) >= NEVER ? 'まだ一度も更新なし' : elapsedMin(b) + '分前'}</span></button></li>`).join('')
+    : '<li style="color:var(--free);font-weight:800;font-size:12px">✓ すべて15分以内に更新されています（準備中を除く）</li>';
+  $$('[data-goto]', box).forEach(el => el.addEventListener('click', () => gotoAdminCard(el.dataset.goto)));
+}
+/** 更新タブのそのブースのカードへ移る（まとめが閉じていれば開く） */
+function gotoAdminCard(id){
+  setAdmTab('update');
+  renderAdmin();
+  const card = document.querySelector(`#admin-list .adm-booth[data-id="${CSS.escape(id)}"]`);
+  if (!card){ toast('このブースは「担当ブース」に入っていません。「すべて表示」にすると出ます'); return; }
+  const det = card.closest('details.adm-grp');
+  if (det && !det.open){ det.open = true; }
+  setTimeout(() => {
+    card.scrollIntoView({ behavior: smoothBehavior(), block:'center' });
+    card.classList.add('flash');
+    setTimeout(() => card.classList.remove('flash'), 1800);
+  }, 80);
 }
 
 function bindAdminCard(card){
@@ -11950,7 +12058,9 @@ function fitMapBox(floorNum){
   // v140：操作を地図の上に重ねたので、そのぶん地図を高くとる（Google マップのように地図を主役に）
   const cap = Math.round(window.innerHeight * (land ? 0.82 : 0.7));
   // 横向きは縦が足りない。下限を下げないと、下のタブに地図が潜り込む
-  const floorH = land ? 110 : 150;
+  // v158：縦向きは 380px より低くしない。地図の右上の階の切り替え（約190px）と右下の現在地・＋−（約150px）が
+  // 重なって「屋外」が押せなくなる（iPhone SE や、はじめての案内が出ているとき）。足りなければページを少し送ってもらう
+  const floorH = land ? 110 : 380;
   const maxH = Math.max(floorH, Math.min(560, cap, Math.round(avail)));
   // svg.plan は width:100%/height:auto なので、高さは viewBox の縦横比から計算できる。
   // 実測(getBoundingClientRect)はレイアウトを強制するので、比率で求められるときは使わない。
