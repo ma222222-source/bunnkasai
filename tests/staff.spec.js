@@ -155,3 +155,13 @@ test('本部「更新が止まっているブース」：長い順に出て、�
   await expect(page.locator('#admpane-update')).toBeVisible();
   await expect(page.locator(`#admin-list .adm-booth[data-id="${id}"]`)).toBeVisible();
 });
+
+test('係員：1分以内にほかの端末の更新があったブースを送ると知らせる（送信はする）', async ({ page }) => {
+  const log = await login(page, { mutate: j => { j.booths.forEach(b => { b.status = '空いています'; b.wait = 1; b.time = new Date(Date.now() - 20000).toISOString(); }); } });
+  const card = page.locator('#admin-list .adm-booth').first();
+  const id = await card.getAttribute('data-id');
+  await card.locator('[data-step="1"]').click();
+  await card.locator('.send').click();
+  await expect(page.locator(`.adm-booth[data-id="${id}"] .adm-preview`)).toContainText('ほかの端末からも更新');
+  await expect.poll(() => log.posts.some(p => p.action === 'update' && p.id === id)).toBe(true);
+});
