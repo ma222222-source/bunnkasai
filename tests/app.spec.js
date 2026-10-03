@@ -412,7 +412,7 @@ test('インフォ「このマップを友だちに送る」：外部ブラウ�
   expect(d.url).not.toContain('booth=');
 });
 
-test('起動：GAS が遅いとき、先に取った通信を待ちすぎない（ふつうの取得と同じ12秒まで）', async ({ page }) => {
+test('起動：GAS の1本が固まっても、5秒で2本目を出して早く表示する', async ({ page }) => {
   // 最初の1本だけ30秒かかり、2本目からはすぐ返す
   let n = 0;
   const { snapshot } = require('./mock');
@@ -425,5 +425,13 @@ test('起動：GAS が遅いとき、先に取った通信を待ちすぎない�
   await page.goto('/?tab=map');
   await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 25000 }).toBe(46);
   const ms = Date.now() - t0;
-  expect(ms).toBeLessThan(18000);       // 20秒（v153）・30秒待たない
+  expect(ms).toBeLessThan(10000);       // v155：5秒で2本目を出すので、30秒・12秒待たない
+});
+
+test('起動：GAS がふつうに速いときは、2本目を出さない', async ({ page }) => {
+  const log = await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.waitForTimeout(6500);                 // 2本目を出す 5 秒を過ぎても
+  expect(log.gets.filter(q => !/ledger|report/.test(q)).length).toBe(1);
 });
