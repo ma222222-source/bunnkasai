@@ -258,3 +258,42 @@ test('現在地ボタン：いまここが無ければえらぶモード、あ�
   await expect(page.locator('#map-locate')).toHaveAttribute('data-on', '1');
   expect(errors).toEqual([]);
 });
+
+test('★行きたい：詳細で付けると一覧・地図に★、一覧を★だけに絞れる。開き直しても残る', async ({ page }) => {
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?booth=1F-02');
+  await expect(page.locator('#bsh')).toBeVisible({ timeout: 15000 });
+  await page.locator('#bsh-body [data-wish]').click();
+  await expect(page.locator('#bsh-body [data-wish]')).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('kuroko_wish_v1')))).toEqual(['1F-02']);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.locator('#wish-only').click();
+  await expect(page.locator('#booth-list > .booth')).toHaveCount(1);
+  await expect(page.locator('#booth-list .wish-mk')).toHaveCount(1);
+  await page.locator('#wish-only').click();
+  await expect(page.locator('#booth-list > .booth')).toHaveCount(46);
+  // 地図にも★（1F-02 は1階）
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.locator('#fl-1').click();
+  await page.locator('#zoom-in').click(); await page.locator('#zoom-in').click();
+  await expect.poll(() => page.locator('#plan-1 .room[data-id="1F-02"] .wish-mark').count()).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test('共有：ブースのリンク（スタンプの署名なし）を共有メニューに渡す', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => { navigator.share = async d => { window.__shared = d; }; });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?booth=1F-03');
+  await expect(page.locator('#bsh')).toBeVisible({ timeout: 15000 });
+  await page.locator('#bsh-body [data-share]').click();
+  const d = await page.evaluate(() => window.__shared);
+  expect(d.url).toContain('?booth=1F-03');
+  expect(d.url).not.toContain('k=');
+  expect(d.url).not.toContain('qr=');
+  expect(d.text).toContain('黒工文化祭');
+});
