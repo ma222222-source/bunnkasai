@@ -51,8 +51,23 @@ backup() {
 
 build() {
   rm -rf .gas-build && mkdir -p .gas-build
-  cp Code.gs ".gas-build/$GAS_NAME.js"
-  cp appsscript.json .gas-build/
+  # Windows の git は改行を CRLF にして取り出す。GAS 側は LF なので、そのまま送ると
+  # 「設定（appsscript.json）が変わった。上書きする？」と聞かれ、答える人がいないので
+  # clasp が黙って送るのをやめていた（2026-10-04：版23が古い中身で作られた）。LF にそろえて送る
+  tr -d '\r' < Code.gs > ".gas-build/$GAS_NAME.js"
+  tr -d '\r' < appsscript.json > .gas-build/appsscript.json
+}
+
+# clasp push を実行し、送らなかった（Skipping push）ときは止める。
+# 止めないと、古い中身のまま版を作って本番に出し、「deploy 済み」と言ってしまう
+do_push() {
+  local out
+  out=$(clasp push 2>&1) || { echo "$out" >&2; exit 1; }
+  echo "$out"
+  if echo "$out" | grep -qi 'skipping push'; then
+    echo 'push されませんでした（clasp が送るのをやめた）。本番には出していません' >&2
+    exit 1
+  fi
 }
 
 cmd="${1:-}"; shift || true
@@ -65,12 +80,12 @@ case "$cmd" in
   status) need_clasp; build; clasp status ;;
   push)
     need_clasp; check; backup >/dev/null; build
-    clasp push
+    do_push
     echo 'push 済み：エディタのコードが変わった（サイトが使う本番のデプロイはまだ前の版）' ;;
   deploy)
     desc="${1:?deploy には説明が要ります（例：v138 GAS-2026-09-30a）}"
     need_clasp; check; backup >/dev/null; build
-    clasp push
+    do_push
     ver=$(clasp create-version "$desc" | grep -o '[0-9]\+' | tail -1)
     dep=$(prod_deployment)
     clasp update-deployment "$dep" -V "$ver" -d "$desc"

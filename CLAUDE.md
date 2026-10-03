@@ -72,6 +72,7 @@
 | `deploy "説明"` | push → 版を作る → 本番のデプロイを新しい版に（URL は変わらない） |
 
 - 本番のデプロイID は `index.html` の `CONFIG` の URL から取る（別に書かない）
+- `tools/gas.sh` は送る前に改行を LF にそろえる（CRLF の appsscript.json だと clasp が「Skipping push.」で黙って送らない）。送られなかったら止まる（古い中身で版を作らない）。「Script is already up to date.」は変更なしの意味で正常
 - GAS 側のファイル名は `コード`。`tools/gas.sh` が送る直前に `.gas-build/コード.js` に写す。clasp push はプロジェクトを丸ごと置き換えるので、`.gas-build` を通さずに push しない
 - `setupR8AndArchiveOthers` など本番のシートを書き換える関数は自動で動かさない（ユーザーに頼む）
 - デプロイ後は `?mode=check` の「サーバーの版」で確かめる。`Code.gs` を変えたら `GAS_VERSION` を上げる（RULES.md §4）
