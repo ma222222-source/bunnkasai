@@ -47,7 +47,7 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-10-04a';
+var GAS_VERSION = '2026-10-04b';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
@@ -240,6 +240,10 @@ function validate() {
                      : '先読み（warmCache）：止まっています（当日の前日に installWarmTrigger を1回実行すると、混んだときに速くなります）');
   } catch (eT) {}
   advice.push('自動更新の間隔（POLL_SEC）：' + (pollSec_() ? pollSec_() + '秒' : '画面の設定のまま（12〜20秒）'));
+  try {
+    var ce = clientErrorsToday_();
+    if (ce) advice.push('端末で起きたエラー：今日 ' + ce + '件（「' + SHEET_CLIENT_ERR + '」シート。同じものが多ければ不具合の手がかり）');
+  } catch (eCE) {}
   // 必須の列と、無くても動く列を分けて扱う（image などは任意）
   var REQUIRED = ['id', 'name', 'status', 'time'];
   var missingOptional = [];
@@ -1135,6 +1139,10 @@ function doPost(e) {
     if (action === 'redeem') {
       return json_(redeemLedger_(body));
     }
+    // 端末で起きたエラーの記録（v156）。パスワードは要らない。いたずらで埋められないよう1分あたりの件数に上限
+    if (action === 'clientlog') {
+      return json_(appendClientLog_(body));
+    }
 
     if (action === 'update') {
       checkPass_(body.pass, body.cid);
@@ -1450,6 +1458,31 @@ function resetDaily() {
   writeBooth_(null, '準備中', 0);
 }
 
+
+/* ====================== 端末のエラー記録（v156） ====================== */
+var SHEET_CLIENT_ERR = 'エラー記録';
+var CLIENT_LOG_RATE_MAX = 60;     // 全員合計で1分あたりに書く行の上限
+function appendClientLog_(body) {
+  var rc = CacheService.getScriptCache(), rk = 'clog_rate_' + Math.floor(Date.now() / 60000);
+  var used = Number(rc.get(rk) || 0);
+  if (used >= CLIENT_LOG_RATE_MAX) return { ok: true, skipped: true };
+  try { rc.put(rk, String(used + 1), 120); } catch (eR) {}
+  appendTo_(SHEET_CLIENT_ERR, ['timestamp', 'build', 'view', 'msg', 'src', 'line', 'ua'], [
+    new Date(), safeText_(cut_(body.build, 20)), safeText_(cut_(body.view, 12)), safeText_(cut_(body.msg, 300)),
+    safeText_(cut_(body.src, 80)), Math.max(0, Math.min(1e7, Math.round(Number(body.line) || 0))), safeText_(cut_(body.ua, 160))
+  ]);
+  return { ok: true };
+}
+/** 今日の端末エラーの件数（validate 用） */
+function clientErrorsToday_() {
+  var sh = ss_().getSheetByName(SHEET_CLIENT_ERR);
+  if (!sh || sh.getLastRow() < 2) return 0;
+  var today = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
+  return sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues().filter(function (r) {
+    var d = r[0] instanceof Date ? r[0] : new Date(r[0]);
+    return !isNaN(d.getTime()) && Utilities.formatDate(d, TZ, 'yyyy-MM-dd') === today;
+  }).length;
+}
 
 /* ====================== スタンプの控え（来場者） ======================
    スタンプは来場者の端末に保存するが、端末の保存は消えることがある

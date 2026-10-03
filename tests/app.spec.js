@@ -435,3 +435,100 @@ test('起動：GAS がふつうに速いときは、2本目を出さない', asy
   await page.waitForTimeout(6500);                 // 2本目を出す 5 秒を過ぎても
   expect(log.gets.filter(q => !/ledger|report/.test(q)).length).toBe(1);
 });
+
+/* ---------------- v156 の6つ ---------------- */
+test('一覧「いまここから近い順」：いまここがあるときだけ出て、近いものから並ぶ', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await expect(page.locator('#sort-near')).toBeHidden();
+  await page.evaluate(() => setHere('2F-12', 'qr'));
+  await page.evaluate(() => { renderList._fp = null; renderList(); });
+  await expect(page.locator('#sort-near')).toBeVisible();
+  await page.locator('#sort-near').click();
+  const ids = await page.locator('#booth-list > .booth').evaluateAll(els => els.map(e => e.dataset.sid));
+  expect(ids[0]).toBe('2F-12');
+  const fl = await page.evaluate(ids => ids.slice(0, 5).map(id => floorOfBooth(S.booths.find(b => b.id === id))), ids);
+  expect(fl.every(f => f === 2)).toBe(true);                       // 同じ階が先
+});
+
+test('QR印刷シート：開くと全部のQRを読んで「すべて読める」と出す', async ({ page }) => {
+  await mockGas(page, { verifyOk: true });
+  await page.setViewportSize({ width: 1000, height: 900 });
+  await page.goto('/?mode=qr');
+  await page.locator('#pw').fill('test-password-1234');
+  await page.locator('#btn-login').click();
+  await expect(page.locator('#qr-check')).toHaveAttribute('data-st', 'ok', { timeout: 30000 });
+  await expect(page.locator('#qr-check')).toContainText('47枚すべて');
+});
+
+test('係員：送信していない人数があるときだけ、画面を離れる前に止める', async ({ page }) => {
+  await mockGas(page, { verifyOk: true });
+  await page.addInitScript(() => localStorage.setItem('kuroko_adm_mode', JSON.stringify('flat')));
+  await page.goto('/?mode=admin');
+  await page.locator('#pw').fill('test-password-1234');
+  await page.locator('#btn-login').click();
+  await expect.poll(() => page.evaluate(() => S.booths.length)).toBe(46);
+  const blocked = () => page.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; });
+  expect(await blocked()).toBe(false);
+  await page.locator('#admin-list .adm-booth').first().locator('[data-step="1"]').click();
+  expect(await blocked()).toBe(true);
+});
+
+test('地図の下の「混雑」を押すと、混雑のブースだけ目立ち、もう一度で戻る', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.locator('#fl-1').click();
+  const dimmed = () => page.locator('#plan-1 .room.dimmed').count();
+  expect(await dimmed()).toBe(0);
+  await page.locator('#summary .sum[data-lv="2"]').click();
+  await expect(page.locator('#summary .sum[data-lv="2"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(dimmed).toBeGreaterThan(0);
+  const busyLit = await page.locator('#plan-1 .room[data-lv="2"]:not(.dimmed)').count();
+  const otherLit = await page.locator('#plan-1 .room:not([data-lv="2"]):not(.dimmed)').count();
+  expect(busyLit).toBeGreaterThan(0);
+  expect(otherLit).toBe(0);
+  await page.locator('#summary .sum[data-lv="2"]').click();
+  await expect.poll(dimmed).toBe(0);
+});
+
+test('一覧カードの☆：カードを開かずに「行きたい」へ入る', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  const btn = page.locator('#booth-list .wish-btn').first();
+  const id = await btn.getAttribute('data-wishbtn');
+  await btn.click();
+  await expect(page.locator('#bsh')).toBeHidden();
+  expect(await page.evaluate(id => S.wish.has(id), id)).toBe(true);
+  await expect(page.locator(`#booth-list .wish-btn[data-wishbtn="${id}"]`)).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('端末のエラーをサーバーへ送る（同じものは1回・3件まで・ほかの場所のエラーは送らない）', async ({ page }) => {
+  const log = await mockGas(page);
+  await page.goto('/?tab=info');
+  await ready(page);
+  await page.evaluate(() => {
+    const here = location.href;
+    reportError('TypeError: x is undefined', here, 10);
+    reportError('TypeError: x is undefined', here, 10);                 // 同じもの
+    reportError('ResizeObserver loop limit exceeded', here, 1);           // 無害なもの
+    reportError('拡張機能のエラー', 'chrome-extension://abc/x.js', 1);     // ほかの場所
+    reportError('b', here, 2); reportError('c', here, 3); reportError('d', here, 4);   // 4件目は送らない
+  });
+  await expect.poll(() => log.posts.filter(p => p.action === 'clientlog').length).toBe(3);
+  const first = log.posts.find(p => p.action === 'clientlog');
+  expect(first.msg).toContain('x is undefined');
+  expect(first.build).toMatch(/^\d{4}-\d{2}-\d{2}[a-z]$/);
+});
+
+test('一覧カード：キーボード（名前のボタン → Enter）でも詳細が開く', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.locator('#booth-list .booth-open').first().focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#bsh')).toBeVisible();
+});

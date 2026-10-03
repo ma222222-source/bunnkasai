@@ -345,3 +345,15 @@ test('validate：配信データの大きさはバイトで数える（日本語
   if (bytes > 80000) assert.match(m, /配信データが大きすぎます/);
   assert.match(m, new RegExp('配信データの大きさ：' + Math.round(bytes / 1024) + 'KB'));
 });
+
+test('端末のエラー記録（clientlog）：パスワードなしで1行書く・数式は無効・1分あたりの上限・validate に件数', () => {
+  const g = fresh();
+  const r = g.__post({ action: 'clientlog', msg: '=HYPERLINK("x")', src: 'index.html', line: 123, build: '2026-10-04d', view: 'map', ua: 'iPhone' });
+  assert.strictEqual(r.ok, true);
+  const sh = g.__ss.getSheetByName('エラー記録');
+  assert.strictEqual(sh.getLastRow(), 2);
+  assert.ok(String(sh.cell(2, 4)).startsWith("'="), '数式にならない');
+  for (let i = 0; i < 80; i++) g.__post({ action: 'clientlog', msg: 'x' + i });
+  assert.ok(sh.getLastRow() - 1 <= g.CLIENT_LOG_RATE_MAX, '1分あたりの上限');
+  assert.match(g.validate(), /端末で起きたエラー：今日 \d+件/);
+});
