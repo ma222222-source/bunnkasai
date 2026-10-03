@@ -124,3 +124,23 @@ test('まとめ方：既定は「階ごと」（中は科の小見出し）、�
   await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
   await expect(page.locator('#adm-mode [data-m="dept"]')).toHaveAttribute('aria-pressed', 'true');
 });
+
+test('係員カード：人数を変えると「送ると：やや混雑・およそ◯分待ち」がその場で出る', async ({ page }) => {
+  await login(page);
+  const card = page.locator('#admin-list .adm-booth').first();
+  for (let i = 0; i < 6; i++) await card.locator('[data-step="1"]').click();
+  await expect(card.locator('.adm-preview')).toContainText('送ると：');
+  const n = Number(await card.locator('.adm-wait-n').textContent());
+  const th = await page.evaluate(() => S.waitTh);
+  const expectLv = n >= th.busy ? '混雑' : n >= th.warn ? 'やや混雑' : '空き';
+  await expect(card.locator('.adm-preview')).toContainText(expectLv);
+});
+
+test('本部：お知らせのひな形を押すと欄に入る（そのまま出さない）', async ({ page }) => {
+  const log = await login(page);
+  await page.locator('[data-tab="hq"]').first().click();
+  await page.locator('#notice-card > summary').click();              // お知らせの欄は畳んである
+  await page.locator('#notice-tpl [data-tpl]').first().click();
+  await expect(page.locator('#notice-text')).toHaveValue(/落とし物/);
+  expect(log.posts.filter(p => p.action === 'notice').length).toBe(0);
+});
