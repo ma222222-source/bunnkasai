@@ -53,6 +53,9 @@ async function mockGas(page, opt = {}) {
       return route.fulfill({ status: 200, headers, contentType: 'application/json',
         body: JSON.stringify({ ok: true, sv: BASE.serverVersion, cid: url.searchParams.get('ledger'), stamps: [], spent: [] }) });
     }
+    if (url.searchParams.get('report') && opt.report) {
+      return route.fulfill({ status: 200, headers, contentType: 'application/json', body: JSON.stringify(opt.report) });
+    }
     if (url.searchParams.get('report')) {
       return route.fulfill({ status: 200, headers, contentType: 'application/json', body: JSON.stringify({ ok: true, booths: [], days: [] }) });
     }

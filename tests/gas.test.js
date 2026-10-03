@@ -213,3 +213,94 @@ test('GAS_VERSION は画面の前提（index.html の GAS_MIN）以上', () => {
   const min = (html.match(/GAS_MIN:\s*'([^']+)'/) || [])[1];
   assert.ok(g.GAS_VERSION >= min, `${g.GAS_VERSION} < ${min}`);
 });
+
+/* ---------------- v152：振り返りレポートとピーク時のキャッシュ ---------------- */
+
+test('振り返りレポート：その日の更新・来場者・スタンプを集計する（日付の形も確かめる）', () => {
+  const g = fresh();
+  g.__post({ action: 'update', pass: PASS, cid: 'c1', id: '1F-02', wait: 20 });   // 混雑
+  g.__post({ action: 'update', pass: PASS, cid: 'c1', id: '1F-02', wait: 2 });
+  g.__post({ action: 'update', pass: PASS, cid: 'c1', id: '1F-03', wait: 8 });
+  g.__post({ action: 'visitor', pass: PASS, cid: 'c1', n: 5, uid: 'v1' });
+  const now = Date.now();
+  g.__post({ action: 'ledger', cid: 'PPPP1111', ev: [{ t: 's', id: '1F-02', at: now }, { t: 's', id: '1F-03', at: now }] });
+  g.__post({ action: 'ledger', cid: 'QQQQ2222', ev: [{ t: 's', id: '1F-02', at: now + 1 }] });
+  const r = g.__get({ report: '1' });
+  assert.strictEqual(r.ok, true, JSON.stringify(r).slice(0, 200));
+  assert.ok(r.date && /^\d{4}-\d{2}-\d{2}$/.test(r.date));
+  assert.ok(r.buckets.length >= 1);
+  const b2 = r.booths.find(b => b.id === '1F-02');
+  assert.ok(b2, '更新したブースが入る');
+  assert.strictEqual(b2.updates, 2);
+  assert.strictEqual(b2.stamps, 2);
+  assert.strictEqual(r.summary.stampsTotal, 3);
+  assert.strictEqual(r.summary.stampPeople, 2);
+  assert.strictEqual(r.summary.topStampBooth, b2.name);
+  assert.strictEqual(r.summary.visitorsTotal, 5);
+  assert.strictEqual(r.summary.totalUpdates, 3);
+  // 日付の形が違えば断る（任意の文字でキャッシュを素通りさせない）
+  assert.strictEqual(g.__get({ report: '1', date: 'x' }).ok, false);
+  // 記録の無い日は空で返す（壊れない）
+  const e = g.__get({ report: '1', date: '2020-01-01' });
+  assert.strictEqual(e.ok, true);
+  assert.deepStrictEqual(e.booths, []);
+});
+
+test('振り返りレポート：まだ何も更新が無くても壊れない', () => {
+  const g = fresh();
+  const r = g.__get({ report: '1' });
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(r.booths, []);
+});
+
+test('ピーク時：作っている最中に来たアクセスには、少し古い控えをすぐ返す', () => {
+  const g = fresh();
+  g.__get();                                      // 控え（CACHE_BAK）ができる
+  g.__post({ action: 'update', pass: PASS, cid: 'c1', id: '1F-02', wait: 1 });   // 本体のキャッシュが捨てられる
+  g.__cache.set(g.CACHE_BUILDING, '1');           // 誰かが作っている最中
+  let built = 0;
+  const orig = g.buildPayload_;
+  g.buildPayload_ = function () { built++; return orig(); };
+  const r = g.__get();
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(built, 0, '作っている最中は作り直さず控えを返す');
+  assert.strictEqual(r.booths.find(b => b.id === '1F-02').wait, null, '控えは更新前の内容');
+  g.__cache.delete(g.CACHE_BUILDING);
+  assert.strictEqual(g.__get().booths.find(b => b.id === '1F-02').wait, 1, '作り終われば新しい内容');
+});
+
+test('ピーク時：作っている間に係員の更新が入ったら、作った結果を本体のキャッシュに置かない', () => {
+  const g = fresh();
+  const orig = g.buildPayload_;
+  let once = true;
+  g.buildPayload_ = function () {
+    const d = orig();
+    // 作っている間に、別の係員が更新した（書き込みの番号が変わる）
+    if (once){ once = false; g.__post({ action: 'update', pass: PASS, cid: 'c1', id: '1F-03', wait: 4 }); }
+    return d;
+  };
+  g.__cache.delete(g.CACHE_KEY);
+  g.__get();
+  assert.strictEqual(g.__cache.get(g.CACHE_KEY), undefined, '古いかもしれない結果は置かない');
+  g.buildPayload_ = orig;
+  assert.strictEqual(g.__get().booths.find(b => b.id === '1F-03').wait, 4);
+});
+
+test('障害時：シートが読めなくても、直前の控えがあればそれを返す', () => {
+  const g = fresh();
+  g.__get();
+  g.__cache.delete(g.CACHE_KEY);
+  g.buildPayload_ = () => { throw new Error('Service Spreadsheets timed out'); };
+  const r = g.__get();
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.booths.length, 46);
+});
+
+test('お知らせ・来場者の書き込みもキャッシュを捨てる（すぐ画面に出る）', () => {
+  const g = fresh();
+  g.__get();
+  g.__post({ action: 'notice', pass: PASS, cid: 'c1', text: '雨のため屋外は中止', level: 'info' });
+  assert.strictEqual(g.__get().notice.text, '雨のため屋外は中止');
+  g.__post({ action: 'visitor', pass: PASS, cid: 'c1', n: 2, uid: 'x1' });
+  assert.strictEqual(g.__get().visitors.today, 2);
+});
