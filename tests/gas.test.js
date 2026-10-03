@@ -304,3 +304,44 @@ test('お知らせ・来場者の書き込みもキャッシュを捨てる（�
   g.__post({ action: 'visitor', pass: PASS, cid: 'c1', n: 2, uid: 'x1' });
   assert.strictEqual(g.__get().visitors.today, 2);
 });
+
+/* ---------------- v152：本番前の点検（validate） ---------------- */
+test('validate：問題なしのときと、出しっぱなしのお知らせ・短めのパスワード・R8との食い違い・タイムゾーンを知らせる', () => {
+  const ok = fresh({ ADMIN_PASS: 'long-enough-pass-1' });
+  const m0 = ok.validate();
+  assert.match(m0, /問題は見つかりませんでした/);
+  assert.match(m0, /先読み（warmCache）：止まっています/);
+  assert.doesNotMatch(m0, /パスワード/);
+
+  const g = fresh({ ADMIN_PASS: 'abcd12345' });                  // 9文字
+  g.__post({ action: 'notice', pass: 'abcd12345', cid: 'c', text: 'テストです', level: 'alert' });
+  // シートから1件消し、1件足す（R8 との食い違い）
+  g.__post({ action: 'remove', pass: 'abcd12345', cid: 'c', id: '1F-02' });
+  g.__post({ action: 'upsert', pass: 'abcd12345', cid: 'c', id: '3F-09', name: '追加', category: '展示', floor: 3 });
+  g.__ss.getSpreadsheetTimeZone = () => 'America/New_York';
+  const m = g.validate();
+  assert.match(m, /要確認/);
+  assert.match(m, /R8 の一覧にあるのにシートに無いブース：1F-02/);
+  assert.match(m, /タイムゾーンが America\/New_York/);
+  assert.match(m, /R8 の一覧に無いブースがシートにあります：3F-09/);
+  assert.match(m, /お知らせが全員の画面に出ています：「テストです」（重要）/);
+  assert.match(m, /8〜11文字/);
+});
+
+test('validate：配信データの大きさはバイトで数える（日本語は1文字3バイト）', () => {
+  const g = fresh();
+  const sh = g.__ss.getSheetByName('ブース');
+  const noteCol = sh.data[0].indexOf('note');
+  // メモに日本語を詰めて、文字数では 80000 未満・バイトでは 80000 超にする
+  sh.data.forEach((row, i) => { if (i) row[noteCol] = 'あ'.repeat(120); });
+  const nameCol = sh.data[0].indexOf('name');
+  sh.data.forEach((row, i) => { if (i) row[nameCol] = 'い'.repeat(40); });
+  for (let i = 0; i < 400; i++) sh.data.push(['9F-' + i, 'う'.repeat(40), '', '', 'ふつう', 1, 'え'.repeat(120)]);
+  g.clearCache_();
+  const bytes = g.bytes_(JSON.stringify(g.buildPayload_()));
+  const chars = JSON.stringify(g.buildPayload_()).length;
+  assert.ok(chars < bytes, '日本語ぶんバイトの方が大きい');
+  const m = g.validate();
+  if (bytes > 80000) assert.match(m, /配信データが大きすぎます/);
+  assert.match(m, new RegExp('配信データの大きさ：' + Math.round(bytes / 1024) + 'KB'));
+});
