@@ -712,3 +712,58 @@ test('いまここ：どれくらい前の場所かを出し、25分を過ぎた
   await expect(page.locator('#here-bar')).toContainText('30分前');
   await expect(page.locator('#here-bar')).toContainText('えらび直す');
 });
+
+/* ---------------- v160 の6つ ---------------- */
+test('★のブースが「混雑」から「空き」になったら知らせる（最初の読み込みでは知らせない）', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => localStorage.setItem('kuroko_wish_v1', JSON.stringify(['1F-02'])));
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.evaluate(() => { const b = S.booths.find(x => x.id === '1F-02'); b.status = '混雑しています'; b.wait = 20; renderAll(); });
+  await page.evaluate(() => { const b = S.booths.find(x => x.id === '1F-02'); b.status = '空いています'; b.wait = 1; renderAll(); });
+  await expect(page.locator('#toast')).toContainText('が空きました');
+});
+
+test('ブースの詳細「いまここにいる」で、そこをいまここにできる', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?booth=1F-05');
+  await expect(page.locator('#bsh')).toBeVisible({ timeout: 15000 });
+  await page.locator('#bsh-body [data-here-set]').click();
+  expect(await page.evaluate(() => hereId())).toBe('1F-05');
+  await expect(page.locator('#bsh-body [data-here-set]')).toBeDisabled();
+});
+
+test('一覧：下へスクロールしても検索欄が画面の上に見えたまま', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.evaluate(() => window.scrollTo(0, 2500));
+  await page.waitForTimeout(300);
+  const top = await page.locator('#q').boundingBox();
+  expect(top.y).toBeGreaterThanOrEqual(0);
+  expect(top.y).toBeLessThan(200);
+  // 上へ戻るボタンが出て、押すと上へ
+  await expect(page.locator('#to-top')).toBeVisible();
+  await page.locator('#to-top').click();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(50);
+});
+
+test('一覧の検索：当たった文字に印（<mark>）。悪い文字列は文字のまま', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.locator('#q').fill('旋盤');
+  await expect(page.locator('#booth-list mark').first()).toHaveText('旋盤');
+  expect(await page.evaluate(() => markHit('<b>旋盤</b>', '旋盤'))).toBe('&lt;b&gt;<mark>旋盤</mark>&lt;/b&gt;');
+});
+
+test('地図の科のボタンに、その階のブースの数', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.locator('#fl-1').click();
+  await expect(page.locator('#dept-legend .dept-n').first()).toBeVisible();
+  const n = Number(await page.locator('#dept-legend .dept-n').first().textContent());
+  expect(n).toBeGreaterThan(0);
+});

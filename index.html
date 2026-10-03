@@ -622,6 +622,7 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 .tt-go:hover{background:var(--surface-3)}
 .tt-go:active{transform:scale(.97)}
 .dept-legend i{width:9px;height:9px;border-radius:2.5px;flex:none}
+.dept-legend .dept-n{font-weight:900;color:var(--text-mute);font-size:.95em}
 /* 地図の上には何も重ねない。ボタンで隠れた場所に何があるか分からなくなるため、
    拡大・縮小・寄せる・全体はすべて地図の下の1列にまとめる */
 /* 拡大ボタンは地図に重ねるが、寄せる／全体は地図の外に置く。
@@ -1090,6 +1091,12 @@ text.util:not([font-size]){font-size:7.5px}
             border-top:1px dashed var(--border);padding-top:5px;margin-top:1px}
 
 /* ========================= 検索・フィルタ ========================= */
+.to-top{position:fixed;left:14px;bottom:calc(var(--nav-h,64px) + 14px + env(safe-area-inset-bottom,0px));z-index:40;
+  width:48px;height:48px;border-radius:50%;background:var(--surface);color:var(--text);border:1px solid var(--border-strong);
+  box-shadow:var(--shadow-lg);font-size:22px;font-weight:900;cursor:pointer}
+.to-top.hide{display:none}
+.list-head{position:sticky;top:var(--head-h,0px);z-index:20;display:flex;flex-direction:column;gap:10px;
+  margin:-6px -12px 0;padding:6px 12px 8px;background:var(--bg);box-shadow:0 6px 8px -8px rgba(0,0,0,.25)}
 .search{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);
         border-radius:var(--r);padding:0 12px;box-shadow:var(--shadow)}
 .search input{border:none;outline:none;background:none;color:var(--text);
@@ -1919,6 +1926,8 @@ html.sheet-open{overflow:hidden}
 [data-theme="heavy"] .bsh-acts button[data-wish][aria-pressed="true"]{background:#3a2d10;border-color:#fdd663;color:#fdd663}
 .wish-mk{color:#d18f00;margin-right:4px;font-size:1.05em}
 .booth-open{all:unset;cursor:pointer;display:inline}
+.booth-open mark{background:#fde68a;color:inherit;border-radius:3px;padding:0 1px}
+[data-theme="heavy"] .booth-open mark{background:#7a5c00;color:#fff}
 .booth-open:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
 .bsh-route{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--surface-2);border:1px dashed var(--border-strong);
   font-size:12.5px;font-weight:700;line-height:1.6}
@@ -2365,6 +2374,8 @@ html.sheet-open{overflow:hidden}
 
     <!-- ============ 一覧 ============ -->
     <section class="view" id="v-list">
+      <!-- v160：下へスクロールしても検索・絞り込みが見えたまま（見出しのすぐ下に貼りつく） -->
+      <div class="list-head">
       <div class="search">
         <svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
         <input id="q" type="search" placeholder="番号・ブース名・部屋名・科で検索" aria-label="ブース検索"
@@ -2379,6 +2390,7 @@ html.sheet-open{overflow:hidden}
         <button class="chip" id="sort-near" aria-pressed="false" hidden>いまここから近い順</button>
         <button class="chip wish-chip" id="wish-only" aria-pressed="false">★ 行きたい</button>
         <button class="chip" id="todo-only" aria-pressed="false">まだ行っていない</button>
+      </div>
       </div>
       <div id="booth-list" class="stagger" style="display:flex;flex-direction:column;gap:9px">
         <div class="skel"></div><div class="skel"></div><div class="skel"></div>
@@ -2846,6 +2858,8 @@ html.sheet-open{overflow:hidden}
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+<!-- v160：長い一覧・スタンプ帳で、下まで行ったら上へ戻る -->
+<button class="to-top hide" id="to-top" type="button" aria-label="いちばん上へ戻る">↑</button>
 <!-- QRの読み取り。BarcodeDetector がある端末（Android の Chrome など）はこの画面で読む。
      無い端末（iPhone の Safari など）は、標準のカメラで読む方法を案内する -->
 <div class="scan hide" id="scan" role="dialog" aria-modal="true" aria-labelledby="scan-ttl">
@@ -2870,7 +2884,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-04h',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-04i',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4225,9 +4239,12 @@ function renderDeptLegend(floorNum){
   box.innerHTML =
     ((hasWc || hasEnt) ? `<button class="fac" data-dept="__fac" aria-pressed="${S.dept === '__fac'}"
         >${ICON.wc} トイレ・出入口</button>` : '') +
-    seen.map(d =>
-    `<button data-dept="${esc(d.z)}" aria-pressed="${S.dept === d.z}"
-       ><i style="background:${d.c}"></i>${esc(d.s)}</button>`).join('') +
+    seen.map(d => {
+      // v160：この階にあるその科のブースの数
+      const n = S.booths.filter(b => floorOfBooth(b) === floorNum && (() => { const sl = slotOf(b.id); const x = sl ? deptOf(sl) : null; return x && x.z === d.z; })()).length;
+      return `<button data-dept="${esc(d.z)}" aria-pressed="${S.dept === d.z}"
+       ><i style="background:${d.c}"></i>${esc(d.s)}${n ? ` <b class="dept-n">${n}</b>` : ''}</button>`;
+    }).join('') +
     (S.dept ? `<button class="dept-clear" data-dept="">絞り込みを解除</button>` : '');
   $$('[data-dept]', box).forEach(el => el.addEventListener('click', () => {
     const z = el.dataset.dept;
@@ -5800,6 +5817,7 @@ function renderSheet(){
       <button data-act="jump">${jumpLabel}</button>
       <button data-wish aria-pressed="${S.wish.has(b.id)}">${S.wish.has(b.id) ? '★ 行きたい（保存済み）' : '☆ 行きたい'}</button>
       <button data-share>共有する</button>
+      <button class="wide" data-here-set ${hereId() === b.id ? 'disabled' : ''}>${hereId() === b.id ? '✓ いまここに設定しています' : 'いまここにいる（ここを「いまここ」にする）'}</button>
     </div>`;
 
   $('#bsh-x').addEventListener('click', () => closeSheet());
@@ -5811,6 +5829,9 @@ function renderSheet(){
   if (wb) wb.addEventListener('click', () => toggleWish(b.id));
   const sb = $('#bsh-body [data-share]');
   if (sb) sb.addEventListener('click', () => shareBooth(b.id));
+  // v160：QRを読まなくても「ここにいる」と言える（近くの空き・近い順・行き方の起点になる）
+  const hs = $('#bsh-body [data-here-set]');
+  if (hs) hs.addEventListener('click', () => { setHere(b.id, 'pick'); toast(`いまここ：${b.name}`); renderSheet._fp = null; renderSheet(); });
   $$('#bsh-body [data-act]').forEach(el => el.addEventListener('click', () => {
     const a = el.dataset.act;
     if (fromList){
@@ -6951,6 +6972,25 @@ const CAT_SYN = {
   'イベント': 'ステージ ライブ 発表会 出し物 演奏',
   '受付': '入口 入り口 受付 案内'
 };
+/**
+ * 名前の中で、検索した語と同じ並びの所を <mark> で囲む（v160）。大文字・小文字・全角半角は同じとみなす。
+ * 読みがなで当たった場合（「でんし」→電子）は印を付けない。中身は必ず esc を通す
+ */
+function markHit(name, q){
+  const src = String(name || '');
+  const toks = String(q || '').normalize('NFKC').toLowerCase().split(/\s+/).filter(t => t.length >= 1);
+  const low = src.normalize('NFKC').toLowerCase();
+  if (!toks.length || low.length !== src.length) return esc(src);
+  const on = new Array(src.length).fill(false);
+  toks.forEach(t => { let i = low.indexOf(t); while (i >= 0){ for (let k = i; k < i + t.length; k++) on[k] = true; i = low.indexOf(t, i + t.length); } });
+  let out = '', cur = false;
+  for (let i = 0; i < src.length; i++){
+    if (on[i] !== cur){ out += on[i] ? '<mark>' : '</mark>'; cur = on[i]; }
+    out += esc(src[i]);
+  }
+  return out + (cur ? '</mark>' : '');
+}
+
 /** ブースの検索用の文字列（一覧と地図の検索で共通） */
 function boothHay(b){
   const sl = slotOf(b.id);
@@ -7092,7 +7132,7 @@ function renderList(){
             class="nm"><button type="button" class="booth-open"
               aria-label="${S.numbers.get(b.id) ? S.numbers.get(b.id) + '番 ' : ''}${esc(b.name)} ${esc(L.short)}${
               b.wait > 0 && L.lv >= 0 && L.lv < 3 ? ` ${b.wait}人待ち` : ''}${got ? ' スタンプ済' : ''}${S.wish.has(b.id) ? ' 行きたい' : ''} の詳細をひらく"
-              >${S.wish.has(b.id) ? '<span class="wish-mk" aria-hidden="true">★</span>' : ''}${esc(b.name)}</button></span><span class="tag">${esc(b.category)}</span><span
+              >${S.wish.has(b.id) ? '<span class="wish-mk" aria-hidden="true">★</span>' : ''}${markHit(b.name, S.q)}</button></span><span class="tag">${esc(b.category)}</span><span
             class="tag">${esc(flLabel(b))}</span></h3>
           <p class="booth-meta">${(() => {
             // 部屋と更新時刻を別々の行に置くと、1枚が高くなって1画面に5件しか入らなかった。
@@ -9172,8 +9212,23 @@ function prewarmViews(){
   ric(step, { timeout: 5000 });
 }
 
+/**
+ * ★行きたい のブースが「やや混雑・混雑」から「空き」になったら知らせる（v160）。
+ * 開いている間だけ（通知は出さない）。最初の読み込みでは知らせない
+ */
+function notifyWishFree(){
+  const now = {};
+  S.booths.forEach(b => { if (S.wish.has(b.id)) now[b.id] = lvOf(b).lv; });
+  const prev = notifyWishFree._prev;
+  notifyWishFree._prev = now;
+  if (!prev) return;
+  const freed = S.booths.filter(b => S.wish.has(b.id) && now[b.id] === 0 && (prev[b.id] === 1 || prev[b.id] === 2) && !S.stamps.has(b.id));
+  if (freed.length) toast(`★「${freed[0].name}」が空きました${freed.length > 1 ? `（ほか${freed.length - 1}件）` : ''}`, null, 6000);
+}
+
 function renderAll(){
   markChanges();
+  notifyWishFree();
   const hadBooths = renderAll._had;
   renderAll._had = S.booths.length > 0;
   renderSyncState();
@@ -9606,6 +9661,15 @@ function renderAssign(){
     store('kuroko_assigned_v2', Array.from(S.assigned));
     renderAssign(); renderAdmin();
   }));
+}
+
+// v160：一覧・スタンプ帳で 1200px 以上下へ行ったら「上へ戻る」を出す
+{
+  const tt = document.getElementById('to-top');
+  const upd = () => { if (tt) tt.classList.toggle('hide', !(['list', 'stamp'].indexOf(S.view) >= 0 && window.scrollY > 1200)); };
+  addEventListener('scroll', upd, { passive:true });
+  if (tt) tt.addEventListener('click', () => window.scrollTo({ top:0, behavior: smoothBehavior() }));
+  document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#nav')) setTimeout(upd, 50); });
 }
 
 // v157：お知らせのひな形。押すと欄に入れて、選んだことが分かるよう文字数の表示も更新する
