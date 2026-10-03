@@ -651,3 +651,64 @@ test('地図の右上（階）と右下（現在地・＋−）のボタンが�
     await expect(page.locator('#plan-0')).toBeVisible();
   }
 });
+
+/* ---------------- v159 の6つ ---------------- */
+test('横向き（667x375）でも、地図の右上の階と右下の＋−が重ならない', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 667, height: 375 });
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.waitForTimeout(400);
+  const ov = await page.evaluate(() => {
+    const a = document.querySelector('.map-floors').getBoundingClientRect();
+    const b = document.querySelector('.map-zoom-ctl').getBoundingClientRect();
+    return !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top);
+  });
+  expect(ov).toBe(false);
+});
+
+test('地図の検索：ブースの無い部屋（柔剣道場など）も出て、選ぶとその階に寄る', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.locator('#map-q').fill('柔剣道場');
+  await expect(page.locator('#map-sug')).toContainText('ブースはありません');
+  await page.locator('#map-sug button').first().click();
+  await expect.poll(() => page.evaluate(() => S.spot)).toBeTruthy();
+});
+
+test('いまここから一番近いトイレへ地図を寄せる（いまここが無ければ今まで通り）', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.evaluate(() => setHere('2F-12', 'pick'));
+  const t = await page.evaluate(() => { const r = nearestToilet(); return r && r.f; });
+  expect(t).toBe(2);                                         // 2階にいれば2階のトイレ
+  await page.locator('#map-q').fill('トイレ');
+  await page.locator('#map-q').press('Enter');
+  await expect(page.locator('#fl-2')).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => page.evaluate(() => ZOOM.k)).toBeGreaterThan(1.05);
+  expect(await page.evaluate(() => S.dept)).toBe('__fac');
+});
+
+test('スタンプ画面：★行きたいのうち何件回ったか', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('kuroko_wish_v1', JSON.stringify(['1F-02', '1F-03', '2F-12']));
+    localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02']));
+  });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await expect(page.locator('#stamp-wish')).toHaveText('★行きたい 3件のうち 1件回りました');
+});
+
+test('いまここ：どれくらい前の場所かを出し、25分を過ぎたらえらび直しを促す', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => localStorage.setItem('kuroko_here_v1', JSON.stringify({ id: '1F-02', at: Date.now() - 30 * 60000, src: 'qr' })));
+  await page.goto('/?tab=map');
+  await ready(page);
+  await expect(page.locator('#here-bar')).toContainText('30分前');
+  await expect(page.locator('#here-bar')).toContainText('えらび直す');
+});

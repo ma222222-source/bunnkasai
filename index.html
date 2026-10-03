@@ -762,6 +762,11 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 /* 科の色の帯はブースの中にも出さない（科は番号の輪の色で分かる。帯があると混み具合の色と混ざる） */
 #map-card.gmap .room .dept-bar{display:none}
 @media print{ #map-card.gmap .map-floors,#map-card.gmap .map-ctl{display:none} }
+/* v159：横向きは地図が低い。右下の現在地・＋−を縦に積むと右上の階の切り替えと重なるので横に並べる */
+@media (orientation:landscape) and (max-height:560px){
+  #map-card.gmap .map-zoom-ctl{flex-direction:row}
+  #map-card.gmap .map-floors{flex-direction:row}
+}
 /* v142：階の切り替えを細くする（数は角の小さな印に）。幅58pxあった板が右端のブースを隠していた */
 #map-card.gmap .map-floors button{min-width:48px;padding:0 6px;position:relative}
 #map-card.gmap .map-floors .fl-n{position:absolute;top:2px;right:2px;margin:0;min-width:15px;height:15px;padding:0 3px;
@@ -1519,6 +1524,7 @@ html.sfx-open,html.sfx-open body{overflow:hidden}
 .as-sub{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;padding:8px;margin:2px 0 4px;border-radius:12px;
   background:var(--surface-2);border:1px dashed var(--border-strong)}
 .adm-preview{font-size:12px;font-weight:800;color:var(--text-dim);margin:6px 2px 0;min-height:1em}
+.adm-preview.warn{color:var(--busy-ink)}
 .adm-booth{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
            padding:11px 12px;box-shadow:var(--shadow)}
 .adm-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
@@ -1918,6 +1924,8 @@ html.sheet-open{overflow:hidden}
   font-size:12.5px;font-weight:700;line-height:1.6}
 .bsh-route .ic-svg{width:16px;height:16px;vertical-align:-3px}
 [data-fs="xl"] .bsh-route{font-size:15px}
+.stamp-wish{margin-top:10px;font-size:13px;font-weight:800;color:#8a5b00}
+[data-theme="heavy"] .stamp-wish{color:#fdd663}
 .intro-card{margin-bottom:10px;padding:12px 14px;border-radius:var(--r);background:var(--surface);border:1.5px solid var(--accent);
   box-shadow:var(--shadow);font-size:13px;line-height:1.6}
 .intro-card b{font-size:14px}
@@ -2395,6 +2403,7 @@ html.sheet-open{overflow:hidden}
         <!-- v141：いちばん気になる「お菓子まであと何個か」を最初のカードに出す。
              以前は3枚目のカードまで下りないと分からなかった -->
         <div class="prize" id="stamp-prize" aria-live="polite"></div>
+        <p class="stamp-wish hide" id="stamp-wish"></p>
         <button class="btn ghost" id="stamp-todo" type="button" style="width:100%;margin-top:10px;min-height:48px">まだ行っていないブースを見る</button>
       </div>
 
@@ -2861,7 +2870,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-04g',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-04h',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5401,7 +5410,11 @@ function hereId(){ const h = hereEntry(); return h ? h.id : null; }
 /** 現在地をどうやって決めたかの一言 */
 function hereFrom(){
   const h = hereEntry();
-  return h && h.src === 'qr' ? 'QRを読んだ場所です' : '地図でえらんだ場所です';
+  const src = h && h.src === 'qr' ? 'QRを読んだ場所' : '地図でえらんだ場所';
+  if (!h || !h.at) return src + 'です';
+  // v159：どれくらい前の場所か。25分を過ぎたら、移動していればえらび直すよう促す
+  const m = Math.max(0, Math.round((Date.now() - h.at) / 60000));
+  return `${src}（${m < 1 ? 'たった今' : m + '分前'}）${m >= 25 ? '・移動していたら「えらび直す」' : ''}`;
 }
 /**
  * 現在地をえらぶモード。地図の部屋をおすと、そこを現在地にする。
@@ -5541,15 +5554,16 @@ function renderHere(){
   }
 
   // 同じ階の空いているブースを1つだけ提案する（歩く距離が短い順の代わり）
+  // v159：同じ階のうち、ここから一番近いもの
   const near = S.booths
-    .filter(x => x.id !== b.id && floorOfBooth(x) === floorOfBooth(b) && lvOf(x).lv === 0 && !S.stamps.has(x.id))
-    .slice(0, 1)[0];
+    .filter(x => x.id !== b.id && floorOfBooth(x) === floorOfBooth(b) && lvOf(x).lv === 0 && !S.stamps.has(x.id) && isVenue(x))
+    .sort((p, q) => placeDist(b.id, p.id) - placeDist(b.id, q.id))[0];
 
   bar.classList.remove('hide');
   bar.innerHTML = `
     <span class="dot" aria-hidden="true"></span>
     <span class="tx">いまここ：${esc(b.name)}
-      <small>${near ? `同じ${esc(flLabel(b))}の「${esc(near.name)}」がいま空いています` : esc(hereFrom())}</small></span>
+      <small>${near ? `近くの「${esc(near.name)}」がいま空いています・` : ''}${esc(hereFrom())}</small></span>
     ${near ? `<button data-here-go="${esc(near.id)}" aria-label="${esc(near.name)}のくわしい情報をひらく">見る</button>` : ''}
     <button data-here-x="1" aria-label="現在地の表示を消す">消す</button>`;
   const go = $('[data-here-go]', bar);
@@ -6013,6 +6027,17 @@ function mapSuggest(q){
     bs = hit.concat(bs.filter(b => hit.indexOf(b) < 0));
   }
   bs.slice(0, 6).forEach(b => out.push({ kind:'booth', b }));
+  // v159：ブースの無い部屋・場所も（保健室・柔剣道場・北棟昇降口など）。ブースの部屋は上で出しているので外す
+  if (out.length < 8){
+    const booths = new Set(S.booths.map(b => b.id));
+    const rooms = [];
+    ROOM_INDEX.forEach((v, id) => {
+      if (booths.has(id) || !v.r.nm) return;
+      const hay = normalizeQ(withYomi(v.r.nm + ' ' + (v.r.z || '')));
+      if (qs.every(t => hay.includes(t))) rooms.push({ kind:'room', id, r: v.r, f: v.f });
+    });
+    rooms.slice(0, 8 - out.length).forEach(x => out.push(x));
+  }
   return out;
 }
 
@@ -6037,6 +6062,42 @@ function focusBoothOnMap(id){
 
 { const lb = $('#map-locate'); if (lb) lb.addEventListener('click', () => locateHere()); }
 
+/**
+ * いまここから一番近いトイレ（v159）。図面の施設（utils）の「WC」から、同じ階は図面の距離、
+ * 階が違えば1階ぶん 300 を足す目安で選ぶ。いまここが無ければ null
+ */
+function nearestToilet(){
+  const hid = hereId();
+  const a = hid ? ROOM_INDEX.get(hid) : null;
+  if (!a) return null;
+  const ax = a.r.x + a.r.w / 2, ay = a.r.y + a.r.h / 2;
+  let best = null;
+  FLOORS.forEach(fl => {
+    ((FLOOR_PLAN[fl.n] || {}).utils || []).forEach(u => {
+      if (!/WC|トイレ/i.test(u.t || '')) return;
+      const d = Math.hypot(u.x + u.w / 2 - ax, u.y + u.h / 2 - ay) + Math.abs(fl.n - a.f) * 300;
+      if (!best || d < best.d) best = { d, u, f: fl.n };
+    });
+  });
+  return best;
+}
+/** 一番近いトイレへ地図を寄せる。いまここが無ければ、トイレと出入口を目立たせるだけ（今まで通り） */
+function showNearestToilet(){
+  const t = nearestToilet();
+  S.dept = '__fac';
+  switchView('map');
+  if (!t){
+    if (S.floor === 0) setFloor(1);
+    drawFloor(S.floor);
+    toast('トイレと出入口を目立たせています（「いまここ」を決めると一番近いトイレに寄せます）');
+    return;
+  }
+  if (t.f !== S.floor) setFloor(t.f);
+  drawFloor(S.floor);
+  setTimeout(() => { try{ zoomToRooms(S.floor, [t.u], { pad:40, minRatio:0.35, maxK:2.6 }); }catch(e){} }, 150);
+  toast(`いまここから一番近いトイレ：${t.f === 0 ? '屋外' : t.f + '階'}（青い印）`);
+}
+
 /** 地図の検索で最近えらんだブース（最大5件。端末に保存） */
 function rememberRecent(id){
   const a = load('kuroko_recent_q', []).filter(x => x !== id);
@@ -6059,7 +6120,16 @@ function recentItems(){
     close();
     inp.blur();
     if (it.kind === 'booth'){ rememberRecent(it.b.id); focusBoothOnMap(it.b.id); return; }
+    if (it.kind === 'room'){
+      // 部屋：その階へ移って寄せ、しばらく光らせる（showPlace）
+      switchView('map');
+      if (it.f !== S.floor) setFloor(it.f);
+      setTimeout(() => { try{ zoomToRooms(S.floor, [it.r], { pad:30, minRatio:0.32, maxK:3 }); }catch(e){} showPlace(it.id); }, 150);
+      toast(`${it.r.nm}（${it.f === 0 ? '屋外' : it.f + '階'}）`);
+      return;
+    }
     const [ic, title, desc] = it.h;
+    if (ic === 'wc'){ showNearestToilet(); return; }
     if (HELP_ON_MAP.indexOf(ic) >= 0){
       S.dept = '__fac';
       switchView('map');
@@ -6084,6 +6154,10 @@ function recentItems(){
         const [ic, title, desc] = it.h;
         return `<button type="button" role="option" id="sg-${i}" data-i="${i}"><span class="sg-ic poi">${ICON[ic] || ''}</span>
           <span class="sg-tx"><b>${esc(title)}</b><small>${esc(desc)}</small></span></button>`;
+      }
+      if (it.kind === 'room'){
+        return `<button type="button" role="option" id="sg-${i}" data-i="${i}"><span class="sg-ic">${ICON.pin || ''}</span>
+          <span class="sg-tx"><b>${esc(it.r.nm)}</b><small>${it.f === 0 ? '屋外' : it.f + '階'}${it.r.z ? '・' + esc(it.r.z) : ''}（ブースはありません）</small></span></button>`;
       }
       const b = it.b, L = lvOf(b), no = S.numbers.get(b.id);
       const st = L.lv >= 0 && L.lv < 3 && b.wait != null ? `${L.short}・${b.wait}人` : L.short;
@@ -6857,6 +6931,7 @@ function helpHits(q){
 /** 「地図でトイレ・出入口を見る」：1階の地図でトイレ・出入口を目立たせる */
 function wireHelpHits(box){
   $$('[data-fac]', box).forEach(el => el.addEventListener('click', () => {
+    if (hereId()){ showNearestToilet(); return; }
     S.dept = '__fac';
     switchView('map');
     setFloor(1);
@@ -7967,6 +8042,14 @@ function renderStamps(){
 
   const canGet = Math.floor(left / need);
   renderPrize(got, left, need, canGet);
+  // v159：★行きたい のうち何件回ったか
+  const wp = $('#stamp-wish');
+  if (wp){
+    const ws = S.booths.filter(b => S.wish.has(b.id));
+    const wd = ws.filter(b => S.stamps.has(b.id)).length;
+    wp.classList.toggle('hide', !ws.length);
+    wp.textContent = ws.length ? (wd >= ws.length ? `★行きたい ${ws.length}件 ぜんぶ回りました！` : `★行きたい ${ws.length}件のうち ${wd}件回りました`) : '';
+  }
   const msg = $('#redeem-msg'), open = $('#redeem-open'), log = $('#redeem-log');
   // 「あと◯個」は下のボタンにも出る。説明文とボタンで同じことを二度言わない
   if (msg){
@@ -9883,6 +9966,7 @@ function renderAdmin(){
 function admPreview(card, n){
   const el = card.querySelector('.adm-preview');
   if (!el) return;
+  el.classList.remove('warn');
   const b = S.booths.find(x => x.id === card.dataset.id);
   if (!b || n == null){ el.textContent = ''; return; }
   const th = S.waitTh || { warn:6, busy:16 };
@@ -9963,6 +10047,17 @@ async function update(id, status, wait, retry){
   const b = S.booths.find(x => x.id === id);
   if (!b) return;
   update._gen = (update._gen || 0) + 1;
+  // v159：同じブースを2台で受け持っていると、数えた人数が上書きし合う。1分以内にほかの端末の更新があれば知らせる（送信はする）
+  if (!retry && b.time){
+    const t = new Date(b.time).getTime(), mine = (S.mySent || {})[id] || 0;
+    if (isFinite(t) && Date.now() - t < 60000 && Math.abs(t - mine) > 15000){
+      // 送ったあとの「元に戻す」の通知と取り合わないよう、カードの中（人数の下）に出す
+      const pv = document.querySelector(`.adm-booth[data-id="${CSS.escape(id)}"] .adm-preview`);
+      if (pv){ pv.textContent = `⚠ ${Math.max(1, Math.round((Date.now() - t) / 1000))}秒前にほかの端末からも更新されています。同じブースを2人で受け持っていないか確かめてください`; pv.classList.add('warn'); }
+    }
+  }
+  S.mySent = S.mySent || {};
+  S.mySent[id] = Date.now();
 
   const prev = { status: b.status, wait: b.wait, time: b.time, stale: b.stale };
   // 楽観的更新：サーバーと同じ規則でこちらでも判定しておく
