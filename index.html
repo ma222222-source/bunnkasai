@@ -54,7 +54,7 @@
     if (new URLSearchParams(location.search).get('mode')) return;
     var u = 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec';
     var c = typeof AbortController === 'function' ? new AbortController() : null;
-    var t = c ? setTimeout(function(){ c.abort(); }, 20000) : 0;
+    var t = c ? setTimeout(function(){ c.abort(); }, 12000) : 0;   // 本体の TIMEOUT_MS と同じ
     var p = fetch(u + '?_=' + Date.now(), { mode:'cors', redirect:'follow', signal: c ? c.signal : undefined })
       .then(function(r){ clearTimeout(t); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
     p.catch(function(){});
@@ -2800,7 +2800,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-04b',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-04c',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3524,11 +3524,18 @@ function load(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.par
 async function earlyOrApi(){
   const e = window.__earlyGas;
   window.__earlyGas = null;
-  if (e && Date.now() - e.at < 15000){
+  // 【v154】待つのは、ふつうの取得と同じ時間（取り始めから TIMEOUT_MS）まで。
+  // v153 は先に取った通信の結果を最大20秒待っていたため、GAS が重いときに
+  // 「取りに行っています…」のまま20秒止まり、以前より遅くなっていた
+  const left = e ? e.at + CONFIG.TIMEOUT_MS - Date.now() : 0;
+  if (left > 0){
+    let t;
     try{
-      const j = await e.p;
+      const j = await Promise.race([e.p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error('timeout')), left); })]);
       if (j && j.ok !== false && (Array.isArray(j) || Array.isArray(j.booths))) return j;
-    }catch(_){}
+    }catch(_){
+      // 時間切れ・失敗：ふつうの取得（再試行つき）へ。時間切れなら次の自動更新を待たずにすぐ取り直す
+    }finally{ clearTimeout(t); }
   }
   return api();
 }

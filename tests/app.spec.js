@@ -411,3 +411,19 @@ test('インフォ「このマップを友だちに送る」：外部ブラウ�
   expect(d.url).toContain('openExternalBrowser=1');
   expect(d.url).not.toContain('booth=');
 });
+
+test('起動：GAS が遅いとき、先に取った通信を待ちすぎない（ふつうの取得と同じ12秒まで）', async ({ page }) => {
+  // 最初の1本だけ30秒かかり、2本目からはすぐ返す
+  let n = 0;
+  const { snapshot } = require('./mock');
+  await page.route(/script\.google(usercontent)?\.com\//, async route => {
+    n++;
+    if (n === 1) await new Promise(r => setTimeout(r, 30000));
+    return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/json', body: JSON.stringify(snapshot()) }).catch(() => {});
+  });
+  const t0 = Date.now();
+  await page.goto('/?tab=map');
+  await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 25000 }).toBe(46);
+  const ms = Date.now() - t0;
+  expect(ms).toBeLessThan(18000);       // 20秒（v153）・30秒待たない
+});
