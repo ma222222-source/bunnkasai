@@ -532,3 +532,54 @@ test('一覧カード：キーボード（名前のボタン → Enter）でも�
   await page.keyboard.press('Enter');
   await expect(page.locator('#bsh')).toBeVisible();
 });
+
+/* ---------------- v157 の6つ ---------------- */
+test('「まだ行っていない」：スタンプ済み・受付を外す。スタンプ画面のボタンから一覧へ（いまここがあれば近い順）', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03'])));
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await page.evaluate(() => setHere('1F-08', 'pick'));
+  await page.locator('#stamp-todo').click();
+  await expect(page.locator('#v-list')).toBeVisible();
+  await expect(page.locator('#todo-only')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#sort-near')).toHaveAttribute('aria-pressed', 'true');
+  const ids = await page.locator('#booth-list > .booth').evaluateAll(els => els.map(e => e.dataset.sid));
+  expect(ids).not.toContain('1F-02');
+  expect(ids).not.toContain('1F-48');                         // 受付
+  expect(ids.length).toBe(46 - 2 - 1);
+});
+
+test('ブースの詳細：いまここがあると、階と棟の行き方の目安が出る', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.evaluate(() => setHere('1F-48', 'pick'));
+  await page.evaluate(() => openSheet('2F-12'));
+  await expect(page.locator('#bsh-body .bsh-route')).toContainText('階段で2階へ上がる');
+  await expect(page.locator('#bsh-body .bsh-route')).toContainText('いまここ');
+  await page.evaluate(() => { closeSheet(); clearHere(); openSheet('2F-12'); });
+  await expect(page.locator('#bsh-body .bsh-route')).toHaveCount(0);
+});
+
+test('困ったときは：「スタンプが付かない」で案内が出る', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.locator('#q').fill('スタンプが付かない');
+  await expect(page.locator('#booth-list .qhelp').first()).toContainText('スタンプが付かないとき');
+  await page.goto('/?tab=info');
+  await expect(page.locator('#help-list')).toContainText('スタンプが付かないとき');
+});
+
+test('スタンプ帳：階ごとの見出しと、その階の数', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['2F-12'])));
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  const heads = await page.locator('#stamp-grid .stamp-floor').allTextContents();
+  expect(heads.length).toBeGreaterThanOrEqual(3);
+  expect(heads[0]).toContain('1階');
+  expect(heads.find(h => h.includes('2階'))).toMatch(/1 \/ \d+/);
+  await expect(page.locator('#stamp-grid .stamp')).toHaveCount(46);
+});

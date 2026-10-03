@@ -1286,6 +1286,8 @@ text.util:not([font-size]){font-size:7.5px}
 
 /* ========================= スタンプ ========================= */
 .stamp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.stamp-floor{grid-column:1 / -1;display:flex;align-items:baseline;gap:8px;margin:8px 2px -2px;font-size:13px;font-weight:900;color:var(--text-dim)}
+.stamp-floor span{font-size:11.5px;font-weight:800;color:var(--text-mute)}
 /* 正方形にしていたころは1マス235pxもあり、40ブースで3400pxスクロールしていた。
    中身は番号・丸・部屋名だけなので、丸を小さくして高さを内容なりにする。
    「あと何個か」「どれを回ったか」は一覧できるほど掴みやすい。 */
@@ -1515,6 +1517,7 @@ html.sfx-open,html.sfx-open body{overflow:hidden}
 .as-grp[aria-expanded="true"] b{color:inherit;opacity:.8}
 .as-sub{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;padding:8px;margin:2px 0 4px;border-radius:12px;
   background:var(--surface-2);border:1px dashed var(--border-strong)}
+.adm-preview{font-size:12px;font-weight:800;color:var(--text-dim);margin:6px 2px 0;min-height:1em}
 .adm-booth{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
            padding:11px 12px;box-shadow:var(--shadow)}
 .adm-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
@@ -1910,6 +1913,10 @@ html.sheet-open{overflow:hidden}
 .wish-mk{color:#d18f00;margin-right:4px;font-size:1.05em}
 .booth-open{all:unset;cursor:pointer;display:inline}
 .booth-open:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+.bsh-route{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--surface-2);border:1px dashed var(--border-strong);
+  font-size:12.5px;font-weight:700;line-height:1.6}
+.bsh-route .ic-svg{width:16px;height:16px;vertical-align:-3px}
+[data-fs="xl"] .bsh-route{font-size:15px}
 .wish-btn{min-width:44px;min-height:44px;margin:-6px -6px -8px 0;border-radius:50%;font-size:20px;line-height:1;
   color:var(--text-mute);background:transparent;cursor:pointer}
 .wish-btn[aria-pressed="true"]{color:#d18f00}
@@ -2339,6 +2346,7 @@ html.sheet-open{overflow:hidden}
         <button class="chip" id="sort-name" aria-pressed="false">番号順</button>
         <button class="chip" id="sort-near" aria-pressed="false" hidden>いまここから近い順</button>
         <button class="chip wish-chip" id="wish-only" aria-pressed="false">★ 行きたい</button>
+        <button class="chip" id="todo-only" aria-pressed="false">まだ行っていない</button>
       </div>
       <div id="booth-list" class="stagger" style="display:flex;flex-direction:column;gap:9px">
         <div class="skel"></div><div class="skel"></div><div class="skel"></div>
@@ -2363,6 +2371,7 @@ html.sheet-open{overflow:hidden}
         <!-- v141：いちばん気になる「お菓子まであと何個か」を最初のカードに出す。
              以前は3枚目のカードまで下りないと分からなかった -->
         <div class="prize" id="stamp-prize" aria-live="polite"></div>
+        <button class="btn ghost" id="stamp-todo" type="button" style="width:100%;margin-top:10px;min-height:48px">まだ行っていないブースを見る</button>
       </div>
 
       <!-- スタンプ番号：サーバーの台帳の鍵。別のアプリ・別の端末で開いても、この番号で同じ記録につながる -->
@@ -2587,6 +2596,14 @@ html.sheet-open{overflow:hidden}
             <textarea class="field" id="notice-text" rows="2" maxlength="200"
               placeholder="例）12:00 から体育館でステージ発表があります。"></textarea>
             <p class="notice-len" id="notice-len">あと200文字</p>
+            <!-- v157：当日よく出すお知らせのひな形。押すと上の欄に入る（そのまま出さない。直してから出す） -->
+            <div class="chips notice-tpl" id="notice-tpl" style="margin-top:8px">
+              <button type="button" class="chip" data-tpl="落とし物が届いています。お心当たりの方は受付（南棟昇降口）へお越しください。">落とし物</button>
+              <button type="button" class="chip" data-tpl="お子さまをお預かりしています。お心当たりの方は受付（南棟昇降口）へお越しください。">迷子</button>
+              <button type="button" class="chip" data-tpl="雨のため、屋外の出し物は中止・変更になります。各ブースの表示をご確認ください。">雨天</button>
+              <button type="button" class="chip" data-tpl="まもなく終了の時刻です。お帰りの際はお忘れ物のないようご注意ください。">終了30分前</button>
+              <button type="button" class="chip" data-tpl="ただいまステージ発表を行っています（第一体育館）。">ステージ</button>
+            </div>
             <div class="seg" role="group" aria-label="お知らせの種類" style="width:fit-content;margin-top:8px">
               <button id="notice-info" aria-pressed="true">お知らせ</button>
               <button id="notice-alert" aria-pressed="false">注意（赤）</button>
@@ -2815,7 +2832,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-04e',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-04f',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -2908,6 +2925,7 @@ const CONFIG = {
       ['food','飲食','第二体育館が飲食ブースです。キッチンカーは第二体育館の前に出ています'],
       ['wc','トイレ','各棟の1階・2階／体育館入口'],
       ['bag','落とし物','受付（南棟昇降口）で預かっています'],
+      ['note','スタンプが付かないとき','ブース入口のQRを、この画面の「カメラでQRを読む」で読んでください。別のアプリで集めたスタンプは、スタンプ画面の「スタンプ番号」でつなげられます。それでも付かなければ近くの係員へ'],
       ['call','迷子・呼び出し','はぐれたら受付（南棟昇降口）へ。小さいお子さんとは、先に「はぐれたら受付に集合」と決めておくと安心です'],
       ['access','車椅子・ベビーカーの方','本校にエレベーターはありません。2階・3階へは階段のみです。1階と屋外は段差なしで回れます。「階段なしで回る」コースもお使いください'],
       ['nosmoke','喫煙・飲酒','校内は全面禁止です']
@@ -3436,6 +3454,7 @@ const S = {
   assigned: new Set(),
   wish: new Set(load('kuroko_wish_v1', [])),   // 来場者が「行きたい」に★を付けたブース（v150）
   wishOnly: false,      // 一覧を★だけに絞っているか
+  todoOnly: false,      // 一覧を「まだ行っていない」に絞っているか（v157）
   lvFilter: null,       // 地図で目立たせる状態（'0' 空き / '1' やや混雑 / '2' 混雑 / 'x' 準備中など）（v156）
   admOpen: new Set(),   // 係員画面で開いている科・場所のまとめ（v146）
   admMode: 'floor',     // 係員画面の並べ方：floor＝階ごと（中は科で区切る）／dept＝科・場所ごと／flat＝更新が古い順
@@ -5594,6 +5613,31 @@ function altSuggest(b){
       <span class="go">見る</span></button>`;
 }
 
+/**
+ * いまここ → このブースの行き方の目安（v157）。階と棟だけを言う。
+ * 通路の細かい道順は出さない（図面で確かめていない通路・立入禁止を通る案内を出さないため）
+ */
+function routeHint(b){
+  const hid = hereId();
+  if (!hid || hid === b.id) return '';
+  const a = ROOM_INDEX.get(hid), t = ROOM_INDEX.get(b.id);
+  if (!a || !t) return '';
+  const zn = r => { const d = r.r.z ? DEPT_BY_ZONE[r.r.z] : null; return d ? d.z : (r.r.z || ''); };
+  const fl = f => f === 0 ? '屋外' : f + '階';
+  const steps = [];
+  if (a.f !== t.f){
+    if (a.f === 0) steps.push('校舎に入る');
+    if (t.f === 0) steps.push('校舎から外へ出る');
+    else if (a.f !== 0 && t.f > a.f) steps.push(`階段で${fl(t.f)}へ上がる`);
+    else if (a.f !== 0 && t.f < a.f) steps.push(`階段で${fl(t.f)}へ下りる`);
+    else if (a.f === 0) steps.push(t.f === 1 ? '1階' : `階段で${fl(t.f)}へ`);
+  }
+  const zt = zn(t), za = zn(a);
+  if (zt && zt !== za) steps.push(zt + 'へ');
+  steps.push(roomLabel(b) || b.id);
+  return `<p class="bsh-route">${ICON.walk || ''} <b>いまここ（${esc(fl(a.f))}・${esc(placeName(hid))}）から：</b>${esc(steps.join(' → '))}</p>`;
+}
+
 /** ★行きたい を付け外しする（端末に保存。サーバーには送らない） */
 function toggleWish(id){
   if (S.wish.has(id)) S.wish.delete(id); else S.wish.add(id);
@@ -5643,7 +5687,7 @@ function renderSheet(){
   if (!b){ closeSheet(); return; }
   // 中身が変わっていなければ描き直さない（20秒ごとの同期でフォーカスが飛ぶのを防ぐ）
   const fp = [b.id, b.status, b.wait, b.time, b.note, b.image,
-              S.stamps.has(b.id), S.wish.has(b.id),
+              S.stamps.has(b.id), S.wish.has(b.id), hereId(),
               S.booths.filter(x => lvOf(x).lv === 0).map(x => x.id).join(','),
               (b.history || []).length, Math.floor(Date.now() / 60000)].join('|');
   if (renderSheet._fp === fp) return;
@@ -5676,6 +5720,7 @@ function renderSheet(){
     ${b.image ? `<img class="bsh-img" src="${esc(b.image)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : ''}
     ${b.note ? `<p class="bsh-note">${eventLabel(b)
         ? `<span class="ev-badge" data-kind="${eventState(b).kind}">${esc(eventLabel(b))}</span>` : ICON.note} ${esc(b.note)}</p>` : ''}
+    ${routeHint(b)}
     ${altSuggest(b)}
     ${(() => { const sp = sparkline(b.history); return sp ? `<div class="bsh-foot">${sp}</div>` : ''; })()}
     <p class="bsh-upd">${b.time ? `更新 <span data-ago="${esc(b.time)}">${esc(ago(b.time))}</span>` : 'まだ係の人からの更新がありません'}</p>
@@ -6729,7 +6774,8 @@ const HELP_SYN = {
   bag: '忘れ物 わすれもの なくし物 落とした',
   call: '迷子 まいご はぐれた 呼び出し',
   access: 'エレベーター 段差 バリアフリー ベビーカー 車いす',
-  nosmoke: 'たばこ タバコ 喫煙所 お酒'
+  nosmoke: 'たばこ タバコ 喫煙所 お酒',
+  note: 'スタンプ QR 読めない 付かない 消えた つなぐ'
 };
 /** 地図の「トイレ・出入口」表示へつなぐ項目 */
 const HELP_ON_MAP = ['wc', 'flag'];
@@ -6787,7 +6833,7 @@ function boothHay(b){
 function renderList(){
   // 「◯分前」は tickAgo() がその場で書き換えるので、中身が同じなら作り直さない
   // （以前は1分ごとに150件を作り直していて、安い端末では毎分1秒近く固まっていた）
-  const fp = fingerprint(`list:${S.cat}:${S.sort}:${S.sort === 'near' ? hereId() : ''}:${S.q}:${S.wishOnly}:${Array.from(S.wish).sort().join(',')}`);
+  const fp = fingerprint(`list:${S.todoOnly}:${S.cat}:${S.sort}:${S.sort === 'near' ? hereId() : ''}:${S.q}:${S.wishOnly}:${Array.from(S.wish).sort().join(',')}`);
   if (renderList._fp === fp) return;
   renderList._fp = fp;
 
@@ -6808,6 +6854,8 @@ function renderList(){
   let items = S.booths.slice();
   if (S.cat !== 'all') items = items.filter(b => b.category === S.cat);
   if (S.wishOnly) items = items.filter(b => S.wish.has(b.id));
+  // v157：スタンプがまだのブースだけ（受付は回る先ではないので外す）
+  if (S.todoOnly) items = items.filter(b => !S.stamps.has(b.id) && isVenue(b));
   if (S.q){
     // 空白で区切った語はすべて含むものを残す（「プログラミング 教室」で探せるように）。
     // 正規化した検索用の文字列はブースごとに1回だけ作る（打つたびに150件作り直すと重い）
@@ -7876,7 +7924,22 @@ function renderStamps(){
   const firstDraw = renderStamps._gridFp === undefined;
   renderStamps._gridFp = gridFp;
   $('#stamp-grid').classList.toggle('stagger', firstDraw);
-  if (gridChanged) $('#stamp-grid').innerHTML = S.booths.map(b => {
+  // v157：階ごとに見出しを付ける（46枚が1つに並ぶと、目当てのスタンプが探しにくい）。階の中は番号順
+  const flOrder = f => f === 0 ? 9 : f;
+  const sorted = S.booths.slice().sort((a, b) => flOrder(floorOfBooth(a)) - flOrder(floorOfBooth(b))
+    || (S.numbers.get(a.id) || 999) - (S.numbers.get(b.id) || 999));
+  let lastFl = null;
+  if (gridChanged) $('#stamp-grid').innerHTML = sorted.map(b => {
+    const f = floorOfBooth(b);
+    let head = '';
+    if (f !== lastFl){
+      lastFl = f;
+      const inFl = S.booths.filter(x => floorOfBooth(x) === f);
+      head = `<h4 class="stamp-floor">${f === 0 ? '屋外・体育館など' : f + '階'}<span>${inFl.filter(x => S.stamps.has(x.id)).length} / ${inFl.length}</span></h4>`;
+    }
+    return head + stampCell(b);
+  }).join('');
+  function stampCell(b){
     const g = S.stamps.has(b.id);
     const u = g && spentSet.has(b.id);
     const no = S.numbers.get(b.id) || '';
@@ -7891,7 +7954,7 @@ function renderStamps(){
       ${g && !u ? `<span class="mk art">${stampArt(b.id, true)}</span>`
                : `<span class="mk">${u ? '換' : ''}</span>`}
       <span class="lb">${esc(b.name)}</span></button>`;
-  }).join('');
+  }
 
   if (gridChanged) $$('[data-sid]', $('#stamp-grid')).forEach(el =>
     el.addEventListener('click', () => openSheet(el.dataset.sid)));
@@ -9384,6 +9447,18 @@ function renderAssign(){
   }));
 }
 
+// v157：お知らせのひな形。押すと欄に入れて、選んだことが分かるよう文字数の表示も更新する
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('#notice-tpl [data-tpl]');
+  if (!b) return;
+  const ta = $('#notice-text');
+  if (!ta) return;
+  ta.value = b.dataset.tpl;
+  ta.dispatchEvent(new Event('input', { bubbles:true }));
+  ta.focus();
+  toast('ひな形を入れました。必要なら直してから「この内容で出す」を押してください');
+});
+
 // v156：数えた人数（下書き）を送信しないまま画面を閉じる・移ると、その人数は来場者に届かない。
 // ブラウザの「このページを離れますか？」で一度止める（送信済み・自動再送待ちは端末に残るので対象外）
 window.addEventListener('beforeunload', e => {
@@ -9607,6 +9682,7 @@ function renderAdmin(){
           <button class="step" data-step="5" aria-label="5人増やす">＋5</button>
           <button class="send">送信</button>
         </div>
+        <p class="adm-preview" aria-live="polite"></p>
         <div class="adm-btns">
           ${LEVELS.slice(0, 3).map(l =>
             `<button data-lv="${l.lv}" data-key="${esc(l.key)}">${esc(l.short)}</button>`).join('')}
@@ -9724,12 +9800,27 @@ function renderAdmin(){
   $$('.adm-grp', container).forEach(d => { if (!live.has(d.dataset.g)) d.remove(); });
 }
 
+/** 係員カード：数えた人数で送ると、どう出るか（v157）。送る前に打ち間違いに気づけるように */
+function admPreview(card, n){
+  const el = card.querySelector('.adm-preview');
+  if (!el) return;
+  const b = S.booths.find(x => x.id === card.dataset.id);
+  if (!b || n == null){ el.textContent = ''; return; }
+  const th = S.waitTh || { warn:6, busy:16 };
+  const lvName = n >= th.busy ? '混雑' : n >= th.warn ? 'やや混雑' : '空き';
+  const P = CONFIG.PACE_SEC || {};
+  const sec = P[b.category] != null ? P[b.category] : (P._default || 45);
+  const m = sec ? Math.round(n * sec / 60) : 0;
+  el.textContent = `送ると：${lvName}${m >= 1 ? `・およそ${m <= 5 ? m : Math.round(m / 5) * 5}分待ち` : ''}`;
+}
+
 function bindAdminCard(card){
   const id = card.dataset.id;
   const out = card.querySelector('.adm-wait-n');
   card.querySelectorAll('.step').forEach(btn => btn.addEventListener('click', () => {
     const v = Math.max(0, Math.min(999, Number(out.dataset.n) + Number(btn.dataset.step)));
     out.dataset.n = v; out.textContent = v; out.classList.add('dirty');
+    admPreview(card, v);
     S.draftWait[id] = v;
     S.draftAt[id] = Date.now();     // 送信し忘れに気づけるようにする
     saveDrafts();                   // 画面を閉じても数えた人数を失わない
@@ -11033,7 +11124,8 @@ function renderPrintSheet(){
         }</tbody></table>
         <h2 style="margin-top:10px">困ったときは</h2>
         <table class="sheet-table"><tbody>${
-          CONFIG.INFO.help.map(([i, t, d]) =>
+          // 画面の操作の案内（スタンプが付かないとき＝アイコン note）は紙には要らない。載せると両面2ページに収まらない（v157）
+          CONFIG.INFO.help.filter(([i]) => i !== 'note').map(([i, t, d]) =>
             `<tr><td class="ic">${ICON[i] || ''}</td><td><b>${esc(t)}</b><br>${esc(d)}</td></tr>`).join('')
         }</tbody></table>
       </div>
@@ -11387,6 +11479,8 @@ function init(){
   $('#sort-name').addEventListener('click', () => setSort('name'));
   { const n = $('#sort-near'); if (n) n.addEventListener('click', () => setSort('near')); }
   { const w = $('#wish-only'); if (w) w.addEventListener('click', () => setWishOnly(!S.wishOnly)); }
+  { const t = $('#todo-only'); if (t) t.addEventListener('click', () => setTodoOnly(!S.todoOnly)); }
+  { const t = $('#stamp-todo'); if (t) t.addEventListener('click', () => showTodo()); }
   $('#stamp-share').addEventListener('click', shareStamps);
   // 記録のリセットは係員の試し用だけ。来場者が押せると、交換したあとに消して
   // 同じQRを読み直せば、お菓子をもう一度もらえてしまう（押し間違いで全部消える危険もある）
@@ -11915,6 +12009,19 @@ function fitMapBox(floorNum){
     if (need <= maxH) ZOOM.y = 0;
     zoomApply(false);
   }
+}
+function setTodoOnly(on){
+  S.todoOnly = !!on;
+  const el = $('#todo-only');
+  if (el) el.setAttribute('aria-pressed', String(S.todoOnly));
+  renderList();
+  scrollListTop();
+}
+/** スタンプ画面から：まだ行っていないブースを一覧で（いまここがあれば近い順）（v157） */
+function showTodo(){
+  switchView('list');
+  if (hereId()) setSort('near');
+  setTodoOnly(true);
 }
 function setWishOnly(on){
   S.wishOnly = !!on;
