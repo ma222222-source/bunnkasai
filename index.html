@@ -44,6 +44,24 @@
   }catch(e){}
 })();
 </script>
+<script>
+/* v153：混雑データを、この大きなページ（約60万字）を読み終える前に取りに行く。
+   本体（下の大きな script）が動き出すまで待ってから取りに行くと、遅い端末では
+   ページを読む時間とサーバーの応答（1〜5秒）がそのまま足し算になっていた。
+   係員の画面（?mode=…）は本体に任せる。URL は CONFIG.GAS_URL と同じ（static テストで見張る） */
+(function(){
+  try{
+    if (new URLSearchParams(location.search).get('mode')) return;
+    var u = 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec';
+    var c = typeof AbortController === 'function' ? new AbortController() : null;
+    var t = c ? setTimeout(function(){ c.abort(); }, 20000) : 0;
+    var p = fetch(u + '?_=' + Date.now(), { mode:'cors', redirect:'follow', signal: c ? c.signal : undefined })
+      .then(function(r){ clearTimeout(t); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    p.catch(function(){});
+    window.__earlyGas = { at: Date.now(), p: p };
+  }catch(e){}
+})();
+</script>
 <!-- ホーム画面のアイコンは Safari で開く（apple-mobile-web-app-capable を付けない）。
      独立アプリとして開くと、iPhone では Safari と保存場所が分かれ、
      カメラでQRを読んだ（＝Safariで開いた）スタンプがアイコン側に見えなくなるため。 -->
@@ -2407,6 +2425,8 @@ html.sheet-open{overflow:hidden}
       <div class="card">
         <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.6-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.4-7 10-7 10z"/></svg> 困ったときは</div>
         <div id="help-list"></div>
+        <!-- v153：一緒に来た人にこのマップを送る（QR を探さなくても開ける） -->
+        <button class="btn ghost share-app" id="share-app" type="button" style="margin-top:12px;width:100%;min-height:48px">このマップを友だちに送る</button>
       </div>
       <div class="card">
         <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 20 9 5l5.5 15"/><path d="M5.6 15h6.8"/><path d="M15.5 20l3-8 3 8"/><path d="M16.6 17.3h3.8"/></svg> 文字の大きさ</div>
@@ -2780,7 +2800,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-03b',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-04b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3497,6 +3517,22 @@ function load(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.par
 /* =====================================================================
    通信層：タイムアウト＋指数バックオフ＋キャッシュ復元
    ===================================================================== */
+/**
+ * 最初の1回だけ、見出しで先に取りに行った結果（window.__earlyGas）を使う（v153）。
+ * 15秒より古い・失敗した・中身がおかしいときは、ふつうに取り直す
+ */
+async function earlyOrApi(){
+  const e = window.__earlyGas;
+  window.__earlyGas = null;
+  if (e && Date.now() - e.at < 15000){
+    try{
+      const j = await e.p;
+      if (j && j.ok !== false && (Array.isArray(j) || Array.isArray(j.booths))) return j;
+    }catch(_){}
+  }
+  return api();
+}
+
 async function api(opts){
   const ctl = new AbortController();
   const isPost = !!(opts && opts.body);
@@ -3597,7 +3633,7 @@ async function sync(manual){
   sync._slow = setTimeout(() => { if (sync._busy) renderSyncState(); }, 1100);
   const gen = update._gen || 0;
   try{
-    const raw = await api();
+    const raw = await earlyOrApi();
     // 取得している間に係員が送信した場合、この結果は送信前の古い状態。
     // 取り込むと押したボタンが20秒ほど元に戻って見えるので捨てて、すぐ取り直す
     if ((update._gen || 0) !== gen || update._busy){ sync._again = true; return; }
@@ -5536,6 +5572,17 @@ function toggleWish(id){
  * ブースを人に送る。スマホなら共有メニュー（LINE など）、無ければリンクをコピーする。
  * 送るのはブースを開くリンクだけ（?booth=…）。スタンプの署名（k）は付けない（送った先でスタンプが付かないように）
  */
+/** このマップのアドレスを人に送る（v153）。LINE から開いても端末のブラウザで開く引数を付ける */
+async function shareApp(){
+  const url = publicBase() + '?openExternalBrowser=1';
+  const text = '黒工文化祭 校内マップ（混雑状況・スタンプラリー）';
+  try{ if (navigator.share){ await navigator.share({ title: text, text, url }); return; } }
+  catch(e){ if (e && e.name === 'AbortError') return; }
+  try{ await navigator.clipboard.writeText(text + '\n' + url); toast('アドレスをコピーしました。LINE などに貼り付けて送れます'); }
+  catch(e){ toast('アドレス：' + url, null, 8000); }
+}
+{ const sa = document.getElementById('share-app'); if (sa) sa.addEventListener('click', () => shareApp()); }
+
 async function shareBooth(id){
   const b = S.booths.find(x => x.id === id);
   if (!b) return;
@@ -5848,6 +5895,17 @@ function focusBoothOnMap(id){
 
 { const lb = $('#map-locate'); if (lb) lb.addEventListener('click', () => locateHere()); }
 
+/** 地図の検索で最近えらんだブース（最大5件。端末に保存） */
+function rememberRecent(id){
+  const a = load('kuroko_recent_q', []).filter(x => x !== id);
+  a.unshift(id);
+  store('kuroko_recent_q', a.slice(0, 5));
+}
+function recentItems(){
+  return load('kuroko_recent_q', []).map(id => S.booths.find(b => b.id === id)).filter(Boolean)
+    .map(b => ({ kind:'booth', b }));
+}
+
 (function initMapSearch(){
   const inp = $('#map-q'), box = $('#map-sug'), clr = $('#map-q-x');
   if (!inp || !box) return;
@@ -5858,7 +5916,7 @@ function focusBoothOnMap(id){
     if (!it) return;
     close();
     inp.blur();
-    if (it.kind === 'booth'){ focusBoothOnMap(it.b.id); return; }
+    if (it.kind === 'booth'){ rememberRecent(it.b.id); focusBoothOnMap(it.b.id); return; }
     const [ic, title, desc] = it.h;
     if (HELP_ON_MAP.indexOf(ic) >= 0){
       S.dept = '__fac';
@@ -5874,10 +5932,12 @@ function focusBoothOnMap(id){
   const render = () => {
     const q = inp.value;
     clr.classList.toggle('hide', !q);
-    items = mapSuggest(q);
+    items = q.trim() ? mapSuggest(q) : recentItems();
     sel = -1;
-    if (!q.trim()){ close(); return; }
-    box.innerHTML = items.length ? items.map((it, i) => {
+    // 何も打っていないときは、最近えらんだブース（v153。Google マップの「最近の検索」）
+    if (!q.trim() && !items.length){ close(); return; }
+    box.innerHTML = (!q.trim() ? '<p class="sg-none" style="padding:6px 16px 2px">最近えらんだブース</p>' : '')
+      + (items.length ? items.map((it, i) => {
       if (it.kind === 'help'){
         const [ic, title, desc] = it.h;
         return `<button type="button" role="option" id="sg-${i}" data-i="${i}"><span class="sg-ic poi">${ICON[ic] || ''}</span>
@@ -5888,7 +5948,7 @@ function focusBoothOnMap(id){
       return `<button type="button" role="option" id="sg-${i}" data-i="${i}"><span class="sg-ic">${no ? esc(String(no)) : '•'}</span>
         <span class="sg-tx"><b>${esc(b.name)}</b><small>${esc(flLabel(b))}${slotOf(b.id) && slotOf(b.id).nm ? '・' + esc(slotOf(b.id).nm) : ''}</small></span>
         <span class="sg-st" data-lv="${L.lv}">${esc(st)}</span></button>`;
-    }).join('') : '<p class="sg-none">見つかりませんでした。別のことばでさがしてください</p>';
+    }).join('') : '<p class="sg-none">見つかりませんでした。別のことばでさがしてください</p>');
     box.classList.remove('hide');
     inp.setAttribute('aria-expanded', 'true');
     $$('button', box).forEach(el => {
@@ -5898,7 +5958,7 @@ function focusBoothOnMap(id){
     });
   };
   inp.addEventListener('input', render);
-  inp.addEventListener('focus', () => { if (inp.value.trim()) render(); });
+  inp.addEventListener('focus', () => render());
   inp.addEventListener('blur', () => setTimeout(close, 150));
   inp.addEventListener('keydown', e => {
     const n = $$('button', box).length;
@@ -6662,6 +6722,17 @@ function wireHelpHits(box){
   }));
 }
 
+/**
+ * 分類の言い換え（v153）。「ごはん」「ゲーム」「見学」のように、分類名と違う言い方で探しても当たるようにする。
+ * 新しい分類を足したら、ここにも足す
+ */
+const CAT_SYN = {
+  '食べ物': 'ごはん 食事 昼ごはん お昼 フード グルメ 食べる おやつ 甘い ドリンク 飲み物 カフェ 喫茶',
+  '体験': 'あそぶ 遊ぶ 遊び ゲーム やってみる ものづくり 作る 工作 チャレンジ',
+  '展示': '見る 見学 作品 研究 発表',
+  'イベント': 'ステージ ライブ 発表会 出し物 演奏',
+  '受付': '入口 入り口 受付 案内'
+};
 /** ブースの検索用の文字列（一覧と地図の検索で共通） */
 function boothHay(b){
   const sl = slotOf(b.id);
@@ -6672,7 +6743,7 @@ function boothHay(b){
   // 紙のマップに出ているのは通し番号。それで引けないと紙とアプリがつながらない
   return normalizeQ(withYomi((no != null ? '#' + no + ' ' : '')
           + b.id + b.name + b.category + b.note + (sl ? sl.nm : '') + dept + (sl ? sl.z : '')
-          + ' ' + flLabel(b)));          // カードに「1階」と出しているので「1階」でも引けるように
+          + ' ' + flLabel(b) + ' ' + (CAT_SYN[b.category] || '')));   // 「1階」・分類の言い換えでも引けるように
 }
 
 function renderList(){
@@ -8699,6 +8770,10 @@ function hoursMessage(now){
                                              long: `最終入場は ${day.last} で締め切りました。${day.close} に終了します。` };
     if (last != null && cur >= last - 30) return { short: `最終入場は ${day.last} です（あと${last - cur}分）`,
                                                   long: `最終入場は ${day.last} です。${day.close} に終了します。` };
+    // 最終入場の無い日（校内公開日）も、終わる30分前から知らせる（v153）
+    const close = hmMin(day.close);
+    if (last == null && close != null && cur >= close - 30) return { short: `まもなく終了（${day.close}・あと${close - cur}分）`,
+                                                  long: `本日は ${day.close} に終了します。` };
     return null;
   }
   if (st.state === 'otherday'){
@@ -11460,6 +11535,12 @@ function init(){
   // QRのスタンプは通信を待たずに付けて見せる（最初の取得は電波しだいで10秒以上かかる）
   if (!mode && params.get('qr') === '1') applyDeepLink();
   // 引き継ぎ用リンク（?restore=端末番号）で開かれたとき
+  // ホーム画面のアイコンを長押しした「QRを読む」（manifest の shortcuts。v153）
+  if (!mode && params.get('scan') === '1'){
+    switchView('stamp');
+    try{ const u = new URL(location.href); u.searchParams.delete('scan'); history.replaceState(history.state, '', u.pathname + u.search + u.hash); }catch(e){}
+    setTimeout(() => openScanner(), 300);
+  }
   const restoreCid = params.get('restore');
   if (restoreCid && normSid(restoreCid)) restoreFrom(restoreCid);
   // 旧版でスタンプを集めていた人：番号を作って台帳へ送る。以後は開くたびに台帳と突き合わせる

@@ -341,3 +341,73 @@ test('振り返りレポート：本物の Code.gs が作った集計を、画�
   await page.waitForTimeout(500);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v153 の6つ ---------------- */
+test('起動：混雑データは1回だけ取りに行く（見出しで先に取った結果を使う）', async ({ page }) => {
+  const log = await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.waitForTimeout(1500);
+  const main = log.gets.filter(q => !/ledger|report/.test(q));
+  expect(main.length).toBe(1);
+  // 先に取った結果を使い切っている（使われずに残っていない）
+  expect(await page.evaluate(() => window.__earlyGas)).toBeNull();
+  // 見出しの script が本当に取りに行ったこと（本体より前に通信が始まっている）
+  expect(await page.evaluate(() => performance.getEntriesByType('resource').filter(e => /script\.google/.test(e.name)).length)).toBeGreaterThan(0);
+});
+
+test('地図の検索：何も打たずに押すと「最近えらんだブース」が出る', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.locator('#map-q').fill('旋盤');
+  await page.locator('#map-sug button').first().click();
+  await expect(page.locator('#bsh')).toBeVisible();
+  await page.evaluate(() => closeSheet());
+  await page.locator('#map-q').fill('');
+  await page.locator('#map-q').blur();
+  await page.locator('#map-q').focus();
+  await expect(page.locator('#map-sug')).toContainText('最近えらんだブース');
+  await expect(page.locator('#map-sug button').first()).toContainText('旋盤');
+});
+
+test('ホーム画面の長押し「QRを読む」（?scan=1）でスタンプの画面とカメラが開く', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => { delete window.BarcodeDetector; try{ Object.defineProperty(navigator, 'mediaDevices', { value: undefined }); }catch(e){} });
+  await page.goto('/?scan=1');
+  await expect(page.locator('#v-stamp')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('#scan')).toBeVisible();
+  expect(page.url()).not.toContain('scan=1');
+});
+
+test('閉場の案内：最終入場の無い日（校内公開日）も、終わる30分前から出る', async ({ page }) => {
+  await mockGas(page);
+  await page.clock.install({ time: new Date('2026-10-23T14:05:00+09:00') });
+  await page.goto('/?tab=map');
+  await ready(page);
+  expect(await page.evaluate(() => hoursMessage().short)).toContain('まもなく終了（14:25・あと20分）');
+  expect(await page.evaluate(() => hoursMessage(new Date('2026-10-23T13:00:00+09:00')))).toBeNull();
+});
+
+test('検索の言い換え：「ごはん」「ゲーム」で分類に当たる', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.locator('#q').fill('ごはん');
+  await expect.poll(() => page.locator('#booth-list > .booth').count()).toBeGreaterThan(0);
+  const cats = await page.locator('#booth-list > .booth .tag').allTextContents();
+  expect(cats).toContain('食べ物');
+  await page.locator('#q').fill('ゲーム');
+  await expect.poll(() => page.locator('#booth-list > .booth').count()).toBeGreaterThan(0);
+});
+
+test('インフォ「このマップを友だちに送る」：外部ブラウザの引数つきのアドレスを共有', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => { navigator.share = async d => { window.__shared = d; }; });
+  await page.goto('/?tab=info');
+  await page.locator('#share-app').click();
+  const d = await page.evaluate(() => window.__shared);
+  expect(d.url).toContain('openExternalBrowser=1');
+  expect(d.url).not.toContain('booth=');
+});

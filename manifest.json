@@ -29,5 +29,22 @@
       "type": "image/svg+xml",
       "purpose": "maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "QRを読む（スタンプ）",
+      "short_name": "QRを読む",
+      "url": "./index.html?scan=1"
+    },
+    {
+      "name": "スタンプ帳",
+      "short_name": "スタンプ",
+      "url": "./index.html?tab=stamp"
+    },
+    {
+      "name": "一覧（空いている順）",
+      "short_name": "一覧",
+      "url": "./index.html?tab=list"
+    }
   ]
 }
