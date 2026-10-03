@@ -1879,6 +1879,15 @@ html.sheet-open{overflow:hidden}
                  background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease)}
 .bsh-acts button:active{transform:scale(.97)}
 .bsh-acts button.wide{grid-column:1 / -1}
+/* v150：★行きたい・共有 */
+.bsh-acts button[data-wish][aria-pressed="true"]{background:#fef7e0;border-color:#e8a600;color:#5b3d00}
+[data-theme="heavy"] .bsh-acts button[data-wish][aria-pressed="true"]{background:#3a2d10;border-color:#fdd663;color:#fdd663}
+.wish-mk{color:#d18f00;margin-right:4px;font-size:1.05em}
+[data-theme="heavy"] .wish-mk{color:#fdd663}
+.wish-chip[aria-pressed="true"]{background:#fef7e0;border-color:#e8a600;color:#5b3d00}
+[data-theme="heavy"] .wish-chip[aria-pressed="true"]{background:#3a2d10;border-color:#fdd663;color:#fdd663}
+.wish-mark circle{fill:#fbbc04;stroke:#fff;stroke-width:1}
+.wish-mark text{fill:#3c2a00;font-weight:900;pointer-events:none}
 .bsh-acts button[aria-pressed="true"]{background:var(--free);border-color:var(--free);color:var(--on-status)}
 @media (prefers-reduced-motion:reduce){ .bsh{transition:none} .bsh-back{transition:none} }
 .sheet{background:#fff;color:#111;border:1px solid var(--border);border-radius:var(--r);padding:14px}
@@ -2295,6 +2304,7 @@ html.sheet-open{overflow:hidden}
       <div class="chips">
         <button class="chip" id="sort-free" aria-pressed="true">空いている順</button>
         <button class="chip" id="sort-name" aria-pressed="false">番号順</button>
+        <button class="chip wish-chip" id="wish-only" aria-pressed="false">★ 行きたい</button>
       </div>
       <div id="booth-list" class="stagger" style="display:flex;flex-direction:column;gap:9px">
         <div class="skel"></div><div class="skel"></div><div class="skel"></div>
@@ -2768,7 +2778,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-02f',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-03a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3386,6 +3396,8 @@ const S = {
   stamps: new Set(),
   spent: [],               // お菓子と交換して消費したブースid（取った順に消える）
   assigned: new Set(),
+  wish: new Set(load('kuroko_wish_v1', [])),   // 来場者が「行きたい」に★を付けたブース（v150）
+  wishOnly: false,      // 一覧を★だけに絞っているか
   admOpen: new Set(),   // 係員画面で開いている科・場所のまとめ（v146）
   admMode: 'floor',     // 係員画面の並べ方：floor＝階ごと（中は科で区切る）／dept＝科・場所ごと／flat＝更新が古い順
   assignGrp: null,      // 担当ブースえらびで開いている科・場所
@@ -4217,7 +4229,7 @@ function fingerprint(extra){
 function mapFingerprint(extra){
   return extra + '|' + S.booths.map(b =>
     [b.id, b.status, b.wait, b.name, b.note, b.category, b.floor, b.stale].join('~')
-  ).join(';') + '|' + Array.from(S.stamps).sort().join(',');
+  ).join(';') + '|' + Array.from(S.stamps).sort().join(',') + '|' + Array.from(S.wish).sort().join(',');
 }
 
 /**
@@ -4808,6 +4820,13 @@ function drawFloor(floorNum){
       } else {
         extra = `<g class="visited-ring">${extra}</g>`;
       }
+    }
+    // ★行きたい（v150）。部屋の右下。狭い部屋には出さない（番号とぶつかる）
+    if (S.wish.has(b.id) && s.w >= 14 && s.h >= 12){
+      const wr = Math.max(3, Math.min(5.5, Math.min(s.w, s.h) * 0.22));
+      const wx = s.x + s.w - wr - 1.5, wy = s.y + s.h - wr - 1.5;
+      extra += `<g class="wish-mark"><circle cx="${wx.toFixed(1)}" cy="${wy.toFixed(1)}" r="${wr.toFixed(1)}"/>
+        <text x="${wx.toFixed(1)}" y="${(wy + wr * 0.42).toFixed(1)}" text-anchor="middle" font-size="${(wr * 1.25).toFixed(1)}">★</text></g>`;
     }
     if (onRoute){
       const n = routeIds.indexOf(b.id) + 1;
@@ -5499,13 +5518,43 @@ function altSuggest(b){
       <span class="go">見る</span></button>`;
 }
 
+/** ★行きたい を付け外しする（端末に保存。サーバーには送らない） */
+function toggleWish(id){
+  if (S.wish.has(id)) S.wish.delete(id); else S.wish.add(id);
+  store('kuroko_wish_v1', Array.from(S.wish));
+  const on = S.wish.has(id);
+  toast(on ? '★「行きたい」に入れました。一覧の「★ 行きたい」で見られます' : '「行きたい」から外しました');
+  renderSheet._fp = null; renderSheet();
+  renderList();
+  drawFloor(S.floor);
+}
+/**
+ * ブースを人に送る。スマホなら共有メニュー（LINE など）、無ければリンクをコピーする。
+ * 送るのはブースを開くリンクだけ（?booth=…）。スタンプの署名（k）は付けない（送った先でスタンプが付かないように）
+ */
+async function shareBooth(id){
+  const b = S.booths.find(x => x.id === id);
+  if (!b) return;
+  const url = publicBase() + '?booth=' + encodeURIComponent(id);
+  const text = `${b.name}（${flLabel(b)}${roomLabel(b) ? '・' + roomLabel(b) : ''}）｜黒工文化祭 校内マップ`;
+  try{
+    if (navigator.share){ await navigator.share({ title: b.name, text, url }); return; }
+  }catch(e){ if (e && e.name === 'AbortError') return; }
+  try{
+    await navigator.clipboard.writeText(text + '\n' + url);
+    toast('リンクをコピーしました。LINE などに貼り付けて送れます');
+  }catch(e){
+    toast('リンク：' + url, null, 8000);
+  }
+}
+
 function renderSheet(){
   if (!S.sheetId) return;
   const b = S.booths.find(x => x.id === S.sheetId);
   if (!b){ closeSheet(); return; }
   // 中身が変わっていなければ描き直さない（20秒ごとの同期でフォーカスが飛ぶのを防ぐ）
   const fp = [b.id, b.status, b.wait, b.time, b.note, b.image,
-              S.stamps.has(b.id),
+              S.stamps.has(b.id), S.wish.has(b.id),
               S.booths.filter(x => lvOf(x).lv === 0).map(x => x.id).join(','),
               (b.history || []).length, Math.floor(Date.now() / 60000)].join('|');
   if (renderSheet._fp === fp) return;
@@ -5545,6 +5594,8 @@ function renderSheet(){
       ${got ? '<span class="bsh-got">✓ スタンプ済</span>'
             : `<button class="bsh-todo bsh-scan" data-scan>${ICON_QR} 入口のQRを読む</button>`}
       <button data-act="jump">${jumpLabel}</button>
+      <button data-wish aria-pressed="${S.wish.has(b.id)}">${S.wish.has(b.id) ? '★ 行きたい（保存済み）' : '☆ 行きたい'}</button>
+      <button data-share>共有する</button>
     </div>`;
 
   $('#bsh-x').addEventListener('click', () => closeSheet());
@@ -5552,6 +5603,10 @@ function renderSheet(){
   if (alt) alt.addEventListener('click', () => openSheet(alt.dataset.alt));
   const sc = $('#bsh-body [data-scan]');
   if (sc) sc.addEventListener('click', () => openScanner());
+  const wb = $('#bsh-body [data-wish]');
+  if (wb) wb.addEventListener('click', () => toggleWish(b.id));
+  const sb = $('#bsh-body [data-share]');
+  if (sb) sb.addEventListener('click', () => shareBooth(b.id));
   $$('#bsh-body [data-act]').forEach(el => el.addEventListener('click', () => {
     const a = el.dataset.act;
     if (fromList){
@@ -6607,7 +6662,7 @@ function boothHay(b){
 function renderList(){
   // 「◯分前」は tickAgo() がその場で書き換えるので、中身が同じなら作り直さない
   // （以前は1分ごとに150件を作り直していて、安い端末では毎分1秒近く固まっていた）
-  const fp = fingerprint(`list:${S.cat}:${S.sort}:${S.q}`);
+  const fp = fingerprint(`list:${S.cat}:${S.sort}:${S.q}:${S.wishOnly}:${Array.from(S.wish).sort().join(',')}`);
   if (renderList._fp === fp) return;
   renderList._fp = fp;
 
@@ -6627,6 +6682,7 @@ function renderList(){
                     ? document.activeElement.closest('#booth-list [data-sid]').dataset.sid : null;
   let items = S.booths.slice();
   if (S.cat !== 'all') items = items.filter(b => b.category === S.cat);
+  if (S.wishOnly) items = items.filter(b => S.wish.has(b.id));
   if (S.q){
     // 空白で区切った語はすべて含むものを残す（「プログラミング 教室」で探せるように）。
     // 正規化した検索用の文字列はブースごとに1回だけ作る（打つたびに150件作り直すと重い）
@@ -6678,8 +6734,11 @@ function renderList(){
         HELP_ON_MAP.indexOf(i) >= 0 ? `<button class="qhelp-map" type="button" data-fac="1">${ICON.wc || ''} 地図でトイレ・出入口を見る</button>` : ''
       }</span></div>`).join('');
   if (!items.length){
-    box.innerHTML = helpHtml || `<p class="empty">さがしたブースは見つかりませんでした。<br>
-      文字をけすか、上のボタンで「すべて」をえらんでください。</p>`;
+    box.innerHTML = helpHtml || (S.wishOnly && !S.wish.size
+      ? `<p class="empty">★を付けたブースはまだありません。<br>
+          ブースの詳細で「★ 行きたい」を押すと、ここに集まります。</p>`
+      : `<p class="empty">さがしたブースは見つかりませんでした。<br>
+      文字をけすか、上のボタンで「すべて」をえらんでください。</p>`);
     wireHelpHits(box);
     return;
   }
@@ -6699,7 +6758,7 @@ function renderList(){
                       onerror="this.remove()">` : ''}
         <div class="booth-main">
           <h3 class="booth-nm"><span class="no">${S.numbers.get(b.id) || '-'}</span><span
-            class="nm">${esc(b.name)}</span><span class="tag">${esc(b.category)}</span><span
+            class="nm">${S.wish.has(b.id) ? '<span class="wish-mk" aria-label="行きたい">★</span>' : ''}${esc(b.name)}</span><span class="tag">${esc(b.category)}</span><span
             class="tag">${esc(flLabel(b))}</span></h3>
           <p class="booth-meta">${(() => {
             // 部屋と更新時刻を別々の行に置くと、1枚が高くなって1画面に5件しか入らなかった。
@@ -11091,6 +11150,7 @@ function init(){
   });
   $('#sort-free').addEventListener('click', () => setSort('free'));
   $('#sort-name').addEventListener('click', () => setSort('name'));
+  { const w = $('#wish-only'); if (w) w.addEventListener('click', () => setWishOnly(!S.wishOnly)); }
   $('#stamp-share').addEventListener('click', shareStamps);
   // 記録のリセットは係員の試し用だけ。来場者が押せると、交換したあとに消して
   // 同じQRを読み直せば、お菓子をもう一度もらえてしまう（押し間違いで全部消える危険もある）
@@ -11613,6 +11673,13 @@ function fitMapBox(floorNum){
     if (need <= maxH) ZOOM.y = 0;
     zoomApply(false);
   }
+}
+function setWishOnly(on){
+  S.wishOnly = !!on;
+  const el = $('#wish-only');
+  if (el){ el.setAttribute('aria-pressed', String(S.wishOnly)); el.textContent = S.wish.size ? `★ 行きたい ${S.wish.size}` : '★ 行きたい'; }
+  renderList();
+  scrollListTop();
 }
 function setSort(s){
   S.sort = s;
