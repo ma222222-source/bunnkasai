@@ -45,6 +45,17 @@ test('manifest.json・appsscript.json が JSON として読める', () => {
   JSON.parse(read('manifest.json'));
   JSON.parse(read('appsscript.json'));
 });
+test('見出しで先に取りに行く GAS の URL が CONFIG.GAS_URL と同じ（v153）', () => {
+  const cfg = (html.match(/GAS_URL: '([^']+)'/) || [])[1];
+  const early = (html.match(/var u = '(https:\/\/script\.google\.com\/macros\/s\/[^']+)'/) || [])[1];
+  assert.ok(cfg && early, 'どちらかが見つからない');
+  assert.strictEqual(early, cfg);
+});
+test('manifest の shortcuts（ホーム画面の長押し）が今の画面の引数を指している', () => {
+  const m = JSON.parse(read('manifest.json'));
+  const urls = (m.shortcuts || []).map(x => x.url);
+  assert.ok(urls.some(u => u.includes('scan=1')) && urls.some(u => u.includes('tab=stamp')), urls.join(','));
+});
 test('外部の script / CDN を読み込んでいない（RULES.md §3）', () => {
   assert.ok(!/<script[^>]+src=["']https?:/i.test(html), '外部 script がある');
 });
