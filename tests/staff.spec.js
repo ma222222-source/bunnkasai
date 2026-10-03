@@ -144,3 +144,14 @@ test('本部：お知らせのひな形を押すと欄に入る（そのまま�
   await expect(page.locator('#notice-text')).toHaveValue(/落とし物/);
   expect(log.posts.filter(p => p.action === 'notice').length).toBe(0);
 });
+
+test('本部「更新が止まっているブース」：長い順に出て、押すとそのブースの更新カードへ', async ({ page }) => {
+  await login(page, { grouped: true });
+  await page.locator('[data-tab="hq"]').first().click();
+  const items = page.locator('#stale-list [data-goto]');
+  await expect.poll(() => items.count()).toBeGreaterThan(0);
+  const id = await items.first().getAttribute('data-goto');
+  await items.first().click();
+  await expect(page.locator('#admpane-update')).toBeVisible();
+  await expect(page.locator(`#admin-list .adm-booth[data-id="${id}"]`)).toBeVisible();
+});

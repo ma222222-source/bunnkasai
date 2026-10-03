@@ -583,3 +583,71 @@ test('スタンプ帳：階ごとの見出しと、その階の数', async ({ pa
   expect(heads.find(h => h.includes('2階'))).toMatch(/1 \/ \d+/);
   await expect(page.locator('#stamp-grid .stamp')).toHaveCount(46);
 });
+
+/* ---------------- v158 の6つ ---------------- */
+test('スタンプを押したあとの「次は」：まだ行っていない空きのうち、いちばん近いブース', async ({ page }) => {
+  await mockGas(page);
+  const sigs = require('./fixtures/sigs.json');
+  await page.goto(`/?booth=1F-02&qr=1&k=${sigs['1F-02']}`);
+  await ready(page);
+  const nx = page.locator('[data-fx="next"]');
+  await expect(nx).toBeVisible({ timeout: 10000 });
+  const got = await nx.getAttribute('data-id');
+  const want = await page.evaluate(() => S.booths.filter(x => !S.stamps.has(x.id) && lvOf(x).lv === 0 && isVenue(x))
+    .sort((a, b) => placeDist('1F-02', a.id) - placeDist('1F-02', b.id))[0].id);
+  expect(got).toBe(want);
+});
+
+test('はじめての案内：最初だけ出て、「わかった」で二度と出ない。スタンプがある人には出ない', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await expect(page.locator('#intro-card')).toBeVisible();
+  await page.locator('#intro-ok').click();
+  await expect(page.locator('#intro-card')).toBeHidden();
+  await page.reload();
+  await ready(page);
+  await expect(page.locator('#intro-card')).toBeHidden();
+  const p2 = await page.context().newPage();
+  await mockGas(p2);
+  await p2.addInitScript(() => { localStorage.removeItem('kuroko_intro_v1'); localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02'])); });
+  await p2.goto('/?tab=map');
+  await expect.poll(() => p2.evaluate(() => S.booths.length)).toBe(46);
+  await expect(p2.locator('#intro-card')).toBeHidden();
+});
+
+test('電池が20%以下で充電していないと節電（自動更新の間隔を2倍）', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => { navigator.getBattery = async () => ({ level: 0.15, charging: false, addEventListener(){} }); });
+  await page.goto('/?tab=map');
+  await ready(page);
+  expect(await page.evaluate(() => BATT.low)).toBe(true);
+});
+
+test('検索で見つからないとき「もしかして」で近い名前のブースを出す', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.locator('#q').fill('あーむろぼっど');
+  await expect(page.locator('#booth-list .fix-sug')).toContainText('アームロボット');
+  await page.locator('#booth-list [data-fix]').first().click();
+  await expect(page.locator('#bsh')).toBeVisible();
+});
+
+test('地図の右上（階）と右下（現在地・＋−）のボタンが重ならない（iPhone SE・はじめての案内あり）', async ({ page }) => {
+  await mockGas(page);
+  for (const [w, h] of [[375, 667], [320, 568], [390, 844]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto('/?tab=map');
+    await ready(page);
+    await page.waitForTimeout(400);
+    const r = await page.evaluate(() => {
+      const a = document.querySelector('.map-floors').getBoundingClientRect();
+      const b = document.querySelector('.map-zoom-ctl').getBoundingClientRect();
+      return { gap: b.top - a.bottom };
+    });
+    expect(r.gap, `${w}x${h}`).toBeGreaterThanOrEqual(0);
+    await page.locator('#fl-0').click();
+    await expect(page.locator('#plan-0')).toBeVisible();
+  }
+});
