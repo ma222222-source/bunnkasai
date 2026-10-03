@@ -320,3 +320,24 @@ test('★行きたい所を回る：★が2つ以上でコースが出て、★�
   await expect(chip).toBeHidden();
   expect(errors).toEqual([]);
 });
+
+test('振り返りレポート：本物の Code.gs が作った集計を、画面がそのまま描ける', async ({ page }) => {
+  const errors = watchErrors(page);
+  // サーバー（Code.gs）を模擬の上で動かし、更新・来場者・スタンプを入れて本物の形の集計を作る
+  const { loadGas } = require('./gas-mock');
+  const g = loadGas({ props: { ADMIN_PASS: 'test-pass-1234' } });
+  g.setupR8AndArchiveOthers();
+  const P = { pass: 'test-pass-1234', cid: 'c1' };
+  [['1F-02', 20], ['1F-02', 3], ['1F-03', 9], ['2F-12', 17]].forEach(([id, w]) => g.__post({ action: 'update', ...P, id, wait: w }));
+  g.__post({ action: 'visitor', ...P, n: 12, uid: 'v' });
+  g.__post({ action: 'ledger', cid: 'RRRR1111', ev: [{ t: 's', id: '1F-02', at: Date.now() }] });
+  const report = g.__get({ report: '1' });
+  expect(report.ok).toBe(true);
+  await mockGas(page, { report });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/?mode=report');
+  await expect(page.locator('#v-report')).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('#report-body')).toContainText('旋盤', { timeout: 15000 });
+  await page.waitForTimeout(500);
+  expect(errors).toEqual([]);
+});
