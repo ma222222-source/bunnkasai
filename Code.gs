@@ -47,7 +47,7 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-09-29a';
+var GAS_VERSION = '2026-10-04a';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
@@ -209,6 +209,7 @@ function validate() {
   var idx = headerIndex_(sh);
   var last = sh.getLastRow();
   var problems = [];
+  var advice = [];      // 直さなくても動くが、本番前に見ておきたいこと（v152）
 
   // タイムゾーンがずれていると、来場者カウンタが当日の途中で 0 に戻る
   try {
@@ -223,7 +224,22 @@ function validate() {
     problems.push('係員パスワード(ADMIN_PASS)が未設定です');
   } else if (PropertiesService.getScriptProperties().getProperty('ADMIN_PASS').length < 8) {
     problems.push('係員パスワードが短すぎます（英数字12文字以上を推奨）');
+  } else if (PropertiesService.getScriptProperties().getProperty('ADMIN_PASS').length < 12) {
+    advice.push('係員パスワードは8〜11文字です。本番前に英数字12文字以上へ変えるのがおすすめです（変えたら係員に伝える）');
   }
+  // 出しっぱなしのお知らせ。テストで出したものが本番の全員の画面に残る事故を防ぐ
+  try {
+    var nt = readNotice_();
+    if (nt) advice.push('いまお知らせが全員の画面に出ています：「' + nt.text + '」（' + (nt.level === 'alert' ? '重要' : 'ふつう')
+      + '）。テストの残りなら係員画面の「お知らせ」で消してください');
+  } catch (eN) {}
+  // 当日の負荷対策の状態
+  try {
+    var warm = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'warmCache'; });
+    advice.push(warm ? '先読み（warmCache）：1分ごとに動いています（文化祭が終わったら removeWarmTrigger）'
+                     : '先読み（warmCache）：止まっています（当日の前日に installWarmTrigger を1回実行すると、混んだときに速くなります）');
+  } catch (eT) {}
+  advice.push('自動更新の間隔（POLL_SEC）：' + (pollSec_() ? pollSec_() + '秒' : '画面の設定のまま（12〜20秒）'));
   // 必須の列と、無くても動く列を分けて扱う（image などは任意）
   var REQUIRED = ['id', 'name', 'status', 'time'];
   var missingOptional = [];
@@ -238,6 +254,16 @@ function validate() {
   } else {
     var rows = sh.getRange(2, 1, last - 1, sh.getLastColumn()).getValues();
     var seen = {};
+    // R8 の一覧（R8_BOOTHS）とシートの食い違い。QR を刷るのは一覧のブースなので、シートに無いと
+    // 刷った QR を読んでも「見つかりません」になる
+    var inSheet = {};
+    rows.forEach(function (r) { var v = String(r[idx['id']] || '').trim(); if (v) inSheet[v] = true; });
+    var r8 = {};
+    R8_BOOTHS.forEach(function (b) { r8[b[0]] = true; });
+    var lack = Object.keys(r8).filter(function (k) { return !inSheet[k]; });
+    var extra = Object.keys(inSheet).filter(function (k) { return !r8[k]; });
+    if (lack.length) problems.push('R8 の一覧にあるのにシートに無いブース：' + lack.join('・') + '（setupR8 を実行すると足されます）');
+    if (extra.length) advice.push('R8 の一覧に無いブースがシートにあります：' + extra.join('・') + '（意図して足したものなら問題ありません）');
     rows.forEach(function (r, i) {
       var line = 'A' + (i + 2) + ': ';
       var id = String(r[idx['id']] || '').trim();
@@ -266,15 +292,19 @@ function validate() {
     : '';
   // 配信データの大きさも見ておく。100KB を超えるとキャッシュが効かなくなり、
   // 原因不明のまま当日ずっと重くなる
+  // 【v152】バイトで数える。以前は文字数で数えていたため、日本語（1文字3バイト）の分を最大3分の1に見誤っていた
   var size = 0;
-  try { size = JSON.stringify(buildPayload_()).length; } catch (e) {}
+  try { size = bytes_(JSON.stringify(buildPayload_())); } catch (e) {}
   if (size > 80000) problems.push('配信データが大きすぎます（' + Math.round(size / 1024)
     + 'KB）。メモや画像URLを短くしてください');
 
-  Logger.log((problems.length
+  var msg = (problems.length
     ? '要確認 ' + problems.length + '件\n・' + problems.join('\n・')
     : '問題は見つかりませんでした。')
-    + tail + '\n配信データの大きさ：' + Math.round(size / 1024) + 'KB（上限のめやす 80KB）');
+    + tail + '\n配信データの大きさ：' + Math.round(size / 1024) + 'KB（上限のめやす 80KB）'
+    + (advice.length ? '\n\n【参考】\n・' + advice.join('\n・') : '');
+  Logger.log(msg);
+  return msg;
 }
 
 /** 階の読み取り。0=屋外／1F／2F／3F。それ以外は 1 とみなす */
