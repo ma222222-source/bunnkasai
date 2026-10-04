@@ -1274,6 +1274,9 @@ text.util:not([font-size]){font-size:7.5px}
   color:#fff;font-weight:800;font-size:13px;cursor:pointer}
 .scan-torch[aria-pressed="true"]{background:#fff;color:#111}
 .scan-zoom:not(.hide) + .scan-torch{margin-left:0}
+.scan-count{margin:0;padding:0 16px calc(env(safe-area-inset-bottom,0px) + 12px);text-align:center;color:#fff;font-size:13px;font-weight:800;opacity:.9}
+.scan-count:empty{display:none}
+.scan.no-cam .scan-count{color:var(--text);opacity:1}
 .scan-x{min-width:48px;min-height:48px;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:18px;cursor:pointer}
 .scan-stage{position:relative;flex:1;min-height:0;overflow:hidden}
 .scan-stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -2925,6 +2928,7 @@ html.sheet-open{overflow:hidden}
     <div class="scan-frame" aria-hidden="true"></div>
   </div>
   <div class="scan-help" id="scan-help"></div>
+  <p class="scan-count" id="scan-count" aria-live="polite"></p>
 </div>
 
 <script>
@@ -2936,7 +2940,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-05a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-05b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3828,6 +3832,7 @@ async function sync(manual){
     const sv = (raw && typeof raw.serverVersion === 'string') ? raw.serverVersion : '';
     if (S.serverVersion !== sv){ S.serverVersion = sv; if (S.isAdmin){ checkServer._done = false; checkServer(); } }
     S.fetchedAt = Date.now();
+    if (raw && raw.updatedAt) noteClock(raw.updatedAt);
     S.online = true; S.failures = 0;
     // 往復にかかった時間を覚えておく（重いときは間隔を詰めない）。
     // 1回目は必ず遅い（GASの起動ぶん。実測でも初回3.8〜6.4秒、
@@ -4004,11 +4009,29 @@ function tickAgo(){
 }
 setInterval(tickAgo, 30000);
 document.addEventListener('visibilitychange', tickAgo);
+/**
+ * v165：端末の時計のずれ（ms）。サーバーが応答を作った時刻（updatedAt）と受け取った時刻の差のうち、
+ * いちばん小さいもの（サーバーの控えは最大1分ほど古いので、小さいほど本当のずれに近い）。
+ * 3分以上進んでいる・1分以上遅れているときだけ直す（ふつうの端末は今まで通り Date.now()）
+ */
+function clockOffset(){
+  const m = S.clockLag;
+  if (m == null || !isFinite(m)) return 0;
+  return (m > 180000 || m < -60000) ? -m : 0;
+}
+function nowMs(){ return Date.now() + clockOffset(); }
+function noteClock(updatedAt){
+  const up = Date.parse(updatedAt);
+  if (!isFinite(up)) return;
+  const lag = Date.now() - up;
+  S.clockLag = S.clockLag == null ? lag : Math.min(S.clockLag, lag);
+}
+
 function ago(ts){
   const t = ts ? new Date(ts).getTime() : NaN;
   // 「未取得」は係員向けの言い方で、来場者には何のことか分からない
   if (!isFinite(t)) return 'まだ更新なし';   // 不正な日付で「NaN時間前」を出さない
-  const m = Math.floor((Date.now() - t) / 60000);
+  const m = Math.floor((nowMs() - t) / 60000);
   if (m < 0) return 'たった今';              // 端末の時計が進んでいても未来を出さない
   if (m < 1) return 'たった今';
   if (m < 60) return m + '分前';
@@ -4547,6 +4570,12 @@ function pickStartFloor(){
   if (pickStartFloor._done) return;
   pickStartFloor._done = true;
   if (S.view !== 'map') return;
+  // v165：さっき（30分以内）QRを読んだ・えらんだ「いまここ」の階を優先する（前回見ていた階より今いる階）
+  const h = hereEntry(), hr = h && ROOM_INDEX.get(h.id);
+  if (hr && h.at && Date.now() - h.at < 30 * 60000 && FLOOR_PLAN[hr.f]){
+    if (hr.f !== S.floor) setFloor(hr.f);
+    return;
+  }
   const saved = load('kuroko_floor', null);
   if (saved != null && FLOOR_PLAN[saved]){
     if (saved !== S.floor) setFloor(Number(saved));
@@ -5705,6 +5734,10 @@ function openSheet(id, fromHistory){
   }
   setTimeout(() => { const x = $('#bsh-x'); x && x.focus({ preventScroll:true }); }, 60);
   if (S.view === 'map') setTimeout(() => revealUnderSheet(id), 380);
+  // v165：待ち時間を見て行くか決める場面。古い情報のまま決めさせない（込み合い中・圏外は控える）
+  if (navigator.onLine !== false && !sync._busy && !serverBusy() && S.fetchedAt && Date.now() - S.fetchedAt > 90000){
+    try{ sync(false); }catch(e){}
+  }
 }
 
 /**
@@ -6060,7 +6093,17 @@ function stampUrlFrom(raw){
   return location.pathname + '?' + out.toString();
 }
 
+/** v165：カメラの下に「スタンプ 3個・あと2個でお菓子1個」 */
+function renderScanCount(){
+  const el = $('#scan-count');
+  if (!el) return;
+  const got = S.booths.filter(b => S.stamps.has(b.id)).length;
+  const left = stampsLeft(), need = Math.max(1, CONFIG.PRIZE_COST | 0);
+  el.textContent = !S.booths.length ? '' : `いまスタンプ ${got}個・` + (left >= need ? 'お菓子と交換できます' : `あと${need - left}個でお菓子1個`);
+}
+
 async function openScanner(){
+  renderScanCount();
   const box = $('#scan'), help = $('#scan-help');
   box.classList.remove('hide', 'no-cam');
   document.documentElement.classList.add('sheet-open');
@@ -9971,7 +10014,7 @@ const NEVER = 1e9;
 function elapsedMin(b){
   if (!b.time) return NEVER;
   const t = new Date(b.time).getTime();
-  return isNaN(t) ? NEVER : Math.floor((Date.now() - t) / 60000);
+  return isNaN(t) ? NEVER : Math.floor((nowMs() - t) / 60000);
 }
 
 /**
@@ -12002,8 +12045,13 @@ function init(){
     const q = $('#q'); q.value = ''; S.q = ''; renderList();
     $('#q-clear').classList.add('hide'); q.focus();
   });
-  $('#sort-free').addEventListener('click', () => setSort('free'));
-  $('#sort-name').addEventListener('click', () => setSort('name'));
+  $('#sort-free').addEventListener('click', () => setSort('free', true));
+  $('#sort-name').addEventListener('click', () => setSort('name', true));
+  if (load('kuroko_sort', null) === 'name'){
+    S.sort = 'name';
+    $('#sort-free').setAttribute('aria-pressed', 'false');
+    $('#sort-name').setAttribute('aria-pressed', 'true');
+  }
   { const n = $('#sort-near'); if (n) n.addEventListener('click', () => setSort('near')); }
   { const w = $('#wish-only'); if (w) w.addEventListener('click', () => setWishOnly(!S.wishOnly)); }
   { const t = $('#todo-only'); if (t) t.addEventListener('click', () => setTodoOnly(!S.todoOnly)); }
@@ -12429,6 +12477,9 @@ function flashFloor(n){
   if (!el) return;
   el.textContent = n === 0 ? '屋外' : n + '階';
   el.classList.add('on');
+  // v165：画面の読み上げを使っている人にも、どの階を出したかを伝える
+  const lv = $('#summary-live');
+  if (lv){ lv.textContent = ''; lv.textContent = (n === 0 ? '屋外' : n + '階') + 'の地図を表示しました'; }
   clearTimeout(flashFloor._t);
   flashFloor._t = setTimeout(() => el.classList.remove('on'), 800);
 }
@@ -12579,8 +12630,9 @@ function placeDist(fromId, toId){
   const ca = [a.r.x + a.r.w / 2, a.r.y + a.r.h / 2], cb = [b.r.x + b.r.w / 2, b.r.y + b.r.h / 2];
   return Math.hypot(ca[0] - cb[0], ca[1] - cb[1]) + Math.abs(a.f - b.f) * 300;
 }
-function setSort(s){
+function setSort(s, user){
   S.sort = s;
+  if (user && (s === 'free' || s === 'name')) store('kuroko_sort', s);    // v165：自分で選んだ並べ方を覚える
   $('#sort-free').setAttribute('aria-pressed', String(s === 'free'));
   $('#sort-name').setAttribute('aria-pressed', String(s === 'name'));
   { const n = $('#sort-near'); if (n) n.setAttribute('aria-pressed', String(s === 'near')); }
