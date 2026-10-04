@@ -774,6 +774,20 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 /* 押せない「ブースに寄せる／全体」は地図の上に薄く残すと、下の地図と字が重なって散らかる。場所は残して見せない */
 #map-card.gmap .map-fit-ctl button:disabled,#map-card.gmap .map-fit-ctl button.dim{visibility:hidden}
 #map-card.gmap .map-stage.touching .map-floors,#map-card.gmap .map-stage.touching .map-ctl{opacity:.28;pointer-events:none}
+/* v162：見やすさ優先の設定では透かさない。マウスを乗せた・キーで選んだボタンも不透明にする */
+#map-card.gmap .map-floors button:hover,#map-card.gmap .map-ctl button:hover,
+#map-card.gmap .map-floors button:focus-visible,#map-card.gmap .map-ctl button:focus-visible{background-color:var(--g-ctl)}
+@media (prefers-contrast:more),(prefers-reduced-transparency:reduce){
+  #map-card.gmap .map-floors,#map-card.gmap .map-ctl button{background:var(--g-ctl);-webkit-backdrop-filter:none;backdrop-filter:none}
+  #map-card.gmap .map-floors button[aria-pressed="true"]{background:var(--g-sel-bg)}
+  #map-card.gmap .map-stage.touching .map-floors,#map-card.gmap .map-stage.touching .map-ctl{opacity:.6}
+}
+/* v162：階を切り替えたとき、地図の真ん中に「2階」と一瞬出す（ボタンが薄くても、いまどの階か分かる） */
+.map-flash{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);z-index:6;pointer-events:none;
+  padding:8px 18px;border-radius:14px;background:rgba(32,33,36,.72);color:#fff;font-size:22px;font-weight:900;
+  opacity:0;transition:opacity .2s ease}
+.map-flash.on{opacity:1}
+@media (prefers-reduced-motion:reduce){ .map-flash{transition:none} }
 @media (prefers-reduced-motion:reduce){ #map-card.gmap .map-floors,#map-card.gmap .map-ctl button{transition:none} }
 /* v159：横向きは地図が低い。右下の現在地・＋−を縦に積むと右上の階の切り替えと重なるので横に並べる */
 @media (orientation:landscape) and (max-height:560px){
@@ -1879,7 +1893,9 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 .bsh.on{transform:translateY(0)}
 .bsh.drag{transition:none}
 .bsh-grab{width:46px;height:5px;border-radius:99px;background:var(--border);
-          margin:2px auto 12px;cursor:grab}
+          margin:2px auto 12px;cursor:grab;position:relative;touch-action:none}
+/* v162：5px のつまみは指で捕まえにくい。上下左右に広げた見えない範囲でも引ける */
+.bsh-grab::before{content:"";position:absolute;left:-60px;right:-60px;top:-12px;bottom:-12px}
 .bsh-head{display:flex;align-items:flex-start;gap:9px}
 .bsh-head h2{font-size:19px;font-weight:900;line-height:1.35;flex:1;letter-spacing:.01em;
              min-width:0;overflow-wrap:anywhere}
@@ -2324,6 +2340,7 @@ html.sheet-open{overflow:hidden}
           </div>
           <div class="dept-legend hide" id="dept-legend" aria-label="科・トイレで絞り込む" role="group" tabindex="0"></div>
           <div class="map-stage">
+            <div class="map-flash" id="map-flash" aria-hidden="true"></div>
           <div class="zoom-lv" id="zoom-lv" aria-hidden="true"></div>
 
           <div class="map-view" id="map-view">
@@ -2907,7 +2924,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-04j',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-04k',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5835,7 +5852,9 @@ function renderSheet(){
     ${(() => { const sp = sparkline(b.history); return sp ? `<div class="bsh-foot">${sp}</div>` : ''; })()}
     <p class="bsh-upd">${b.time ? `更新 <span data-ago="${esc(b.time)}">${esc(ago(b.time))}</span>` : 'まだ係の人からの更新がありません'}</p>
     <div class="bsh-acts">
-      ${got ? '<span class="bsh-got">✓ スタンプ済</span>'
+      ${got ? `<span class="bsh-got">✓ スタンプ済${(() => { const t = stampAt()[b.id];
+          // v162：いつ押したか（同じ日なら時刻だけ）
+          return t ? `<small>（${new Date(t).toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' })}）</small>` : ''; })()}</span>`
             : `<button class="bsh-todo bsh-scan" data-scan>${ICON_QR} 入口のQRを読む</button>`}
       <button data-act="jump">${jumpLabel}</button>
       <button data-wish aria-pressed="${S.wish.has(b.id)}">${S.wish.has(b.id) ? '★ 行きたい（保存済み）' : '☆ 行きたい'}</button>
@@ -6451,6 +6470,20 @@ function initZoom(){
     z.noClick = false;
     e.stopPropagation(); e.preventDefault();
   }, true);
+
+  // v162：部屋の外を2回続けて押すと、その場所を中心に拡大する（Google マップと同じ）。
+  // ブラウザのダブルタップ拡大は止めてあるので自前で数える。部屋の上は詳細を開くので数えない
+  z.el.addEventListener('click', e => {
+    if (e.target.closest && e.target.closest('.room[data-id]')) { z.lastTap = null; return; }
+    if (S.edit || S.picking) return;
+    const t = performance.now(), lt = z.lastTap;
+    if (lt && t - lt.t < 350 && Math.hypot(e.clientX - lt.x, e.clientY - lt.y) < 30){
+      z.lastTap = null; z.touched = true; zoomApply._user = true;
+      zoomTo(z.k * 1.6, e.clientX, e.clientY);
+      return;
+    }
+    z.lastTap = { t, x:e.clientX, y:e.clientY };
+  });
 
   // 全体表示では小さいブースが 20px 前後しかなく、指の先（約 44px）では押し外しやすい。
   // 部屋の外を押したときは、指の先の範囲（16px）にいちばん近いブースを押したことにする。
@@ -9693,6 +9726,25 @@ function renderAssign(){
   }));
 }
 
+// v162：パソコンの地図は、矢印キーで動かす・「+」「-」で拡大縮小・「0」で全体。文字を打っている途中・詳細を開いている間は何もしない
+document.addEventListener('keydown', e => {
+  if (S.view !== 'map' || S.sheetId || e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  if (!$('#scan').classList.contains('hide')) return;
+  const z = ZOOM, step = 80;
+  const pan = { ArrowLeft:[step,0], ArrowRight:[-step,0], ArrowUp:[0,step], ArrowDown:[0,-step] }[e.key];
+  if (pan){
+    if (z.k <= 1.01 && !(z.mNat * z.k > z.mH + 2)) return;
+    e.preventDefault(); z.touched = true;
+    z.x += pan[0]; z.y += pan[1]; zoomApply(true);
+    return;
+  }
+  if (e.key === '+' || e.key === '='){ e.preventDefault(); z.touched = true; zoomTo(z.k * 1.6); return; }
+  if (e.key === '-' || e.key === '_'){ e.preventDefault(); z.touched = true; zoomTo(z.k / 1.6); return; }
+  if (e.key === '0'){ e.preventDefault(); z.touched = true; zoomTo(z.min, null, null, true); }
+});
+
 // v161：パソコンでは「/」で検索欄へ（地図なら地図の検索、それ以外は一覧の検索）。文字を打っている途中は何もしない
 document.addEventListener('keydown', e => {
   if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -11752,7 +11804,7 @@ function init(){
   $$('#nav button').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
   $('#btn-reload').addEventListener('click', () => sync(true));
   $('#banner-retry').addEventListener('click', () => { S.failures = 0; sync(true); });
-  FLOORS.forEach(f => $('#fl-' + f.n).addEventListener('click', () => setFloor(f.n)));
+  FLOORS.forEach(f => $('#fl-' + f.n).addEventListener('click', () => { setFloor(f.n); flashFloor(f.n); }));
   $$('.chip[data-route]').forEach(el => el.addEventListener('click', () => {
     S.route = S.route === el.dataset.route ? null : el.dataset.route;
     $$('.chip[data-route]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.route === S.route)));
@@ -12203,6 +12255,16 @@ function renderFloorCounts(){
     tag.textContent = n ? String(n) : '';
     tag.classList.toggle('hide', !n);
   });
+}
+
+/** v162：地図の真ん中に階の名前を 0.8秒だけ出す */
+function flashFloor(n){
+  const el = $('#map-flash');
+  if (!el) return;
+  el.textContent = n === 0 ? '屋外' : n + '階';
+  el.classList.add('on');
+  clearTimeout(flashFloor._t);
+  flashFloor._t = setTimeout(() => el.classList.remove('on'), 800);
 }
 
 function setFloor(n){
