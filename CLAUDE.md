@@ -45,7 +45,7 @@
 ## テスト（tests/）
 
 - `cd tests && npm install`（初回だけ）→ `npm test`
-  - `static.test.js`：構文、版の整合（GAS_VERSION ≧ GAS_MIN、PROGRESS.md に今の版）、**刷ったQRの署名の控え（`fixtures/sigs.json`）**、localStorage のキー名、R8 の46件が地図にあるか、GAS の数式注入対策
+  - `static.test.js`：構文、版の整合（GAS_VERSION ≧ GAS_MIN、PROGRESS.md に今の版）、**刷ったQRの署名の控え（`fixtures/sigs.json`）**、localStorage のキー名、R8 の46件が地図にあるか、GAS の数式注入対策、index.html の id の重複なし
   - `hardening.spec.js`：XSS（悪い文字列を全画面・係員画面に流す）、地図の押しやすさ、Service Worker でのオフライン
   - `staff.spec.js`：係員の待ち人数・混雑度の送信、送れなかった更新の再送、科・場所ごとのまとめ（開く・覚える・古い順）、担当ブースえらび（科→ブース・ぜんぶ）
   - `gas.test.js`（Node、`gas-mock.js`）：**サーバー（Code.gs）をそのまま動かす**。スプレッドシート・キャッシュ・ロック等は模擬。セットアップ46件、GET とキャッシュ、係員の更新（人数→状態・名前の列を触らない・不正値）、パスワード（締め出し・短い設定）、45分で情報なし、お知らせ、来場者、ブースの追加・削除、一括、スタンプの控え、二重交換の防止（つないだ番号も）、見出しの扱い、端末のエラー記録（clientlog）、振り返りレポートの集計、ピーク時のキャッシュ（作成中は控えを返す・作成中に更新が入ったら置かない・障害時は控え）。Code.gs を直したら必ず通す。`app.spec.js` には Code.gs が作ったレポートを画面に描かせるテストもある

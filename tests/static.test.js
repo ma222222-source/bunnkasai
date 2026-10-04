@@ -148,5 +148,12 @@ test('cut_ が長さを切る（切ったら末尾に…）', () => {
   assert.strictEqual(defCtx.cut_(null, 3), '');
 });
 
+test('index.html の静的な id が重複していない（getElementById が別の要素を拾わないように）', () => {
+  const ids = {};
+  for (const m of html.matchAll(/\sid="([A-Za-z][\w:-]*)"/g)) ids[m[1]] = (ids[m[1]] || 0) + 1;
+  const dup = Object.keys(ids).filter(k => ids[k] > 1);
+  assert.deepStrictEqual(dup, [], '重複：' + dup.join(', '));
+});
+
 console.log(`\nstatic: ${passed} ok / ${failed} NG（BUILD ${BUILD}・${CACHE}・GAS ${GAS_VERSION}）`);
 process.exit(failed ? 1 : 0);
