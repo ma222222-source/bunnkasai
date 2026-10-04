@@ -53,6 +53,7 @@
   - `a11y.spec.js`：アクセシビリティ（axe-core、WCAG 2 A/AA）。ふつう・暗いの2テーマ×主な11画面で重大な違反0
   - `scan.spec.js`：QRを読むカメラ（BarcodeDetector あり・なし（自前の読み取り）の両方で読めばスタンプが付く・ほかのQRは付かない・カメラが無い／許可しないときの案内）、自前の読み取りの精度（誤り訂正・回転・斜め・遠近・ぼけ・雑音・遠く）
   - `app.spec.js`：幅 320/390/768/1280px と文字「特大」で横はみ出し・コンソールのエラー、4画面、階の切り替え、検索、`?booth=`、QR のスタンプ（正しい署名・違う署名）、5個で交換の案内、`?mode=` の6画面、係員ログインの拒否、GAS の失敗・遅延
+  - `app.spec.js`・`scan.spec.js` は iPhone 13（WebKit）・Pixel 7（Android の Chrome）のまねでも動く（`playwright.config.js` の projects `iphone`・`android`）。Windows の WebKit はカメラの映像を作れないので、映像を使う3件は WebKit では飛ばす
 - GAS は `tests/mock.js` が模擬する（`fixtures/booths.json` は本番の応答の写し）。本番のシートには届かない
 - スクリーンショット：`SHOTS=shots npx playwright test shots.spec.js`（`tests/shots/` は GitHub に上げない）
 - `STAMP_KEY` を意図して変えたときだけ `node static.test.js --update-sigs`（刷ったQRが全部無効になるので、ふつうはしない）

@@ -16,10 +16,10 @@ async function fakeCamera(page, rawValue) {
     };
     window.__scanRaw = raw;
     const c = document.createElement('canvas'); c.width = 64; c.height = 64;
-    navigator.mediaDevices.getUserMedia = async () => {
+    (window.__setGUM = window.__setGUM || (fn => { const md = navigator.mediaDevices || {}; md.getUserMedia = fn; try{ Object.defineProperty(navigator, 'mediaDevices', { value: md, configurable: true }); }catch(e){} }))(async () => {
       const ctx = c.getContext('2d'); ctx.fillRect(0, 0, 64, 64);
       return c.captureStream(5);
-    };
+    });
   }, rawValue);
 }
 
@@ -37,7 +37,9 @@ test('カメラのボタンが見出し・スタンプ・ブースの詳細に�
   await expect(page.locator('#bsh-body [data-scan]')).toBeVisible();
 });
 
-test('カメラで黒工祭のQRを読むと、スタンプが付く', async ({ page }) => {
+test('カメラで黒工祭のQRを読むと、スタンプが付く', async ({ page, browserName }) => {
+  // Windows の Playwright の WebKit には canvas の captureStream が無く、カメラの代わりの映像を作れない（本物の iPhone の Safari にはある）
+  test.skip(browserName === 'webkit', 'テスト用の WebKit にカメラの代わりの映像が作れない');
   const errors = watchErrors(page);
   await mockGas(page);
   await fakeCamera(page, `https://ma222222-source.github.io/bunnkasai/?booth=1F-03&qr=1&k=${sigs['1F-03']}`);
@@ -55,7 +57,9 @@ test('カメラで黒工祭のQRを読むと、スタンプが付く', async ({ 
   expect(errors).toEqual([]);
 });
 
-test('黒工祭以外のQRではスタンプは付かず、案内が出る', async ({ page }) => {
+test('黒工祭以外のQRではスタンプは付かず、案内が出る', async ({ page, browserName }) => {
+  // Windows の Playwright の WebKit には canvas の captureStream が無く、カメラの代わりの映像を作れない（本物の iPhone の Safari にはある）
+  test.skip(browserName === 'webkit', 'テスト用の WebKit にカメラの代わりの映像が作れない');
   await mockGas(page);
   await fakeCamera(page, 'https://example.com/?booth=1F-03');
   await page.setViewportSize({ width: 390, height: 844 });
@@ -72,13 +76,15 @@ test('黒工祭以外のQRではスタンプは付かず、案内が出る', asy
   expect(st).not.toContain('1F-03');
 });
 
-test('QR を読む機能が無い端末（iPhone の Safari など）でも、カメラを開いて自前で読み、スタンプが付く', async ({ page }) => {
+test('QR を読む機能が無い端末（iPhone の Safari など）でも、カメラを開いて自前で読み、スタンプが付く', async ({ page, browserName }) => {
+  // Windows の Playwright の WebKit には canvas の captureStream が無く、カメラの代わりの映像を作れない（本物の iPhone の Safari にはある）
+  test.skip(browserName === 'webkit', 'テスト用の WebKit にカメラの代わりの映像が作れない');
   const errors = watchErrors(page);
   await mockGas(page);
   // BarcodeDetector を消し、カメラの代わりに QR を描いた画面を流す（傾けて少し小さめ）
   await page.addInitScript(() => {
     delete window.BarcodeDetector;
-    navigator.mediaDevices.getUserMedia = async () => {
+    (window.__setGUM = window.__setGUM || (fn => { const md = navigator.mediaDevices || {}; md.getUserMedia = fn; try{ Object.defineProperty(navigator, 'mediaDevices', { value: md, configurable: true }); }catch(e){} }))(async () => {
       const c = document.createElement('canvas'); c.width = 640; c.height = 480;
       const ctx = c.getContext('2d');
       const draw = () => {
@@ -88,7 +94,7 @@ test('QR を読む機能が無い端末（iPhone の Safari など）でも、�
       };
       draw();
       return c.captureStream(15);
-    };
+    });
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?tab=stamp');
@@ -122,7 +128,7 @@ test('カメラを許可しなかったときは、許可のしかたを出す',
   await mockGas(page);
   await page.addInitScript(() => {
     delete window.BarcodeDetector;
-    navigator.mediaDevices.getUserMedia = async () => { const e = new Error('denied'); e.name = 'NotAllowedError'; throw e; };
+    (window.__setGUM = window.__setGUM || (fn => { const md = navigator.mediaDevices || {}; md.getUserMedia = fn; try{ Object.defineProperty(navigator, 'mediaDevices', { value: md, configurable: true }); }catch(e){} }))(async () => { const e = new Error('denied'); e.name = 'NotAllowedError'; throw e; });
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?tab=stamp');
@@ -193,8 +199,10 @@ test('自前の QR 読み取り：斜め下から写した（遠近のある）�
   await p2.close();
   const ok = await page.evaluate(async ([b64, t]) => {
     const im = await new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = 'data:image/png;base64,' + b64; });
-    const cv = document.createElement('canvas'); cv.width = im.width; cv.height = im.height;
-    const ctx = cv.getContext('2d'); ctx.drawImage(im, 0, 0);
+    // 本物のカメラと同じく、長い辺 640px に縮めてから読む（Android の画面は密度が高く、写真が大きくなる）
+    const k = Math.min(1, 640 / Math.max(im.width, im.height));
+    const cv = document.createElement('canvas'); cv.width = Math.round(im.width * k); cv.height = Math.round(im.height * k);
+    const ctx = cv.getContext('2d'); ctx.drawImage(im, 0, 0, cv.width, cv.height);
     return QR.scanImageData(ctx.getImageData(0, 0, cv.width, cv.height)) === t;
   }, [shot, u]);
   expect(ok).toBe(true);
