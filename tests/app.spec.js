@@ -356,7 +356,7 @@ test('起動：混雑データは1回だけ取りに行く（見出しで先に�
   expect(await page.evaluate(() => performance.getEntriesByType('resource').filter(e => /script\.google/.test(e.name)).length)).toBeGreaterThan(0);
 });
 
-test('地図の検索：何も打たずに押すと「最近えらんだブース」が出る', async ({ page }) => {
+test('地図の検索：何も打たずに押すと「最近見たブース」が出る', async ({ page }) => {
   await mockGas(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?tab=map');
@@ -368,7 +368,7 @@ test('地図の検索：何も打たずに押すと「最近えらんだブー�
   await page.locator('#map-q').fill('');
   await page.locator('#map-q').blur();
   await page.locator('#map-q').focus();
-  await expect(page.locator('#map-sug')).toContainText('最近えらんだブース');
+  await expect(page.locator('#map-sug')).toContainText('最近見たブース');
   await expect(page.locator('#map-sug button').first()).toContainText('旋盤');
 });
 
@@ -1247,4 +1247,78 @@ test('文字「特大」では地図のボタンも大きい（高さ 52px）', 
   await ready(page);
   const h = await page.locator('#fl-1').evaluate(el => el.getBoundingClientRect().height);
   expect(h).toBeGreaterThanOrEqual(51);
+});
+
+/* ---------------- v168 ---------------- */
+test('インフォ：友だちに見せるQRは、このマップのアドレスとして読める', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=info');
+  await ready(page);
+  await page.locator('#app-qr > summary').click();
+  await expect(page.locator('#app-qr-box svg')).toBeVisible();
+  // 自前の読み取りで読めること
+  const txt = await page.evaluate(async () => {
+    const svg = document.querySelector('#app-qr-box svg');
+    const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(svg));
+    const im = new Image(); im.src = url; await im.decode();
+    const c = document.createElement('canvas'); c.width = 320; c.height = 320;
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 320, 320); x.drawImage(im, 40, 40, 240, 240);
+    return QR.scanImageData(x.getImageData(0, 0, 320, 320));
+  });
+  expect(txt).toContain('openExternalBrowser=1');
+});
+
+test('地図を指2本で軽く叩くと縮小', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'テスト用の WebKit（Windows）は Touch を作れない');
+  await mockGas(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.locator('#zoom-in').click();
+  await page.locator('#zoom-in').click();
+  const k0 = await page.evaluate(() => ZOOM.k);
+  await page.evaluate(() => {
+    const el = ZOOM.el, r = el.getBoundingClientRect();
+    const t = (id, x, y) => new Touch({ identifier: id, target: el, clientX: x, clientY: y });
+    const a = t(1, r.left + 100, r.top + 120), b = t(2, r.left + 180, r.top + 140);
+    el.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: [a, b], changedTouches: [a, b] }));
+    el.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [a, b] }));
+  });
+  await expect.poll(() => page.evaluate(() => ZOOM.k)).toBeLessThan(k0 * 0.8);
+});
+
+test('スタンプ帳：まだのスタンプだけ', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03'])));
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await expect(page.locator('#stamp-grid [data-sid="1F-02"]')).toBeVisible();
+  await page.locator('#stamp-only-todo').click();
+  await expect(page.locator('#stamp-grid [data-sid="1F-02"]')).toBeHidden();
+  await expect(page.locator('#stamp-grid [data-sid="1F-05"]')).toBeVisible();
+});
+
+test('最近見たブースの記録を消せる', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => { if (!sessionStorage.getItem('x')){ sessionStorage.setItem('x', 1); localStorage.setItem('kuroko_recent_q', JSON.stringify(['1F-02'])); } });
+  await page.goto('/?tab=list');
+  await ready(page);
+  await expect(page.locator('#recent-row')).toBeVisible();
+  await page.locator('#recent-x').click();
+  await expect(page.locator('#recent-row')).toBeHidden();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('kuroko_recent_q')))).toEqual([]);
+});
+
+test('地図の検索：見つからないときは「もしかして」で近い名前のブース', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  const name = await page.evaluate(() => S.booths.find(b => b.category !== '受付' && b.name.length >= 4).name);
+  // 1文字変えて、ふつうの検索では当たらないようにする
+  const typo = name.slice(0, -1) + 'ゑ';
+  await page.locator('#map-q').fill(typo);
+  const n = await page.evaluate(q => mapSuggest(q).length, typo);
+  test.skip(n > 0, 'ふつうの検索で当たってしまう名前だった');
+  await expect(page.locator('#map-sug')).toContainText('もしかして');
+  await expect(page.locator('#map-sug')).toContainText(name);
 });
