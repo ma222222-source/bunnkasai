@@ -894,3 +894,82 @@ test('詳細のつまみは、触れる範囲が広い（高さ 28px 以上）',
   const h = await page.evaluate(() => { const r = getComputedStyle(document.getElementById('bsh-grab'), '::before'); return parseFloat(r.top) * -1 + parseFloat(r.bottom) * -1 + 5; });
   expect(h).toBeGreaterThanOrEqual(28);
 });
+
+/* ---------------- v163 ---------------- */
+test('詳細：「次」「前」で同じ階のブースへ（パソコンは ← → でも）', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?booth=1F-02');
+  await ready(page);
+  const n0 = await page.locator('#bsh-nm').textContent();
+  await page.locator('#bsh [data-nav="1"]').click();
+  await expect(page.locator('#bsh-nm')).not.toHaveText(n0);
+  await expect(page.locator('#bsh .bsh-nav span')).toContainText('/');
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.locator('#bsh-nm')).toHaveText(n0);
+});
+
+test('地図：ブースを長押しすると ★行きたい に入り、詳細は開かない', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const room = page.locator('#plan-1 .room[data-id="1F-02"]');
+  const b = await room.boundingBox();
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(800);
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('kuroko_wish_v1') || '[]'))).toContain('1F-02');
+  await page.waitForTimeout(300);
+  await expect(page.locator('#bsh')).toBeHidden();
+  // 短く押せば今まで通り詳細が開く
+  await room.click();
+  await expect(page.locator('#bsh')).toBeVisible();
+});
+
+test('パソコン：地図で「2」を押すと2階へ', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.keyboard.press('2');
+  await expect(page.locator('#fl-2')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#map-flash')).toHaveText('2階');
+});
+
+test('見た目を選んでいない人は、端末の明るい・暗いの切り替えにその場で合わせる', async ({ page }) => {
+  await mockGas(page);
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const t0 = await page.evaluate(() => document.documentElement.dataset.theme);
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).toBe('heavy');
+  expect(t0).not.toBe('heavy');
+});
+
+test('地図で開いたブースが詳細に隠れていたら、地図を動かして見せる', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.locator('#zoom-in').click();
+  await page.locator('#zoom-in').click();
+  // いちばん下に見えているブースを開く
+  const id = await page.evaluate(() => {
+    const v = document.getElementById('map-view').getBoundingClientRect();
+    let best = null;
+    document.querySelectorAll('#plan-' + S.floor + ' .room[data-id]').forEach(g => { const r = g.getBoundingClientRect();
+      if (r.top > v.top && r.bottom < v.bottom && r.left > v.left && r.right < v.right && (!best || r.bottom > best.b)) best = { id: g.dataset.id, b: r.bottom }; });
+    return best && best.id;
+  });
+  expect(id).toBeTruthy();
+  await page.evaluate(id => openSheet(id), id);
+  await page.waitForTimeout(900);
+  const ok = await page.evaluate(id => {
+    const r = document.querySelector(`#plan-${S.floor} .room[data-id="${id}"]`).getBoundingClientRect();
+    const top = document.getElementById('bsh').getBoundingClientRect().top;
+    const v = document.getElementById('map-view').getBoundingClientRect();
+    return { below: (r.top + r.bottom) / 2 > top, mapH: Math.min(v.bottom, top) - Math.max(v.top, 0) };
+  }, id);
+  if (ok.mapH >= 40) expect(ok.below).toBe(false);
+});

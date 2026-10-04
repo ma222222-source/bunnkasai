@@ -222,3 +222,31 @@ test('QRの文字列の見分け（stampUrlFrom）', async ({ page }) => {
   expect(r[2]).toBeNull();
   expect(r[3]).toBeNull();
 });
+
+test('カメラの拡大が使える端末では「2倍」が出て、押すとカメラを2倍にする', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'テスト用の WebKit にカメラの代わりの映像が作れない');
+  await mockGas(page);
+  await page.addInitScript(() => {
+    const md = navigator.mediaDevices || {};
+    md.getUserMedia = async () => {
+      const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+      c.getContext('2d').fillRect(0, 0, 64, 64);
+      const st = c.captureStream(5), tr = st.getVideoTracks()[0];
+      tr.getCapabilities = () => ({ zoom: { min: 1, max: 5 } });
+      tr.applyConstraints = async x => { window.__zc = x; };
+      return st;
+    };
+    try{ Object.defineProperty(navigator, 'mediaDevices', { value: md, configurable: true }); }catch(e){}
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await page.locator('#stamp-scan').click();
+  await expect(page.locator('#scan-zoom')).toBeVisible();
+  await page.locator('#scan-zoom').click();
+  await expect(page.locator('#scan-zoom')).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => window.__zc.advanced[0].zoom)).toBe(2);
+  await page.locator('#scan-zoom').click();
+  await expect(page.locator('#scan-zoom')).toHaveAttribute('aria-pressed', 'false');
+  expect(await page.evaluate(() => window.__zc.advanced[0].zoom)).toBe(1);
+});

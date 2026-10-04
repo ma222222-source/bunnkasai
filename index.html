@@ -1270,6 +1270,7 @@ text.util:not([font-size]){font-size:7.5px}
 .scan-torch{margin-left:auto;min-height:44px;padding:0 16px;border-radius:999px;background:rgba(255,255,255,.14);
   color:#fff;font-weight:800;font-size:13px;cursor:pointer}
 .scan-torch[aria-pressed="true"]{background:#fff;color:#111}
+.scan-zoom:not(.hide) + .scan-torch{margin-left:0}
 .scan-x{min-width:48px;min-height:48px;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:18px;cursor:pointer}
 .scan-stage{position:relative;flex:1;min-height:0;overflow:hidden}
 .scan-stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -1892,6 +1893,10 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
      touch-action:pan-y}
 .bsh.on{transform:translateY(0)}
 .bsh.drag{transition:none}
+.bsh-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;
+  font-size:12px;font-weight:800;color:var(--text-mute)}
+.bsh-nav button{min-width:72px;min-height:44px;padding:0 12px;border-radius:999px;border:1px solid var(--border);
+  background:var(--surface);color:var(--text);font:inherit;font-size:13px;font-weight:800;cursor:pointer}
 .bsh-grab{width:46px;height:5px;border-radius:99px;background:var(--border);
           margin:2px auto 12px;cursor:grab;position:relative;touch-action:none}
 /* v162：5px のつまみは指で捕まえにくい。上下左右に広げた見えない範囲でも引ける */
@@ -2905,6 +2910,7 @@ html.sheet-open{overflow:hidden}
 <div class="scan hide" id="scan" role="dialog" aria-modal="true" aria-labelledby="scan-ttl">
   <div class="scan-top">
     <b id="scan-ttl">QRを読む</b>
+    <button class="scan-torch scan-zoom hide" id="scan-zoom" type="button" aria-pressed="false" aria-label="カメラを2倍に拡大">2倍</button>
     <button class="scan-torch hide" id="scan-torch" type="button" aria-pressed="false">ライト</button>
     <button class="scan-x" id="scan-close" aria-label="閉じる">✕</button>
   </div>
@@ -2924,7 +2930,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-04k',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-04l',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5678,6 +5684,27 @@ function openSheet(id, fromHistory){
     try{ history.replaceState({ v:S.view, sheet:id }, '', location.hash || '#map'); }catch(e){}
   }
   setTimeout(() => { const x = $('#bsh-x'); x && x.focus({ preventScroll:true }); }, 60);
+  if (S.view === 'map') setTimeout(() => revealUnderSheet(id), 380);
+}
+
+/**
+ * v163：地図で開いたブースが、下から出た詳細に隠れていたら、見えている所の真ん中へ地図を動かす。
+ * 拡大していないとき（動かす余地が無い）は zoomApply が端で止める
+ */
+function revealUnderSheet(id){
+  if (S.sheetId !== id || S.view !== 'map') return;
+  const z = ZOOM;
+  const g = document.querySelector(`#plan-${S.floor} .room[data-id="${CSS.escape(id)}"]`);
+  const view = $('#map-view'), sh = $('#bsh');
+  if (!g || !view || !sh || !z.el) return;
+  const r = g.getBoundingClientRect(), v = view.getBoundingClientRect();
+  const shTop = sh.getBoundingClientRect().top;
+  const top = Math.max(v.top, 0) + 8, bottom = Math.min(v.bottom, shTop) - 8, left = v.left + 8, right = v.right - 8;
+  if (bottom - top < 40) return;
+  if (r.top >= top && r.bottom <= bottom && r.left >= left && r.right <= right) return;
+  const dx = (left + right) / 2 - (r.left + r.right) / 2, dy = (top + bottom) / 2 - (r.top + r.bottom) / 2;
+  z.x += dx; z.y += dy; z.touched = true;
+  zoomApply(true);
 }
 
 function closeSheet(fromHistory){
@@ -5764,6 +5791,32 @@ function routeHint(b){
   steps.push(roomLabel(b) || b.id);
   return `<p class="bsh-route">${ICON.walk || ''} <b>いまここ（${esc(fl(a.f))}・${esc(placeName(hid))}）から：</b>${esc(steps.join(' → '))}</p>`;
 }
+
+/** 詳細の「前・次」：同じ階のブースを番号順に（v163）。1件しか無い階では出さない */
+function sheetNeighbors(id){
+  const b = S.booths.find(x => x.id === id);
+  if (!b) return null;
+  const f = floorOfBooth(b);
+  const list = S.booths.filter(x => floorOfBooth(x) === f)
+    .sort((a, c) => (S.numbers.get(a.id) || 999) - (S.numbers.get(c.id) || 999) || String(a.name).localeCompare(String(c.name), 'ja'));
+  const i = list.findIndex(x => x.id === id);
+  if (list.length < 2 || i < 0) return null;
+  return { i, n: list.length, prev: list[(i - 1 + list.length) % list.length], next: list[(i + 1) % list.length] };
+}
+function sheetStep(d){
+  const nb = S.sheetId && sheetNeighbors(S.sheetId);
+  if (!nb) return;
+  openSheet((d < 0 ? nb.prev : nb.next).id);
+  const x = $(`#bsh-body [data-nav="${d < 0 ? -1 : 1}"]`);
+  if (x) setTimeout(() => x.isConnected && x.focus({ preventScroll:true }), 80);
+}
+document.addEventListener('keydown', e => {
+  if (!S.sheetId || e.ctrlKey || e.metaKey || e.altKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+  const t = e.target;
+  if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  e.preventDefault();
+  sheetStep(e.key === 'ArrowLeft' ? -1 : 1);
+});
 
 /** ★行きたい を付け外しする（端末に保存。サーバーには送らない） */
 function toggleWish(id){
@@ -5860,7 +5913,12 @@ function renderSheet(){
       <button data-wish aria-pressed="${S.wish.has(b.id)}">${S.wish.has(b.id) ? '★ 行きたい（保存済み）' : '☆ 行きたい'}</button>
       <button data-share>共有する</button>
       <button class="wide" data-here-set ${hereId() === b.id ? 'disabled' : ''}>${hereId() === b.id ? '✓ いまここに設定しています' : 'いまここにいる（ここを「いまここ」にする）'}</button>
-    </div>`;
+    </div>
+    ${(() => { const nb = sheetNeighbors(b.id); if (!nb) return '';
+      // v163：閉じずに同じ階の隣のブースへ（番号順。端まで行くと反対の端へ回る）
+      return `<div class="bsh-nav"><button type="button" data-nav="-1" aria-label="前のブース：${esc(nb.prev.name)}">‹ 前</button>
+        <span>${esc(flLabel(b))} ${nb.i + 1} / ${nb.n}</span>
+        <button type="button" data-nav="1" aria-label="次のブース：${esc(nb.next.name)}">次 ›</button></div>`; })()}`;
 
   $('#bsh-x').addEventListener('click', () => closeSheet());
   const alt = $('#bsh-body [data-alt]');
@@ -5869,6 +5927,7 @@ function renderSheet(){
   if (sc) sc.addEventListener('click', () => openScanner());
   const wb = $('#bsh-body [data-wish]');
   if (wb) wb.addEventListener('click', () => toggleWish(b.id));
+  $$('#bsh-body [data-nav]').forEach(el => el.addEventListener('click', () => sheetStep(+el.dataset.nav)));
   const sb = $('#bsh-body [data-share]');
   if (sb) sb.addEventListener('click', () => shareBooth(b.id));
   // v160：QRを読まなくても「ここにいる」と言える（近くの空き・近い順・行き方の起点になる）
@@ -5980,7 +6039,9 @@ async function openScanner(){
       const tr = SCAN.stream.getVideoTracks()[0];
       const cap = tr && tr.getCapabilities ? tr.getCapabilities() : {};
       $('#scan-torch').classList.toggle('hide', !cap.torch);
-    }catch(e){ $('#scan-torch').classList.add('hide'); }
+      // v163：カメラの拡大が使える端末（主に Android）だけ「2倍」を出す。遠い・小さいQRに
+      $('#scan-zoom').classList.toggle('hide', !(cap.zoom && cap.zoom.max >= 2));
+    }catch(e){ $('#scan-torch').classList.add('hide'); $('#scan-zoom').classList.add('hide'); }
     // しばらく読めないときのこつ（ピンぼけ・遠すぎ・明るすぎが多い）
     clearTimeout(SCAN.tip);
     SCAN.tip = setTimeout(() => {
@@ -6047,6 +6108,8 @@ function stopScanner(){
   clearTimeout(SCAN.tip);
   const tb = $('#scan-torch');
   if (tb){ tb.classList.add('hide'); tb.setAttribute('aria-pressed', 'false'); }
+  const zb = $('#scan-zoom');
+  if (zb){ zb.classList.add('hide'); zb.setAttribute('aria-pressed', 'false'); }
   if (SCAN.stream){ SCAN.stream.getTracks().forEach(t => { try{ t.stop(); }catch(e){} }); SCAN.stream = null; }
   const v = $('#scan-video');
   if (v) v.srcObject = null;
@@ -6065,6 +6128,18 @@ document.addEventListener('click', e => {
     if (tr) tr.applyConstraints({ advanced:[{ torch:on }] })
       .then(() => tb.setAttribute('aria-pressed', String(on)))
       .catch(() => { tb.classList.add('hide'); toast('この端末ではライトを使えません'); });
+    return;
+  }
+  if (e.target.closest && e.target.closest('#scan-zoom')){
+    const zb = $('#scan-zoom'), on = zb.getAttribute('aria-pressed') !== 'true';
+    const tr = SCAN.stream && SCAN.stream.getVideoTracks()[0];
+    if (tr){
+      let lo = 1;
+      try{ const c = tr.getCapabilities().zoom; lo = c && c.min || 1; }catch(err){}
+      tr.applyConstraints({ advanced:[{ zoom: on ? 2 : lo }] })
+        .then(() => zb.setAttribute('aria-pressed', String(on)))
+        .catch(() => { zb.classList.add('hide'); toast('この端末ではカメラを拡大できません'); });
+    }
     return;
   }
   const b = e.target.closest && e.target.closest('[data-scan]');
@@ -6420,6 +6495,22 @@ function initZoom(){
   z.el.addEventListener('pointermove', e => { if (z.moved || z.tBase) touchOn(); });
   ['pointerup', 'pointercancel', 'touchend', 'touchcancel'].forEach(t => z.el.addEventListener(t, touchOff, { passive:true }));
   z.el.addEventListener('wheel', () => { touchOn(); touchOff(); }, { passive:true });
+  // v163：地図のブースを長押し（0.55秒・動かさない）で ★行きたい を付け外し。離したあとの詳細は開かない
+  const lpClear = () => { clearTimeout(z.lp); z.lp = null; };
+  z.el.addEventListener('pointerdown', e => {
+    lpClear();
+    const g = e.target.closest && e.target.closest('.room[data-id]');
+    if (!g || S.edit || S.picking || e.button > 0 || !S.booths.some(b => b.id === g.dataset.id)) return;
+    z.lp = setTimeout(() => {
+      z.lp = null;
+      if (z.moved || z.tBase) return;
+      z.noClick = true;
+      buzz(30);
+      toggleWish(g.dataset.id);
+    }, 550);
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => z.el.addEventListener(t, lpClear));
+  z.el.addEventListener('pointermove', () => { if (z.lp && (z.moved || z.tBase)) lpClear(); });
   z.el.addEventListener('pointerdown', e => {
     zoomApply._user = true;              // 人が触った（操作のヒントを出してよい）
     z.noClick = false;
@@ -9742,7 +9833,14 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === '+' || e.key === '='){ e.preventDefault(); z.touched = true; zoomTo(z.k * 1.6); return; }
   if (e.key === '-' || e.key === '_'){ e.preventDefault(); z.touched = true; zoomTo(z.k / 1.6); return; }
-  if (e.key === '0'){ e.preventDefault(); z.touched = true; zoomTo(z.min, null, null, true); }
+  if (e.key === '0'){ e.preventDefault(); z.touched = true; zoomTo(z.min, null, null, true); return; }
+  // v163：「1」「2」「3」で階、「4」で屋外
+  const fk = { '1':1, '2':2, '3':3, '4':0 }[e.key];
+  if (fk != null && FLOORS.some(f => f.n === fk)){
+    e.preventDefault();
+    if (fk !== S.floor) setFloor(fk);
+    flashFloor(fk);
+  }
 });
 
 // v161：パソコンでは「/」で検索欄へ（地図なら地図の検索、それ以外は一覧の検索）。文字を打っている途中は何もしない
@@ -11733,6 +11831,16 @@ function initTheme(){
   const label = () => (THEMES.find(x => x.id === t) || THEMES[0]).name;
   const btn = $('#btn-theme');
   btn.setAttribute('aria-label', '見た目を変える（いま：' + label() + '）');
+  // v163：夕方に端末が自動で暗くなったとき、開きっぱなしの画面も合わせる（自分で選んだ人はそのまま）
+  try{
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', m => {
+      if (THEMES.some(x => x.id === load('kuroko_theme', null))) return;
+      t = m.matches ? 'heavy' : THEMES[0].id;
+      document.documentElement.setAttribute('data-theme', t);
+      btn.setAttribute('aria-label', '見た目を変える（いま：' + label() + '）');
+      drawFloor._fp = null; drawFloor(S.floor);
+    });
+  }catch(e){}
   btn.addEventListener('click', () => {
     const i = THEMES.findIndex(x => x.id === t);
     t = THEMES[(i + 1) % THEMES.length].id;
