@@ -1183,3 +1183,68 @@ test('一覧を階で絞る', async ({ page }) => {
   expect(fl.every(f => f === 2)).toBe(true);
   await expect(page.locator('#list-count')).toContainText('/ 全46件');
 });
+
+/* ---------------- v167 ---------------- */
+test('インフォ：使い方のこつ（ダブルタップ・長押し・なぞる）', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=info');
+  await ready(page);
+  await page.locator('#tips > summary').click();
+  await expect(page.locator('#tips')).toContainText('長押し');
+  await expect(page.locator('#tips')).toContainText('2回続けて');
+});
+
+test('カメラは90秒読めなければ自動で閉じ、開いたボタンへ戻る', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'テスト用の WebKit にカメラの代わりの映像が作れない');
+  await mockGas(page);
+  await page.clock.install();
+  await page.addInitScript(() => {
+    const md = navigator.mediaDevices || {};
+    md.getUserMedia = async () => { const c = document.createElement('canvas'); c.width = 64; c.height = 64; c.getContext('2d').fillRect(0, 0, 64, 64); return c.captureStream(5); };
+    try{ Object.defineProperty(navigator, 'mediaDevices', { value: md, configurable: true }); }catch(e){}
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=stamp');
+  await page.clock.runFor(3000);
+  await page.waitForFunction(() => S.booths.length > 0);
+  await page.locator('#stamp-scan').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#scan')).toBeVisible();
+  await page.clock.runFor(91000);
+  await expect(page.locator('#scan')).toBeHidden();
+  await expect(page.locator('#stamp-scan')).toBeFocused();
+});
+
+test('★の数は付け外しのたびに変わり、★で絞ると「すべて外す」（元に戻せる）', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => { if (!localStorage.getItem('kuroko_wish_v1')) localStorage.setItem('kuroko_wish_v1', JSON.stringify(['1F-02', '1F-03'])); });
+  await page.goto('/?tab=list');
+  await ready(page);
+  await expect(page.locator('#wish-only')).toHaveText('★ 行きたい 2');
+  await page.evaluate(() => toggleWish('1F-05'));
+  await expect(page.locator('#wish-only')).toHaveText('★ 行きたい 3');
+  await page.locator('#wish-only').click();
+  await page.locator('#wish-clear').click();
+  await expect(page.locator('#wish-only')).toHaveText('★ 行きたい');
+  await page.locator('#toast .toast-act').click();
+  await expect(page.locator('#wish-only')).toHaveText('★ 行きたい 3');
+});
+
+test('階のボタンに、まだ行っていない★の印', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => localStorage.setItem('kuroko_wish_v1', JSON.stringify(['1F-02'])));
+  await page.goto('/?tab=map');
+  await ready(page);
+  await expect(page.locator('#fl-1 .fl-wish')).toHaveCount(1);
+  await expect(page.locator('#fl-2 .fl-wish')).toHaveCount(0);
+  await expect(page.locator('#fl-1')).toHaveAttribute('aria-label', /★/);
+});
+
+test('文字「特大」では地図のボタンも大きい（高さ 52px）', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => localStorage.setItem('kuroko_fs', JSON.stringify('xl')));
+  await page.goto('/?tab=map');
+  await ready(page);
+  const h = await page.locator('#fl-1').evaluate(el => el.getBoundingClientRect().height);
+  expect(h).toBeGreaterThanOrEqual(51);
+});
