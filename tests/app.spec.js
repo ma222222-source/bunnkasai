@@ -767,3 +767,49 @@ test('地図の科のボタンに、その階のブースの数', async ({ page 
   const n = Number(await page.locator('#dept-legend .dept-n').first().textContent());
   expect(n).toBeGreaterThan(0);
 });
+
+/* ---------------- v161 ---------------- */
+test('地図に重ねたボタンは半透明で、地図を動かしている間はさらに薄くなる（離すと戻る）', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const bg = await page.evaluate(() => getComputedStyle(document.querySelector('.map-floors')).backgroundColor);
+  expect(bg).toMatch(/rgba?\(.*,\s*0?\.\d+\)|color\(.*\/\s*0?\.\d+\)|oklab|color-mix/);     // 透けている（不透明ではない）
+  await page.locator('#zoom-in').click();
+  const box = await page.locator('#map-view').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 60, box.y + box.height / 2 - 40, { steps: 6 });
+  await expect(page.locator('.map-stage')).toHaveClass(/touching/);
+  await page.mouse.up();
+  await expect(page.locator('.map-stage')).not.toHaveClass(/touching/, { timeout: 3000 });
+});
+
+test('一覧：★・まだ行っていないで絞ったときも件数が出る', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.locator('#todo-only').click();
+  await expect(page.locator('#list-count')).toContainText('/ 全46件');
+});
+
+test('「/」で検索欄へ（地図では地図の検索、ほかでは一覧の検索）', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.keyboard.press('/');
+  await expect(page.locator('#map-q')).toBeFocused();
+  await page.locator('#map-q').blur();
+  await page.goto('/?tab=info');
+  await ready(page);
+  await page.keyboard.press('/');
+  await expect(page.locator('#q')).toBeFocused();
+});
+
+test('インフォ：ホーム画面に置く方法（iPhone・Android）', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=info');
+  await page.locator('#a2hs > summary').click();
+  await expect(page.locator('#a2hs')).toContainText('ホーム画面に追加');
+});
