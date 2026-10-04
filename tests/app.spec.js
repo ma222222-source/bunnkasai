@@ -1035,3 +1035,79 @@ test('共有の文に、いまの混み具合が入る', async ({ page }) => {
   const d = await page.evaluate(() => window.__shared);
   expect(d.text).toContain('いま：');
 });
+
+/* ---------------- v165 ---------------- */
+test('端末の時計が10分進んでいても、「◯分前」はサーバーの時刻で数える', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => { const off = 10 * 60000, real = Date.now; Date.now = () => real() + off; });
+  await page.goto('/?tab=list');
+  await ready(page);
+  const r = await page.evaluate(() => ({ off: clockOffset(), ago: ago(new Date(Date.now() - 10 * 60000).toISOString()) }));
+  expect(r.off).toBeLessThan(-8 * 60000);
+  expect(r.ago).toBe('たった今');
+});
+
+test('ふつうの端末（時計が合っている）は直さない', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  expect(await page.evaluate(() => clockOffset())).toBe(0);
+});
+
+test('QRのカメラの下に、いまのスタンプの数と交換までの残り', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03']));
+    try{ Object.defineProperty(navigator, 'mediaDevices', { value: undefined, configurable: true }); }catch(e){}
+  });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await page.locator('#stamp-scan').click();
+  await expect(page.locator('#scan-count')).toContainText('いまスタンプ 2個');
+  await expect(page.locator('#scan-count')).toContainText('あと3個');
+});
+
+test('30分以内に決めた「いまここ」があれば、その階から開く', async ({ page }) => {
+  await mockGas(page);
+  // いまここにする2階の部屋を、本物の図面から選ぶ
+  await page.goto('/?tab=map');
+  await ready(page);
+  const id = await page.evaluate(() => { for (const [k, v] of ROOM_INDEX) if (v.f === 2) return k; return null; });
+  expect(id).toBeTruthy();
+  await page.addInitScript(id => {
+    localStorage.setItem('kuroko_floor', JSON.stringify(1));
+    localStorage.setItem('kuroko_here_v1', JSON.stringify({ id, at: Date.now(), src: 'pick' }));
+  }, id);
+  await page.reload();
+  await ready(page);
+  await expect(page.locator('#fl-2')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('詳細を開いたとき、情報が1分半より古ければ取り直す', async ({ page }) => {
+  const log = await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.waitForTimeout(500);
+  await page.evaluate(() => { S.fetchedAt = Date.now() - 120000; });
+  const n0 = log.gets.length;
+  await page.evaluate(() => openSheet(S.booths[1].id));
+  await expect.poll(() => log.gets.length).toBeGreaterThan(n0);
+});
+
+test('一覧の並べ方（名前順）を覚える', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.locator('#sort-name').click();
+  await page.reload();
+  await ready(page);
+  await expect(page.locator('#sort-name')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('階を切り替えると、読み上げにも伝える', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.locator('#fl-3').click();
+  await expect(page.locator('#summary-live')).toHaveText('3階の地図を表示しました');
+});
