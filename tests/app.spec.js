@@ -973,3 +973,65 @@ test('地図で開いたブースが詳細に隠れていたら、地図を動�
   }, id);
   if (ok.mapH >= 40) expect(ok.below).toBe(false);
 });
+
+/* ---------------- v164 ---------------- */
+test('詳細を左になぞると次のブース、右になぞると前のブース', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'テスト用の WebKit（Windows）は Touch を作れない');
+  await mockGas(page);
+  await page.goto('/?booth=1F-02');
+  await ready(page);
+  const n0 = await page.locator('#bsh-nm').textContent();
+  const swipe = dx => page.evaluate(dx => {
+    const sh = document.getElementById('bsh'), r = sh.getBoundingClientRect();
+    const x = r.left + r.width / 2, y = r.top + 120;
+    const t = (cx, cy) => new Touch({ identifier: 1, target: sh, clientX: cx, clientY: cy });
+    sh.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, touches: [t(x, y)], changedTouches: [t(x, y)] }));
+    sh.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [t(x + dx, y + 5)] }));
+  }, dx);
+  await swipe(-120);
+  await expect(page.locator('#bsh-nm')).not.toHaveText(n0);
+  await swipe(120);
+  await expect(page.locator('#bsh-nm')).toHaveText(n0);
+});
+
+test('「?」でキー操作の一覧が出て、押すと消える', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.keyboard.press('?');
+  await expect(page.locator('#toast')).toContainText('キー操作');
+  await page.locator('#toast').click();
+  await expect(page.locator('#toast')).not.toHaveClass(/\bon\b/);
+});
+
+test('データ節約中は、詳細の写真を押したときだけ読む', async ({ page }) => {
+  await mockGas(page, { mutate: d => { d.booths.forEach(b => { if (b.id === '1F-02') b.image = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='; }); } });
+  await page.addInitScript(() => { Object.defineProperty(navigator, 'connection', { value: { saveData: true, effectiveType: '4g' }, configurable: true }); });
+  await page.goto('/?booth=1F-02');
+  await ready(page);
+  await expect(page.locator('#bsh .bsh-img')).toHaveCount(0);
+  await page.locator('#bsh [data-img]').click();
+  await expect(page.locator('#bsh .bsh-img')).toHaveCount(1);
+});
+
+test('力の弱い端末（メモリ 2GB 以下）は軽い表示（地図のボタンをぼかさない）', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => { Object.defineProperty(navigator, 'deviceMemory', { value: 1, configurable: true }); });
+  await page.goto('/?tab=map');
+  await ready(page);
+  await expect(page.locator('html')).toHaveClass(/\blite\b/);
+  const bf = await page.evaluate(() => getComputedStyle(document.querySelector('.map-floors')).backdropFilter);
+  expect(bf === 'none' || bf === '').toBe(true);
+});
+
+test('共有の文に、いまの混み具合が入る', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => { navigator.share = async d => { window.__shared = d; }; });
+  await page.goto('/?tab=list');
+  await ready(page);
+  const id = await page.evaluate(() => { const b = S.booths.find(x => x.time && !x.stale && lvOf(x).lv >= 0 && lvOf(x).lv !== 3); return b && b.id; });
+  test.skip(!id, '写しのデータに、新しい情報のあるブースが無い');
+  await page.evaluate(id => shareBooth(id), id);
+  const d = await page.evaluate(() => window.__shared);
+  expect(d.text).toContain('いま：');
+});

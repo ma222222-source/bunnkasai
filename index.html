@@ -774,6 +774,9 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 /* 押せない「ブースに寄せる／全体」は地図の上に薄く残すと、下の地図と字が重なって散らかる。場所は残して見せない */
 #map-card.gmap .map-fit-ctl button:disabled,#map-card.gmap .map-fit-ctl button.dim{visibility:hidden}
 #map-card.gmap .map-stage.touching .map-floors,#map-card.gmap .map-stage.touching .map-ctl{opacity:.28;pointer-events:none}
+/* v164：力の弱い端末（html.lite）はぼかさず、少し濃いめの半透明だけにする */
+html.lite #map-card.gmap .map-floors,html.lite #map-card.gmap .map-ctl button{
+  -webkit-backdrop-filter:none;backdrop-filter:none;background:color-mix(in srgb,var(--g-ctl) 84%,transparent)}
 /* v162：見やすさ優先の設定では透かさない。マウスを乗せた・キーで選んだボタンも不透明にする */
 #map-card.gmap .map-floors button:hover,#map-card.gmap .map-ctl button:hover,
 #map-card.gmap .map-floors button:focus-visible,#map-card.gmap .map-ctl button:focus-visible{background-color:var(--g-ctl)}
@@ -1673,6 +1676,7 @@ html.sfx-open,html.sfx-open body{overflow:hidden}
 .toast{visibility:hidden}
 .toast.on{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(-4px) scale(1);visibility:visible}
 .toast-act{min-height:36px}
+.toast.on{cursor:pointer}
 /* 係員画面では下に出すと「＋1/＋5」の上に重なって押せなくなる。上に出す */
 body:has(#v-admin.on) .toast{top:calc(10px + env(safe-area-inset-top, 0px));bottom:auto}
 /* 送れていない更新。電波が戻ると自動で送る */
@@ -1893,6 +1897,8 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
      touch-action:pan-y}
 .bsh.on{transform:translateY(0)}
 .bsh.drag{transition:none}
+.bsh-imgbtn{display:block;width:100%;min-height:44px;margin-top:10px;border-radius:12px;border:1px dashed var(--border-strong);
+  background:var(--surface);color:var(--text-dim);font:inherit;font-weight:800;cursor:pointer}
 .bsh-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;
   font-size:12px;font-weight:800;color:var(--text-mute)}
 .bsh-nav button{min-width:72px;min-height:44px;padding:0 12px;border-radius:999px;border:1px solid var(--border);
@@ -2930,7 +2936,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-04l',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-05a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3591,6 +3597,11 @@ function smoothBehavior(){ return REDUCE_MOTION.matches ? 'auto' : 'smooth'; }
 
 function toast(msg, action, dur){
   const t = $('#toast');
+  // v164：読み終わったら押して消せる（下のボタンや地図に重なって邪魔なとき）
+  if (!toast._wired){
+    toast._wired = true;
+    t.addEventListener('click', e => { if (e.target.closest && e.target.closest('.toast-act')) return; clearTimeout(toast._t); t.classList.remove('on'); });
+  }
   t.textContent = '';          // 同じ文言でも読み上げが再発火するよう一度空にする
   t.textContent = msg;
   // 表示時間は文の長さに合わせる（日本語は1秒に8文字前後）。
@@ -3924,6 +3935,15 @@ function syncIfStale(maxAgeMs){
  * 電池の状態が分かるのは一部の端末（Android の Chrome など）だけ。分からない端末は今まで通り
  */
 const BATT = { low:false };
+// v164：メモリ 2GB 以下・CPU 2個以下の端末は「軽い表示」。地図のボタンの背景ぼかしは古い Android で地図を動かすたびに重い
+try{
+  if ((navigator.deviceMemory && navigator.deviceMemory <= 2) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2))
+    document.documentElement.classList.add('lite');
+}catch(e){}
+/** v164：端末の「データ節約」や 2G 相当の遅い回線（分かる端末だけ。主に Android の Chrome） */
+function saveData(){
+  try{ const c = navigator.connection; return !!(c && (c.saveData || /(^|-)2g$/.test(c.effectiveType || ''))); }catch(e){ return false; }
+}
 try{
   if (navigator.getBattery) navigator.getBattery().then(b => {
     const u = () => { BATT.low = !b.charging && b.level <= 0.2; };
@@ -3937,7 +3957,7 @@ function schedule(){
   clearTimeout(S.timer);
   if (document.hidden && CONFIG.POLL_MS_HIDDEN === 0) return;
   const base = Math.max((isActive() && !serverBusy()) ? CONFIG.POLL_MS_ACTIVE : CONFIG.POLL_MS, S.pollMin || 0)
-             * (BATT.low ? 2 : 1);
+             * (BATT.low ? 2 : 1) * (saveData() ? 2 : 1);
   // ボードは誰も「再試行」を押さないので、待ちの上限を1分にしておく
   const cap = S.view === 'board' ? 60000 : 5 * 60000;
   const backoff = Math.min(base * Math.pow(2, Math.min(S.failures, 4)), cap);
@@ -5810,6 +5830,23 @@ function sheetStep(d){
   const x = $(`#bsh-body [data-nav="${d < 0 ? -1 : 1}"]`);
   if (x) setTimeout(() => x.isConnected && x.focus({ preventScroll:true }), 80);
 }
+// v164：詳細を左右になぞると前・次のブースへ（横に 70px 以上、縦の倍以上動いたときだけ。縦のスクロールとは混ざらない）
+{
+  const sh = document.getElementById('bsh');
+  let sx = null, sy = 0;
+  if (sh){
+    sh.addEventListener('touchstart', e => {
+      sx = e.touches.length === 1 && !(e.target.closest && e.target.closest('input,textarea,select,#bsh-grab')) ? e.touches[0].clientX : null;
+      sy = e.touches.length === 1 ? e.touches[0].clientY : 0;
+    }, { passive:true });
+    sh.addEventListener('touchend', e => {
+      if (sx == null || !S.sheetId) return;
+      const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+      sx = null;
+      if (Math.abs(dx) >= 70 && Math.abs(dx) > Math.abs(dy) * 2) sheetStep(dx < 0 ? 1 : -1);
+    }, { passive:true });
+  }
+}
 document.addEventListener('keydown', e => {
   if (!S.sheetId || e.ctrlKey || e.metaKey || e.altKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
   const t = e.target;
@@ -5849,7 +5886,10 @@ async function shareBooth(id){
   const b = S.booths.find(x => x.id === id);
   if (!b) return;
   const url = publicBase() + '?booth=' + encodeURIComponent(id);
-  const text = `${b.name}（${flLabel(b)}${roomLabel(b) ? '・' + roomLabel(b) : ''}）｜黒工文化祭 校内マップ`;
+  // v164：送った時点の混み具合も添える（「いま空いてるよ」と誘いやすい）。古い情報・情報なしのときは付けない
+  const L = lvOf(b);
+  const now = b.time && !b.stale && L.lv !== 3 && L.short ? `｜いま：${L.short}${b.wait != null && b.wait !== '' && Number(b.wait) > 0 ? `（${b.wait}人待ち）` : ''}` : '';
+  const text = `${b.name}（${flLabel(b)}${roomLabel(b) ? '・' + roomLabel(b) : ''}）${now}｜黒工文化祭 校内マップ`;
   try{
     if (navigator.share){ await navigator.share({ title: b.name, text, url }); return; }
   }catch(e){ if (e && e.name === 'AbortError') return; }
@@ -5897,7 +5937,9 @@ function renderSheet(){
       <span class="tx"><b>${esc(L.short)}</b><small>${esc(waitMinText(b) || L.wait)}</small></span>
       ${showWait ? `<span class="wt"><b>${b.wait}</b>人待ち</span>` : ''}
     </div>
-    ${b.image ? `<img class="bsh-img" src="${esc(b.image)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : ''}
+    ${b.image ? (saveData()
+        ? `<button type="button" class="bsh-imgbtn" data-img="${esc(b.image)}">写真を見る（データ節約中）</button>`
+        : `<img class="bsh-img" src="${esc(b.image)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">`) : ''}
     ${b.note ? `<p class="bsh-note">${eventLabel(b)
         ? `<span class="ev-badge" data-kind="${eventState(b).kind}">${esc(eventLabel(b))}</span>` : ICON.note} ${esc(b.note)}</p>` : ''}
     ${routeHint(b)}
@@ -5927,6 +5969,12 @@ function renderSheet(){
   if (sc) sc.addEventListener('click', () => openScanner());
   const wb = $('#bsh-body [data-wish]');
   if (wb) wb.addEventListener('click', () => toggleWish(b.id));
+  $$('#bsh-body [data-img]').forEach(el => el.addEventListener('click', () => {
+    const im = document.createElement('img');
+    im.className = 'bsh-img'; im.alt = ''; im.decoding = 'async'; im.src = el.dataset.img;
+    im.onerror = () => im.remove();
+    el.replaceWith(im);
+  }));
   $$('#bsh-body [data-nav]').forEach(el => el.addEventListener('click', () => sheetStep(+el.dataset.nav)));
   const sb = $('#bsh-body [data-share]');
   if (sb) sb.addEventListener('click', () => shareBooth(b.id));
@@ -8363,6 +8411,7 @@ function ding(kind){
  */
 function confetti(){
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (document.documentElement.classList.contains('lite')) return;      // v164：力の弱い端末
   const colors = ['#15803d', '#b45309', '#dc2626', '#b91c1c', '#0ea5e9', '#eab308'];
   const wrap = document.createElement('div');
   wrap.className = 'confetti';
@@ -9841,6 +9890,15 @@ document.addEventListener('keydown', e => {
     if (fk !== S.floor) setFloor(fk);
     flashFloor(fk);
   }
+});
+
+// v164：「?」でキー操作の一覧（パソコン）
+document.addEventListener('keydown', e => {
+  if (e.key !== '?' || e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  e.preventDefault();
+  toast('キー操作：/ 検索　地図［矢印 動かす・+ − 拡大縮小・0 全体・1 2 3 階・4 屋外］　詳細［← → 前・次・Esc 閉じる］', null, 10000);
 });
 
 // v161：パソコンでは「/」で検索欄へ（地図なら地図の検索、それ以外は一覧の検索）。文字を打っている途中は何もしない
