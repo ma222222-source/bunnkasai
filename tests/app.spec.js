@@ -813,3 +813,84 @@ test('インフォ：ホーム画面に置く方法（iPhone・Android）', asyn
   await page.locator('#a2hs > summary').click();
   await expect(page.locator('#a2hs')).toContainText('ホーム画面に追加');
 });
+
+/* ---------------- v162 ---------------- */
+test('地図：部屋の外をダブルクリックすると、その場所が拡大される', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const k0 = await page.evaluate(() => ZOOM.k);
+  // 部屋の無い場所（図面の外側の余白）を探して2回押す
+  const pt = await page.evaluate(() => {
+    const r = document.getElementById('map-view').getBoundingClientRect();
+    for (let y = r.top + 10; y < r.bottom - 10; y += 12) for (let x = r.left + 10; x < r.right - 10; x += 12){
+      const el = document.elementFromPoint(x, y);
+      if (el && el.closest('#map-zoom') && !el.closest('.room') && !el.closest('button')){
+        let near = false;
+        document.querySelectorAll('#plan-' + S.floor + ' .room[data-id]').forEach(g => { const b = g.getBoundingClientRect();
+          if (x > b.left - 30 && x < b.right + 30 && y > b.top - 30 && y < b.bottom + 30) near = true; });
+        if (!near) return { x, y };
+      }
+    }
+    return null;
+  });
+  expect(pt).not.toBeNull();
+  await page.mouse.click(pt.x, pt.y);
+  await page.mouse.click(pt.x, pt.y);
+  await expect.poll(() => page.evaluate(() => ZOOM.k)).toBeGreaterThan(k0 * 1.4);
+  await expect(page.locator('#bsh')).toBeHidden();
+});
+
+test('地図：パソコンのキーで拡大・動かす・全体（「+」「矢印」「0」）', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const k0 = await page.evaluate(() => ZOOM.k);
+  await page.keyboard.press('+');
+  await expect.poll(() => page.evaluate(() => ZOOM.k)).toBeGreaterThan(k0 * 1.4);
+  const x0 = await page.evaluate(() => ZOOM.x);
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(() => page.evaluate(() => ZOOM.x)).not.toBe(x0);
+  await page.keyboard.press('0');
+  await expect.poll(() => page.evaluate(() => ZOOM.k <= ZOOM.min + .01)).toBe(true);
+});
+
+test('地図：階を切り替えると真ん中に階の名前が一瞬出る', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.locator('#fl-2').click();
+  await expect(page.locator('#map-flash')).toHaveText('2階');
+  await expect(page.locator('#map-flash')).toHaveClass(/on/);
+  await expect(page.locator('#map-flash')).not.toHaveClass(/on/, { timeout: 3000 });
+});
+
+test('見やすさ優先（コントラストを上げる）では地図のボタンを透かさない', async ({ page }) => {
+  await mockGas(page);
+  await page.emulateMedia({ contrast: 'more' });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const bf = await page.evaluate(() => getComputedStyle(document.querySelector('.map-floors')).backdropFilter);
+  expect(bf === 'none' || bf === '').toBe(true);
+});
+
+test('詳細：スタンプを押した時刻が出る', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02']));
+    localStorage.setItem('kuroko_stamp_at', JSON.stringify({ '1F-02': new Date(2026, 9, 17, 10, 32).getTime() }));
+  });
+  await page.goto('/?booth=1F-02');
+  await ready(page);
+  await expect(page.locator('#bsh .bsh-got')).toContainText('10:32');
+});
+
+test('詳細のつまみは、触れる範囲が広い（高さ 28px 以上）', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?booth=1F-02');
+  await ready(page);
+  const h = await page.evaluate(() => { const r = getComputedStyle(document.getElementById('bsh-grab'), '::before'); return parseFloat(r.top) * -1 + parseFloat(r.bottom) * -1 + 5; });
+  expect(h).toBeGreaterThanOrEqual(28);
+});
