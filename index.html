@@ -1124,6 +1124,16 @@ text.util:not([font-size]){font-size:7.5px}
   width:48px;height:48px;border-radius:50%;background:var(--surface);color:var(--text);border:1px solid var(--border-strong);
   box-shadow:var(--shadow-lg);font-size:22px;font-weight:900;cursor:pointer}
 .to-top.hide{display:none}
+.recent-row{align-items:center}
+.recent-lb{font-size:11.5px;font-weight:800;color:var(--text-mute);white-space:nowrap;padding-right:2px}
+.lf-sel{min-height:36px;padding:0 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface);
+  color:var(--text);font:inherit;font-size:12.5px;font-weight:800;cursor:pointer}
+.lf-sel.on{border-color:var(--accent);color:var(--accent)}
+.stamp-log{margin-top:12px}
+.stamp-log > summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:800}
+.stamp-log ol{margin:4px 0 0;padding:0;list-style:none;display:grid;gap:4px}
+.stamp-log li{display:flex;gap:10px;font-size:13px}
+.stamp-log time{font-variant-numeric:tabular-nums;font-weight:800;color:var(--text-mute);min-width:3.2em}
 .list-head{position:sticky;top:var(--head-h,0px);z-index:20;display:flex;flex-direction:column;gap:10px;
   margin:-6px -12px 0;padding:6px 12px 8px;background:var(--bg);box-shadow:0 6px 8px -8px rgba(0,0,0,.25)}
 .search{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);
@@ -2280,6 +2290,10 @@ html.sheet-open{overflow:hidden}
 </style>
 </head>
 <body>
+<!-- v166：JavaScript が切ってあると真っ白になる。何をすればよいかだけ出す -->
+<noscript><div style="padding:24px 16px;font:700 15px/1.8 sans-serif;background:#fff8e1;color:#3c2f00;border-bottom:2px solid #e8a600">
+このマップは JavaScript を使います。ブラウザの設定で JavaScript をオンにしてから開き直してください。<br>
+紙のマップは校内の受付でも配っています。</div></noscript>
 
 <div class="app">
   <header class="head">
@@ -2437,8 +2451,15 @@ html.sheet-open{overflow:hidden}
         <button class="chip" id="sort-near" aria-pressed="false" hidden>いまここから近い順</button>
         <button class="chip wish-chip" id="wish-only" aria-pressed="false">★ 行きたい</button>
         <button class="chip" id="todo-only" aria-pressed="false">まだ行っていない</button>
+        <!-- v166：階で絞る -->
+        <select class="lf-sel" id="lf" aria-label="階で絞る">
+          <option value="">すべての階</option><option value="1">1階</option><option value="2">2階</option>
+          <option value="3">3階</option><option value="0">屋外・体育館など</option>
+        </select>
       </div>
       </div>
+      <!-- v166：最近見たブース（検索・絞り込みをしていないときだけ） -->
+      <div class="chips recent-row hide" id="recent-row" aria-label="最近見たブース"></div>
       <div id="booth-list" class="stagger" style="display:flex;flex-direction:column;gap:9px">
         <div class="skel"></div><div class="skel"></div><div class="skel"></div>
       </div>
@@ -2518,6 +2539,11 @@ html.sheet-open{overflow:hidden}
       </div>
 
       <div class="stamp-grid stagger" id="stamp-grid"></div>
+      <!-- v166：回った順（スタンプを押した時刻の順） -->
+      <details class="card stamp-log hide" id="stamp-log">
+        <summary>回った順を見る</summary>
+        <ol id="stamp-log-list"></ol>
+      </details>
       <button class="btn ghost hide" id="stamp-share">この記録を共有する</button>
       <details class="card handoff hide" id="stamp-handoff">
         <summary>別のスマホ・ブラウザに引き継ぐ</summary>
@@ -2940,7 +2966,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-05b',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-05c',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3563,6 +3589,7 @@ const S = {
   wish: new Set(load('kuroko_wish_v1', [])),   // 来場者が「行きたい」に★を付けたブース（v150）
   wishOnly: false,      // 一覧を★だけに絞っているか
   todoOnly: false,      // 一覧を「まだ行っていない」に絞っているか（v157）
+  lf: null,             // 一覧を階で絞る（v166。null＝すべての階）
   lvFilter: null,       // 地図で目立たせる状態（'0' 空き / '1' やや混雑 / '2' 混雑 / 'x' 準備中など）（v156）
   admOpen: new Set(),   // 係員画面で開いている科・場所のまとめ（v146）
   admMode: 'floor',     // 係員画面の並べ方：floor＝階ごと（中は科で区切る）／dept＝科・場所ごと／flat＝更新が古い順
@@ -3951,7 +3978,11 @@ function saveData(){
 }
 try{
   if (navigator.getBattery) navigator.getBattery().then(b => {
-    const u = () => { BATT.low = !b.charging && b.level <= 0.2; };
+    const u = () => { BATT.low = !b.charging && b.level <= 0.2;
+      // v166：電池が少ない間は軽い表示にする（力の弱い端末で付けたものは外さない）
+      const r = document.documentElement;
+      if (BATT.low) { if (!r.classList.contains('lite')) { r.classList.add('lite'); BATT.lite = true; } }
+      else if (BATT.lite) { r.classList.remove('lite'); BATT.lite = false; } };
     u();
     b.addEventListener('levelchange', u);
     b.addEventListener('chargingchange', u);
@@ -5709,6 +5740,7 @@ function openSheet(id, fromHistory){
   if (S.view === 'map' && bf !== S.floor) setFloor(bf);
   const first = !S.sheetId;
   S.sheetId = id;
+  try{ rememberRecent(id); }catch(e){}            // v166：詳細を開いたブースも「最近見た」に
   // 戻り先を要素そのものだけで覚えると、地図が描き直された瞬間に消える。
   // ブースidでも控えておき、消えていたら探し直す。
   // シートの中の「空いているブース」から乗り換えたときは、最初に開いた要素を戻り先のまま保つ
@@ -6873,6 +6905,7 @@ function openBooth(id){
   if (b0) S.floor = floorOfBooth(b0);
   switchView('list');
   S.q = ''; $('#q').value = ''; S.cat = 'all';
+  S.lf = null; { const lf = $('#lf'); if (lf){ lf.value = ''; lf.classList.remove('on'); } }
   renderCats(); renderList();
   requestAnimationFrame(() => {
     const el = document.getElementById('booth-' + id);
@@ -7268,10 +7301,25 @@ function fixSuggest(q){
     `<button type="button" data-fix="${esc(x.b.id)}">${esc(x.b.name)}</button>`).join('')}</span>`;
 }
 
+/** v166：一覧の上の「最近見た」（最大5件）。絞り込み中は出さない */
+function renderRecentRow(){
+  const el = $('#recent-row');
+  if (!el) return;
+  const rs = recentItems().map(x => x.b).slice(0, 5);
+  const show = rs.length > 0 && !S.q && S.cat === 'all' && !S.wishOnly && !S.todoOnly && S.lf == null;
+  el.classList.toggle('hide', !show);
+  const fp = show ? rs.map(b => b.id).join(',') : '';
+  if (renderRecentRow._fp === fp) return;
+  renderRecentRow._fp = fp;
+  el.innerHTML = show ? '<span class="recent-lb">最近見た</span>' + rs.map(b =>
+    `<button class="chip" type="button" data-recent="${esc(b.id)}">${esc(b.name)}</button>`).join('') : '';
+  $$('[data-recent]', el).forEach(x => x.addEventListener('click', () => openSheet(x.dataset.recent)));
+}
+
 function renderList(){
   // 「◯分前」は tickAgo() がその場で書き換えるので、中身が同じなら作り直さない
   // （以前は1分ごとに150件を作り直していて、安い端末では毎分1秒近く固まっていた）
-  const fp = fingerprint(`list:${S.todoOnly}:${S.cat}:${S.sort}:${S.sort === 'near' ? hereId() : ''}:${S.q}:${S.wishOnly}:${Array.from(S.wish).sort().join(',')}`);
+  const fp = fingerprint(`list:${S.lf}:${S.todoOnly}:${S.cat}:${S.sort}:${S.sort === 'near' ? hereId() : ''}:${S.q}:${S.wishOnly}:${Array.from(S.wish).sort().join(',')}`);
   if (renderList._fp === fp) return;
   renderList._fp = fp;
 
@@ -7279,7 +7327,7 @@ function renderList(){
   // 「ふわっと出る」演出は、開いた瞬間と絞り込みを変えたときだけ。
   // 一覧は1分ごとに作り直すので、そのたびに上位8件が下から浮き上がり直し、
   // 読んでいる最中に画面が動いていた（中身は同じなのに）。
-  const shape = `${S.cat}|${S.sort}|${S.q}`;
+  const shape = `${S.cat}|${S.lf}|${S.sort}|${S.q}`;
   const prevShape = renderList._shape;
   box.classList.toggle('stagger', prevShape !== shape);
   renderList._shape = shape;
@@ -7291,6 +7339,7 @@ function renderList(){
                     ? document.activeElement.closest('#booth-list [data-sid]').dataset.sid : null;
   let items = S.booths.slice();
   if (S.cat !== 'all') items = items.filter(b => b.category === S.cat);
+  if (S.lf != null) items = items.filter(b => floorOfBooth(b) === S.lf);
   if (S.wishOnly) items = items.filter(b => S.wish.has(b.id));
   // v157：スタンプがまだのブースだけ（受付は回る先ではないので外す）
   if (S.todoOnly) items = items.filter(b => !S.stamps.has(b.id) && isVenue(b));
@@ -7337,10 +7386,11 @@ function renderList(){
     if (hit.length) items = hit.concat(items.filter(b => hit.indexOf(b) < 0));
   }
 
+  renderRecentRow();
   // 何件に絞られたのかを出す。1件しか出ないとき「壊れているのでは」と思わせない
   const cnt = $('#list-count');
   if (cnt){
-    const filtered = S.q || S.cat !== 'all' || S.wishOnly || S.todoOnly;   // v161：★・まだ行っていないで絞ったときも
+    const filtered = S.q || S.cat !== 'all' || S.wishOnly || S.todoOnly || S.lf != null;   // v161：★・まだ行っていないで絞ったときも
     cnt.textContent = filtered ? `${items.length}件 / 全${S.booths.length}件` : '';
     cnt.classList.toggle('hide', !filtered);
   }
@@ -8296,6 +8346,20 @@ function renderPrize(got, left, need, canGet){
   }
 }
 
+/** v166：回った順。時刻が残っているスタンプだけ（前の版で押したものは時刻が無いので出さない） */
+function renderStampLog(){
+  const box = $('#stamp-log'), ol = $('#stamp-log-list');
+  if (!box || !ol) return;
+  const at = stampAt();
+  const rows = S.booths.filter(b => S.stamps.has(b.id) && at[b.id]).sort((a, b) => at[a.id] - at[b.id]);
+  box.classList.toggle('hide', rows.length < 2);
+  const fp = rows.map(b => b.id + at[b.id]).join(',');
+  if (renderStampLog._fp === fp) return;
+  renderStampLog._fp = fp;
+  ol.innerHTML = rows.map(b => { const d = new Date(at[b.id]);
+    return `<li><time datetime="${d.toISOString()}">${d.toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' })}</time><span>${esc(b.name)}</span></li>`; }).join('');
+}
+
 function renderStamps(){
   const total = S.booths.length;
   const got = S.booths.filter(b => S.stamps.has(b.id)).length;
@@ -8405,6 +8469,7 @@ function renderStamps(){
   if (gridChanged) $$('[data-sid]', $('#stamp-grid')).forEach(el =>
     el.addEventListener('click', () => openSheet(el.dataset.sid)));
 
+  renderStampLog();
   // 完走記録。達成した瞬間の時刻を保存し、以後は同じ時刻を表示する
   $('#stamp-cert').classList.toggle('hide', !done);
   if (done){
@@ -12033,6 +12098,14 @@ function init(){
   });
   // PCでは Esc で検索をやめるのが当たり前の動き。効かないと×を探すことになる
   $('#q').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.isComposing){
+      e.preventDefault();
+      clearTimeout(renderList._qt); renderList();
+      const ids = renderList._order || [];
+      if (S.q && ids.length === 1){ openSheet(ids[0]); return; }
+      e.target.blur();                    // v166：スマホのキーボードを閉じて、結果を広く見せる
+      return;
+    }
     if (e.key !== 'Escape') return;
     e.preventDefault();
     const q = $('#q');
@@ -12045,6 +12118,12 @@ function init(){
     const q = $('#q'); q.value = ''; S.q = ''; renderList();
     $('#q-clear').classList.add('hide'); q.focus();
   });
+  { const lf = $('#lf');
+    if (lf) lf.addEventListener('change', () => {
+      S.lf = lf.value === '' ? null : Number(lf.value);
+      lf.classList.toggle('on', S.lf != null);
+      renderList(); scrollListTop();
+    }); }
   $('#sort-free').addEventListener('click', () => setSort('free', true));
   $('#sort-name').addEventListener('click', () => setSort('name', true));
   if (load('kuroko_sort', null) === 'name'){

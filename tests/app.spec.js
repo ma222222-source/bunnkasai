@@ -1111,3 +1111,75 @@ test('階を切り替えると、読み上げにも伝える', async ({ page }) 
   await page.locator('#fl-3').click();
   await expect(page.locator('#summary-live')).toHaveText('3階の地図を表示しました');
 });
+
+/* ---------------- v166 ---------------- */
+test('JavaScript が使えないときの案内（noscript）がある', async ({ page }) => {
+  const html = require('fs').readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
+  expect(html).toMatch(/<noscript>[\s\S]*JavaScript をオン/);
+});
+
+test('一覧：詳細を開いたブースが「最近見た」に出て、押すと開く', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await expect(page.locator('#recent-row')).toBeHidden();
+  const id = await page.evaluate(() => S.booths[2].id);
+  await page.evaluate(id => { openSheet(id); }, id);
+  await page.evaluate(() => closeSheet());
+  await page.evaluate(() => { renderList._fp = null; renderList(); });
+  await expect(page.locator(`#recent-row [data-recent="${id}"]`)).toBeVisible();
+  await page.locator(`#recent-row [data-recent="${id}"]`).click();
+  await expect(page.locator('#bsh')).toBeVisible();
+});
+
+test('スタンプ画面：回った順（時刻つき）', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03']));
+    localStorage.setItem('kuroko_stamp_at', JSON.stringify({ '1F-03': new Date(2026, 9, 17, 10, 5).getTime(), '1F-02': new Date(2026, 9, 17, 11, 40).getTime() }));
+  });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await page.locator('#stamp-log > summary').click();
+  const rows = page.locator('#stamp-log-list li');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toContainText('10:05');
+  await expect(rows.nth(1)).toContainText('11:40');
+});
+
+test('電池が少ない間は軽い表示、充電したら戻す', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => {
+    const b = { level: 0.1, charging: false, _l: {}, addEventListener(t, f){ (this._l[t] = this._l[t] || []).push(f); } };
+    window.__batt = b;
+    navigator.getBattery = async () => b;
+  });
+  await page.goto('/?tab=map');
+  await ready(page);
+  await expect(page.locator('html')).toHaveClass(/\blite\b/);
+  await page.evaluate(() => { __batt.charging = true; (__batt._l.chargingchange || []).forEach(f => f()); });
+  await expect(page.locator('html')).not.toHaveClass(/\blite\b/);
+});
+
+test('一覧の検索：Enter で1件ならその詳細が開く', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  const name = await page.evaluate(() => S.booths.find(b => b.id === '1F-02').name);
+  await page.locator('#q').fill(name);
+  await page.locator('#q').press('Enter');
+  const ids = await page.evaluate(() => renderList._order);
+  if (ids.length === 1) await expect(page.locator('#bsh')).toBeVisible();
+  else await expect(page.locator('#q')).not.toBeFocused();
+});
+
+test('一覧を階で絞る', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.locator('#lf').selectOption('2');
+  const fl = await page.evaluate(() => renderList._order.map(id => floorOfBooth(S.booths.find(b => b.id === id))));
+  expect(fl.length).toBeGreaterThan(0);
+  expect(fl.every(f => f === 2)).toBe(true);
+  await expect(page.locator('#list-count')).toContainText('/ 全46件');
+});
