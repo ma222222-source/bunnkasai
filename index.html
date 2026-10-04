@@ -494,6 +494,8 @@ main{flex:1;padding:14px 12px calc(88px + var(--safe-b));display:flex;flex-direc
   color:var(--text-dim);white-space:nowrap;display:inline-flex;align-items:center;justify-content:center}
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
 /* 階ごとのブース数。手つかずの階を探し回らずに済む */
+.fl-wish{margin-left:2px;color:#d18f00;font-size:11px;line-height:1}
+[data-theme="heavy"] .fl-wish{color:#fdd663}
 .fl-n{display:inline-grid;place-items:center;min-width:17px;height:17px;margin-left:5px;padding:0 4px;
       border-radius:9px;background:var(--accent);color:var(--on-accent);
       font-size:9.5px;font-weight:900;font-variant-numeric:tabular-nums}
@@ -834,6 +836,9 @@ html.lite #map-card.gmap .map-floors,html.lite #map-card.gmap .map-ctl button{
 .map-sug .sg-st[data-lv="3"],.map-sug .sg-st[data-lv="-1"]{color:var(--g-ink-soft,var(--text-mute))}
 .map-sug .sg-none{padding:12px 16px;font-size:13px;font-weight:700;color:var(--g-ink-soft,var(--text-mute))}
 [data-fs="xl"] .map-search input{font-size:18px}
+/* v167：文字を特大にしている人は、地図のボタンも大きく押しやすく */
+[data-fs="xl"] #map-card.gmap .map-floors button{min-height:52px;min-width:60px;font-size:15px}
+[data-fs="xl"] #map-card.gmap .map-ctl button{min-height:52px;min-width:52px;font-size:17px}
 [data-fs="xl"] .map-sug .sg-tx b{font-size:17px}
 /* 見出しの右にカメラのボタンが増えたので、幅の狭い端末では題を少し小さくして1行に収める */
 @media (max-width:430px){ .head h1{font-size:min(var(--head-size,18px),4.5vw);letter-spacing:.02em} }
@@ -2450,6 +2455,7 @@ html.sheet-open{overflow:hidden}
         <button class="chip" id="sort-name" aria-pressed="false">番号順</button>
         <button class="chip" id="sort-near" aria-pressed="false" hidden>いまここから近い順</button>
         <button class="chip wish-chip" id="wish-only" aria-pressed="false">★ 行きたい</button>
+        <button class="chip hide" id="wish-clear" type="button">★をすべて外す</button>
         <button class="chip" id="todo-only" aria-pressed="false">まだ行っていない</button>
         <!-- v166：階で絞る -->
         <select class="lf-sel" id="lf" aria-label="階で絞る">
@@ -2569,6 +2575,14 @@ html.sheet-open{overflow:hidden}
         <!-- v153：一緒に来た人にこのマップを送る（QR を探さなくても開ける） -->
         <button class="btn ghost share-app" id="share-app" type="button" style="margin-top:12px;width:100%;min-height:48px">このマップを友だちに送る</button>
         <!-- v161：ホーム画面に置くと、QRを探さなくても1回で開ける（どちらも端末のブラウザで開くので、スタンプの保存先は同じ） -->
+        <!-- v167：触っただけでは気づきにくい操作 -->
+        <details class="a2hs" id="tips">
+          <summary>使い方のこつ</summary>
+          <p>・地図の何も無い所を<b>2回続けて押す</b>と、そこを拡大</p>
+          <p>・地図のブースを<b>長押し</b>すると「★行きたい」に入る（もう一度で外す）</p>
+          <p>・ブースの詳細を<b>左右になぞる</b>と、同じ階の前・次のブース</p>
+          <p>・パソコンは <b>?</b> キーでキー操作の一覧</p>
+        </details>
         <details class="a2hs" id="a2hs">
           <summary>ホーム画面に置いて、すぐ開けるようにする</summary>
           <p><b>iPhone（Safari）</b>：画面下の共有ボタン（□に↑）→「ホーム画面に追加」→「追加」</p>
@@ -2966,7 +2980,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-05c',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-05d',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5924,6 +5938,8 @@ document.addEventListener('keydown', e => {
 function toggleWish(id){
   if (S.wish.has(id)) S.wish.delete(id); else S.wish.add(id);
   store('kuroko_wish_v1', Array.from(S.wish));
+  renderWishChip();
+  renderFloorCounts();
   const on = S.wish.has(id);
   toast(on ? '★「行きたい」に入れました。一覧の「★ 行きたい」で見られます' : '「行きたい」から外しました');
   renderSheet._fp = null; renderSheet();
@@ -6136,6 +6152,15 @@ function renderScanCount(){
 
 async function openScanner(){
   renderScanCount();
+  // v167：閉じたあと、開いたボタンへ戻る（キーボード・読み上げの人が迷子にならない）
+  SCAN.from = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
+  // v167：90秒たっても読めなければカメラを止める（つけっぱなしで電池と熱がもったいない）
+  clearTimeout(SCAN.idle);
+  SCAN.idle = setTimeout(() => {
+    if ($('#scan').classList.contains('hide') || !SCAN.stream) return;
+    closeScanner();
+    toast('電池の節約のため、カメラを閉じました。読むときはもう一度カメラのボタンを押してください');
+  }, 90000);
   const box = $('#scan'), help = $('#scan-help');
   box.classList.remove('hide', 'no-cam');
   document.documentElement.classList.add('sheet-open');
@@ -6238,9 +6263,12 @@ function stopScanner(){
   if (v) v.srcObject = null;
 }
 function closeScanner(){
+  clearTimeout(SCAN.idle);
   stopScanner();
   $('#scan').classList.add('hide');
   if (!S.sheetId) document.documentElement.classList.remove('sheet-open');
+  const f = SCAN.from; SCAN.from = null;
+  if (f && f.isConnected && f.offsetParent !== null){ try{ f.focus({ preventScroll:true }); }catch(e){} }
 }
 // 見出し・スタンプのカードのボタン（シートのボタンは開くたびに作るので renderSheet で付ける）
 document.addEventListener('click', e => {
@@ -9558,6 +9586,7 @@ function renderAll(){
   // 開いたまま待っている人には「1階」「2階」だけが並び、
   // どの階に何があるのか分からないままだった
   renderFloorCounts();
+  renderWishChip();
   // 見えていない一覧は作らない（150件で毎回0.4秒かかっていた）。一覧に切り替えたときに描く
   // 【v146】見えていないときに指紋を捨てるのをやめた。指紋は中身（ブースの状態）から作るので、
   // 変わっていなければ一覧に切り替えたときも作り直さない（作り直すと遅い端末で配置の計算に約1秒かかる）
@@ -12547,6 +12576,13 @@ function renderFloorCounts(){
     if (!tag){ tag = document.createElement('span'); tag.className = 'fl-n'; el.appendChild(tag); }
     tag.textContent = n ? String(n) : '';
     tag.classList.toggle('hide', !n);
+    // v167：この階に、まだ行っていない★があれば小さな★
+    const w = S.booths.some(b => floorOfBooth(b) === f.n && S.wish.has(b.id) && !S.stamps.has(b.id));
+    let wm = el.querySelector('.fl-wish');
+    if (w && !wm){ wm = document.createElement('span'); wm.className = 'fl-wish'; wm.textContent = '★'; wm.setAttribute('aria-hidden', 'true'); el.appendChild(wm); }
+    if (!w && wm) wm.remove();
+    const base = (f.n === 0 ? '屋外' : f.n + '階');
+    el.setAttribute('aria-label', base + (n ? `（ブース${n}件）` : '') + (w ? '・まだ行っていない★あり' : ''));
   });
 }
 
@@ -12692,10 +12728,26 @@ function showTodo(){
   if (hereId()) setSort('near');
   setTodoOnly(true);
 }
-function setWishOnly(on){
-  S.wishOnly = !!on;
+/** ★のチップの数と「★をすべて外す」（v167：★を付け外ししても数が変わらなかった） */
+function renderWishChip(){
   const el = $('#wish-only');
   if (el){ el.setAttribute('aria-pressed', String(S.wishOnly)); el.textContent = S.wish.size ? `★ 行きたい ${S.wish.size}` : '★ 行きたい'; }
+  const c = $('#wish-clear');
+  if (c) c.classList.toggle('hide', !(S.wishOnly && S.wish.size));
+}
+function clearWish(){
+  const before = Array.from(S.wish);
+  if (!before.length) return;
+  S.wish = new Set();
+  store('kuroko_wish_v1', []);
+  const done = () => { renderWishChip(); renderFloorCounts(); renderSheet._fp = null; if (S.sheetId) renderSheet(); renderList._fp = null; renderList(); renderRouteChips(); drawFloor._fp = null; drawFloor(S.floor); };
+  done();
+  toast(`★を${before.length}件外しました`, { label:'元に戻す', fn: () => { S.wish = new Set(before); store('kuroko_wish_v1', before); done(); } });
+}
+{ const c = document.getElementById('wish-clear'); if (c) c.addEventListener('click', clearWish); }
+function setWishOnly(on){
+  S.wishOnly = !!on;
+  renderWishChip();
   renderList();
   scrollListTop();
 }
