@@ -429,6 +429,8 @@ main{flex:1;padding:14px 12px calc(88px + var(--safe-b));display:flex;flex-direc
        background:var(--surface);border:1px solid var(--border-strong);color:var(--text)}
 .banner.update{background:var(--free-soft);color:var(--text);border:1px solid var(--free)}
 .banner.hours{background:var(--surface-3);color:var(--text);border:1px solid var(--border-strong)}
+.notice-x{margin-left:auto;flex:none;min-width:36px;min-height:36px;margin-top:-6px;margin-bottom:-6px;border-radius:999px;
+  background:rgba(255,255,255,.18);color:inherit;font:inherit;font-size:16px;font-weight:900;cursor:pointer}
 .banner.notice{background:var(--accent);color:var(--on-accent);border:1px solid var(--accent)}
 .banner.notice[data-level="alert"]{background:var(--busy);border-color:var(--busy);color:#fff}
 .hide{display:none !important}
@@ -676,6 +678,8 @@ svg.plan{display:block;width:100%;height:auto;touch-action:inherit}
 #map-card.gmap .map-zoom-ctl{right:8px;bottom:8px;flex-direction:column;gap:6px}
 #map-card.gmap .map-zoom-ctl button{width:44px;border-radius:12px;font-size:22px;line-height:1}
 #map-card.gmap .map-fit-ctl{left:8px;bottom:8px;gap:6px}
+/* v169：狭い画面・文字「特大」で右下の＋−とぶつからないよう、右下のぶんを空けて折り返す（2段目は上に積む） */
+#map-card.gmap .map-fit-ctl{max-width:calc(100% - 76px);flex-wrap:wrap-reverse}
 #map-card.gmap .map-zoom-ctl .locate{color:var(--g-sel)}
 #map-card.gmap .map-zoom-ctl .locate .ic{width:22px;height:22px}
 #map-card.gmap .map-zoom-ctl .locate[data-on="1"]{background:var(--g-sel-bg)}
@@ -792,6 +796,9 @@ html.lite #map-card.gmap .map-floors,html.lite #map-card.gmap .map-ctl button{
   padding:8px 18px;border-radius:14px;background:rgba(32,33,36,.72);color:#fff;font-size:22px;font-weight:900;
   opacity:0;transition:opacity .2s ease}
 .map-flash.on{opacity:1}
+.lv-pill{position:absolute;left:10px;top:10px;z-index:5;min-height:36px;max-width:calc(100% - 90px);overflow:hidden;text-overflow:ellipsis;padding:0 12px;border-radius:999px;
+  border:none;background:rgba(32,33,36,.82);color:#fff;font:inherit;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;
+  box-shadow:0 1px 3px rgba(0,0,0,.25)}
 @media (prefers-reduced-motion:reduce){ .map-flash{transition:none} }
 @media (prefers-reduced-motion:reduce){ #map-card.gmap .map-floors,#map-card.gmap .map-ctl button{transition:none} }
 /* v159：横向きは地図が低い。右下の現在地・＋−を縦に積むと右上の階の切り替えと重なるので横に並べる */
@@ -1130,6 +1137,9 @@ text.util:not([font-size]){font-size:7.5px}
   box-shadow:var(--shadow-lg);font-size:22px;font-weight:900;cursor:pointer}
 .to-top.hide{display:none}
 .recent-row{align-items:center}
+.img-zoom{position:fixed;inset:0;z-index:130;background:rgba(0,0,0,.88);display:grid;place-items:center;padding:16px;cursor:zoom-out}
+.img-zoom img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
+.bsh-img[role="button"]{cursor:zoom-in}
 .app-qr-box{display:grid;place-items:center;padding:12px;margin:6px auto;background:#fff;border-radius:12px;width:max-content}
 .app-qr-box svg{width:200px;height:200px;display:block}
 .recent-x{min-width:36px;min-height:36px;border-radius:999px;border:1px solid var(--border);background:var(--surface);
@@ -1142,6 +1152,7 @@ text.util:not([font-size]){font-size:7.5px}
 .stamp-log > summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:800}
 .stamp-log ol{margin:4px 0 0;padding:0;list-style:none;display:grid;gap:4px}
 .stamp-log li{display:flex;gap:10px;font-size:13px}
+.stamp-log-sum{margin-top:4px;padding-top:6px;border-top:1px dashed var(--border);font-weight:800;color:var(--text-dim)}
 .stamp-log time{font-variant-numeric:tabular-nums;font-weight:800;color:var(--text-mute);min-width:3.2em}
 .list-head{position:sticky;top:var(--head-h,0px);z-index:20;display:flex;flex-direction:column;gap:10px;
   margin:-6px -12px 0;padding:6px 12px 8px;background:var(--bg);box-shadow:0 6px 8px -8px rgba(0,0,0,.25)}
@@ -2331,7 +2342,7 @@ html.sheet-open{overflow:hidden}
       <button id="staff-back-btn"></button>
       <nav class="staff-jump" id="staff-jump" aria-label="係員の画面"></nav>
     </div>
-    <div class="banner notice hide" id="banner-notice" role="status" aria-live="polite"><span id="banner-notice-icon"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l4.5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 8.5a5 5 0 0 1 0 7"/></svg></span><span id="banner-notice-text"></span></div>
+    <div class="banner notice hide" id="banner-notice" role="status" aria-live="polite"><span id="banner-notice-icon"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l4.5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 8.5a5 5 0 0 1 0 7"/></svg></span><span id="banner-notice-text"></span><button class="notice-x hide" id="notice-x" type="button" aria-label="このお知らせを閉じる">×</button></div>
     <div class="banner alert hide" id="banner-alert" role="status" aria-live="polite"><span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20.5h19z"/><path d="M12 9.5v5M12 17.5h.01"/></svg></span><span id="banner-alert-text"></span></div>
     <div class="banner info hide" id="banner-offline" role="status" aria-live="assertive"><span id="banner-offline-icon" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8.5a16 16 0 0 1 20 0M5 12.5a11 11 0 0 1 14 0M8.5 16.3a6 6 0 0 1 7 0"/><path d="M12 20h.01"/></svg></span><span id="banner-offline-text">通信できません。最後に取得した情報を表示しています。</span><button id="banner-retry" class="retry">再試行</button></div>
     <div class="banner hours hide" id="banner-hours" role="status" aria-live="polite"><span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span id="banner-hours-text"></span></div>
@@ -2380,6 +2391,8 @@ html.sheet-open{overflow:hidden}
           <div class="dept-legend hide" id="dept-legend" aria-label="科・トイレで絞り込む" role="group" tabindex="0"></div>
           <div class="map-stage">
             <div class="map-flash" id="map-flash" aria-hidden="true"></div>
+            <!-- v169：状態で目立たせている間ずっと見える札（トーストは消えるので、なぜ薄いのか分からなくなる） -->
+            <button class="lv-pill hide" id="lv-pill" type="button"></button>
           <div class="zoom-lv" id="zoom-lv" aria-hidden="true"></div>
 
           <div class="map-view" id="map-view">
@@ -2995,7 +3008,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-05e',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-05f',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3654,6 +3667,23 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
 /** 動きを減らす設定のときはスムーススクロールもやめる（前庭障害・片頭痛対策） */
 const REDUCE_MOTION = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches:false };
 function smoothBehavior(){ return REDUCE_MOTION.matches ? 'auto' : 'smooth'; }
+
+/**
+ * 文字をコピーする（v169）。navigator.clipboard が使えないときは、見えない入力欄を選んで copy する昔の方法に回す。
+ * どちらもだめなら投げる（呼ぶ側の catch が、文字を画面に出すなどの次の手を打つ）
+ */
+async function copyText(t){
+  try{ if (navigator.clipboard && window.isSecureContext){ await navigator.clipboard.writeText(t); return; } }catch(e){}
+  const ta = document.createElement('textarea');
+  ta.value = t; ta.setAttribute('readonly', '');
+  ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+  document.body.appendChild(ta);
+  ta.select(); ta.setSelectionRange(0, t.length);
+  let ok = false;
+  try{ ok = document.execCommand('copy'); }catch(e){}
+  ta.remove();
+  if (!ok) throw new Error('copy failed');
+}
 
 function toast(msg, action, dur){
   const t = $('#toast');
@@ -5973,7 +6003,7 @@ async function shareApp(){
   const text = '黒工文化祭 校内マップ（混雑状況・スタンプラリー）';
   try{ if (navigator.share){ await navigator.share({ title: text, text, url }); return; } }
   catch(e){ if (e && e.name === 'AbortError') return; }
-  try{ await navigator.clipboard.writeText(text + '\n' + url); toast('アドレスをコピーしました。LINE などに貼り付けて送れます'); }
+  try{ await copyText(text + '\n' + url); toast('アドレスをコピーしました。LINE などに貼り付けて送れます'); }
   catch(e){ toast('アドレス：' + url, null, 8000); }
 }
 { const sa = document.getElementById('share-app'); if (sa) sa.addEventListener('click', () => shareApp()); }
@@ -5990,7 +6020,7 @@ async function shareBooth(id){
     if (navigator.share){ await navigator.share({ title: b.name, text, url }); return; }
   }catch(e){ if (e && e.name === 'AbortError') return; }
   try{
-    await navigator.clipboard.writeText(text + '\n' + url);
+    await copyText(text + '\n' + url);
     toast('リンクをコピーしました。LINE などに貼り付けて送れます');
   }catch(e){
     toast('リンク：' + url, null, 8000);
@@ -6035,7 +6065,7 @@ function renderSheet(){
     </div>
     ${b.image ? (saveData()
         ? `<button type="button" class="bsh-imgbtn" data-img="${esc(b.image)}">写真を見る（データ節約中）</button>`
-        : `<img class="bsh-img" src="${esc(b.image)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">`) : ''}
+        : `<img class="bsh-img" src="${esc(b.image)}" alt="${esc(b.name)}の写真（押すと大きく）" loading="lazy" decoding="async" referrerpolicy="no-referrer" tabindex="0" role="button" onerror="this.remove()">`) : ''}
     ${b.note ? `<p class="bsh-note">${eventLabel(b)
         ? `<span class="ev-badge" data-kind="${eventState(b).kind}">${esc(eventLabel(b))}</span>` : ICON.note} ${esc(b.note)}</p>` : ''}
     ${routeHint(b)}
@@ -6065,6 +6095,11 @@ function renderSheet(){
   if (sc) sc.addEventListener('click', () => openScanner());
   const wb = $('#bsh-body [data-wish]');
   if (wb) wb.addEventListener('click', () => toggleWish(b.id));
+  $$('#bsh-body img.bsh-img').forEach(im => {
+    const go = () => zoomImage(im.src, b.name);
+    im.addEventListener('click', go);
+    im.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } });
+  });
   $$('#bsh-body [data-img]').forEach(el => el.addEventListener('click', () => {
     const im = document.createElement('img');
     im.className = 'bsh-img'; im.alt = ''; im.decoding = 'async'; im.src = el.dataset.img;
@@ -7371,6 +7406,24 @@ function fixSuggest(q){
     if (d.open && box && !box.innerHTML) box.innerHTML = QR.svgSafe(publicBase() + '?openExternalBrowser=1', 200);
   }); }
 
+/** v169：写真を画面いっぱいに出す。どこを押しても・Esc でも閉じる */
+function zoomImage(src, name){
+  const ov = document.createElement('div');
+  ov.className = 'img-zoom';
+  ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', name + 'の写真');
+  ov.tabIndex = -1;
+  const im = document.createElement('img');
+  im.src = src; im.alt = name + 'の写真'; im.referrerPolicy = 'no-referrer';
+  ov.appendChild(im);
+  const prev = document.activeElement;
+  const close = () => { ov.remove(); document.removeEventListener('keydown', onKey, true); if (prev && prev.isConnected) try{ prev.focus({ preventScroll:true }); }catch(e){} };
+  const onKey = e => { if (e.key === 'Escape'){ e.stopPropagation(); e.preventDefault(); close(); } };
+  ov.addEventListener('click', close);
+  document.addEventListener('keydown', onKey, true);
+  document.body.appendChild(ov);
+  ov.focus({ preventScroll:true });
+}
+
 /** v166：一覧の上の「最近見た」（最大5件）。絞り込み中は出さない */
 function renderRecentRow(){
   const el = $('#recent-row');
@@ -7493,7 +7546,7 @@ function renderList(){
       data-lv="${L.lv}" data-sid="${esc(b.id)}">
       <div class="booth-top">
         <span class="booth-bar"></span>
-        ${b.image ? `<img class="booth-img" src="${esc(b.image)}" alt="" loading="lazy" decoding="async"
+        ${b.image ? `<img class="booth-img" src="${esc(b.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"
                       onerror="this.remove()">` : ''}
         <div class="booth-main">
           <h3 class="booth-nm"><span class="no">${S.numbers.get(b.id) || '-'}</span><span
@@ -8431,6 +8484,14 @@ function renderStampLog(){
   renderStampLog._fp = fp;
   ol.innerHTML = rows.map(b => { const d = new Date(at[b.id]);
     return `<li><time datetime="${d.toISOString()}">${d.toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' })}</time><span>${esc(b.name)}</span></li>`; }).join('');
+  // v169：最初のスタンプから最後のスタンプまで（同じ日のときだけ）
+  if (rows.length >= 2){
+    const a = new Date(at[rows[0].id]), z = new Date(at[rows[rows.length - 1].id]);
+    if (a.toDateString() === z.toDateString()){
+      const m = Math.round((z - a) / 60000);
+      ol.insertAdjacentHTML('beforeend', `<li class="stamp-log-sum"><span>${rows.length}ブースを ${m >= 60 ? Math.floor(m / 60) + '時間' + (m % 60 ? m % 60 + '分' : '') : m + '分'}で回りました</span></li>`);
+    }
+  }
 }
 
 function renderStamps(){
@@ -8896,6 +8957,23 @@ function renderInfo(){
    アラートバナー
    ===================================================================== */
 /** 全体の混雑状況を一目で分かるようにする */
+/** v169：目立たせている状態の札。押すと元に戻す */
+function renderLvPill(){
+  const p = $('#lv-pill');
+  if (!p) return;
+  const nm = { '0':'空き', '1':'やや混雑', '2':'混雑', 'x':'準備中など' }[S.lvFilter];
+  p.classList.toggle('hide', !nm);
+  p.textContent = nm ? `「${nm}」だけ表示中 ×` : '';
+  p.setAttribute('aria-label', nm ? `「${nm}」だけを目立たせるのをやめる` : '');
+  p.dataset.lv = S.lvFilter || '';
+}
+{ const p = document.getElementById('lv-pill');
+  if (p) p.addEventListener('click', () => {
+    S.lvFilter = null;
+    $$('#summary .sum').forEach(x => x.setAttribute('aria-pressed', 'false'));
+    drawFloor(S.floor); renderLvPill();
+  }); }
+
 function renderSummary(){
   const c = [0, 0, 0, 0];   // 空き / やや / 混雑 / それ以外
   S.booths.forEach(b => {
@@ -8921,6 +8999,7 @@ function renderSummary(){
         S.lvFilter = S.lvFilter === el.dataset.lv ? null : el.dataset.lv;
         $$('.sum', box).forEach(x => x.setAttribute('aria-pressed', String(x.dataset.lv === S.lvFilter)));
         drawFloor(S.floor);
+        renderLvPill();
         if (S.lvFilter){
           const t = el.querySelector('span').textContent;
           toast(`「${t}」のブースだけを目立たせています。もう一度押すと元に戻ります`);
@@ -9519,8 +9598,19 @@ function renderNotice(){
   const el = $('#banner-notice');
   const n = S.notice;
   if (!n || !n.text || S.view === 'qr' || S.view === 'board'){ el.classList.add('hide'); return; }
+  // v169：読んだ「お知らせ」は閉じられる。文が変わればまた出す。「注意」は大事なので閉じさせない
+  const alert = n.level === 'alert';
+  if (!alert && load('kuroko_notice_x', null) === hash32(String(n.text))){ el.classList.add('hide'); return; }
   el.classList.remove('hide');
-  el.dataset.level = n.level === 'alert' ? 'alert' : 'info';
+  el.dataset.level = alert ? 'alert' : 'info';
+  const nx = $('#notice-x');
+  if (nx){
+    nx.classList.toggle('hide', alert);
+    if (!nx._bound){ nx._bound = true; nx.addEventListener('click', () => {
+      if (S.notice && S.notice.text) store('kuroko_notice_x', hash32(String(S.notice.text)));
+      renderNotice(); measureHead();
+    }); }
+  }
   $('#banner-notice-icon').innerHTML = n.level === 'alert' ? ICON_ALERT : ICON_MEGA;
   // 本部のお知らせに URL があれば押せるようにする（文字は textContent で入れ、http(s) だけをリンクにする）
   const box = $('#banner-notice-text');
@@ -10734,7 +10824,11 @@ async function flushUnsent(){
     renderAdmin();
   }
 }
-window.addEventListener('online', () => { S.failures = 0; sync(false); });
+window.addEventListener('online', () => {
+  S.failures = 0; sync(false);
+  // v169：圏外から戻ったことを知らせる（古い情報のまま見続けていないか不安にさせない）
+  toast('つながりました。最新の情報を取りに行っています');
+});
 
 /**
  * 全ブースの状態をまとめて変える。
@@ -12222,13 +12316,13 @@ function init(){
   });
   $('#handoff-copy').addEventListener('click', async () => {
     flushLedger(true);
-    try{ await navigator.clipboard.writeText(handoffUrl()); toast('リンクをコピーしました。引き継ぎ先のブラウザで開いてください'); }
+    try{ await copyText(handoffUrl()); toast('リンクをコピーしました。引き継ぎ先のブラウザで開いてください'); }
     catch(e){ prompt('このリンクを引き継ぎ先で開いてください', handoffUrl()); }
   });
   // スタンプ番号：コピー・つなぐ
   $('#sid-copy').addEventListener('click', async () => {
     const t = sidLabel();
-    try{ await navigator.clipboard.writeText(t); toast('スタンプ番号をコピーしました：' + t); }
+    try{ await copyText(t); toast('スタンプ番号をコピーしました：' + t); }
     catch(e){ prompt('スタンプ番号（別のアプリで入れてください）', t); }
     flushLedger(true);
   });
@@ -12254,7 +12348,7 @@ function init(){
   $('#diag-run').addEventListener('click', runDiag);
   $('#diag-copy').addEventListener('click', async () => {
     const t = '黒工マップ 動作チェック\n' + (runDiag._rows || []).map(r => `${r.st === 'ok' ? '○' : r.st === 'warn' ? '△' : '×'} ${r.k}：${r.v}`).join('\n');
-    try{ await navigator.clipboard.writeText(t); toast('結果をコピーしました'); }catch(e){ prompt('この内容を係の人に送ってください', t); }
+    try{ await copyText(t); toast('結果をコピーしました'); }catch(e){ prompt('この内容を係の人に送ってください', t); }
   });
 
   $('#stamp-reset').addEventListener('click', () => {
@@ -12716,7 +12810,11 @@ function fitMapBox(floorNum){
   // 空いている高さの範囲で最大2倍まで箱を広げ、その高さまで地図を寄せた状態を既定にする。
   // 左右は画面から出るぶん、指で動かして見てもらう。
   const FILL = 2;
-  const boxH = Math.max(Math.min(190, maxH), Math.min(maxH, Math.round(nat * FILL)));
+  // v169：縦向きは、図面が横長で低くなっても下限（階の切り替え＋現在地・＋−が重ならない高さ）を守る。
+  // 下限を maxH にしか効かせていなかったので、幅 320px では箱が約330px になり「屋外」が現在地のボタンに隠れていた。
+  // 文字「特大」はボタンが大きい（v167）ので下限も上げる
+  const ctlMin = land ? 0 : (document.documentElement.getAttribute('data-fs') === 'xl' ? 470 : floorH);
+  const boxH = Math.max(ctlMin, Math.min(190, maxH), Math.min(maxH, Math.round(nat * FILL)));
   view.style.height = boxH + 'px';
   // 幅に合わせるだけだと、横長の図面は高さが窓を超えて下半分が切れる。
   // 高さにも上限をかけると、SVGが自動で縮んで全体が収まる。
@@ -12750,7 +12848,7 @@ function fitMapBox(floorNum){
   // 箱だけを中身の高さまで詰めてページを短くする。
   // ここで svg の max-height は触らない（触ると中身の高さ自体が変わって堂々巡りになる）
   const need = Math.round(ZOOM.mNat * ZOOM.k);
-  const want = Math.max(150, Math.min(maxH, need));
+  const want = Math.max(150, ctlMin, Math.min(maxH, need));     // v169：詰めるときも、ボタンが重ならない高さは残す
   if (need > 0 && Math.abs(want - ZOOM.mH) > 4){
     view.style.height = want + 'px';
     zoomMeasure();

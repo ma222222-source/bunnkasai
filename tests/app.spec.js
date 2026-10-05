@@ -1141,7 +1141,7 @@ test('スタンプ画面：回った順（時刻つき）', async ({ page }) => 
   await page.goto('/?tab=stamp');
   await ready(page);
   await page.locator('#stamp-log > summary').click();
-  const rows = page.locator('#stamp-log-list li');
+  const rows = page.locator('#stamp-log-list li:not(.stamp-log-sum)');
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText('10:05');
   await expect(rows.nth(1)).toContainText('11:40');
@@ -1321,4 +1321,108 @@ test('地図の検索：見つからないときは「もしかして」で近�
   test.skip(n > 0, 'ふつうの検索で当たってしまう名前だった');
   await expect(page.locator('#map-sug')).toContainText('もしかして');
   await expect(page.locator('#map-sug')).toContainText(name);
+});
+
+/* ---------------- v169 ---------------- */
+test('コピー：navigator.clipboard が無い端末でも、昔の方法でコピーする', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => {
+    try{ Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true }); }catch(e){}
+    try{ Object.defineProperty(navigator, 'share', { value: undefined, configurable: true }); }catch(e){}
+    document.execCommand = cmd => { window.__copied = cmd === 'copy' ? (document.activeElement && document.activeElement.value) : null; return cmd === 'copy'; };
+  });
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.evaluate(() => shareBooth('1F-02'));
+  await expect(page.locator('#toast')).toContainText('コピーしました');
+  expect(await page.evaluate(() => window.__copied)).toContain('booth=1F-02');
+});
+
+test('ふつうのお知らせは×で閉じられ、文が変わるとまた出る（注意は閉じられない）', async ({ page }) => {
+  let notice = { text: '午後の部は13時から', level: 'info' };
+  await page.route(/script\.google(usercontent)?\.com\//, async route => {
+    const { snapshot } = require('./mock');
+    return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/json', body: JSON.stringify(snapshot({ notice })) });
+  });
+  await page.goto('/?tab=map');
+  await ready(page);
+  await expect(page.locator('#banner-notice')).toBeVisible();
+  await page.locator('#notice-x').click();
+  await expect(page.locator('#banner-notice')).toBeHidden();
+  notice = { text: '雨のため屋外の催しは体育館で', level: 'alert' };
+  await page.evaluate(() => sync(true));
+  await expect(page.locator('#banner-notice')).toBeVisible();
+  await expect(page.locator('#notice-x')).toBeHidden();
+});
+
+test('回った順：最初から最後までの時間', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03', '1F-05']));
+    localStorage.setItem('kuroko_stamp_at', JSON.stringify({ '1F-03': new Date(2026, 9, 17, 10, 5).getTime(), '1F-05': new Date(2026, 9, 17, 10, 50).getTime(), '1F-02': new Date(2026, 9, 17, 11, 40).getTime() }));
+  });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await page.locator('#stamp-log > summary').click();
+  await expect(page.locator('#stamp-log-list')).toContainText('3ブースを 1時間35分で回りました');
+});
+
+test('詳細の写真は押すと大きく、Esc で閉じる', async ({ page }) => {
+  await mockGas(page, { mutate: d => { d.booths.forEach(b => { if (b.id === '1F-02') b.image = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='; }); } });
+  await page.goto('/?booth=1F-02');
+  await ready(page);
+  await page.locator('#bsh img.bsh-img').click();
+  await expect(page.locator('.img-zoom')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.img-zoom')).toHaveCount(0);
+  await expect(page.locator('#bsh')).toBeVisible();          // 詳細は閉じない
+});
+
+test('地図で「空き」を目立たせている間は札が出て、押すと戻る', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.locator('#summary .sum[data-lv="0"]').click();
+  await expect(page.locator('#lv-pill')).toBeVisible();
+  await expect(page.locator('#lv-pill')).toContainText('空き');
+  await page.locator('#lv-pill').click();
+  await expect(page.locator('#lv-pill')).toBeHidden();
+  await expect(page.locator('#summary .sum[data-lv="0"]')).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('通信が戻ったら「つながりました」', async ({ page, context }) => {
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await context.setOffline(true);
+  await context.setOffline(false);
+  await expect(page.locator('#toast')).toContainText('つながりました');
+});
+
+test('地図に重ねたボタンどうしが重ならない（幅 320/360/390・文字ふつう／特大・すべての階）', async ({ page }) => {
+  test.setTimeout(90000);
+  await mockGas(page);
+  const bad = [];
+  for (const fs of ['m', 'xl']) {
+    if (fs === 'xl') await page.addInitScript(() => localStorage.setItem('kuroko_fs', JSON.stringify('xl')));
+    for (const w of [320, 360, 390]) {
+      await page.setViewportSize({ width: w, height: 700 });
+      await page.goto('/?tab=map');
+      await ready(page);
+      for (const fl of [0, 1, 2, 3]) {
+        await page.evaluate(f => setFloor(f), fl);
+        await page.waitForTimeout(150);
+        const r = await page.evaluate(() => {
+          const bs = [...document.querySelectorAll('#map-card .map-floors button, #map-card .map-ctl button')]
+            .filter(b => b.offsetParent && getComputedStyle(b).visibility !== 'hidden').map(b => [b.id || b.textContent.trim(), b.getBoundingClientRect()]);
+          const out = [];
+          for (let i = 0; i < bs.length; i++) for (let j = i + 1; j < bs.length; j++) { const a = bs[i][1], b = bs[j][1];
+            if (!(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)) out.push(bs[i][0] + '×' + bs[j][0]); }
+          return out;
+        });
+        if (r.length) bad.push(`${fs} ${w}px ${fl}階: ${r.join(', ')}`);
+      }
+    }
+  }
+  expect(bad).toEqual([]);
 });
