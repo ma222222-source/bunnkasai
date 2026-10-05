@@ -2400,6 +2400,19 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 [data-fs="xl"] .nav button{font-size:13px}
 .stamp-grid-note{margin:0 2px 6px;font-size:11px;font-weight:700;color:var(--text-mute)}
 [data-fs="xl"] .stamp-grid-note{font-size:13.5px}
+
+/* v177 */
+.chip .chip-n{font-weight:900;font-size:.92em;margin-left:1px}
+.stamp.folded{display:none}
+.stamp-fold{all:unset;cursor:pointer;display:flex;align-items:baseline;gap:8px;min-height:36px;padding:0 4px;border-radius:8px;
+  font:inherit;color:inherit}
+.stamp-fold::after{content:'';align-self:center;width:7px;height:7px;margin-left:4px;border-right:2.5px solid currentColor;border-bottom:2.5px solid currentColor;
+  transform:rotate(45deg);opacity:.7;transition:transform var(--t-fast) var(--ease)}
+.stamp-fold[aria-expanded="false"]::after{transform:rotate(-45deg)}
+.stamp-fold:focus-visible{outline:3px solid var(--accent)}
+.skip-link{position:absolute;left:8px;top:-60px;z-index:200;padding:10px 14px;border-radius:10px;background:var(--accent);color:var(--on-accent);
+  font-weight:900;text-decoration:none}
+.skip-link:focus{top:8px}
 </style>
 </head>
 <body>
@@ -2409,6 +2422,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 紙のマップは校内の受付でも配っています。</div></noscript>
 
 <div class="app">
+  <a class="skip-link" href="#main-body">本文へ移動</a>
   <header class="head">
     <div class="head-row">
       <div style="min-width:0">
@@ -2425,7 +2439,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
     <div class="sync"><span class="dot" id="sync-dot"></span><span id="sync-text">読み込み中…</span></div>
   </header>
 
-  <main>
+  <main id="main-body" tabindex="-1">
     <!-- 係員の画面（QR・紙マップ・振り返り・ボード）は下のタブを隠すので、
          戻り口が無いとURLを打ち直すしかなくなる。画面の上に貼りつけて、
          戻る先と、ほかの係員画面への行き先をいつでも出しておく。 -->
@@ -3109,7 +3123,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-05m',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-06a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -6457,7 +6471,10 @@ function scanLoop(){
     if (url){
       stopScanner();
       // v158：開き直すまでの一瞬に「読めた」ことを見せる（何も出ないと固まったように見える）
-      $('#scan-help').textContent = '✓ 読み取りました。スタンプを押しています…';
+      // v177：どのブースのスタンプかを出す
+      const bid = (() => { try{ return new URL(url, location.href).searchParams.get('booth'); }catch(e){ return null; } })();
+      const bnm = bid && (S.booths.find(x => x.id === bid) || {}).name;
+      $('#scan-help').textContent = bnm ? `✓ 「${bnm}」のスタンプを押しています…` : '✓ 読み取りました。スタンプを押しています…';
       $('#scan').classList.add('read-ok');
       buzz(40);
       // v171：読み込み直さず、その場でスタンプを付ける（読み込み直すと、スマホのブラウザが音を止めていた。待ち時間も減る）
@@ -7483,11 +7500,13 @@ function normalizeQ(s){
 
 function renderCats(){
   const cats = ['all', ...Array.from(new Set(S.booths.map(b => b.category))).filter(Boolean)];
-  const fp = cats.join('|') + '#' + S.cat;
+  const fp = cats.join('|') + '#' + S.cat + '#' + S.booths.length + '#' + S.booths.map(b => b.category).join(',');
   if (renderCats._fp === fp) return;    // 自動同期のたびに作り直さない
   renderCats._fp = fp;
+  // v177：種類ごとの件数を添える（押す前に、どれくらいあるか分かる）
+  const cnt = c => c === 'all' ? S.booths.length : S.booths.filter(b => b.category === c).length;
   $('#cat-chips').innerHTML = cats.map(c =>
-    `<button class="chip" data-cat="${esc(c)}" aria-pressed="${S.cat === c}">${c === 'all' ? 'すべて' : esc(c)}</button>`
+    `<button class="chip" data-cat="${esc(c)}" aria-pressed="${S.cat === c}">${c === 'all' ? 'すべて' : esc(c)} <b class="chip-n">${cnt(c)}</b></button>`
   ).join('');
   $$('#cat-chips .chip').forEach(el => el.addEventListener('click', () => {
     S.cat = el.dataset.cat; renderCats(); renderList();
@@ -8504,6 +8523,7 @@ function earnStamp(id){
   }
   renderList(); renderStamps(); recommend(); drawFloor(S.floor);
   if (S.sheetId) renderSheet();
+  renderTodoChip();                              // v177：「まだ行っていない ◯」を減らす
   // 音は演出（showStampFx）で鳴らす。ここでも鳴らすと2回重なっていた（v171）
   return true;
 }
@@ -8905,7 +8925,9 @@ function renderStamps(){
     if (f !== lastFl){
       lastFl = f;
       const inFl = S.booths.filter(x => floorOfBooth(x) === f);
-      head = `<h4 class="stamp-floor">${f === 0 ? '屋外・体育館など' : f + '階'}<span>${inFl.filter(x => S.stamps.has(x.id)).length} / ${inFl.length}</span></h4>`;
+      // v177：見出しを押すと、その階をたたむ／広げる
+      const folded = !!(S.stampFold && S.stampFold[f]);
+      head = `<h4 class="stamp-floor"><button type="button" class="stamp-fold" data-fold="${f}" aria-expanded="${!folded}">${f === 0 ? '屋外・体育館など' : f + '階'}<span>${inFl.filter(x => S.stamps.has(x.id)).length} / ${inFl.length}</span></button></h4>`;
     }
     return head + stampCell(b);
   }).join('');
@@ -8917,7 +8939,7 @@ function renderStamps(){
     // Number(id) では「1F-02」のような部屋IDが NaN になり、割り当てを入れた
     // 途端に全部のスタンプから傾きが消える。文字列のまま数に変える。
     const tilt = (hash32(String(b.id)) % 13) - 6;
-    return `<button class="stamp ${g ? 'got' : ''}${u ? ' used' : ''}${S.justStamp === b.id ? ' just' : ''}"
+    return `<button class="stamp ${g ? 'got' : ''}${u ? ' used' : ''}${S.justStamp === b.id ? ' just' : ''}${S.stampFold && S.stampFold[floorOfBooth(b)] ? ' folded' : ''}" data-fl="${floorOfBooth(b)}"
                  style="--tilt:${tilt}deg" data-sid="${esc(b.id)}"
                  aria-label="${esc(b.name)}${u ? ' 交換に使用済み' : g ? ' 訪問済み' : ''} の詳細をひらく">
       <span class="no">${no}</span>
@@ -8928,6 +8950,13 @@ function renderStamps(){
 
   if (gridChanged) $$('[data-sid]', $('#stamp-grid')).forEach(el =>
     el.addEventListener('click', () => openSheet(el.dataset.sid)));
+  if (gridChanged) $$('[data-fold]', $('#stamp-grid')).forEach(el => el.addEventListener('click', () => {
+    const f = Number(el.dataset.fold);
+    S.stampFold = S.stampFold || {};
+    S.stampFold[f] = !S.stampFold[f];
+    el.setAttribute('aria-expanded', String(!S.stampFold[f]));
+    $$(`#stamp-grid .stamp[data-fl="${f}"]`).forEach(c => c.classList.toggle('folded', S.stampFold[f]));
+  }));
 
   renderStampLog();
   // 完走記録。達成した瞬間の時刻を保存し、以後は同じ時刻を表示する
@@ -9975,6 +10004,13 @@ function renderNotice(){
   if (!n || !n.text || S.view === 'qr' || S.view === 'board'){ el.classList.add('hide'); return; }
   // v169：読んだ「お知らせ」は閉じられる。文が変わればまた出す。「注意」は大事なので閉じさせない
   const alert = n.level === 'alert';
+  // v177：新しい「注意」は、ふるえ＋知らせで気づかせる（同じ文は1回だけ。開いた最初の表示では知らせない）
+  if (alert){
+    const h = hash32(String(n.text));
+    if (renderNotice._seen !== undefined && renderNotice._seen !== h){ buzz([120, 80, 120]);
+      toast('大事なお知らせがあります（画面の上の赤い帯）', { label:'見る', fn: () => window.scrollTo({ top:0, behavior: smoothBehavior() }) }, 8000); }
+    renderNotice._seen = h;
+  } else if (renderNotice._seen === undefined) renderNotice._seen = null;
   if (!alert && load('kuroko_notice_x', null) === hash32(String(n.text))){ el.classList.add('hide'); return; }
   el.classList.remove('hide');
   el.dataset.level = alert ? 'alert' : 'info';
@@ -10140,6 +10176,7 @@ function renderAll(){
   // どの階に何があるのか分からないままだった
   renderFloorCounts();
   renderWishChip();
+  renderTodoChip();
   nameHint();
   requestAnimationFrame(chipFadeAll);
   // 見えていない一覧は作らない（150件で毎回0.4秒かかっていた）。一覧に切り替えたときに描く
@@ -13319,6 +13356,13 @@ function showTodo(){
   setTodoOnly(true);
 }
 /** ★のチップの数と「★をすべて外す」（v167：★を付け外ししても数が変わらなかった） */
+/** v177：「まだ行っていない」のボタンに残りの数 */
+function renderTodoChip(){
+  const el = $('#todo-only');
+  if (!el) return;
+  const n = S.booths.filter(b => !S.stamps.has(b.id) && isVenue(b)).length;
+  el.textContent = S.booths.length ? `まだ行っていない ${n}` : 'まだ行っていない';
+}
 function renderWishChip(){
   const el = $('#wish-only');
   if (el){ el.setAttribute('aria-pressed', String(S.wishOnly)); el.textContent = S.wish.size ? `★ 行きたい ${S.wish.size}` : '★ 行きたい'; }
