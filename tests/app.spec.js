@@ -1774,3 +1774,54 @@ test('はじめての案内は、見出しの「QR」ボタンの名前にそろ
   await ready(page);
   await expect(page.locator('#intro-card')).toContainText('「QR」ボタン');
 });
+
+/* ---------------- v177 ---------------- */
+test('一覧：種類のボタンと「まだ行っていない」に件数', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02'])));
+  await page.goto('/?tab=list');
+  await ready(page);
+  await expect(page.locator('#cat-chips [data-cat="all"]')).toContainText('46');
+  const n = await page.evaluate(() => S.booths.filter(b => !S.stamps.has(b.id) && isVenue(b)).length);
+  await expect(page.locator('#todo-only')).toHaveText(`まだ行っていない ${n}`);
+  await page.evaluate(() => stampNow('1F-03'));
+  await expect(page.locator('#todo-only')).toHaveText(`まだ行っていない ${n - 1}`);
+});
+
+test('スタンプ帳：階の見出しを押すと、その階をたたむ・広げる', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  const head = page.locator('#stamp-grid [data-fold="1"]');
+  await expect(page.locator('#stamp-grid .stamp[data-fl="1"]').first()).toBeVisible();
+  await head.click();
+  await expect(head).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#stamp-grid .stamp[data-fl="1"]').first()).toBeHidden();
+  await expect(page.locator('#stamp-grid .stamp[data-fl="2"]').first()).toBeVisible();
+  await head.click();
+  await expect(page.locator('#stamp-grid .stamp[data-fl="1"]').first()).toBeVisible();
+});
+
+test('新しい赤い「注意」のお知らせは、知らせが出る（開いた最初の表示では出さない）', async ({ page }) => {
+  let notice = { text: '午後の部は13時から', level: 'info' };
+  await page.route(/script\.google(usercontent)?\.com\//, async route => {
+    const { snapshot } = require('./mock');
+    return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/json', body: JSON.stringify(snapshot({ notice })) });
+  });
+  await page.goto('/?tab=map');
+  await ready(page);
+  notice = { text: '雨のため屋外の催しは体育館で行います', level: 'alert' };
+  await page.evaluate(() => sync(true));
+  await expect(page.locator('#toast')).toContainText('大事なお知らせ');
+});
+
+test('キーボード：「本文へ移動」', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'Safari は初期設定で Tab がリンクに止まらない（端末の設定しだい）');
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.keyboard.press('Tab');
+  await expect(page.locator('.skip-link')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#main-body')).toBeFocused();
+});
