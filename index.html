@@ -1317,6 +1317,14 @@ text.util:not([font-size]){font-size:7.5px}
 .scan-help{padding:14px 18px calc(env(safe-area-inset-bottom,0px) + 18px);font-size:14px;font-weight:700;line-height:1.7;background:#000}
 .scan-help ol{margin:6px 0 0 1.2em}
 .scan-help button{margin-top:12px;min-height:48px;width:100%;border-radius:12px;background:#fff;color:#111;font-weight:900;font-size:15px;cursor:pointer}
+/* v172：読み取り中だと分かるように、枠の中を光の線がゆっくり上下する（動きを減らす設定では止める） */
+.scan-frame{overflow:hidden}
+.scan-frame::after{content:"";position:absolute;left:6%;right:6%;top:8%;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,transparent,#4ade80,transparent);box-shadow:0 0 8px #4ade80;animation:scanline 2.2s ease-in-out infinite alternate}
+@keyframes scanline{to{top:90%}}
+.scan.read-ok .scan-frame::after,.scan.no-cam .scan-frame::after{display:none}
+@media (prefers-reduced-motion:reduce){ .scan-frame::after{animation:none;top:50%} }
+.sfx-snd{opacity:.85}
 .scan.read-ok .scan-frame{border-color:#4ade80;box-shadow:0 0 0 100vmax rgba(0,0,0,.6)}
 .scan.no-cam .scan-stage{display:none}
 .scan.no-cam{background:var(--bg);color:var(--text)}
@@ -3010,7 +3018,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-05h',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-05i',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -6208,7 +6216,8 @@ function renderScanCount(){
 }
 
 async function openScanner(){
-  unlockAudio();                       // v171：押した操作の中で音の準備をしておく
+  unlockAudio();
+  SCAN.darkTold = false; SCAN.darkAt = 0;                       // v171：押した操作の中で音の準備をしておく
   renderScanCount();
   // v167：閉じたあと、開いたボタンへ戻る（キーボード・読み上げの人が迷子にならない）
   SCAN.from = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
@@ -6260,10 +6269,36 @@ async function openScanner(){
   }
 }
 
+/**
+ * v172：映像が暗いとき（教室を暗くしたお化け屋敷など）は、ライトを勧める。
+ * 1.5秒ごとに小さく縮めた画の明るさを測る。勧めるのは1回だけ
+ */
+function scanDarkCheck(v){
+  const now = Date.now();
+  if (SCAN.darkTold || now - (SCAN.darkAt || 0) < 1500 || !v.videoWidth) return;
+  SCAN.darkAt = now;
+  try{
+    const c = SCAN.dc || (SCAN.dc = document.createElement('canvas'));
+    c.width = 24; c.height = 24;
+    const x = c.getContext('2d', { willReadFrequently:true });
+    x.drawImage(v, 0, 0, 24, 24);
+    const d = x.getImageData(0, 0, 24, 24).data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+    if (sum / (d.length / 4) < 45){
+      SCAN.darkTold = true;
+      const torch = !$('#scan-torch').classList.contains('hide');
+      $('#scan-help').textContent = torch ? '暗くて読みにくいときは、右上の「ライト」を押してください'
+                                          : '暗くて読みにくいときは、廊下など明るい所でQRを写してください';
+    }
+  }catch(e){}
+}
+
 function scanLoop(){
   clearTimeout(SCAN.timer);
   const v = $('#scan-video');
   if (!SCAN.stream || $('#scan').classList.contains('hide')) return;
+  scanDarkCheck(v);
   // 自前の読み取りは1こま10〜70ms。続けて回すと電池と熱がもったいないので少し間を空ける
   const next = () => { SCAN.timer = setTimeout(scanLoop, SCAN.mode === 'native' ? 220 : 120); };
   if (v.readyState < 2){ next(); return; }
@@ -8408,11 +8443,15 @@ function showStampFx(id, fresh){
         <p class="sfx-count"><b>${got}</b>${total ? ` / ${total} ブース` : ' 個目'}</p>
         ${total ? `<div class="sfx-bar"><i style="width:${Math.round(got / total * 100)}%"></i></div>` : ''}
         <p class="sfx-goal">${esc(goal)}</p>
+        ${!fresh && stampAt()[id] ? `<p class="sfx-note">${new Date(stampAt()[id]).toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' })} に押しています</p>` : ''}
         <div class="sfx-acts">
-          <button class="btn" data-fx="book">スタンプ帳を見る</button>
+          ${left >= need && !done ? '<button class="btn" data-fx="redeem">お菓子と交換する</button>' : ''}
+          <button class="btn${left >= need && !done ? ' ghost' : ''}" data-fx="book">スタンプ帳を見る</button>
+          <button class="btn ghost" data-fx="scan">続けてQRを読む</button>
           ${next ? `<button class="btn ghost" data-fx="next" data-id="${esc(next.id)}">次は空いている「${esc(next.name)}」へ</button>` : ''}
         </div>
         <p class="sfx-note sid-sync" id="sfx-sync"></p>
+        <button class="sfx-link sfx-snd" data-fx="snd" aria-pressed="${S.sound}">${S.sound ? '音：鳴らす（押すと鳴らさない）' : '音：鳴らさない（押すと鳴らす）'}</button>
         ${fresh && got <= 2 && !load('kuroko_joined', null)
           ? '<button class="sfx-link" data-fx="join">前に別のアプリで集めた人はこちら</button>' : ''}
       </div>`;
@@ -8420,6 +8459,19 @@ function showStampFx(id, fresh){
     const jn = el.querySelector('[data-fx="join"]');
     if (jn) jn.addEventListener('click', () => { close(); openSidJoin(); });
     el.querySelector('[data-fx="book"]').addEventListener('click', close);
+    // v172：近くのブースを続けて回る人向け。演出を閉じてすぐカメラへ
+    const sc = el.querySelector('[data-fx="scan"]');
+    if (sc) sc.addEventListener('click', () => { close(); setTimeout(() => openScanner(), 60); });
+    // v172：交換できるなら、その場で交換の画面へ
+    const rd = el.querySelector('[data-fx="redeem"]');
+    if (rd) rd.addEventListener('click', () => { close(); switchView('stamp'); setTimeout(() => { const o = $('#redeem-open'); if (o && !o.classList.contains('hide')) o.click(); }, 120); });
+    // v172：静かな場所ではその場で音を止められる（インフォの設定と同じ）
+    const sd = el.querySelector('[data-fx="snd"]');
+    if (sd) sd.addEventListener('click', () => {
+      setSound(!S.sound);
+      sd.setAttribute('aria-pressed', String(S.sound));
+      sd.textContent = S.sound ? '音：鳴らす（押すと鳴らさない）' : '音：鳴らさない（押すと鳴らす）';
+    });
     const nx = el.querySelector('[data-fx="next"]');
     if (nx) nx.addEventListener('click', () => { const t = nx.dataset.id; close(); switchView('map'); setTimeout(() => openSheet(t), 200); });
   };
@@ -12259,6 +12311,15 @@ function initBoard(){
 /* =====================================================================
    初期化
    ===================================================================== */
+/** 音の設定を変える（インフォとスタンプの演出で共通。v172） */
+function setSound(on){
+  S.sound = !!on;
+  store('kuroko_sound', S.sound);
+  const a = $('#snd-on'), b = $('#snd-off');
+  if (a) a.setAttribute('aria-pressed', String(S.sound));
+  if (b) b.setAttribute('aria-pressed', String(!S.sound));
+  if (S.sound) ding();
+}
 function initSound(){
   const apply = on => {
     S.sound = on;
