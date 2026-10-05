@@ -8,7 +8,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # v176：ブラウザの部品の取り込み（apt）が混んでいると10分以上かかり、15分で打ち切られたことがある
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: tests
@@ -20,7 +21,13 @@ jobs:
           cache: npm
           cache-dependency-path: tests/package-lock.json
       - run: npm ci
-      - run: npx playwright install --with-deps chromium webkit
+      # 取り込みが止まったら10分で打ち切って、3回までやり直す（テストの前の準備なので、やり直しても結果は変わらない）
+      - run: |
+          for i in 1 2 3; do
+            timeout 600 npx playwright install --with-deps chromium webkit && exit 0
+            echo "install failed ($i), retrying"; sleep 15
+          done
+          exit 1
       - run: npm test
       - if: failure()
         uses: actions/upload-artifact@v4
