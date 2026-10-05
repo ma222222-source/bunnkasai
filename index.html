@@ -2633,11 +2633,11 @@ html.sheet-open{overflow:hidden}
 
         <div class="card-t" style="margin-top:14px">スタンプの音</div>
         <div class="seg" role="group" aria-label="スタンプの音" style="width:fit-content">
-          <button id="snd-off" aria-pressed="true">鳴らさない</button>
-          <button id="snd-on" aria-pressed="false">鳴らす</button>
+          <button id="snd-off" aria-pressed="false">鳴らさない</button>
+          <button id="snd-on" aria-pressed="true">鳴らす</button>
         </div>
         <p style="font-size:10.5px;color:var(--text-mute);font-weight:700;margin-top:6px">
-          スタンプが押されたときに小さな音が鳴ります。<b>初期設定では鳴りません。</b>
+          スタンプが押されたときに小さな音が鳴ります（初期設定は「鳴らす」）。<b>マナーモード（消音）のときは鳴らないことがあります。</b>
           校内では周りの迷惑にならないよう気をつけてください。
         </p>
       </div>
@@ -3010,7 +3010,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-05g',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-05h',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -6159,7 +6159,8 @@ function renderSheet(){
 function buzz(pattern){
   try{
     const ua = navigator.userActivation;
-    if (ua && !ua.hasBeenActive) return;
+    // v171：まだ触っていない（QRから開いた直後）ときは、次に触ったときにふるわせる
+    if (ua && !ua.hasBeenActive){ buzz._pending = { pattern, at: Date.now() }; return; }
     if (navigator.vibrate) navigator.vibrate(pattern);
   }catch(e){}
 }
@@ -6207,6 +6208,7 @@ function renderScanCount(){
 }
 
 async function openScanner(){
+  unlockAudio();                       // v171：押した操作の中で音の準備をしておく
   renderScanCount();
   // v167：閉じたあと、開いたボタンへ戻る（キーボード・読み上げの人が迷子にならない）
   SCAN.from = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
@@ -6276,8 +6278,18 @@ function scanLoop(){
       $('#scan-help').textContent = '✓ 読み取りました。スタンプを押しています…';
       $('#scan').classList.add('read-ok');
       buzz(40);
-      // 読み込み直して、QRから来たときと同じ流れ（署名の照合→スタンプ→演出）に乗せる
-      setTimeout(() => location.assign(url), 150);
+      // v171：読み込み直さず、その場でスタンプを付ける（読み込み直すと、スマホのブラウザが音を止めていた。待ち時間も減る）
+      // 署名の照合は QR から開いたときと同じ（sigOf）。合わないQRは付けない
+      setTimeout(() => {
+        let u = null;
+        try{ u = new URL(url, location.href); }catch(e){}
+        const b = u && u.searchParams.get('booth'), k = u && u.searchParams.get('k');
+        closeScanner();
+        $('#scan').classList.remove('read-ok');
+        if (!b || k !== sigOf(b)){ toast('このQRではスタンプが付きません。ブース入口のQRを読み取ってください'); return; }
+        if (S.sheetId) closeSheet();
+        stampNow(b);
+      }, 150);
       return;
     }
     // 同じ違うQRを写し続けているあいだは、案内を出し続けない
@@ -8236,6 +8248,18 @@ function beaconLedger(){
   }catch(e){}
 }
 
+/**
+ * 署名を確かめたブースにスタンプを付けて、スタンプ帳で演出を見せる（v171：QRから開いたときと、アプリの中のカメラで読んだときで共通）
+ * @returns {boolean} 新しく付いたか
+ */
+function stampNow(b){
+  const fresh = earnStamp(b);       // すでに持っていれば false
+  if (fresh) setHere(b, 'qr');      // 読んだ場所＝いまいる場所
+  switchView('stamp');
+  setTimeout(() => showStampFx(b, fresh), 120);
+  return fresh;
+}
+
 function earnStamp(id){
   pullStamps();                                  // 他のタブで増えた分を消さないよう、先に取り込む
   if (S.stamps.has(id)) return false;
@@ -8253,7 +8277,7 @@ function earnStamp(id){
   }
   renderList(); renderStamps(); recommend(); drawFloor(S.floor);
   if (S.sheetId) renderSheet();
-  ding();
+  // 音は演出（showStampFx）で鳴らす。ここでも鳴らすと2回重なっていた（v171）
   return true;
 }
 /* =====================================================================
@@ -8440,10 +8464,11 @@ function showStampFx(id, fresh){
   document.addEventListener('keydown', onKey);
   setTimeout(() => { const b = el.querySelector('[data-fx="book"]'); b && b.focus({ preventScroll:true }); }, 60);
   if (fresh){
-    ding();
-    buzz([18, 40, 70]);
     const total = S.booths.length, got = S.booths.filter(b => S.stamps.has(b.id)).length;
     const left = stampsLeft(), need = Math.max(1, CONFIG.PRIZE_COST | 0);
+    // 全部回った・交換できる数に届いた、は特別な音（v171）
+    ding(total && got >= total ? 'done' : (left >= need && left - 1 < need) ? 'prize' : undefined);
+    buzz([18, 40, 70]);
     // 節目だけ紙吹雪（毎回だと特別感がなくなる）
     if ((total && got >= total) || (left >= need && left - 1 < need) || got === 1 || stampLook(id).shiny){
       setTimeout(() => confetti(), reduce ? 0 : 380);
@@ -8683,15 +8708,31 @@ function renderStamps(){
  * スタンプの音。音声ファイルは持たず、その場で短い音を作る。
  * 既定では鳴らさない（校内で不意に音が出るのを避けるため）。
  */
+/**
+ * スタンプの音。
+ * v171：スマホのブラウザは「画面に触っていない間」は音を出させない（QRから開いた直後・読み込み直した直後）。
+ * そのときは鳴らせなかった音を覚えておき、20秒以内に画面に触ったらその場で鳴らす（unlockAudio）
+ */
 function ding(kind){
   if (!S.sound) return;
   try{
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     const ac = ding._ac || (ding._ac = new AC());
-    if (ac.state === 'suspended') ac.resume();
+    if (ac.state !== 'running'){
+      ding._pending = { kind, at: Date.now() };
+      const r = ac.resume && ac.resume();
+      if (r && r.then) r.then(() => { if (ac.state === 'running' && ding._pending){ const k = ding._pending.kind; ding._pending = null; dingPlay(ac, k); } }).catch(() => {});
+      return;
+    }
+    dingPlay(ac, kind);
+  }catch(e){ /* 音が出せない環境では黙って諦める */ }
+}
+function dingPlay(ac, kind){
+  try{
     const t = ac.currentTime;
-    const notes = kind === 'done' ? [660, 880, 1320] : [880, 1320];
+    // v171：交換できる数に届いたときは3音で上がる（いつもの2音と聞き分けられる）
+    const notes = kind === 'done' ? [660, 880, 1320] : kind === 'prize' ? [880, 1175, 1568] : [880, 1320];
     notes.forEach((f, i) => {
       const o = ac.createOscillator(), g = ac.createGain();
       o.type = 'triangle'; o.frequency.value = f;
@@ -8701,8 +8742,33 @@ function ding(kind){
       o.connect(g); g.connect(ac.destination);
       o.start(t + i * 0.09); o.stop(t + i * 0.09 + 0.24);
     });
-  }catch(e){ /* 音が出せない環境では黙って諦める */ }
+  }catch(e){}
 }
+/**
+ * v171：画面に触った瞬間に音の準備をする（iPhone は触った操作の中で一度音を出さないと、あとで鳴らせない）。
+ * 鳴らせずに待っていた音・振動があれば、ここで出す
+ */
+function unlockAudio(){
+  try{
+    if (S.sound){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC){
+        const ac = ding._ac || (ding._ac = new AC());
+        if (ac.state !== 'running' && ac.resume) ac.resume().catch(() => {});
+        if (!unlockAudio._silent && ac.createBuffer){
+          unlockAudio._silent = true;
+          const src = ac.createBufferSource(); src.buffer = ac.createBuffer(1, 1, 22050);
+          src.connect(ac.destination); src.start(0);
+        }
+        const p = ding._pending;
+        if (p && Date.now() - p.at < 20000 && ac.state === 'running'){ ding._pending = null; dingPlay(ac, p.kind); }
+      }
+    }
+    const bp = buzz._pending;
+    if (bp && Date.now() - bp.at < 20000){ buzz._pending = null; if (navigator.vibrate) navigator.vibrate(bp.pattern); }
+  }catch(e){}
+}
+['pointerdown', 'keydown', 'touchend'].forEach(t => document.addEventListener(t, unlockAudio, { capture:true, passive:true }));
 
 /**
  * 全制覇したときだけ降らせる。要素は使い捨てで、終わったら自分で片付ける。
@@ -12199,7 +12265,8 @@ function initSound(){
     $('#snd-on').setAttribute('aria-pressed', String(on));
     $('#snd-off').setAttribute('aria-pressed', String(!on));
   };
-  apply(load('kuroko_sound', false) === true);
+  // v171：初期は「鳴らす」（スタンプの小さな音。マナーモードでは鳴らない端末が多い）。自分で「鳴らさない」を選んだ人はそのまま
+  apply(load('kuroko_sound', null) !== false);
   $('#snd-off').addEventListener('click', () => { store('kuroko_sound', false); apply(false); });
   $('#snd-on').addEventListener('click', () => {
     store('kuroko_sound', true); apply(true); ding(); toast('音を鳴らします');
@@ -12644,13 +12711,10 @@ function init(){
     // 読み取ったら、その場でスタンプ帳へ移って「押された」ことを見せる（1回の読み込みにつき1回）
     if (signed && !applyDeepLink._fx){
       applyDeepLink._fx = true;
-      const fresh = earnStamp(b);       // すでに持っていれば false
-      if (fresh) setHere(b, 'qr');      // 読んだ場所＝いまいる場所
       // 画面を移る（履歴が1つ増える）前に、QRの引数をURLから消す。後だと「戻る」で
       // ?booth=…&qr=1 の入口へ戻り、読み込み直すと同じ演出がまた出ていた
       stripLink();
-      switchView('stamp');
-      setTimeout(() => showStampFx(b, fresh), 120);
+      stampNow(b);
     }
 
     if (!S.booths.length) return false;                 // まだ届いていない＝保留

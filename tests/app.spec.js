@@ -1508,3 +1508,15 @@ test('アドレス欄の色（theme-color）を見出しの色に合わせる', 
   await page.locator('#btn-theme').click();
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0b0c10');
 });
+
+/* ---------------- v171 ---------------- */
+test('スタンプの音：はじめては「鳴らす」、自分で「鳴らさない」を選んだらそのまま', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=info');
+  await ready(page);
+  await expect(page.locator('#snd-on')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#snd-off').click();
+  await page.reload();
+  await ready(page);
+  await expect(page.locator('#snd-off')).toHaveAttribute('aria-pressed', 'true');
+});
