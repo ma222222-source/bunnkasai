@@ -1520,3 +1520,54 @@ test('スタンプの音：はじめては「鳴らす」、自分で「鳴ら�
   await ready(page);
   await expect(page.locator('#snd-off')).toHaveAttribute('aria-pressed', 'true');
 });
+
+/* ---------------- v172 ---------------- */
+test('スタンプの演出：音の切り替え・続けて読む・交換する・押した時刻', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => {
+    if (!sessionStorage.getItem('x')){ sessionStorage.setItem('x', 1);
+      localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03', '1F-07', '1F-08']));
+      localStorage.setItem('kuroko_stamp_at', JSON.stringify({ '1F-02': new Date(2026, 9, 17, 9, 45).getTime() })); }
+    try{ Object.defineProperty(navigator, 'mediaDevices', { value: undefined, configurable: true }); }catch(e){}
+  });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  // 5個目：交換できる → 「お菓子と交換する」
+  await page.evaluate(() => stampNow('1F-05'));
+  await expect(page.locator('[data-fx="redeem"]')).toBeVisible();
+  // 音の切り替え（インフォの設定も変わる）
+  await page.locator('[data-fx="snd"]').click();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('kuroko_sound')))).toBe(false);
+  await expect(page.locator('#snd-off')).toHaveAttribute('aria-pressed', 'true');
+  // 続けて読む → カメラ
+  await page.locator('[data-fx="scan"]').click();
+  await expect(page.locator('#scan')).toBeVisible();
+  await page.locator('#scan-close').click();
+  // すでに持っているスタンプは、押した時刻
+  await page.evaluate(() => stampNow('1F-02'));
+  await expect(page.locator('.sfx-card')).toContainText('09:45 に押しています');
+});
+
+test('QRのカメラ：暗い映像ならライト（か明るい所）を勧める', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'テスト用の WebKit にカメラの代わりの映像が作れない');
+  await mockGas(page);
+  await page.addInitScript(() => {
+    const md = navigator.mediaDevices || {};
+    md.getUserMedia = async () => { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const x = c.getContext('2d');
+      const draw = () => { x.fillStyle = '#0a0a0a'; x.fillRect(0, 0, 64, 64); requestAnimationFrame(draw); }; draw(); return c.captureStream(10); };
+    try{ Object.defineProperty(navigator, 'mediaDevices', { value: md, configurable: true }); }catch(e){}
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await page.locator('#stamp-scan').click();
+  await expect(page.locator('#scan-help')).toContainText('暗くて読みにくい', { timeout: 8000 });
+});
+
+test('QRのカメラ：読み取り中の光の線', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  const anim = await page.evaluate(() => { const f = document.querySelector('.scan-frame'); return getComputedStyle(f, '::after').animationName; });
+  expect(anim).toBe('scanline');
+});
