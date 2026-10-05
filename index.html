@@ -2378,6 +2378,23 @@ html.sheet-open{overflow:hidden}
 .booth .pill{border-radius:7px}
 /* v174：押したことが分かるように、押している間は少し暗く（ボタンすべて） */
 button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
+
+/* v175：一覧のカードは押すと詳細が開く。右端に「›」（押せる物の決まりにそろえる） */
+.booth{position:relative}
+.booth .booth-top{padding-right:26px}
+.booth::after{content:'';position:absolute;right:11px;top:50%;width:8px;height:8px;margin-top:-4px;
+  border-right:2.5px solid var(--text-mute);border-bottom:2.5px solid var(--text-mute);transform:rotate(-45deg);pointer-events:none}
+/* v175：横に流れるボタンの列は、続きがある側の端を薄くして「まだ右にある」ことを見せる */
+.chips.fade-r{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
+.chips.fade-l{-webkit-mask-image:linear-gradient(90deg,transparent,#000 28px);mask-image:linear-gradient(90deg,transparent,#000 28px)}
+.chips.fade-l.fade-r{-webkit-mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
+/* v175：いまここがある階のボタンに青い点 */
+.fl-here{display:inline-block;width:7px;height:7px;margin-left:3px;border-radius:50%;background:#1a73e8;box-shadow:0 0 0 2px #fff;vertical-align:middle}
+/* v175：文字「特大」では下のタブの字も大きく */
+[data-fs="xl"] .nav button{font-size:13px}
+.stamp-grid-note{margin:0 2px 6px;font-size:11px;font-weight:700;color:var(--text-mute)}
+[data-fs="xl"] .stamp-grid-note{font-size:13.5px}
 </style>
 </head>
 <body>
@@ -2637,6 +2654,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
       <div class="chips" style="margin:4px 0 8px">
         <button class="chip" id="stamp-only-todo" type="button" aria-pressed="false">まだのスタンプだけ</button>
       </div>
+      <p class="stamp-grid-note">スタンプを押すと、そのブースの場所・混み具合が見られます</p>
       <div class="stamp-grid stagger" id="stamp-grid"></div>
       <!-- v166：回った順（スタンプを押した時刻の順） -->
       <details class="card stamp-log hide" id="stamp-log">
@@ -3079,7 +3097,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-05k',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-05l',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3758,6 +3776,15 @@ async function copyText(t){
 
 function toast(msg, action, dur){
   const t = $('#toast');
+  // v175：ボタン付き（元に戻す など）が出たばかりなら、ボタン無しの次の知らせは少し待たせる
+  if (!action && toast._actAt && Date.now() - toast._actAt < 3000 && t.classList.contains('on')){
+    toast._q = [msg, null, dur];
+    clearTimeout(toast._qt);
+    toast._qt = setTimeout(() => { const q = toast._q; toast._q = null; toast._actAt = 0; if (q) toast(q[0], q[1], q[2]); },
+      3000 - (Date.now() - toast._actAt));
+    return;
+  }
+  toast._actAt = action ? Date.now() : 0;
   // v164：読み終わったら押して消せる（下のボタンや地図に重なって邪魔なとき）
   if (!toast._wired){
     toast._wired = true;
@@ -5718,7 +5745,7 @@ const HERE_TTL_MS = 40 * 60 * 1000;   // 40分で自動的に消す
  */
 function setHere(id, src){
   store('kuroko_here_v1', { id, at:Date.now(), src: src === 'qr' ? 'qr' : 'pick' });
-  renderHere(); drawFloor(S.floor); recommend();
+  renderHere(); drawFloor(S.floor); recommend(); renderFloorCounts();
 }
 function hereEntry(){
   const h = load('kuroko_here_v1', null);
@@ -5805,7 +5832,7 @@ function setPickMode(on){
 
 function clearHere(){
   store('kuroko_here_v1', undefined);
-  renderHere(); drawFloor(S.floor); recommend();
+  renderHere(); drawFloor(S.floor); recommend(); renderFloorCounts();
   toast('現在地の表示を消しました');
 }
 
@@ -10055,6 +10082,17 @@ function nameHint(){
   el.classList.toggle('hide', !(rooms.length >= 4 && noName / rooms.length >= 0.3));
 }
 
+/** v175：横に流れるボタンの列（.chips）の、続きがある側の端を薄くする */
+function chipFade(el){
+  if (!el || !el.classList) return;
+  const more = el.scrollWidth - el.clientWidth > 4;
+  el.classList.toggle('fade-r', more && el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  el.classList.toggle('fade-l', more && el.scrollLeft > 4);
+}
+function chipFadeAll(){ $$('.chips').forEach(chipFade); }
+document.addEventListener('scroll', e => { const t = e.target; if (t && t.classList && t.classList.contains('chips')) chipFade(t); }, true);
+window.addEventListener('resize', () => { clearTimeout(chipFadeAll._t); chipFadeAll._t = setTimeout(chipFadeAll, 150); });
+
 function renderAll(){
   markChanges();
   remindPrize();
@@ -10079,6 +10117,7 @@ function renderAll(){
   renderFloorCounts();
   renderWishChip();
   nameHint();
+  requestAnimationFrame(chipFadeAll);
   // 見えていない一覧は作らない（150件で毎回0.4秒かかっていた）。一覧に切り替えたときに描く
   // 【v146】見えていないときに指紋を捨てるのをやめた。指紋は中身（ブースの状態）から作るので、
   // 変わっていなければ一覧に切り替えたときも作り直さない（作り直すと遅い端末で配置の計算に約1秒かかる）
@@ -10189,6 +10228,7 @@ function switchView(v, fromHistory){
   // 一覧を下まで見てから地図を確かめて戻ると、毎回いちばん上に戻されていた。
   // 40ブースあると、さっき見ていた場所まで指でなぞり直すことになる。
   if (S.view && S.view !== v) VIEW_SCROLL[S.view] = window.scrollY;
+  setTimeout(chipFadeAll, 60);                 // v175：見えた列の端の薄さを測り直す
   // タブを移るときは、開いていたシートの履歴エントリごと畳む。
   // 残すと「戻る」でシートだけがせり上がり、前のタブに戻れなくなる。
   if (S.sheetId){
@@ -13096,7 +13136,12 @@ function renderFloorCounts(){
     if (w && !wm){ wm = document.createElement('span'); wm.className = 'fl-wish'; wm.textContent = '★'; wm.setAttribute('aria-hidden', 'true'); el.appendChild(wm); }
     if (!w && wm) wm.remove();
     const base = (f.n === 0 ? '屋外' : f.n + '階');
-    el.setAttribute('aria-label', base + (n ? `（ブース${n}件）` : '') + (w ? '・まだ行っていない★あり' : ''));
+    // v175：いまここがある階に青い点
+    const hid = hereId(), hr = hid && ROOM_INDEX.get(hid), here = !!hr && hr.f === f.n;
+    let hm = el.querySelector('.fl-here');
+    if (here && !hm){ hm = document.createElement('span'); hm.className = 'fl-here'; hm.setAttribute('aria-hidden', 'true'); el.appendChild(hm); }
+    if (!here && hm) hm.remove();
+    el.setAttribute('aria-label', base + (n ? `（ブース${n}件）` : '') + (w ? '・まだ行っていない★あり' : '') + (here ? '・いまここ' : ''));
   });
 }
 

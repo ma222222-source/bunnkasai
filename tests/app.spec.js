@@ -1679,3 +1679,47 @@ test('軽い表示（力の弱い端末）では、字の入れ方の描き直�
   // 2.1→2.2 は 0.25 刻みでは 8→9 の1回まで（0.1 刻みなら 21→22 も数えて2回）
   expect(n).toBeLessThanOrEqual(1);
 });
+
+/* ---------------- v175 ---------------- */
+test('一覧のカードの右端に「›」、スタンプ帳に「押すと…」の一文', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  const c = await page.locator('#booth-list .booth').first().evaluate(el => getComputedStyle(el, '::after').borderRightStyle);
+  expect(c).toBe('solid');
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await expect(page.locator('.stamp-grid-note')).toBeVisible();
+});
+
+test('横に流れるボタンの列は、続きがある側の端が薄い', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto('/?tab=list');
+  await ready(page);
+  const row = page.locator('#cat-chips');
+  await expect(row).toHaveClass(/fade-r/);
+  await row.evaluate(el => { el.scrollLeft = el.scrollWidth; });
+  await expect(row).toHaveClass(/fade-l/);
+  await expect(row).not.toHaveClass(/fade-r/);
+});
+
+test('「元に戻す」付きのお知らせは、すぐ次のお知らせで消えない', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.evaluate(() => { toast('★を3件外しました', { label: '元に戻す', fn(){} }); toast('ほかの知らせ'); });
+  await expect(page.locator('#toast .toast-act')).toBeVisible();
+  await expect(page.locator('#toast')).toContainText('★を3件外しました');
+  await expect(page.locator('#toast')).toContainText('ほかの知らせ', { timeout: 6000 });
+});
+
+test('いまここがある階のボタンに青い点', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  const id = await page.evaluate(() => { for (const [k, v] of ROOM_INDEX) if (v.f === 2) return k; });
+  await page.evaluate(id => setHere(id, 'pick'), id);
+  await expect(page.locator('#fl-2 .fl-here')).toHaveCount(1);
+  await expect(page.locator('#fl-1 .fl-here')).toHaveCount(0);
+});
