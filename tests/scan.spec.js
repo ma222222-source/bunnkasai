@@ -250,3 +250,68 @@ test('カメラの拡大が使える端末では「2倍」が出て、押すと�
   await expect(page.locator('#scan-zoom')).toHaveAttribute('aria-pressed', 'false');
   expect(await page.evaluate(() => window.__zc.advanced[0].zoom)).toBe(1);
 });
+
+/* ---------------- v171：スタンプの音 ---------------- */
+// 音の代わり：AudioContext を差し替えて、鳴らした音の数（オシレーター）を数える。
+// suspended のまま始まり、画面に触った（pointerdown）あとでないと resume できない（スマホのブラウザと同じ）
+const FAKE_AUDIO = () => {
+  window.__notes = []; window.__gesture = false;
+  document.addEventListener('pointerdown', () => { window.__gesture = true; }, true);
+  document.addEventListener('keydown', () => { window.__gesture = true; }, true);
+  class FakeAC {
+    constructor(){ this.state = 'suspended'; this.currentTime = 0; this.destination = {}; }
+    resume(){ if (window.__gesture){ this.state = 'running'; return Promise.resolve(); } return new Promise(() => {}); }
+    createOscillator(){ const o = { type: '', frequency: { value: 0 }, connect(){}, start(){ window.__notes.push(o.frequency.value); }, stop(){} }; return o; }
+    createGain(){ return { gain: { setValueAtTime(){}, exponentialRampToValueAtTime(){} }, connect(){} }; }
+    createBuffer(){ return {}; }
+    createBufferSource(){ return { connect(){}, start(){} }; }
+  }
+  window.AudioContext = FakeAC; window.webkitAudioContext = FakeAC;
+};
+
+test('アプリの中のカメラで読むと、読み込み直さずにスタンプが付き、音が1回鳴る', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'テスト用の WebKit にカメラの代わりの映像が作れない');
+  await mockGas(page);
+  await page.addInitScript(FAKE_AUDIO);
+  await page.addInitScript(() => {
+    window.BarcodeDetector = class { static async getSupportedFormats(){ return ['qr_code']; } async detect(){ return window.__qrRaw ? [{ rawValue: window.__qrRaw }] : []; } };
+    const md = navigator.mediaDevices || {};
+    md.getUserMedia = async () => { const c = document.createElement('canvas'); c.width = 64; c.height = 64; c.getContext('2d').fillRect(0, 0, 64, 64); return c.captureStream(5); };
+    try{ Object.defineProperty(navigator, 'mediaDevices', { value: md, configurable: true }); }catch(e){}
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await page.evaluate(() => { window.__same = 1; });
+  await page.locator('#stamp-scan').click();
+  await page.evaluate(() => { window.__qrRaw = 'https://ma222222-source.github.io/bunnkasai/?booth=1F-05&qr=1&k=' + sigOf('1F-05'); });
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('kuroko_stamps_v2') || '[]'))).toContain('1F-05');
+  expect(await page.evaluate(() => window.__same)).toBe(1);            // 読み込み直していない
+  await expect.poll(() => page.evaluate(() => window.__notes.length)).toBe(2);   // いつもの2音が1回だけ
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => window.__notes.length)).toBe(2);
+});
+
+test('QRから開いた直後（まだ触っていない）は、最初に触ったときに音が鳴る', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(FAKE_AUDIO);
+  await page.goto('/?tab=map');
+  await ready(page);
+  const k = await page.evaluate(() => sigOf('1F-05'));
+  await page.goto(`/?booth=1F-05&qr=1&k=${k}`);
+  await expect(page.locator('.sfx, [data-fx="book"]').first()).toBeVisible({ timeout: 15000 });
+  expect(await page.evaluate(() => window.__notes.length)).toBe(0);    // 触る前は鳴らせない
+  await page.mouse.click(5, 5);
+  await expect.poll(() => page.evaluate(() => window.__notes.length)).toBe(2);
+});
+
+test('交換できる数に届いたスタンプは3音（特別な音）', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(FAKE_AUDIO);
+  await page.addInitScript(() => { if (!sessionStorage.getItem('x')){ sessionStorage.setItem('x', 1); localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03', '1F-07', '1F-08'])); } });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await page.mouse.click(5, 5);                                          // 先に触っておく
+  await page.evaluate(() => stampNow('1F-05'));
+  await expect.poll(() => page.evaluate(() => window.__notes.length)).toBe(3);
+});
