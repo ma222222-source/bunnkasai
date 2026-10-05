@@ -1571,3 +1571,63 @@ test('QRのカメラ：読み取り中の光の線', async ({ page }) => {
   const anim = await page.evaluate(() => { const f = document.querySelector('.scan-frame'); return getComputedStyle(f, '::after').animationName; });
   expect(anim).toBe('scanline');
 });
+
+/* ---------------- v173：地図の字（拡大してもくっきり・入りきる） ---------------- */
+test('地図：止まると拡大した大きさで描き直す（字をくっきり）。見た目の位置は変わらない', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.waitForTimeout(1000);          // 開いた直後の自動の寄せ（ブースが入る位置）が終わるのを待つ
+  const before = await page.evaluate(() => { zoomTo(3, null, null, false); const r = document.querySelector(`#plan-${S.floor} .room[data-id]`).getBoundingClientRect(); return [r.left, r.top, r.width]; });
+  await expect.poll(() => page.evaluate(() => ZOOM.baked)).toBe(true);
+  const after = await page.evaluate(() => { const r = document.querySelector(`#plan-${S.floor} .room[data-id]`).getBoundingClientRect();
+    return { r: [r.left, r.top, r.width], tf: ZOOM.el.style.transform, w: parseFloat(ZOOM.el.style.width), mw: ZOOM.elW * ZOOM.k }; });
+  expect(after.tf).not.toContain('scale');
+  expect(Math.abs(after.w - after.mw)).toBeLessThan(1);
+  for (let i = 0; i < 3; i++) expect(Math.abs(after.r[i] - before[i])).toBeLessThan(1.5);
+  // 動かすと元に戻り（scale）、止まるとまた描き直す
+  await page.locator('#zoom-in').click();
+  await expect.poll(() => page.evaluate(() => ZOOM.baked && Math.abs(ZOOM.k - 4.8) < 0.01)).toBe(true);
+});
+
+test('地図：×1.0〜×8.0 を0.1ずつ、名前は枠からはみ出さず、字は画面の上で8〜15px・状態は12px以下、×8（最大）ではすべての名前がまるごと入る', async ({ page }) => {
+  test.setTimeout(120000);
+  await mockGas(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const bad = [];
+  for (const fl of [1, 2, 3]) {
+    await page.evaluate(f => setFloor(f), fl);
+    await page.waitForTimeout(200);
+    const r = await page.evaluate(() => {
+      const out = [];
+      for (let k10 = 10; k10 <= 80; k10++) {
+        const k = k10 / 10;
+        zoomTo(k, null, null, false); drawFloor._fp = null; drawFloor(S.floor);
+        const sc = mapScale();
+        document.querySelectorAll(`#plan-${S.floor} .room[data-id]`).forEach(g => {
+          const b = S.booths.find(x => x.id === g.dataset.id); if (!b) return;
+          const rr = g.querySelector('rect').getBoundingClientRect();
+          const nm = [...g.querySelectorAll('text.nm')];
+          nm.forEach(t => {
+            const px = parseFloat(t.getAttribute('font-size')) * sc, tb = t.getBoundingClientRect();
+            if (k >= 2 && (px < 7.9 || px > 15.1)) out.push(`×${k} ${b.id} 名前${px.toFixed(1)}px`);
+            if (tb.left < rr.left - 1 || tb.right > rr.right + 1 || tb.top < rr.top - 1 || tb.bottom > rr.bottom + 1) out.push(`×${k} ${b.id} はみ出し`);
+            const no = g.querySelector('.room-no circle');
+            if (no){ const nb = no.getBoundingClientRect();
+              // 字の箱は上下に余白を含むので、横と縦の重なりがどちらも 2px を超えたら重なりとみなす
+              const ox = Math.min(tb.right, nb.right) - Math.max(tb.left, nb.left), oy = Math.min(tb.bottom, nb.bottom) - Math.max(tb.top, nb.top);
+              if (ox > 2 && oy > 2) out.push(`×${k} ${b.id} 番号と名前が重なる`); }
+          });
+          g.querySelectorAll('text.st').forEach(t => { const px = parseFloat(t.getAttribute('font-size')) * sc; if (px > 12.1) out.push(`×${k} ${b.id} 状態${px.toFixed(1)}px`); });
+          if (k === 8 && nm.map(t => t.textContent).join('').replace(/\s/g, '') !== b.name.replace(/\s/g, '')) out.push(`×8 ${b.id} 名前が切れている：${nm.map(t => t.textContent).join('')}`);
+        });
+      }
+      return out;
+    });
+    bad.push(...r.map(x => fl + '階 ' + x));
+  }
+  expect(bad.slice(0, 20)).toEqual([]);
+});

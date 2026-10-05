@@ -2312,6 +2312,7 @@ html.sheet-open{overflow:hidden}
 #here-bar.ask{order:5}
 #map-card{order:1}
 #summary{order:2}
+#sum-hint{order:2}
 #next-ev{order:3}
 #reco-card{order:4}
 
@@ -2319,6 +2320,49 @@ html.sheet-open{overflow:hidden}
   *{animation-duration:.01ms !important;animation-iteration-count:1 !important;
     transition-duration:.01ms !important;scroll-behavior:auto !important}
 }
+
+/* =====================================================================
+   v173（ユーザーの依頼）：どれが押せて、どれがただの文なのか見分けがつかない。
+   決まり：押せる物は「枠のあるボタン」か、右端に「›」。ただの文には枠も「›」も付けない。
+   開け閉めできる見出し（details）は、枠のある行＋右端の「›」（開くと下向き）
+   ===================================================================== */
+.a2hs > summary,.stamp-log > summary,.handoff > summary,.diag > summary,.sid-join > summary{
+  list-style:none;display:flex;align-items:center;gap:8px;min-height:46px;padding:0 14px;margin-top:8px;
+  border:1px solid var(--border-strong);border-radius:12px;background:var(--surface-2);color:var(--text);
+  font-weight:800;cursor:pointer}
+.a2hs > summary::-webkit-details-marker,.stamp-log > summary::-webkit-details-marker,.handoff > summary::-webkit-details-marker,
+.diag > summary::-webkit-details-marker,.sid-join > summary::-webkit-details-marker{display:none}
+.a2hs > summary::after,.stamp-log > summary::after,.handoff > summary::after,.diag > summary::after,.sid-join > summary::after{
+  content:'';flex:none;margin-left:auto;width:8px;height:8px;border-right:2.5px solid currentColor;border-bottom:2.5px solid currentColor;
+  transform:rotate(-45deg);transition:transform var(--t-fast) var(--ease);opacity:.7}
+.a2hs[open] > summary::after,.stamp-log[open] > summary::after,.handoff[open] > summary::after,.diag[open] > summary::after,
+.sid-join[open] > summary::after{transform:rotate(45deg)}
+.a2hs[open] > summary,.stamp-log[open] > summary,.handoff[open] > summary,.diag[open] > summary,.sid-join[open] > summary{
+  border-bottom-left-radius:4px;border-bottom-right-radius:4px}
+/* 「いま行くならここ」の行は押すと詳細が開く。右端に「›」 */
+.reco::after{content:'';flex:none;width:8px;height:8px;border-right:2.5px solid var(--text-mute);border-bottom:2.5px solid var(--text-mute);
+  transform:rotate(-45deg);margin:0 4px 0 2px}
+/* 「困ったときは」の記号はただの印（押せない）。ボタンのような四角い枠をやめる */
+.help-ic{background:transparent;border:none;color:var(--accent)}
+/* 称号（探検スタートなど）はただの印。ボタンのような丸い枠をやめて、文字だけにする */
+.rank-chip{background:transparent;border:none;padding:4px 2px}
+.rank-chip.top{background:transparent;border:none;color:var(--free)}
+/* 「あとで」もボタン（枠を付ける） */
+.here-bar.ask [data-here-no]{border:1px solid var(--border-strong);color:var(--text-dim);background:var(--surface)}
+/* 地図の上の数字（空き・混雑など）は押せる。押せることを下の一文で伝え、押せる物らしく少し浮かせる */
+.sum-hint{margin:4px 2px 0;font-size:10.5px;font-weight:700;color:var(--text-mute)}
+[data-fs="xl"] .sum-hint{font-size:13px}
+/* 枠つきの白いボタン（ghost）は、ただの枠の箱と見分けにくかった。濃い枠＋下に影＋濃い字で「押せる」形に */
+.btn.ghost{border:1.5px solid var(--border-strong);color:var(--text);box-shadow:0 2px 0 var(--border)}
+/* まだ押せないボタンは点線（「数字の箱」に見えないように） */
+.btn:disabled{border-style:dashed;box-shadow:none}
+/* 押せない情報の箱（お菓子までの残り・使えるスタンプ／交換済みの数）は枠を消して、ボタンと形を分ける */
+.prize,.tally > div{border-color:transparent !important;box-shadow:none !important}
+@media (hover:hover){
+  .sum[role="button"]:hover,.reco:hover{border-color:var(--border-strong);filter:brightness(.98)}
+  .a2hs > summary:hover,.stamp-log > summary:hover,.handoff > summary:hover,.diag > summary:hover,.sid-join > summary:hover{border-color:var(--text-mute)}
+}
+
 </style>
 </head>
 <body>
@@ -2374,6 +2418,7 @@ html.sheet-open{overflow:hidden}
       <!-- 地図はこのタブの主役。ここより上に何かを積むと、
            小さい端末（iPhone SE）では地図が画面の外に出てしまう。 -->
       <div class="summary" id="summary"></div>
+      <p class="sum-hint" id="sum-hint">数字を押すと、その状態のブースだけを地図で目立たせます</p>
     <p class="sr-only" id="summary-live" role="status" aria-live="polite"></p>
 
       <button class="next-ev hide" id="next-ev"></button>
@@ -3018,7 +3063,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-05i',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-05j',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4228,13 +4273,14 @@ function mapScale(){
   }
   return ((w || 366) / 400) * (ZOOM.k || 1);
 }
-window.addEventListener('resize', () => { mapScale._w = 0; });
+window.addEventListener('resize', () => { mapScale._w = 0; drawFloor._vb = {}; });
 /**
  * 部屋の名前に使ってよい、図面の単位での最小の字。
  * 画面の上で約8pxを保てる大きさにする。拡大するほど小さい値になり、
  * そのぶん多くの文字が入る（＝寄せれば読める、という当たり前の動きになる）。
  */
-function labelMin(){ return Math.max(1.1, Math.min(3.4, 8 / mapScale())); }
+// v173：上限 3.4 を外す（×2 前後で 5〜7px の読めない字になり、ぼやけて見えていた）。入らなければ名前を出さず番号で引く
+function labelMin(){ return Math.max(1.1, 8 / mapScale()); }
 function fitsName(r){ const k = mapScale(); return r.w * k >= 46 && r.h * k >= 20; }
 function fitsStatus(r){ const k = mapScale(); return r.w * k >= 52 && r.h * k >= 34; }
 
@@ -4483,46 +4529,63 @@ function graphemes(str){
   }catch(e){}
   return Array.from(s);             // 古い端末：サロゲートペアだけは守る
 }
-function fitText(text, w, h, maxSize, minSize){
+/**
+ * 名前を部屋の枠に入れる（v173 で作り直し）。
+ * 大きい字から順に試し、名前がまるごと入るいちばん大きい字を選ぶ（行は最大5行）。
+ * いちばん小さい字（minSize）でも入らないときだけ末尾を「…」で切る。
+ * 以前は「1行に入る字の数」だけで大きさを決めてから切っていたので、拡大しても
+ * 「企業ブース…」「マ…」のように大きな字で数文字しか出ない部屋があった。
+ * 2文字以下しか出せないときは名前を出さない（「企」だけでは何のブースか分からない。番号で引ける）。
+ * 縦長の部屋は90度倒した方が大きく入るなら倒す。
+ */
+function fitText(text, w, h, maxSize, minSize, pad){
   const g = graphemes(text);
-  const t = { length: g.length };   // 以下の長さの計算は見た目の文字数で行う
   if (!g.length) return { lines:[], size:0, rot:false };
-  // 2.2px まで縮めていたが、その大きさは誰にも読めない。
-  // 読める下限を決めて、入りきらない名前は「…」で切る方が実用的。
-  const MAX = maxSize || 5.4, MIN = minSize || 3.4;
-  const best = (bw, bh) => {
-    let r = null;
-    for (let L = 1; L <= 4; L++){
-      const per = Math.ceil(t.length / L);
-      // 幅と高さの両方から入る文字サイズを出し、小さい方を採る
-      const size = Math.min(bw / per, bh / (L * 1.18), MAX);
-      if (!r || size > r.size) r = { L, per, size };
+  const MAX = maxSize || 5.4, MIN = Math.min(minSize || 3.4, MAX);
+  const ROWS = 5;
+  const tryBox = (bw, bh) => {
+    if (bw <= 0 || bh <= 0) return null;
+    for (let size = MAX; size >= MIN - 1e-6; size *= 0.94){
+      const per = Math.floor(bw / size), rows = Math.min(ROWS, Math.floor(bh / (size * 1.18)));
+      if (per >= 1 && rows >= 1 && per * rows >= g.length) return { size, per, rows, full:true };
     }
-    return r;
+    const per = Math.floor(bw / MIN), rows = Math.min(ROWS, Math.floor(bh / (MIN * 1.18)));
+    return { size: MIN, per: Math.max(0, per), rows: Math.max(0, rows), full:false };
   };
-  const a = best(w - 3, h - 3);
-  const b = best(h - 3, w - 3);          // 90度倒した場合
-  const use = b.size > a.size * 1.18 ? b : a;   // 少しの差では倒さない（読みにくいので）
-  const rot = use === b;
-  const size = Math.max(MIN, Math.min(MAX, use.size));
-  // MIN まで縮めても入らない場合は、はみ出すのではなく末尾を「…」にする
-  const bw = rot ? h - 3 : w - 3, bh = rot ? w - 3 : h - 3;
-  const per = Math.max(1, Math.floor(bw / size));
-  const rows = Math.max(1, Math.min(4, Math.floor(bh / (size * 1.18))));
-  const cap = per * rows;
-  const body = g.length > cap ? g.slice(0, Math.max(1, cap - 1)).concat('…') : g;
-  const nL = Math.min(rows, Math.ceil(body.length / per));
-  const lines = [];
-  for (let i = 0; i < nL; i++){
-    const seg = body.slice(i * per, (i + 1) * per).join('');
-    if (seg) lines.push(seg);
+  // 内側の余白。図面の単位で 3 に決め打ちしていたので、×6 では画面の上で16px も空いて名前の場所を奪っていた
+  const P = pad == null ? 3 : pad;
+  const a = tryBox(w - P, h - P), b = tryBox(h - P, w - P);
+  // 倒すのは、倒さないと入らない（倒せば入る）か、倒した方がずっと大きく入るときだけ
+  // v173：横向きの字は読みにくい。倒すのは「倒せばまるごと入り、倒さないと入らない」ときだけ
+  const useB = b && (!a || (!a.full && b.full));
+  const u = useB ? b : a;
+  if (!u) return { lines:[], size:0, rot:false };
+  const cap = u.per * u.rows;
+  let body = g;
+  if (!u.full){
+    if (cap < 4) return { lines:[], size:0, rot:false };        // 「企業…」のように2文字では何のブースか分からない
+    body = g.slice(0, cap - 1).concat('…');
+    // 空白を除いて3文字に満たない（「3D …」など）なら出さない
+    if (body.slice(0, -1).filter(c => !/\s/.test(c)).length < 3) return { lines:[], size:0, rot:false };
   }
-  return { lines, size:Math.round(size * 10) / 10, rot };
+  const lines = [];
+  for (let i = 0; i < u.rows && i * u.per < body.length; i++) lines.push(body.slice(i * u.per, (i + 1) * u.per).join(''));
+  // 行の長さをそろえる（「企業ブース（電子」「機2教室）」より「企業ブース」「（電子機2教室）」は無理でも、極端な片寄りを避ける）
+  if (u.full && lines.length > 1){
+    const per2 = Math.ceil(body.length / lines.length);
+    lines.length = 0;
+    for (let i = 0; i * per2 < body.length; i++) lines.push(body.slice(i * per2, (i + 1) * per2).join(''));
+  }
+  return { lines, size: Math.round(u.size * 100) / 100, rot: useB, full: u.full };
 }
 
 /** fitText の結果を <text> に起こす */
-function fitTextSvg(text, x, y, w, h, cls, maxSize, minPx, minSize){
-  const f = fitText(text, w, h, maxSize, minSize);
+function fitTextSvg(text, x, y, w, h, cls, maxSize, minPx, minSize, pre){
+  // v173：地図の上の字は、拡大しても画面の上で18px（立入禁止の字は22px）まで。
+  // 図面の単位で上限を決めていたので、×8 では「北桜会館」が80pxになって枠から切れていた。印刷（pl-）は別の物差し
+  if (!/^pl-/.test(cls)) maxSize = Math.min(maxSize, (cls === 'blocked-t' ? 22 : 18) / mapScale());
+  // v173：余白は画面の上で約4px（図面の単位では倍率で変わる）
+  const f = pre || fitText(text, w, h, maxSize, minSize, Math.min(3, 4 / mapScale()));
   if (!f.lines.length) return '';
   // 画面の上で minPx より小さくなる字は描かない。
   // 3px の字はどう頑張っても読めず、地図が汚れて見えるだけ。拡大すれば出る。
@@ -5096,8 +5159,11 @@ function drawFloor(floorNum){
       // 番号バッジは画面の上で12pxもあれば読める。図面の単位で決め打ちしていたため、
       // 拡大しても部屋の幅の1/6を占め続け、そのぶん名前の場所を奪っていた
       const br = Math.min(5.5, s.h * 0.22, s.w * 0.16, Math.max(2, 12 / mapScale()));
-      const bx = s.x + br + 1.5, by = s.y + br + 1.5;
-      const padL = no && !onRoute ? br * 2 + 3 : 2;
+      // v173：番号の輪の外側の余白も画面の上で約3pxに。名前の左端は「余白＋輪＋すき間」から（余白を数えておらず、輪が名前の1文字目に重なっていた）
+      const off = Math.min(1.5, 3 / mapScale());
+      const bx = s.x + br + off, by = s.y + br + off;
+      const gap = Math.min(3, 4 / mapScale());          // v173：すき間も画面の上で約4pxに
+      const padL = no && !onRoute ? off + br * 2 + gap : Math.min(2, gap);
       // 状態は必ず1行で出す。3行に折る前提で大きさを決めていたため、
       // 狭い部屋で「22人待ち」が枠から飛び出して隣の部屋にかぶっていた。
       // 全角=1・半角=0.58 で見た目の幅を見積もり、入る大きさを直接求める。
@@ -5107,15 +5173,16 @@ function drawFloor(floorNum){
         const room = s.w - 4, band = Math.max(4, s.h * 0.3);
         const cand = [`${L.icon} ${stLabel}`, `${L.icon}${String(stLabel).replace(/人待ち|待ち/, '')}`, L.icon];
         // 下限を 4.2 に固定していたので、拡大しても印だけ（▲）のままだった
-        const floorSz = Math.max(2.4, Math.min(4.2, 9 / mapScale()));
+        // v173：画面の上で9pxを下限に（上限12pxより大きい下限にして、拡大すると状態が消えていた）
+        const floorSz = Math.min(4.2, 9 / mapScale());
         for (const c2 of cand){
-          const sz = Math.min(6, room / vw(c2), band);
+          const sz = Math.min(6, 12 / mapScale(), room / vw(c2), band);
           if (sz >= floorSz){ stTxt = c2; stSize = sz; break; }
         }
       }
       // 名前の高さは「部屋の高さ − 状態の行に要る高さ」から決める。
       // 割合（0.55）で決めていたときは、拡大すると名前と状態が数px重なっていた。
-      const nmTop = s.y + 1.5;
+      const nmTop = s.y + Math.min(1.5, 3 / mapScale());
       if (evl && s.h >= eh + 7){
         // 札と状態の行の両方は入らない狭い部屋では、状態の行を札に譲る（混み具合は部屋の色で分かる）
         const stNeed = stTxt ? stSize * 1.75 + 1 : 0;
@@ -5128,8 +5195,21 @@ function drawFloor(floorNum){
       // 図面の単位での下限を、いまの倍率から決める。画面の上で約8pxを保つ。
       // ここを 3.4 に固定していたため、いくら拡大しても
       // 「射的・ゴルフ・イライラ棒」が「射…」のままだった（部屋の広さは倍率で変わらない）。
-      t += fitTextSvg(b.name, s.x + padL, nmTop, s.w - padL - 2 - markW, nmH, 'nm', 8,
-                      0, labelMin());
+      // v173：小さい部屋は、番号の右（A）に入らなければ、番号の下に部屋の幅いっぱい（B）で入れてみて、入る方を使う
+      const nmMax = Math.min(8, 15 / mapScale()), nmPad = Math.min(3, 4 / mapScale());
+      let nb = [s.x + padL, nmTop, s.w - padL - Math.min(2, gap) - markW, nmH];
+      let nf = fitText(b.name, nb[2], nb[3], nmMax, labelMin(), nmPad);
+      if (no && !onRoute && !nf.full){
+        const topB = s.y + off + br * 2 + gap * 0.5;
+        const bB = [s.x + Math.min(2, gap), topB, s.w - Math.min(2, gap) * 2, (s.y + s.h - stBand) - topB];
+        if (bB[3] > 0){
+          const fB = fitText(b.name, bB[2], bB[3], nmMax, labelMin(), nmPad);
+          const len = f => f.lines.join('').length;
+          if (fB.lines.length && (fB.full || len(fB) > len(nf))){ nb = bB; nf = fB; }
+        }
+      }
+      t += fitTextSvg(b.name, nb[0], nb[1], nb[2], nb[3], 'nm', nmMax,
+                      0, labelMin(), nf);
       if (stTxt){
         t += `<text x="${cx}" y="${(s.y + s.h - 2.5 - evPad).toFixed(1)}" text-anchor="middle" class="st"
                 font-size="${stSize.toFixed(2)}">${esc(stTxt)}</text>`;
@@ -5224,7 +5304,19 @@ function drawFloor(floorNum){
   if (emp) emp.classList.toggle('hide', placed.length > 0);
   html += zoneTags;                       // 棟の名札はいちばん手前
   // 同じ値でも書き込むと図面全体のレイアウトがやり直しになる。変わったときだけ書く
-  const vb = planViewBox(floorNum, tagRects);
+  // v173：図面の範囲（viewBox）は、同じ階・同じ幅の間は広げる一方にする。棟の名札の大きさは倍率で変わるので、
+  // 描き直すたびに範囲が数px伸び縮みして、拡大したあと地図全体がずれていた（0.1倍ごとに描き直すようにしたので目立つ）
+  const vbKey = floorNum;                // 画面の幅が変わったら（resize）作り直す
+  const vbNew = planViewBox(floorNum, tagRects).split(' ').map(Number);
+  const vbOld = (drawFloor._vb || (drawFloor._vb = {}))[vbKey];
+  let vbA = vbNew;
+  if (vbOld){
+    const x0 = Math.min(vbOld[0], vbNew[0]), y0 = Math.min(vbOld[1], vbNew[1]);
+    const x1 = Math.max(vbOld[0] + vbOld[2], vbNew[0] + vbNew[2]), y1 = Math.max(vbOld[1] + vbOld[3], vbNew[1] + vbNew[3]);
+    vbA = [x0, y0, x1 - x0, y1 - y0];
+  }
+  drawFloor._vb[vbKey] = vbA;
+  const vb = vbA.join(' ');
   if (svg.getAttribute('viewBox') !== vb) svg.setAttribute('viewBox', vb);
   svg.classList.toggle('has-booth', placed.length > 0);
   renderDeptLegend(floorNum);
@@ -6584,7 +6676,7 @@ function recentItems(){
 
 /** 地図で、部屋の外を押してもこの距離（画面のpx）以内のブースは押したことにする */
 const NEAR_TAP_PX = 16;
-const ZOOM = { k:1, x:0, y:0, min:1, max:6, el:null, wrap:null,
+const ZOOM = { k:1, x:0, y:0, min:1, max:8, el:null, wrap:null,   // v173：最大 ×6→×8（小さい部屋の名前がまるごと読めるところまで）
                // 動かしている指は常に1本だけ覚える。指の数を数えて拡大か移動かを
                // 決めるのはやめた（pointerup を1つ取りこぼすと「指1本なのに2本」と
                // 数えられ、1本で動かしただけで拡大が始まってしまうため）
@@ -6606,12 +6698,43 @@ const ZOOM = { k:1, x:0, y:0, min:1, max:6, el:null, wrap:null,
  * 地図の実寸を測って控える。測るとレイアウトが止まるので、
  * フロア切替・画面回転・箱の高さ変更のときだけ呼ぶ。
  */
+/**
+ * v173：止まっている間は「拡大した大きさそのもの」で地図を組む（焼き付け）。
+ * transform の scale で拡大した絵は、端末によっては等倍の絵を引き伸ばしたままになり、字がモザイクのようにぼやけていた。
+ * 幅を k 倍にして図面（SVG）を描き直させれば、どの端末でも字は線のままくっきり出る。
+ * 動かし始めたら（zoomApply）元の「等倍＋scale」に戻して、指の動きには軽い scale で追従する。
+ */
+function zoomBake(){
+  const z = ZOOM;
+  if (!z.el || z.baked || z.panId != null || z.tBase) return;
+  if (z.k <= 1.001 || !z.mW || !z.boxH) return;
+  z.el.style.transition = 'none';
+  if (!z.elW) z.elW = z.el.offsetWidth;
+  z.el.style.width = (z.elW * z.k) + 'px';
+  z.el.querySelectorAll('svg.plan').forEach(sv => { sv.style.maxHeight = (z.boxH * z.k) + 'px'; });
+  z.el.style.transform = `translate(${z.x}px,${z.y}px)`;
+  z.baked = true;
+}
+function zoomUnbake(){
+  const z = ZOOM;
+  if (!z.el || !z.baked) return;
+  z.baked = false;
+  z.el.style.transition = 'none';
+  z.el.style.width = '';
+  z.el.querySelectorAll('svg.plan').forEach(sv => { sv.style.maxHeight = z.boxH + 'px'; });
+  // 見た目は同じ位置・同じ倍率（直前に描いた値）に戻してから、新しい値へ動かす
+  z.el.style.transform = `translate(${z.ax || 0}px,${z.ay || 0}px) scale(${z.ak || 1})`;
+  void z.el.offsetWidth;
+}
+
 function zoomMeasure(){
   const z = ZOOM;
   if (!z.el || !z.wrap) return;
+  zoomUnbake();
   z.mW = z.wrap.clientWidth;
   z.mH = z.wrap.clientHeight;
   z.mNat = z.el.offsetHeight;
+  z.elW = z.el.offsetWidth;          // v173：焼き付けの幅の元（箱の内側の幅と違うことがある）
 }
 
 /**
@@ -6628,6 +6751,7 @@ function zoomedBeyondBase(){
 function zoomApply(animate){
   const z = ZOOM;
   if (!z.el) return;
+  zoomUnbake();
   if (!z.mNat) zoomMeasure();
   // 拡大していないときは常に原点。はみ出して余白が見えないよう毎回丸める
   const w = z.mW, h = z.mNat * z.k;
@@ -6637,6 +6761,7 @@ function zoomApply(animate){
   else z.y = Math.min(0, Math.max(wh - h, z.y));
   z.el.style.transition = animate ? 'transform var(--t) var(--ease)' : 'none';
   z.el.style.transform = `translate(${z.x}px,${z.y}px) scale(${z.k})`;
+  z.ax = z.x; z.ay = z.y; z.ak = z.k;
   // 動いている間だけ合成レイヤーにする。止まったら外して、その倍率で
   // 描き直させる（つけっぱなしだと拡大した絵がぼやけたままになる）
   z.el.classList.add('moving');
@@ -6646,11 +6771,12 @@ function zoomApply(animate){
     // レイヤーを外しただけでは再描画されない端末があるので、
     // ごく小さな書き換えで確実に描き直させる
     z.el.style.transform = `translate(${z.x}px,${z.y}px) scale(${z.k})`;
+    zoomBake();                     // v173：止まったら拡大した大きさで描き直す（字をくっきり）
   }, animate ? 420 : 220);
   z.el.classList.toggle('zoomed', zoomedBeyondBase());
   // 倍率が変われば、部屋に入れられる文字の量も変わる。
   // 指を離したあとにまとめて描き直す（拡大の途中で毎フレーム描くと重い）
-  const step = Math.round(z.k * 2);
+  const step = Math.round(z.k * 10);      // v173：0.1倍ごとに字の入れ方を描き直す（0.5倍ごとだと間の倍率で入りきらなかった）
   if (zoomApply._step !== step){
     zoomApply._step = step;
     clearTimeout(zoomApply._t);
@@ -13033,7 +13159,9 @@ function fitMapBox(floorNum){
   // 文字「特大」はボタンが大きい（v167）ので下限も上げる
   const ctlMin = land ? 0 : (document.documentElement.getAttribute('data-fs') === 'xl' ? 470 : floorH);
   const boxH = Math.max(ctlMin, Math.min(190, maxH), Math.min(maxH, Math.round(nat * FILL)));
+  zoomUnbake();
   view.style.height = boxH + 'px';
+  ZOOM.boxH = boxH;
   // 幅に合わせるだけだと、横長の図面は高さが窓を超えて下半分が切れる。
   // 高さにも上限をかけると、SVGが自動で縮んで全体が収まる。
   FLOORS.forEach(f => {
