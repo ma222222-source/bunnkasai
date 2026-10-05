@@ -1426,3 +1426,85 @@ test('地図に重ねたボタンどうしが重ならない（幅 320/360/390�
   }
   expect(bad).toEqual([]);
 });
+
+/* ---------------- v170 ---------------- */
+test('終わる45分前、交換できるスタンプがあれば一度だけ知らせる', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03', '1F-05', '1F-07', '1F-08'])));
+  await page.goto('/?tab=map');
+  await ready(page);
+  // 当日の設定を「いま開いていて、あと30分で終わる」にする
+  const r = await page.evaluate(() => {
+    const d = new Date(), p = n => String(n).padStart(2, '0');
+    const t = new Date(d.getTime() + 30 * 60000);
+    if (t.getDate() !== d.getDate() || d.getHours() < 1) return 'skip';
+    CONFIG.HOURS = { days: [{ date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, label: '一般公開', open: `${p(d.getHours() - 1)}:00`, close: `${p(t.getHours())}:${p(t.getMinutes())}` }] };
+    localStorage.removeItem('kuroko_prize_remind');
+    remindPrize();
+    return { st: openState().state, n: localStorage.getItem('kuroko_prize_remind') };
+  });
+  test.skip(r === 'skip', '日付をまたぐ時間帯');
+  expect(r.st).toBe('open');
+  await expect(page.locator('#toast')).toContainText('お菓子と交換できるスタンプ');
+  expect(r.n).not.toBeNull();
+});
+
+test('詳細の「読み上げる」', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => {
+    window.__spoken = [];
+    window.SpeechSynthesisUtterance = function (t){ this.text = t; };
+    Object.defineProperty(window, 'speechSynthesis', { value: { speaking: false, speak(u){ window.__spoken.push(u.text); }, cancel(){} }, configurable: true });
+  });
+  await page.goto('/?booth=1F-02');
+  await ready(page);
+  await page.locator('#bsh [data-speak]').click();
+  const t = await page.evaluate(() => window.__spoken[0]);
+  const name = await page.evaluate(() => S.booths.find(b => b.id === '1F-02').name);
+  expect(t).toContain(name);
+});
+
+test('大きくした写真は2回押すと拡大し、閉じない', async ({ page }) => {
+  await mockGas(page, { mutate: d => { d.booths.forEach(b => { if (b.id === '1F-02') b.image = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='; }); } });
+  await page.goto('/?booth=1F-02');
+  await ready(page);
+  await page.locator('#bsh img.bsh-img').click();
+  await page.locator('.img-zoom').dblclick();
+  await expect(page.locator('.img-zoom img')).toHaveAttribute('style', /scale\(2\.5\)/);
+  await page.waitForTimeout(500);
+  await expect(page.locator('.img-zoom')).toHaveCount(1);
+});
+
+test('スタンプの記録の共有に、回った時間', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03']));
+    localStorage.setItem('kuroko_stamp_at', JSON.stringify({ '1F-03': new Date(2026, 9, 17, 10, 0).getTime(), '1F-02': new Date(2026, 9, 17, 10, 40).getTime() }));
+    navigator.canShare = () => false;
+    navigator.share = async d => { window.__shared = d; };
+  });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await page.evaluate(() => shareStamps());
+  await expect.poll(() => page.evaluate(() => window.__shared && window.__shared.text)).toContain('（40分）');
+});
+
+test('いまここから近い順では「同じ階」「↑1階」などが付く', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.evaluate(() => { localStorage.setItem('kuroko_here_v1', JSON.stringify({ id: '1F-02', at: Date.now(), src: 'pick' })); renderList._fp = null; setSort('near'); });
+  await expect(page.locator('#booth-list .near-tag').first()).toBeVisible();
+  const tags = await page.locator('#booth-list .near-tag').allTextContents();
+  expect(tags).toContain('同じ階');
+});
+
+test('アドレス欄の色（theme-color）を見出しの色に合わせる', async ({ page }) => {
+  await mockGas(page);
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/?tab=map');
+  await ready(page);
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#1b1916');
+  await page.locator('#btn-theme').click();
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0b0c10');
+});

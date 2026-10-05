@@ -1137,8 +1137,10 @@ text.util:not([font-size]){font-size:7.5px}
   box-shadow:var(--shadow-lg);font-size:22px;font-weight:900;cursor:pointer}
 .to-top.hide{display:none}
 .recent-row{align-items:center}
+.near-tag{background:var(--free-soft);color:var(--text);border-color:transparent}
 .img-zoom{position:fixed;inset:0;z-index:130;background:rgba(0,0,0,.88);display:grid;place-items:center;padding:16px;cursor:zoom-out}
-.img-zoom img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
+.img-zoom{touch-action:none}
+.img-zoom img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;transform-origin:center;will-change:transform}
 .bsh-img[role="button"]{cursor:zoom-in}
 .app-qr-box{display:grid;place-items:center;padding:12px;margin:6px auto;background:#fff;border-radius:12px;width:max-content}
 .app-qr-box svg{width:200px;height:200px;display:block}
@@ -3008,7 +3010,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-05f',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-05g',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5853,6 +5855,7 @@ function revealUnderSheet(id){
 
 function closeSheet(fromHistory){
   if (!S.sheetId) return;
+  try{ if (window.speechSynthesis && speechSynthesis.speaking) speechSynthesis.cancel(); }catch(e){}   // v170
   S.sheetId = null;
   renderSheet._fp = null;
   const back = $('#bsh-back'), sh = $('#bsh');
@@ -6080,6 +6083,7 @@ function renderSheet(){
       <button data-act="jump">${jumpLabel}</button>
       <button data-wish aria-pressed="${S.wish.has(b.id)}">${S.wish.has(b.id) ? '★ 行きたい（保存済み）' : '☆ 行きたい'}</button>
       <button data-share>共有する</button>
+      ${('speechSynthesis' in window) ? '<button data-speak aria-pressed="false">読み上げる</button>' : ''}
       <button class="wide" data-here-set ${hereId() === b.id ? 'disabled' : ''}>${hereId() === b.id ? '✓ いまここに設定しています' : 'いまここにいる（ここを「いまここ」にする）'}</button>
     </div>
     ${(() => { const nb = sheetNeighbors(b.id); if (!nb) return '';
@@ -6106,6 +6110,8 @@ function renderSheet(){
     im.onerror = () => im.remove();
     el.replaceWith(im);
   }));
+  const spk = $('#bsh-body [data-speak]');
+  if (spk) spk.addEventListener('click', () => speakBooth(b, spk));
   $$('#bsh-body [data-nav]').forEach(el => el.addEventListener('click', () => sheetStep(+el.dataset.nav)));
   const sb = $('#bsh-body [data-share]');
   if (sb) sb.addEventListener('click', () => shareBooth(b.id));
@@ -7406,6 +7412,23 @@ function fixSuggest(q){
     if (d.open && box && !box.innerHTML) box.innerHTML = QR.svgSafe(publicBase() + '?openExternalBrowser=1', 200);
   }); }
 
+/** v170：ブースの名前・場所・混み具合・説明を読み上げる。読み上げ中にもう一度押すと止める */
+function speakBooth(b, btn){
+  try{
+    const ss = window.speechSynthesis;
+    if (ss.speaking){ ss.cancel(); if (btn) btn.setAttribute('aria-pressed', 'false'); return; }
+    const L = lvOf(b), r = roomLabel(b);
+    const parts = [b.name, flLabel(b) + (r ? '、' + r : ''),
+      L.lv >= 0 && L.lv < 3 ? 'いまは' + L.short + (b.wait > 0 ? '、' + b.wait + '人待ち' : '') : L.short,
+      b.note || '', S.stamps.has(b.id) ? 'スタンプは押してあります' : ''];
+    const u = new SpeechSynthesisUtterance(parts.filter(Boolean).join('。'));
+    u.lang = 'ja-JP'; u.rate = 0.95;
+    u.onend = u.onerror = () => { if (btn) btn.setAttribute('aria-pressed', 'false'); };
+    if (btn) btn.setAttribute('aria-pressed', 'true');
+    ss.speak(u);
+  }catch(e){ toast('この端末では読み上げを使えません'); }
+}
+
 /** v169：写真を画面いっぱいに出す。どこを押しても・Esc でも閉じる */
 function zoomImage(src, name){
   const ov = document.createElement('div');
@@ -7415,13 +7438,47 @@ function zoomImage(src, name){
   const im = document.createElement('img');
   im.src = src; im.alt = name + 'の写真'; im.referrerPolicy = 'no-referrer';
   ov.appendChild(im);
+  // v170：指で拡大
+  let k = 1, x = 0, y = 0, d0 = 0, k0 = 1, px = 0, py = 0, moved = false, lastTap = 0;
+  const ap = () => { im.style.transform = `translate(${x}px,${y}px) scale(${k})`; };
+  const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  ov.addEventListener('touchstart', e => {
+    moved = false;
+    if (e.touches.length === 2){ d0 = dist(e.touches); k0 = k; moved = true; }
+    else { px = e.touches[0].clientX; py = e.touches[0].clientY; }
+  }, { passive:true });
+  ov.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 2 && d0){ k = Math.max(1, Math.min(4, k0 * dist(e.touches) / d0)); if (k === 1){ x = 0; y = 0; } ap(); }
+    else if (e.touches.length === 1 && k > 1){
+      const t = e.touches[0]; x += t.clientX - px; y += t.clientY - py; px = t.clientX; py = t.clientY; moved = true; ap();
+    }
+  }, { passive:false });
+  ov.addEventListener('touchend', e => { if (!e.touches.length) d0 = 0; }, { passive:true });
   const prev = document.activeElement;
   const close = () => { ov.remove(); document.removeEventListener('keydown', onKey, true); if (prev && prev.isConnected) try{ prev.focus({ preventScroll:true }); }catch(e){} };
   const onKey = e => { if (e.key === 'Escape'){ e.stopPropagation(); e.preventDefault(); close(); } };
-  ov.addEventListener('click', close);
+  ov.addEventListener('click', e => {
+    if (moved){ moved = false; return; }               // 動かした・拡大した後の指離しでは閉じない
+    const t = performance.now();
+    if (t - lastTap < 320){ lastTap = 0; k = k > 1 ? 1 : 2.5; x = 0; y = 0; ap(); clearTimeout(ov._ct); return; }
+    lastTap = t;
+    // 2回目を待ってから閉じる（拡大していないときだけ）
+    clearTimeout(ov._ct);
+    ov._ct = setTimeout(() => { if (k <= 1) close(); }, 330);
+  });
   document.addEventListener('keydown', onKey, true);
   document.body.appendChild(ov);
   ov.focus({ preventScroll:true });
+}
+
+/** v170：「いまここから近い順」のときだけ、いまここから見た階の上り下り（同じ階／↑1階／↓1階） */
+function nearTag(b){
+  if (S.sort !== 'near') return '';
+  const hid = hereId(), a = hid && ROOM_INDEX.get(hid), t = ROOM_INDEX.get(b.id);
+  if (!a || !t || a.f === 0 || t.f === 0) return '';
+  const d = t.f - a.f;
+  return `<span class="tag near-tag">${d === 0 ? '同じ階' : (d > 0 ? '↑' : '↓') + Math.abs(d) + '階'}</span>`;
 }
 
 /** v166：一覧の上の「最近見た」（最大5件）。絞り込み中は出さない */
@@ -7554,7 +7611,7 @@ function renderList(){
               aria-label="${S.numbers.get(b.id) ? S.numbers.get(b.id) + '番 ' : ''}${esc(b.name)} ${esc(L.short)}${
               b.wait > 0 && L.lv >= 0 && L.lv < 3 ? ` ${b.wait}人待ち` : ''}${got ? ' スタンプ済' : ''}${S.wish.has(b.id) ? ' 行きたい' : ''} の詳細をひらく"
               >${S.wish.has(b.id) ? '<span class="wish-mk" aria-hidden="true">★</span>' : ''}${markHit(b.name, S.q)}</button></span><span class="tag">${esc(b.category)}</span><span
-            class="tag">${esc(flLabel(b))}</span></h3>
+            class="tag">${esc(flLabel(b))}</span>${nearTag(b)}</h3>
           <p class="booth-meta">${(() => {
             // 部屋と更新時刻を別々の行に置くと、1枚が高くなって1画面に5件しか入らなかった。
             // どちらも補助情報なので同じ行に畳む。
@@ -8801,6 +8858,12 @@ async function shareStampsRun(){
   const text = got === total
     ? `${title}黒工文化祭のスタンプラリー、${total}ブース全制覇しました！`
     : `${title}黒工文化祭のスタンプラリー、${total}ブース中${got}ブース回りました。`;
+  // v170：同じ日に押した最初から最後までの時間（回った順と同じ）
+  const dur = (() => { const at = stampAt(); const ts = S.booths.filter(b => S.stamps.has(b.id) && at[b.id]).map(b => at[b.id]).sort((a, b) => a - b);
+    if (ts.length < 2 || new Date(ts[0]).toDateString() !== new Date(ts[ts.length - 1]).toDateString()) return '';
+    const m = Math.round((ts[ts.length - 1] - ts[0]) / 60000);
+    return `（${m >= 60 ? Math.floor(m / 60) + '時間' + (m % 60 ? m % 60 + '分' : '') : m + '分'}）`; })();
+  const textD = text + dur;
   const url = location.origin + location.pathname;
 
   let blob = null;
@@ -8813,12 +8876,12 @@ async function shareStampsRun(){
   if (blob && navigator.canShare){
     const file = new File([blob], 'kuroko-stamp.png', { type:'image/png' });
     if (navigator.canShare({ files:[file] })){
-      try{ await navigator.share({ files:[file], text, title:'黒工文化祭 スタンプラリー' }); return; }
+      try{ await navigator.share({ files:[file], text: textD, title:'黒工文化祭 スタンプラリー' }); return; }
       catch(e){ if (quiet(e)) return; }
     }
   }
   if (navigator.share){
-    try{ await navigator.share({ title:'黒工文化祭 校内マップ', text, url }); return; }
+    try{ await navigator.share({ title:'黒工文化祭 校内マップ', text: textD, url }); return; }
     catch(e){ if (quiet(e)) return; }
   }
   // 共有機能が無い端末（PCのブラウザなど）は画像を保存する
@@ -9701,8 +9764,27 @@ function notifyWishFree(){
   if (freed.length) toast(`★「${freed[0].name}」が空きました${freed.length > 1 ? `（ほか${freed.length - 1}件）` : ''}`, null, 6000);
 }
 
+/**
+ * v170：交換できるスタンプを持ったまま帰らないように。終わる45分前から、1日1回だけ知らせる
+ */
+function remindPrize(){
+  try{
+    const st = openState();
+    if (st.state !== 'open' || !st.day) return;
+    const d = new Date(), cur = d.getHours() * 60 + d.getMinutes(), close = hmMin(st.day.close);
+    if (close == null || close - cur > 45 || close - cur < 0) return;
+    const need = Math.max(1, CONFIG.PRIZE_COST | 0);
+    if (stampsLeft() < need) return;
+    if (load('kuroko_prize_remind', null) === ymd(d)) return;
+    store('kuroko_prize_remind', ymd(d));
+    toast(`本日は ${st.day.close} までです。お菓子と交換できるスタンプがあります（スタンプ画面の「お菓子と交換する」）`,
+      { label:'スタンプを見る', fn: () => switchView('stamp') }, 10000);
+  }catch(e){}
+}
+
 function renderAll(){
   markChanges();
+  remindPrize();
   notifyWishFree();
   const hadBooths = renderAll._had;
   renderAll._had = S.booths.length > 0;
@@ -12153,6 +12235,16 @@ const THEMES = [
   { id:'heavy', name:'重厚' }
 ];
 
+/** v170：スマホのアドレス欄（theme-color）を、いまの見た目の見出しの色に合わせる */
+function setThemeColor(){
+  try{
+    const m = document.querySelector('meta[name="theme-color"]');
+    if (!m) return;
+    const t = document.documentElement.getAttribute('data-theme');
+    m.setAttribute('content', t === 'heavy' ? '#0b0c10' : '#1b1916');
+  }catch(e){}
+}
+
 function initTheme(){
   // 以前の light / cyber を選んでいた人も、消えた見た目に取り残されないよう既定へ寄せる
   const saved = load('kuroko_theme', null);
@@ -12163,6 +12255,7 @@ function initTheme(){
   let t = ok ? saved
     : (matchMedia('(prefers-color-scheme: dark)').matches ? 'heavy' : THEMES[0].id);
   document.documentElement.setAttribute('data-theme', t);
+  setThemeColor();
   const label = () => (THEMES.find(x => x.id === t) || THEMES[0]).name;
   const btn = $('#btn-theme');
   btn.setAttribute('aria-label', '見た目を変える（いま：' + label() + '）');
@@ -12171,7 +12264,7 @@ function initTheme(){
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', m => {
       if (THEMES.some(x => x.id === load('kuroko_theme', null))) return;
       t = m.matches ? 'heavy' : THEMES[0].id;
-      document.documentElement.setAttribute('data-theme', t);
+      document.documentElement.setAttribute('data-theme', t); setThemeColor();
       btn.setAttribute('aria-label', '見た目を変える（いま：' + label() + '）');
       drawFloor._fp = null; drawFloor(S.floor);
     });
@@ -12179,7 +12272,7 @@ function initTheme(){
   btn.addEventListener('click', () => {
     const i = THEMES.findIndex(x => x.id === t);
     t = THEMES[(i + 1) % THEMES.length].id;
-    document.documentElement.setAttribute('data-theme', t);
+    document.documentElement.setAttribute('data-theme', t); setThemeColor();
     store('kuroko_theme', t);
     btn.setAttribute('aria-label', '見た目を変える（いま：' + label() + '）');
     toast('見た目：' + label());
