@@ -1431,12 +1431,17 @@ test('地図に重ねたボタンどうしが重ならない（幅 320/360/390�
 test('終わる45分前、交換できるスタンプがあれば一度だけ知らせる', async ({ page }) => {
   await mockGas(page);
   // 時計を一般公開日の 14:00 に止める（実行した時刻に左右されないように）
-  await page.clock.setFixedTime(new Date(2026, 9, 24, 14, 0));
+  // 時刻の指定は「その瞬間」。日本時間 14:00（UTC 05:00）なら、どちらの時間帯で動かしても日付をまたがない
+  await page.clock.setFixedTime(new Date('2026-10-24T05:00:00Z'));
   await page.addInitScript(() => localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03', '1F-05', '1F-07', '1F-08'])));
   await page.goto('/?tab=map');
   await ready(page);
   const r = await page.evaluate(() => {
-    CONFIG.HOURS = { days: [{ date: '2026-10-24', label: '一般公開', open: '09:30', close: '14:30' }] };
+    // 開催時間は、画面の時計（端末の時間帯）でいまの1時間前〜30分後にする（GitHub は UTC、iPhone・Android のまねは日本時間）
+    const d = new Date(), p2 = n => String(n).padStart(2, '0');
+    const t = new Date(d.getTime() + 30 * 60000);
+    CONFIG.HOURS = { days: [{ date: `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`, label: '一般公開',
+      open: `${p2(d.getHours() - 1)}:00`, close: `${p2(t.getHours())}:${p2(t.getMinutes())}` }] };
     localStorage.removeItem('kuroko_prize_remind');
     remindPrize();
     return { st: openState().state, n: localStorage.getItem('kuroko_prize_remind') };
