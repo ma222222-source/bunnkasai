@@ -2363,6 +2363,21 @@ html.sheet-open{overflow:hidden}
   .a2hs > summary:hover,.stamp-log > summary:hover,.handoff > summary:hover,.diag > summary:hover,.sid-join > summary:hover{border-color:var(--text-mute)}
 }
 
+
+/* v174：見出しのボタンは記号の下に小さく文字（QR・見た目・更新） */
+.icon-btn{grid-template-rows:auto auto;align-content:center;gap:1px;height:auto;min-height:44px;padding:4px 0 3px}
+.icon-btn .ib-ic{display:grid;place-items:center;line-height:1}
+.icon-btn .ib-tx{font-size:9px;font-weight:800;line-height:1;opacity:.92;white-space:nowrap}
+[data-fs="xl"] .icon-btn .ib-tx{font-size:11px}
+/* v174：拡大の倍率（×3）は押せないので、ボタンのような枠を付けない（白い縁取りの字だけ） */
+.zoom-lv{background:transparent !important;border-color:transparent !important;
+  text-shadow:0 0 3px var(--surface),0 0 3px var(--surface),0 0 6px var(--surface);font-size:11px}
+.name-hint{margin:6px 2px 0;font-size:11px;font-weight:700;color:var(--text-mute)}
+[data-fs="xl"] .name-hint{font-size:13.5px}
+/* v174：一覧の混み具合の札は押せない。丸い札（押せるボタンと同じ形）をやめて角を立てる */
+.booth .pill{border-radius:7px}
+/* v174：押したことが分かるように、押している間は少し暗く（ボタンすべて） */
+button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 </style>
 </head>
 <body>
@@ -2380,9 +2395,9 @@ html.sheet-open{overflow:hidden}
       </div>
       <div class="head-actions">
         <!-- スタンプのQRを読むカメラ。どのタブからでも1回で開けるよう見出しに置く -->
-        <button class="icon-btn scan-btn" id="btn-scan" data-scan aria-label="カメラでQRを読む" title="カメラでQRを読む"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8" y="8" width="3" height="3"/><rect x="13" y="8" width="3" height="3"/><rect x="8" y="13" width="3" height="3"/><path d="M13 13h3v3"/></svg></button>
-        <button class="icon-btn" id="btn-theme" aria-label="テーマ切替" title="テーマ切替">◐</button>
-        <button class="icon-btn" id="btn-reload" aria-label="今すぐ更新" title="今すぐ更新">⟳</button>
+        <button class="icon-btn scan-btn" id="btn-scan" data-scan aria-label="カメラでQRを読む" title="カメラでQRを読む"><span class="ib-ic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8" y="8" width="3" height="3"/><rect x="13" y="8" width="3" height="3"/><rect x="8" y="13" width="3" height="3"/><path d="M13 13h3v3"/></svg></span><span class="ib-tx" aria-hidden="true">QR</span></button>
+        <button class="icon-btn" id="btn-theme" aria-label="テーマ切替" title="テーマ切替"><span class="ib-ic" aria-hidden="true">◐</span><span class="ib-tx" aria-hidden="true">見た目</span></button>
+        <button class="icon-btn" id="btn-reload" aria-label="今すぐ更新" title="今すぐ更新"><span class="ib-ic" aria-hidden="true">⟳</span><span class="ib-tx" aria-hidden="true">更新</span></button>
       </div>
     </div>
     <div class="sync"><span class="dot" id="sync-dot"></span><span id="sync-text">読み込み中…</span></div>
@@ -2479,6 +2494,7 @@ html.sheet-open{overflow:hidden}
           </div>
           <div class="unplaced hide" id="map-unplaced"></div>
           <!-- 見かたは「読みたいときに開く」。常に出していると地図の下を占めて地図が小さくなる -->
+          <p class="name-hint hide" id="name-hint">数字はブースの番号です。地図を拡大（＋・2本指・2回タップ）すると名前が出ます</p>
           <details class="legend-box">
           <summary>地図の見かた</summary>
           <div class="legend" aria-label="地図の見かた">
@@ -3063,7 +3079,7 @@ html.sheet-open{overflow:hidden}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-05j',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-05k',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -6776,7 +6792,7 @@ function zoomApply(animate){
   z.el.classList.toggle('zoomed', zoomedBeyondBase());
   // 倍率が変われば、部屋に入れられる文字の量も変わる。
   // 指を離したあとにまとめて描き直す（拡大の途中で毎フレーム描くと重い）
-  const step = Math.round(z.k * 10);      // v173：0.1倍ごとに字の入れ方を描き直す（0.5倍ごとだと間の倍率で入りきらなかった）
+  const step = Math.round(z.k * (document.documentElement.classList.contains('lite') ? 4 : 10));   // v174：軽い表示では 0.25倍ごと      // v173：0.1倍ごとに字の入れ方を描き直す（0.5倍ごとだと間の倍率で入りきらなかった）
   if (zoomApply._step !== step){
     zoomApply._step = step;
     clearTimeout(zoomApply._t);
@@ -6784,6 +6800,7 @@ function zoomApply(animate){
     zoomApply._t = setTimeout(function redraw(){
       if (z.panId != null || z.tBase){ zoomApply._t = setTimeout(redraw, 160); return; }
       drawFloor._fp = null; drawFloor(S.floor);
+      nameHint();
     }, 160);
   }
   // 初回だけ「動かせる」ことを伝える（保存領域はページごとに1回だけ見る）
@@ -10026,6 +10043,18 @@ function remindPrize(){
   }catch(e){}
 }
 
+/**
+ * v174：名前が入りきらず番号だけのブースが多い（3割以上）ときは、地図の下に「拡大すると名前が出ます」と出す。
+ * 拡大して名前が出てきたら消える（お知らせ（トースト）にすると、ほかの知らせを上書きしてしまう）
+ */
+function nameHint(){
+  const el = $('#name-hint');
+  if (!el) return;
+  const rooms = $$(`#plan-${S.floor} .room[data-id]`);
+  const noName = rooms.filter(g => !g.querySelector('text.nm')).length;
+  el.classList.toggle('hide', !(rooms.length >= 4 && noName / rooms.length >= 0.3));
+}
+
 function renderAll(){
   markChanges();
   remindPrize();
@@ -10049,6 +10078,7 @@ function renderAll(){
   // どの階に何があるのか分からないままだった
   renderFloorCounts();
   renderWishChip();
+  nameHint();
   // 見えていない一覧は作らない（150件で毎回0.4秒かかっていた）。一覧に切り替えたときに描く
   // 【v146】見えていないときに指紋を捨てるのをやめた。指紋は中身（ブースの状態）から作るので、
   // 変わっていなければ一覧に切り替えたときも作り直さない（作り直すと遅い端末で配置の計算に約1秒かかる）
@@ -13098,6 +13128,7 @@ function setFloor(n){
   });
   drawFloor._fp = null;          // 割り当て中は押せる部屋を作り直す必要がある
   drawFloor(n);
+  nameHint();
   ZOOM.touched = false;          // 階が変われば、その階のブースに寄せ直す
   zoomReset(false);
   requestAnimationFrame(() => fitMapBox(n));

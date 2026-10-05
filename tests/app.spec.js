@@ -1631,3 +1631,51 @@ test('地図：×1.0〜×8.0 を0.1ずつ、名前は枠からはみ出さず、
   }
   expect(bad.slice(0, 20)).toEqual([]);
 });
+
+/* ---------------- v174 ---------------- */
+test('見出しのボタンに文字（QR・見た目・更新）', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await expect(page.locator('#btn-scan .ib-tx')).toHaveText('QR');
+  await expect(page.locator('#btn-theme .ib-tx')).toHaveText('見た目');
+  await expect(page.locator('#btn-reload .ib-tx')).toHaveText('更新');
+  const h = await page.locator('#btn-reload').evaluate(el => el.getBoundingClientRect().height);
+  expect(h).toBeGreaterThanOrEqual(40);
+});
+
+test('押せない物はボタンの形にしない（倍率の表示・一覧の混み具合の札）', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  const r = await page.locator('#booth-list .booth .pill').first().evaluate(el => parseFloat(getComputedStyle(el).borderTopLeftRadius));
+  expect(r).toBeLessThan(10);
+  const bw = await page.evaluate(() => getComputedStyle(document.getElementById('zoom-lv')).borderTopColor);
+  expect(bw).toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
+});
+
+test('地図：番号だけのブースが多いときは「拡大すると名前が出ます」、拡大して名前が出たら消える', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => localStorage.setItem('kuroko_intro_v1', '1'));
+  await page.goto('/?tab=map');
+  await ready(page);
+  await expect(page.locator('#name-hint')).toBeVisible();
+  await page.evaluate(() => { zoomTo(8, null, null, false); });
+  await expect(page.locator('#name-hint')).toBeHidden({ timeout: 3000 });
+});
+
+test('軽い表示（力の弱い端末）では、字の入れ方の描き直しは 0.25倍ごと', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => { Object.defineProperty(navigator, 'deviceMemory', { value: 1, configurable: true }); });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const n = await page.evaluate(async () => {
+    zoomTo(2, null, null, false); await new Promise(r => setTimeout(r, 400));
+    let c = 0; const o = drawFloor; window.drawFloor = function(){ c++; return o.apply(this, arguments); };
+    for (const k of [2.1, 2.2]){ zoomTo(k, null, null, false); await new Promise(r => setTimeout(r, 300)); }
+    window.drawFloor = o; return c;
+  });
+  // 2.1→2.2 は 0.25 刻みでは 8→9 の1回まで（0.1 刻みなら 21→22 も数えて2回）
+  expect(n).toBeLessThanOrEqual(1);
+});
