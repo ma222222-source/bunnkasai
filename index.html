@@ -2372,6 +2372,11 @@ html.sheet-open{overflow:hidden}
 /* v174：拡大の倍率（×3）は押せないので、ボタンのような枠を付けない（白い縁取りの字だけ） */
 .zoom-lv{background:transparent !important;border-color:transparent !important;
   text-shadow:0 0 3px var(--surface),0 0 3px var(--surface),0 0 6px var(--surface);font-size:11px}
+.mk-sym{display:inline-grid;place-items:center;min-width:16px;height:16px;margin-right:4px;border-radius:50%;
+  background:#15803d;color:#fff;font-size:10px;font-weight:900;vertical-align:-3px}
+.mk-sym.mk-wish{background:#d18f00}
+.mk-sym.mk-here{min-width:9px;width:9px;height:9px;background:#1a73e8;box-shadow:0 0 0 2px #fff;vertical-align:0}
+.empty-reset{display:block;width:auto;margin:12px auto 0;padding:10px 18px}
 .name-hint{margin:6px 2px 0;font-size:11px;font-weight:700;color:var(--text-mute)}
 [data-fs="xl"] .name-hint{font-size:13.5px}
 /* v174：一覧の混み具合の札は押せない。丸い札（押せるボタンと同じ形）をやめて角を立てる */
@@ -2441,7 +2446,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
         <b>はじめての方へ</b>
         <ol>
           <li>地図の色で、いまの混み具合が分かります（ブースを押すと待ち時間）</li>
-          <li>ブース入口のQRを読むとスタンプ（右上のカメラのボタンでも読めます）</li>
+          <li>ブース入口のQRを読むとスタンプ（右上の「QR」ボタンで読めます）</li>
           <li>スタンプ5個でお菓子1個と交換できます</li>
         </ol>
         <button type="button" class="btn ghost" id="intro-ok">わかった</button>
@@ -2451,6 +2456,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
            小さい端末（iPhone SE）では地図が画面の外に出てしまう。 -->
       <div class="summary" id="summary"></div>
       <p class="sum-hint" id="sum-hint">数字を押すと、その状態のブースだけを地図で目立たせます</p>
+      <script>try{ if (localStorage.getItem('kuroko_sum_used')) document.getElementById('sum-hint').classList.add('hide'); }catch(e){}</script>
     <p class="sr-only" id="summary-live" role="status" aria-live="polite"></p>
 
       <button class="next-ev hide" id="next-ev"></button>
@@ -2524,6 +2530,9 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
             <span><b class="mk-way"></b>歩ける道</span>
             <span><b class="mk-out">外に出る</b>いったん外へ</span>
             <span><b class="mk-no">3</b>紙マップの番号</span>
+            <span><b class="mk-sym">✓</b>スタンプ済み</span>
+            <span><b class="mk-sym mk-wish">★</b>行きたい</span>
+            <span><b class="mk-sym mk-here"></b>いまここの階（階のボタン）</span>
             <span class="legend-tip">上の<b>科のボタン</b>をおすと、その棟に寄って名前が出ます。数字をおすとくわしく出ます</span>
           </div>
           </details>
@@ -2698,6 +2707,9 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
           <p>・地図の何も無い所を<b>2回続けて押す</b>と、そこを拡大</p>
           <p>・地図のブースを<b>長押し</b>すると「★行きたい」に入る（もう一度で外す）</p>
           <p>・ブースの詳細を<b>左右になぞる</b>と、同じ階の前・次のブース</p>
+          <p>・地図の数字はブースの番号。<b>拡大</b>すると名前が出ます</p>
+          <p>・階のボタンの<b>青い点</b>は「いまここ」の階、<b>★</b>は行きたいブースがある階</p>
+          <p>・地図の上の数字（空き・混雑など）を押すと、その状態のブースだけ目立ちます</p>
           <p>・パソコンは <b>?</b> キーでキー操作の一覧</p>
         </details>
         <details class="a2hs" id="a2hs">
@@ -3097,7 +3109,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-05l',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-05m',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -7806,8 +7818,18 @@ function renderList(){
       ? `<p class="empty">★を付けたブースはまだありません。<br>
           ブースの詳細で「★ 行きたい」を押すと、ここに集まります。</p>`
       : `<p class="empty">さがしたブースは見つかりませんでした。<br>
-      文字をけすか、上のボタンで「すべて」をえらんでください。${fixSuggest(S.q)}</p>`);
+      文字をけすか、絞り込みを外してください。${fixSuggest(S.q)}
+      <button type="button" class="btn ghost empty-reset" data-reset-filters>絞り込みをすべて外す</button></p>`);
     wireHelpHits(box);
+    // v176：検索の文字・種類・階・★・まだ行っていない を一度に外す（どれで0件になったか探さなくてよい）
+    $$('[data-reset-filters]', box).forEach(el => el.addEventListener('click', () => {
+      S.q = ''; $('#q').value = ''; $('#q-clear').classList.add('hide');
+      S.cat = 'all'; S.lf = null; { const lf = $('#lf'); if (lf){ lf.value = ''; lf.classList.remove('on'); } }
+      S.wishOnly = false; S.todoOnly = false;
+      { const t = $('#todo-only'); if (t) t.setAttribute('aria-pressed', 'false'); }
+      renderWishChip(); renderCats(); renderList(); scrollListTop();
+      toast('絞り込みを外しました');
+    }));
     $$('[data-fix]', box).forEach(el => el.addEventListener('click', () => openSheet(el.dataset.fix)));
     return;
   }
@@ -9348,6 +9370,8 @@ function renderSummary(){
     $$('.sum', box).forEach(el => {
       const go = () => {
         S.lvFilter = S.lvFilter === el.dataset.lv ? null : el.dataset.lv;
+        // v176：一度使えば分かるので、下の一文はもう出さない
+        if (!load('kuroko_sum_used', null)){ store('kuroko_sum_used', 1); const sh = $('#sum-hint'); if (sh) sh.classList.add('hide'); }
         $$('.sum', box).forEach(x => x.setAttribute('aria-pressed', String(x.dataset.lv === S.lvFilter)));
         drawFloor(S.floor);
         renderLvPill();

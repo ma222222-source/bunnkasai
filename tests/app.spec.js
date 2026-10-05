@@ -1430,23 +1430,28 @@ test('地図に重ねたボタンどうしが重ならない（幅 320/360/390�
 /* ---------------- v170 ---------------- */
 test('終わる45分前、交換できるスタンプがあれば一度だけ知らせる', async ({ page }) => {
   await mockGas(page);
+  // 時計を一般公開日の 14:00 に止める（実行した時刻に左右されないように）
+  // 時刻の指定は「その瞬間」。日本時間 14:00（UTC 05:00）なら、どちらの時間帯で動かしても日付をまたがない
+  await page.clock.setFixedTime(new Date('2026-10-24T05:00:00Z'));
   await page.addInitScript(() => localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03', '1F-05', '1F-07', '1F-08'])));
   await page.goto('/?tab=map');
   await ready(page);
-  // 当日の設定を「いま開いていて、あと30分で終わる」にする
   const r = await page.evaluate(() => {
-    const d = new Date(), p = n => String(n).padStart(2, '0');
+    // 開催時間は、画面の時計（端末の時間帯）でいまの1時間前〜30分後にする（GitHub は UTC、iPhone・Android のまねは日本時間）
+    const d = new Date(), p2 = n => String(n).padStart(2, '0');
     const t = new Date(d.getTime() + 30 * 60000);
-    if (t.getDate() !== d.getDate() || d.getHours() < 1) return 'skip';
-    CONFIG.HOURS = { days: [{ date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, label: '一般公開', open: `${p(d.getHours() - 1)}:00`, close: `${p(t.getHours())}:${p(t.getMinutes())}` }] };
+    CONFIG.HOURS = { days: [{ date: `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`, label: '一般公開',
+      open: `${p2(d.getHours() - 1)}:00`, close: `${p2(t.getHours())}:${p2(t.getMinutes())}` }] };
     localStorage.removeItem('kuroko_prize_remind');
     remindPrize();
     return { st: openState().state, n: localStorage.getItem('kuroko_prize_remind') };
   });
-  test.skip(r === 'skip', '日付をまたぐ時間帯');
   expect(r.st).toBe('open');
   await expect(page.locator('#toast')).toContainText('お菓子と交換できるスタンプ');
   expect(r.n).not.toBeNull();
+  // 同じ日の2回目は知らせない
+  await page.evaluate(() => { document.getElementById('toast').textContent = ''; remindPrize(); });
+  await expect(page.locator('#toast')).not.toContainText('お菓子と交換できるスタンプ');
 });
 
 test('詳細の「読み上げる」', async ({ page }) => {
@@ -1722,4 +1727,50 @@ test('いまここがある階のボタンに青い点', async ({ page }) => {
   await page.evaluate(id => setHere(id, 'pick'), id);
   await expect(page.locator('#fl-2 .fl-here')).toHaveCount(1);
   await expect(page.locator('#fl-1 .fl-here')).toHaveCount(0);
+});
+
+/* ---------------- v176 ---------------- */
+test('一覧：0件のときは「絞り込みをすべて外す」で全部に戻る', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.locator('#q').fill('ぜったいにないなまえ');
+  await page.locator('#lf').selectOption('3');
+  await expect(page.locator('[data-reset-filters]')).toBeVisible();
+  await page.locator('[data-reset-filters]').click();
+  await expect(page.locator('#q')).toHaveValue('');
+  await expect(page.locator('#lf')).toHaveValue('');
+  expect(await page.evaluate(() => renderList._order.length)).toBe(46);
+});
+
+test('使い方のこつ・地図の見かたに、新しい印の説明', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=info');
+  await ready(page);
+  await page.locator('#tips > summary').click();
+  await expect(page.locator('#tips')).toContainText('青い点');
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.locator('.legend-box > summary').click();
+  await expect(page.locator('.legend-box')).toContainText('スタンプ済み');
+  await expect(page.locator('.legend-box')).toContainText('いまここの階');
+});
+
+test('「数字を押すと…」の一文は、一度使ったら出さない', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await expect(page.locator('#sum-hint')).toBeVisible();
+  await page.locator('#summary .sum[data-lv="0"]').click();
+  await expect(page.locator('#sum-hint')).toBeHidden();
+  await page.reload();
+  await ready(page);
+  await expect(page.locator('#sum-hint')).toBeHidden();
+});
+
+test('はじめての案内は、見出しの「QR」ボタンの名前にそろえる', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await expect(page.locator('#intro-card')).toContainText('「QR」ボタン');
 });
