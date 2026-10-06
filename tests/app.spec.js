@@ -1920,3 +1920,25 @@ test('速さの目安：中身が変わらない同期の描き直しは軽い�
   // 手元では 2〜8ms。GitHub の遅い機械でも十分に余裕のある上限
   expect(ms).toBeLessThan(120);
 });
+
+test('地図の高さは、実際のボタンの高さから決める（端末の字の形でボタンが大きくなっても重ならない）', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => localStorage.setItem('kuroko_intro_v1', '1'));
+  await page.setViewportSize({ width: 360, height: 640 });
+  await page.goto('/?tab=map');
+  await ready(page);
+  // 端末の字の違いの代わりに、ボタンをわざと大きくする（階 70px・右下 64px）
+  await page.addStyleTag({ content: '#map-card.gmap .map-floors button{min-height:70px !important} #map-card.gmap .map-ctl button{min-height:64px !important}' });
+  const bad = [];
+  for (const fl of [0, 1, 2, 3]) {
+    await page.evaluate(f => { fitMapBox._key = null; setFloor(f); }, fl);
+    await page.waitForTimeout(300);
+    const r = await page.evaluate(() => {
+      const f = document.querySelector('#map-card .map-floors').getBoundingClientRect(), z = document.querySelector('#map-card .map-zoom-ctl').getBoundingClientRect();
+      const v = document.getElementById('map-view').getBoundingClientRect();
+      return { gap: Math.round(z.top - f.bottom), inside: f.top >= v.top - 1 && z.bottom <= v.bottom + 1 };
+    });
+    if (r.gap < 4 || !r.inside) bad.push(`${fl}階 すき間=${r.gap} 箱の中=${r.inside}`);
+  }
+  expect(bad).toEqual([]);
+});

@@ -13732,7 +13732,19 @@ function fitMapBox(floorNum){
   // v169：縦向きは、図面が横長で低くなっても下限（階の切り替え＋現在地・＋−が重ならない高さ）を守る。
   // 下限を maxH にしか効かせていなかったので、幅 320px では箱が約330px になり「屋外」が現在地のボタンに隠れていた。
   // 文字「特大」はボタンが大きい（v167）ので下限も上げる
-  const ctlMin = land ? 0 : (document.documentElement.getAttribute('data-fs') === 'xl' ? 470 : floorH);
+  // v179：決め打ち（特大 470px）だけに頼らず、その端末で実際に出ているボタンの高さから要る高さを出す。
+  // ボタンの高さは端末の字の形で少し変わる（Linux の WebKit では 470px でも「屋外」と現在地が重なった）。
+  // 右上の階の切り替えと、右下の現在地・＋−は同じ右端に縦に並ぶ（横向きでは横一列ずつ）ので、
+  // 「上の余白＋階の高さ＋すき間＋右下の高さ＋下の余白」が箱の最低の高さ
+  const ctlNeed = (() => {
+    try{
+      const fEl = document.querySelector('#map-card .map-floors'), zEl = document.querySelector('#map-card .map-zoom-ctl');
+      if (!fEl || !zEl || !fEl.offsetHeight || !zEl.offsetHeight) return 0;
+      const ft = parseFloat(getComputedStyle(fEl).top) || 8, zb = parseFloat(getComputedStyle(zEl).bottom) || 8;
+      return Math.ceil(ft + fEl.offsetHeight + 10 + zEl.offsetHeight + zb);
+    }catch(e){ return 0; }
+  })();
+  const ctlMin = Math.max(ctlNeed, land ? 0 : (document.documentElement.getAttribute('data-fs') === 'xl' ? 470 : floorH));
   const boxH = Math.max(ctlMin, Math.min(190, maxH), Math.min(maxH, Math.round(nat * FILL)));
   zoomUnbake();
   view.style.height = boxH + 'px';
