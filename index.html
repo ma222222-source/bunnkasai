@@ -3304,7 +3304,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-06b',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-07a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -13690,8 +13690,10 @@ function fitMapBox(floorNum){
   const vb = svg.getAttribute('viewBox') || '';
   // 高さは 100px 刻みに丸める。スマホのURLバーの伸縮（50〜60px程度）では
   // キーが変わらず、地図を組み直さない
+  // v179：文字の大きさも条件に入れる。入れていなかったので、開いたまま「特大」に変えても地図の高さが変わらず、
+  // 大きくなったボタンどうし（「屋外」と現在地）が重なっていた（開き直せば直るので、開いた直後のテストでは見つからなかった）
   const key = floorNum + '|' + vb + '|' + window.innerWidth
-            + 'x' + Math.round(window.innerHeight / 100);
+            + 'x' + Math.round(window.innerHeight / 100) + '|' + (document.documentElement.getAttribute('data-fs') || 'n');
   if (fitMapBox._key === key && view.style.height){ if (!ZOOM.mNat) zoomMeasure(); zoomApply(false); return; }
   // 地図の箱を測り直す場面では幅も測り直す。【v146】以前は上の「変わっていない」ときにも
   // 覚えた幅を捨てていたため、そのたびに次の mapScale() が画面全体の配置の計算をやり直していた

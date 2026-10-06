@@ -104,7 +104,7 @@ test('スタンプが5個でお菓子交換の案内が出る', async ({ page })
 });
 
 const MODES = [
-  ['admin', '#v-auth'], ['qr', '#v-auth'], ['print', '#v-print'], ['board', '#v-board'],
+  ['admin', '#v-auth'], ['qr', '#v-auth'], ['print', '#v-print'], ['pamphlet', '#v-pamphlet'], ['board', '#v-board'],
   ['report', '#v-report'], ['check', '#v-info'],
 ];
 for (const [m, sel] of MODES) {
@@ -1873,4 +1873,50 @@ test('ホーム画面に追加：端末で設定を分ける（iPhone は Safari
     await expect(page.locator('#a2hs .a2hs-steps')).toBeVisible();
     await expect(page.locator('#a2hs-msg')).toContainText('3つの操作');
   }
+});
+
+/* ---------------- v179 ---------------- */
+test('地図を開いたまま文字の大きさを変えても、重ねたボタンどうしが重ならない（すべての階・幅 320/390）', async ({ page }) => {
+  test.setTimeout(90000);
+  await mockGas(page);
+  await page.addInitScript(() => localStorage.setItem('kuroko_intro_v1', '1'));
+  const overlaps = () => page.evaluate(() => {
+    const bs = [...document.querySelectorAll('#map-card .map-floors button, #map-card .map-ctl button')]
+      .filter(b => b.offsetParent && getComputedStyle(b).visibility !== 'hidden').map(b => [b.id || b.textContent.trim(), b.getBoundingClientRect()]);
+    const out = [];
+    for (let i = 0; i < bs.length; i++) for (let j = i + 1; j < bs.length; j++) { const a = bs[i][1], b = bs[j][1];
+      if (!(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)) out.push(bs[i][0] + '×' + bs[j][0]); }
+    return out;
+  });
+  const bad = [];
+  for (const w of [320, 390]) {
+    await page.setViewportSize({ width: w, height: 640 });
+    await page.goto('/?tab=map');
+    await ready(page);
+    for (const fl of [0, 1, 2, 3]) {
+      await page.evaluate(f => setFloor(f), fl);
+      for (const fs of ['#fs-xl', '#fs-l', '#fs-n', '#fs-xl', '#fs-n']) {
+        await page.evaluate(sel => document.querySelector(sel).click(), fs);
+        await page.waitForTimeout(250);
+        const r = await overlaps();
+        if (r.length) bad.push(`${w}px ${fl}階 ${fs}: ${r.join(', ')}`);
+      }
+    }
+  }
+  expect(bad).toEqual([]);
+});
+
+test('速さの目安：中身が変わらない同期の描き直しは軽い（毎回の自動更新で画面を止めない）', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.waitForTimeout(800);
+  const ms = await page.evaluate(() => {
+    renderAll();                                   // 1回目で指紋をそろえる
+    const t = performance.now();
+    for (let i = 0; i < 5; i++) renderAll();
+    return (performance.now() - t) / 5;
+  });
+  // 手元では 2〜8ms。GitHub の遅い機械でも十分に余裕のある上限
+  expect(ms).toBeLessThan(120);
 });
