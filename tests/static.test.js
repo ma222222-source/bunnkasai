@@ -56,6 +56,28 @@ test('manifest の shortcuts（ホーム画面の長押し）が今の画面の�
   const urls = (m.shortcuts || []).map(x => x.url);
   assert.ok(urls.some(u => u.includes('scan=1')) && urls.some(u => u.includes('tab=stamp')), urls.join(','));
 });
+test('ホーム画面に追加：Android・PC 用の manifest-app.json（standalone・PNG のアイコン）と、iPhone 用の manifest.json（browser）', () => {
+  const ios = JSON.parse(read('manifest.json')), app = JSON.parse(read('manifest-app.json'));
+  // iPhone は独立アプリにすると Safari と保存先が分かれてスタンプが見えなくなる。必ず browser のまま
+  assert.strictEqual(ios.display, 'browser');
+  assert.strictEqual(app.display, 'standalone');
+  assert.strictEqual(app.scope, ios.scope);
+  assert.strictEqual(app.start_url, ios.start_url);
+  assert.deepStrictEqual(app.shortcuts, ios.shortcuts);
+  // 追加の確認（beforeinstallprompt）が出る条件：192px と 512px の PNG のアイコン
+  for (const size of ['192x192', '512x512']) {
+    const ic = app.icons.find(i => i.sizes === size && i.type === 'image/png' && /any/.test(i.purpose || 'any'));
+    assert.ok(ic, size + ' の PNG が無い');
+    const buf = fs.readFileSync(path.join(ROOT, ic.src));
+    assert.strictEqual(buf.slice(1, 4).toString('latin1'), 'PNG', ic.src + ' が PNG ではない');
+    assert.strictEqual(buf.readUInt32BE(16) + 'x' + buf.readUInt32BE(20), size, ic.src + ' の大きさが違う');
+  }
+  // 画面側：iPhone 以外だけ manifest-app.json に切り替える。Service Worker も新しいファイルを控える
+  assert.ok(/if \(!ios\)\{[^}]*manifest-app\.json/.test(html), 'iPhone 以外で manifest を切り替えていない');
+  assert.ok(/beforeinstallprompt/.test(html));
+  const sw = read('sw.js');
+  for (const f of ['manifest-app.json', 'icon-192.png', 'icon-512.png']) assert.ok(sw.includes(f), 'sw.js の SHELL に ' + f + ' が無い');
+});
 test('外部の script / CDN を読み込んでいない（RULES.md §3）', () => {
   assert.ok(!/<script[^>]+src=["']https?:/i.test(html), '外部 script がある');
 });

@@ -1,0 +1,51 @@
+{
+  "name": "黒工文化祭 校内マップ",
+  "short_name": "黒工マップ",
+  "description": "文化祭の校内マップとリアルタイム混雑状況",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eef1f6",
+  "theme_color": "#1b1916",
+  "lang": "ja",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "QRを読む（スタンプ）",
+      "short_name": "QRを読む",
+      "url": "./index.html?scan=1"
+    },
+    {
+      "name": "スタンプ帳",
+      "short_name": "スタンプ",
+      "url": "./index.html?tab=stamp"
+    },
+    {
+      "name": "一覧（空いている順）",
+      "short_name": "一覧",
+      "url": "./index.html?tab=list"
+    }
+  ],
+  "id": "./index.html"
+}

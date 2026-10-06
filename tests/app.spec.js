@@ -1825,3 +1825,52 @@ test('キーボード：「本文へ移動」', async ({ page, browserName }) =>
   await page.keyboard.press('Enter');
   await expect(page.locator('#main-body')).toBeFocused();
 });
+
+/* ---------------- v178：ホーム画面に追加 ---------------- */
+test('ホーム画面に追加：追加の確認を出せる端末では、ボタン1つで確認が出て、選んだ結果を伝える', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'iPhone にはページから追加する仕組みが無い（下のテストで手順の案内を確かめる）');
+  await mockGas(page);
+  await page.goto('/?tab=info');
+  await ready(page);
+  // ブラウザが「追加できます」と知らせてきた状態をまねる
+  await page.evaluate(() => {
+    const e = new Event('beforeinstallprompt');
+    e.prompt = () => { window.__prompted = (window.__prompted || 0) + 1; };
+    e.userChoice = Promise.resolve({ outcome: 'accepted' });
+    window.dispatchEvent(e);
+  });
+  await expect(page.locator('#a2hs-btn')).toContainText('インストール');
+  await page.locator('#a2hs-btn').click();
+  expect(await page.evaluate(() => window.__prompted)).toBe(1);
+  await expect(page.locator('#a2hs-msg')).toContainText('追加しました');
+});
+
+test('ホーム画面に追加：「キャンセル」を選んだら、追加しなかったことを伝える', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'iPhone にはページから追加する仕組みが無い');
+  await mockGas(page);
+  await page.goto('/?tab=info');
+  await ready(page);
+  await page.evaluate(() => {
+    const e = new Event('beforeinstallprompt');
+    e.prompt = () => {};
+    e.userChoice = Promise.resolve({ outcome: 'dismissed' });
+    window.dispatchEvent(e);
+  });
+  await page.locator('#a2hs-btn').click();
+  await expect(page.locator('#a2hs-msg')).toContainText('追加しませんでした');
+});
+
+test('ホーム画面に追加：端末で設定を分ける（iPhone は Safari で開くまま・ほかはアプリとして入れられる）。iPhone は手順を案内', async ({ page }, info) => {
+  await mockGas(page);
+  await page.goto('/?tab=info');
+  await ready(page);
+  const href = await page.locator('#manifest-link').getAttribute('href');
+  const ios = info.project.name === 'iphone';
+  expect(href).toBe(ios ? 'manifest.json' : 'manifest-app.json');
+  if (ios) {
+    await page.locator('#a2hs-btn').click();
+    await expect(page.locator('#a2hs')).toHaveAttribute('open', '');
+    await expect(page.locator('#a2hs .a2hs-steps')).toBeVisible();
+    await expect(page.locator('#a2hs-msg')).toContainText('3つの操作');
+  }
+});
