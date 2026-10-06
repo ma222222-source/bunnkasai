@@ -13028,7 +13028,9 @@ function initFontSize(){
   const apply = v => {
     document.documentElement.setAttribute('data-fs', v);
     SIZES.forEach(([k, sel]) => $(sel).setAttribute('aria-pressed', String(k === v)));
-    // 文字を変えると見出しと地図の高さが変わるので測り直す
+    // 文字を変えると見出しと地図の高さが変わるので測り直す。
+    // v179：次の描画を待たずに、その場でも合わせる（待つ間、大きくなったボタンどうしが重なって見えていた）
+    try{ if (S.view === 'map' && S.booths.length){ measureHead(); fitMapBox(S.floor); } }catch(e){}
     requestAnimationFrame(() => { measureHead(); fitMapBox(S.floor); });
   };
   const saved = load('kuroko_fs', 'n');

@@ -1897,8 +1897,9 @@ test('地図を開いたまま文字の大きさを変えても、重ねたボ�
       await page.evaluate(f => setFloor(f), fl);
       for (const fs of ['#fs-xl', '#fs-l', '#fs-n', '#fs-xl', '#fs-n']) {
         await page.evaluate(sel => document.querySelector(sel).click(), fs);
-        await page.waitForTimeout(250);
-        const r = await overlaps();
+        // 決まった時間を待つのではなく、落ち着くまで待つ（遅い機械では次の描画まで 0.25秒以上かかることがある）
+        let r = [];
+        try{ await expect.poll(async () => (r = await overlaps()).length, { timeout: 3000 }).toBe(0); }catch(e){}
         if (r.length) bad.push(`${w}px ${fl}階 ${fs}: ${r.join(', ')}`);
       }
     }
