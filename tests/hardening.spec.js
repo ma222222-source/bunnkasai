@@ -36,7 +36,7 @@ test('XSS：ブース名・メモ・分類・画像・お知らせに悪い文�
   expect(await page.evaluate(() => window.__xss)).toBeUndefined();
 });
 
-for (const m of ['print', 'board', 'check']) {
+for (const m of ['print', 'pamphlet', 'board', 'check']) {
   test(`XSS：?mode=${m} でも動かない`, async ({ page }) => {
     await mockGas(page, { mutate: poison });
     await page.setViewportSize({ width: 1280, height: 900 });

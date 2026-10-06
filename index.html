@@ -73,7 +73,36 @@
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <link rel="dns-prefetch" href="https://script.google.com">
 <link rel="dns-prefetch" href="https://script.googleusercontent.com">
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="manifest.json" id="manifest-link">
+<script>
+/* v178（ユーザーの依頼）：ホーム画面への追加を「ボタン1つ＋はい／いいえ」でできるようにする。
+   Android の Chrome などは、アプリとして入れられる設定（display: standalone）のときだけ、
+   ページのボタンから追加の確認（beforeinstallprompt）を出せる。入れたアプリは Chrome と保存先が同じなので、
+   スタンプは分かれない。
+   iPhone は逆で、独立アプリにすると Safari と保存先が分かれてスタンプが見えなくなる。
+   なので iPhone・iPad だけは今まで通り manifest.json（display: browser＝Safari で開く）のままにする。
+   iPhone にはページから追加する仕組みそのものが無い（Apple の決まり）ので、ボタンを押したら手順を案内する */
+(function(){
+  try{
+    var ua = navigator.userAgent || '';
+    var ios = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    window.__ios = ios;
+    if (!ios){ var l = document.getElementById('manifest-link'); if (l) l.setAttribute('href', 'manifest-app.json'); }
+    // 追加の確認を出せるようになったら、ブラウザが知らせてくる。ボタンを押したときに使うので取っておく
+    window.addEventListener('beforeinstallprompt', function(e){
+      e.preventDefault();
+      window.__bip = e;
+      try{ document.documentElement.classList.add('can-install'); }catch(_){}
+      try{ window.dispatchEvent(new Event('kuroko-can-install')); }catch(_){}
+    });
+    window.addEventListener('appinstalled', function(){
+      window.__bip = null;
+      try{ localStorage.setItem('kuroko_installed', '1'); document.documentElement.classList.remove('can-install'); }catch(_){}
+      try{ window.dispatchEvent(new Event('kuroko-installed')); }catch(_){}
+    });
+  }catch(e){}
+})();
+</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23b91c1c'/%3E%3Ctext x='32' y='45' font-size='38' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'%3E黒%3C/text%3E%3C/svg%3E">
 <!-- iOSの「ホーム画面に追加」はSVGのアイコンを読まない。SVGを指定していたので、
      追加するとアイコンではなくページの縮小画像が並んでいた（係員には
@@ -95,6 +124,7 @@
    ?mode=admin  … 係員コンソール（パスワードはGAS側で照合）
    ?mode=qr     … ブース入口に貼るQRの印刷シート＋係員手順カード
    ?mode=print  … 配布用の紙マップ（A4縦1枚）
+   ?mode=pamphlet … 三つ折りパンフレット（A4横・両面。v178）
    ?mode=report … 当日の混雑を振り返るレポート
 
   【触るのはここだけ】
@@ -1914,7 +1944,12 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 /* ========================= 配置エディタ ========================= */
 
 /* ========================= QR印刷シート ========================= */
-.qr-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.qr-grid{display:block}
+.qr-page{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:18px}
+.qr-page-no{grid-column:1 / -1;font-size:11px;font-weight:800;color:var(--text-mute)}
+.qr-one{display:block;margin:8px auto 0;min-height:40px;padding:0 12px;border-radius:999px;border:1.5px solid #999;background:#fff;color:#111;
+  font:inherit;font-size:11px;font-weight:800;cursor:pointer}
+.print-tips{margin:10px 0 0;padding-left:1.3em;font-size:11.5px;line-height:1.75;font-weight:600;color:var(--text-dim)}
 .qr-card{margin:0;background:#fff;border:1px solid var(--border);border-radius:var(--r);
          padding:10px;text-align:center;color:#000;break-inside:avoid}
 .qr-img svg{width:100%;height:auto;max-width:220px}
@@ -2132,10 +2167,29 @@ html.sheet-open{overflow:hidden}
   main{padding:0}
   /* 1ページ2段だと40ブースで10ページになる。QRは40mm角あればスマホで読めるので、
      1枚を85mm弱に収めて3段（=1ページ6枚）にする。 */
-  .qr-grid{grid-template-columns:repeat(2,1fr);gap:5mm}
-  .qr-card{border:1px dashed #999;page-break-inside:avoid;padding:3mm}
-  .qr-card .qr-img svg{max-width:42mm}
-  .qr-card.top .qr-img svg{max-width:52mm}
+  /* v178：1ページ＝箱1つ（6枚・2列×3段）。箱の高さは A4 の刷れる高さ（297−余白10×2＝277mm）より少し低くして、
+     端数で次のページへこぼれないようにする。箱ごとに必ず改ページ */
+  .qr-grid{display:block}
+  .qr-page{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,1fr);gap:0;height:275mm;margin:0;
+    break-after:page;page-break-after:always;break-inside:avoid;page-break-inside:avoid}
+  .qr-page:last-child{break-after:auto;page-break-after:auto;height:auto;grid-template-rows:repeat(3,91.6mm)}
+  .qr-card{border:none;outline:1px dashed #888;outline-offset:-.5px;border-radius:0;box-shadow:none;padding:4mm;overflow:hidden;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;break-inside:avoid;page-break-inside:avoid}
+  .qr-card .qr-img{line-height:0}
+  .qr-card .qr-img svg{width:48mm;max-width:48mm;height:48mm}
+  .qr-card.top .qr-img svg{width:44mm;max-width:44mm;height:44mm}
+  .qr-card.top code{font-size:8pt !important;margin-top:1mm !important}
+  .qr-card.top .qr-where{font-size:7.5pt}
+  .qr-card .qr-img svg,.qr-card .qr-img svg *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  /* 1枚だけ刷る：ほかのカード・係員の手順を消して、A4 に1枚を大きく */
+  body.print-one .qr-page{display:block;height:auto;break-after:auto;page-break-after:auto}
+  body.print-one .qr-page:not(.has-one),body.print-one .qr-card:not(.one),body.print-one #qr-staff{display:none !important}
+  body.print-one .qr-card.one{outline:none;height:260mm;padding:10mm;justify-content:center}
+  body.print-one .qr-card.one .qr-img svg{width:120mm;max-width:120mm;height:120mm}
+  body.print-one .qr-card.one b{font-size:30pt;margin:8mm 0}
+  body.print-one .qr-card.one .qr-where{font-size:16pt;padding:2mm 6mm}
+  body.print-one .qr-card.one .qr-cta{font-size:18pt !important;margin-top:6mm}
+  body.print-one .qr-card.one span{font-size:13pt}
   .qr-card b{margin-bottom:2mm}
   .qr-card figcaption{margin-top:2mm}
   .qr-where{margin-bottom:2mm;padding:1mm 3mm}
@@ -2413,6 +2467,92 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 .skip-link{position:absolute;left:8px;top:-60px;z-index:200;padding:10px 14px;border-radius:10px;background:var(--accent);color:var(--on-accent);
   font-weight:900;text-decoration:none}
 .skip-link:focus{top:8px}
+
+/* v178：ホーム画面に追加 */
+.a2hs-steps{margin:6px 0 8px 1.4em;font-weight:700;line-height:1.9}
+.a2hs-ic{display:inline-grid;place-items:center;min-width:30px;height:22px;padding:0 4px;border:1.5px solid currentColor;border-radius:6px;font-size:11px;font-weight:900;vertical-align:middle}
+
+/* ============ 三つ折りパンフレット（v178） ============ */
+.pam{display:flex;flex-direction:column;gap:18px}
+.pam-sheet-t{margin:0 0 6px;font-size:12px;font-weight:800;color:var(--text-dim)}
+/* 紙1枚＝A4 横（297×210mm）。画面では幅に合わせて縮めて見せる（中身の単位は mm のまま） */
+.pam-paper{position:relative;display:grid;grid-template-columns:97mm 100mm 100mm;width:297mm;height:210mm;background:#fff;color:#111;
+  box-shadow:0 2px 14px rgba(0,0,0,.18);overflow:hidden;font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+  transform-origin:0 0}
+.pam-s2 .pam-paper{grid-template-columns:100mm 100mm 97mm}
+.pam-sheet{overflow:hidden}
+.pam-panel{position:relative;box-sizing:border-box;height:210mm;padding:8mm 7mm 7mm;overflow:hidden;display:flex;flex-direction:column;gap:2.2mm;
+  font-size:8.6pt;line-height:1.6}
+.pam-panel.over{outline:2px solid #dc2626;outline-offset:-2px}
+.pam-panel.over::after{content:'中身がこの面からはみ出しています';position:absolute;left:0;right:0;bottom:0;padding:1mm;background:#dc2626;color:#fff;
+  font-size:8pt;font-weight:800;text-align:center}
+.pam-role{position:absolute;left:2mm;top:1.2mm;font-size:6.5pt;font-weight:800;color:#b91c1c;background:#fff;padding:0 1mm;border-radius:2px;z-index:2}
+/* 折り目：画面では点線、紙では上下の端に小さな印だけ */
+.pam-fold{position:absolute;top:0;bottom:0;width:0;border-left:1px dashed #b91c1c;z-index:3;pointer-events:none}
+.pam-s1 .pam-fold.f1{left:97mm} .pam-s1 .pam-fold.f2{left:197mm}
+.pam-s2 .pam-fold.f1{left:100mm} .pam-s2 .pam-fold.f2{left:200mm}
+.pam-h3{margin:1mm 0 0;padding:0 0 .8mm;font-size:11pt;font-weight:900;color:#b91c1c;border-bottom:.5mm solid #b91c1c;line-height:1.3}
+.pam-h4{margin:1mm 0 0;font-size:9pt;font-weight:900;line-height:1.3}
+.pam-small{font-size:7.6pt;line-height:1.55;margin:0}
+.pam-ed{margin:0;white-space:pre-wrap;outline:1px dashed transparent;border-radius:2px;min-height:1em}
+.pam-ed:hover,.pam-ed:focus{outline-color:#b91c1c;background:#fff8e1}
+.pam-todo-box{border:.35mm dashed #999;border-radius:2mm;padding:2mm;color:#666;font-size:8pt;min-height:16mm}
+.pam-todo{color:#666}
+.pam-grow{flex:1;min-height:0}
+/* 表紙 */
+.pam-cover{background:#b91c1c;color:#fff;text-align:center;justify-content:flex-start;gap:3mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.pam-cover .pam-role{color:#b91c1c}
+.pam-school{font-size:9pt;font-weight:800;letter-spacing:.06em;margin-top:6mm}
+.pam-title{margin:0;font-size:30pt;font-weight:900;line-height:1.15;letter-spacing:.04em}
+.pam-theme{font-size:11pt;font-weight:800}
+.pam-art{flex:1;min-height:30mm;display:grid;place-items:center;border-color:rgba(255,255,255,.7);color:#fff;background:rgba(255,255,255,.08)}
+.pam-date{font-size:11pt;font-weight:900;line-height:1.5}
+.pam-qr{display:flex;align-items:center;gap:3mm;background:#fff;color:#111;border-radius:2.5mm;padding:2.5mm;text-align:left;font-size:7.6pt;line-height:1.5;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+.pam-qr-img{flex:none;width:27mm;height:27mm;line-height:0}
+.pam-qr-img svg{width:27mm;height:27mm}
+.pam-qr p{margin:0}
+.pam-cover .pam-ed:hover,.pam-cover .pam-ed:focus{background:rgba(255,255,255,.18);outline-color:#fff}
+/* 裏表紙・折り込む面 */
+.pam-notes{margin:0;padding:0;list-style:none;display:grid;gap:1.4mm;font-size:7.8pt;line-height:1.5}
+.pam-notes b{display:block;font-size:8.4pt}
+.pam-steps{margin:0;padding-left:1.5em;display:grid;gap:1.2mm;font-size:8.6pt;font-weight:700;line-height:1.5}
+.pam-foot{margin:auto 0 0;font-size:6.5pt;color:#555;word-break:break-all;text-align:center}
+/* 中面 */
+.pam-tt{width:100%;border-collapse:collapse;font-size:8.2pt}
+.pam-tt th{width:13mm;text-align:left;vertical-align:top;font-weight:900;color:#b91c1c;padding:.5mm 0}
+.pam-tt td{padding:.5mm 0;border-bottom:.2mm solid #ddd}
+.pam-floor{display:flex;flex-direction:column;gap:1mm;min-height:0}
+.pam-map{line-height:0}
+.pam .pam-map .sheet-plan{display:block;width:100%;height:auto;max-height:none}
+.pam-spread{grid-column:2 / 4;display:grid;grid-template-columns:86mm 14mm 83mm;grid-template-rows:auto auto 1fr;gap:1.5mm 0;align-content:start}
+.pam-spread > .pam-h3{grid-column:1 / -1}
+.pam-spread > .pam-h3 small{font-size:7pt;font-weight:700;color:#444}
+.pam-spread-top{grid-column:1 / -1;min-height:0}
+.pam .pam-spread-top .sheet-plan{width:100%;height:80mm;max-height:none}
+.pam-spread-l{grid-column:1;min-height:0;display:flex;flex-direction:column;gap:1mm}
+.pam-spread-r{grid-column:3;min-height:0;display:flex;flex-direction:column;gap:1mm}
+.pam .pam-mini .sheet-plan{width:100%;height:36mm;max-height:none}
+.pam .pam-mini.m3 .sheet-plan{height:24mm}
+.pam-list{margin:0;padding:0;list-style:none;column-gap:3mm;font-size:6.4pt;line-height:1.42}
+.pam-list li{break-inside:avoid;display:flex;gap:1mm}
+.pam-list b{flex:none;min-width:3.4mm;text-align:right;font-weight:900;color:#b91c1c}
+.pam-legend{margin-top:auto;color:#444}
+@media print{
+  body.pam-printing,.pam{background:#fff}
+  #v-pamphlet.on .pam{display:block;gap:0}
+  /* 高さをページ（210mm）とぴったり同じにすると、端数で3ページ目（白紙）ができることがある。0.4mm だけ低くする */
+  .pam-sheet{break-after:page;page-break-after:always;overflow:hidden;height:209.6mm;width:297mm;margin:0 !important}
+  .pam-sheet-t{display:none !important}
+  .pam-sheet:last-child{break-after:auto;page-break-after:auto}
+  .pam-paper{box-shadow:none;transform:none !important;margin:0 !important}
+  .pam-panel.over{outline:none} .pam-panel.over::after{display:none}
+  .pam-ed{outline:none !important;background:transparent !important}
+  /* 折り目は、紙の上下の端 3mm だけに細い印 */
+  .pam-fold{border-left:none;top:0;bottom:0;background:
+    linear-gradient(#000,#000) top/.2mm 3mm no-repeat,linear-gradient(#000,#000) bottom/.2mm 3mm no-repeat;width:.2mm;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 </style>
 </head>
 <body>
@@ -2726,11 +2866,21 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
           <p>・地図の上の数字（空き・混雑など）を押すと、その状態のブースだけ目立ちます</p>
           <p>・パソコンは <b>?</b> キーでキー操作の一覧</p>
         </details>
+        <!-- v178：ボタン1つでホーム画面に追加（Android・パソコンは確認が出るだけ。iPhone は手順を案内） -->
+        <button class="btn" id="a2hs-btn" type="button" style="margin-top:12px;min-height:48px">ホーム画面に追加する</button>
+        <p class="small-note" id="a2hs-msg" role="status" aria-live="polite" style="margin-top:6px"></p>
         <details class="a2hs" id="a2hs">
-          <summary>ホーム画面に置いて、すぐ開けるようにする</summary>
-          <p><b>iPhone（Safari）</b>：画面下の共有ボタン（□に↑）→「ホーム画面に追加」→「追加」</p>
-          <p><b>Android（Chrome）</b>：右上の「︙」→「ホーム画面に追加」→「追加」</p>
-          <p class="small-note">ホーム画面のアイコンは、いつものブラウザで開きます。スタンプはそのまま見られます。</p>
+          <summary>うまく追加できないときの手順</summary>
+          <div class="a2hs-ios">
+            <p><b>iPhone・iPad（Safari）</b>：ボタン1つでは追加できません（Apple の決まり）。次の3つの操作で追加できます</p>
+            <ol class="a2hs-steps">
+              <li>画面の下（iPad は上）の<b>共有ボタン</b> <span class="a2hs-ic" aria-hidden="true">□↑</span> を押す</li>
+              <li>出てきた一覧を下へ送って<b>「ホーム画面に追加」</b>を押す</li>
+              <li>右上の<b>「追加」</b>を押す</li>
+            </ol>
+          </div>
+          <p><b>Android（Chrome）</b>：上の「ホーム画面に追加する」を押して「インストール」。出ないときは右上の「︙」→「ホーム画面に追加」</p>
+          <p class="small-note">スタンプは、追加したあともそのまま見られます。</p>
         </details>
       </div>
       <div class="card">
@@ -2921,6 +3071,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
         </details>
 
         <a class="btn ghost" href="?mode=qr" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg> QRコード印刷シートを開く</a>
+        <a class="btn ghost" href="?mode=pamphlet" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px">三つ折りパンフレット（形の見本）を開く</a>
         <a class="btn ghost" href="?mode=print" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg> 配布用の紙マップを開く</a>
         <a class="btn ghost" href="?mode=report" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M8 17V10M13 17V6M18 17v-4"/></svg> 混雑の振り返りを見る</a>
         <a class="btn ghost" href="?mode=board" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5h20v12H2z"/><path d="M8.5 20.5h7M12 16.5v4"/></svg> 本部用の大画面ボードを開く</a>
@@ -2938,10 +3089,40 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
           <span class="qr-check" id="qr-check" role="status" aria-live="polite"></span>
           <b>ブース名や場所を変えたあとは刷り直してください。</b>QRには部屋IDが入っています。
         </p>
+        <!-- v178：刷る前の設定（ここを間違えるとQRが小さくなる・切れる） -->
+        <ul class="print-tips">
+          <li><b>用紙：A4・縦</b>、<b>倍率：100%（実際のサイズ）</b>。「用紙に合わせる」「縮小」は使わない</li>
+          <li>1ページに6枚（2列×3段）。点線で切って貼ります。どのページも同じ位置に点線が来ます</li>
+          <li>「ヘッダーとフッター」はオフに（日付やアドレスが紙に入るのを防ぐ）</li>
+          <li>白黒でも刷れます。刷ったら<b>1枚をスマホのカメラで読んで</b>確かめてください</li>
+          <li>やぶれた・よごれた1枚は、そのカードの「この1枚だけ大きく刷る」で刷り直せます</li>
+        </ul>
         <button class="btn" id="btn-print" style="margin-top:10px">印刷する</button>
       </div>
       <div id="qr-grid" class="qr-grid"></div>
       <div id="qr-staff"></div>
+    </section>
+
+    <!-- ============ 三つ折りパンフレット（v178） ============ -->
+    <section class="view" id="v-pamphlet">
+      <div class="card no-print">
+        <div class="card-t">三つ折りパンフレット（形の見本）</div>
+        <p style="font-size:11.5px;color:var(--text-dim);font-weight:600;line-height:1.7">
+          A4 を横に使い、両面に刷って三つに折る形です（巻き三つ折り）。<b>中身はまだ仮</b>で、資料がそろったら差し替えます。
+          点線の枠の文字は、<b>押すとその場で書き換えられます</b>（このパソコンに覚えます）。
+        </p>
+        <ul class="print-tips">
+          <li><b>用紙：A4・横</b>、<b>倍率：100%</b>、<b>余白：なし</b>（選べないときは「最小」）、<b>両面・短辺とじ</b></li>
+          <li>「背景のグラフィック」は<b>オン</b>（表紙の色・地図の色が出ます）。「ヘッダーとフッター」はオフ</li>
+          <li>折り方：<b>内側の面（2枚目・地図の面）を上</b>にして置き、<b>先に右の面</b>を内へ折り、<b>次に左の面</b>をその上へ折ります。表紙がいちばん上に来ます。紙の上下の小さな印が折り目です</li>
+          <li>左の面（折り込む面）は、ほかより 3mm 狭くしてあります（折ったときに中で突っ張らないため）</li>
+        </ul>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="btn" id="btn-print3" style="flex:1;min-width:160px">印刷する</button>
+          <button class="btn ghost" id="pam-reset" style="flex:1;min-width:160px">書き換えた文字を元に戻す</button>
+        </div>
+      </div>
+      <div id="pam" class="pam"></div>
     </section>
 
     <!-- ============ 紙のマップ印刷 ============ -->
@@ -3123,7 +3304,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-06a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-06b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4074,6 +4255,8 @@ async function sync(manual){
     // ブースの数が変わったときだけ組み直す。
     if (S.view === 'print' && renderPrintSheet._n !== S.booths.length){
       renderPrintSheet._n = S.booths.length; renderPrintSheet();
+    } else if (S.view === 'pamphlet' && renderPamphlet._n !== S.booths.length){
+      renderPamphlet._n = S.booths.length; renderPamphlet();
     } else if (S.view === 'qr' && pw() && renderQrSheet._n !== S.booths.length){
       renderQrSheet._n = S.booths.length; renderQrSheet();
     }
@@ -7729,6 +7912,59 @@ function nearTag(b){
   return `<span class="tag near-tag">${d === 0 ? '同じ階' : (d > 0 ? '↑' : '↓') + Math.abs(d) + '階'}</span>`;
 }
 
+/**
+ * v178：ホーム画面に追加する。
+ * - 追加の確認を出せる端末（Android の Chrome・パソコンの Chrome/Edge）：その場で確認（インストール／キャンセル）を出す
+ * - もうホーム画面から開いている：そう伝える
+ * - iPhone・iPad：ページからは追加できないので、手順を開いて見せる
+ * - それ以外（確認を出せないブラウザ）：手順を開く
+ * @returns {Promise<string>} 'accepted' | 'dismissed' | 'standalone' | 'ios' | 'manual'
+ */
+async function addToHome(){
+  const msg = t => { const el = $('#a2hs-msg'); if (el) el.textContent = t; };
+  const openGuide = () => { const d = $('#a2hs'); if (d){ d.open = true; try{ d.scrollIntoView({ block:'center', behavior: smoothBehavior() }); }catch(e){} } };
+  const standalone = (() => { try{ return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; }catch(e){ return false; } })();
+  if (standalone){ msg('もうホーム画面のアイコンから開いています。'); return 'standalone'; }
+  const ev = window.__bip;
+  if (ev && ev.prompt){
+    try{
+      ev.prompt();
+      const r = await ev.userChoice;
+      window.__bip = null;                         // 1回使うと使えなくなる
+      document.documentElement.classList.remove('can-install');
+      if (r && r.outcome === 'accepted'){ msg('ホーム画面に追加しました。次からはアイコンを押すだけで開けます。'); toast('ホーム画面に追加しました'); renderA2hs(); return 'accepted'; }
+      msg('追加しませんでした。あとでこのボタンからいつでも追加できます（ページを開き直すと、もう一度押せます）。');
+      renderA2hs();
+      return 'dismissed';
+    }catch(e){ /* 下の手順へ */ }
+  }
+  if (window.__ios){
+    msg('iPhone・iPad は、下の3つの操作で追加できます（Apple の決まりで、ボタン1つではできません）。');
+    openGuide();
+    return 'ios';
+  }
+  msg(load('kuroko_installed', null) ? 'すでに追加してあるようです。ホーム画面のアイコンを探してください。見つからないときは下の手順で追加できます。'
+                                      : 'このブラウザでは、下の手順で追加できます。');
+  openGuide();
+  return 'manual';
+}
+/** ボタンの文を、端末でできることに合わせる */
+function renderA2hs(){
+  const b = $('#a2hs-btn');
+  if (!b) return;
+  let st = false;
+  try{ st = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; }catch(e){}
+  b.textContent = st ? '✓ ホーム画面から開いています'
+    : window.__bip ? 'ホーム画面に追加する（押して「インストール」を選ぶだけ）'
+    : window.__ios ? 'ホーム画面に追加する（手順を見る）' : 'ホーム画面に追加する';
+  b.disabled = st;
+}
+{ const b = document.getElementById('a2hs-btn');
+  if (b) b.addEventListener('click', () => addToHome());
+  window.addEventListener('kuroko-can-install', renderA2hs);
+  window.addEventListener('kuroko-installed', () => { renderA2hs(); const el = document.getElementById('a2hs-msg'); if (el) el.textContent = 'ホーム画面に追加しました。'; });
+  renderA2hs(); }
+
 /** v166：一覧の上の「最近見た」（最大5件）。絞り込み中は出さない */
 function renderRecentRow(){
   const el = $('#recent-row');
@@ -8660,6 +8896,7 @@ function showStampFx(id, fresh){
           ${left >= need && !done ? '<button class="btn" data-fx="redeem">お菓子と交換する</button>' : ''}
           <button class="btn${left >= need && !done ? ' ghost' : ''}" data-fx="book">スタンプ帳を見る</button>
           <button class="btn ghost" data-fx="scan">続けてQRを読む</button>
+          ${fresh && got <= 2 && window.__bip ? '<button class="btn ghost" data-fx="a2hs">ホーム画面に追加する（次からすぐ開ける）</button>' : ''}
           ${next ? `<button class="btn ghost" data-fx="next" data-id="${esc(next.id)}">次は空いている「${esc(next.name)}」へ</button>` : ''}
         </div>
         <p class="sfx-note sid-sync" id="sfx-sync"></p>
@@ -8672,6 +8909,8 @@ function showStampFx(id, fresh){
     if (jn) jn.addEventListener('click', () => { close(); openSidJoin(); });
     el.querySelector('[data-fx="book"]').addEventListener('click', close);
     // v172：近くのブースを続けて回る人向け。演出を閉じてすぐカメラへ
+    const ah = el.querySelector('[data-fx="a2hs"]');
+    if (ah) ah.addEventListener('click', async () => { const r = await addToHome(); if (r === 'accepted' || r === 'dismissed') ah.remove(); });
     const sc = el.querySelector('[data-fx="scan"]');
     if (sc) sc.addEventListener('click', () => { close(); setTimeout(() => openScanner(), 60); });
     // v172：交換できるなら、その場で交換の画面へ
@@ -9989,7 +10228,7 @@ function hoursMessage(now){
 function renderHours(){
   const el = $('#banner-hours');
   if (!el) return;
-  const staff = ['auth','admin','qr','print','report','board'].indexOf(S.view) >= 0;
+  const staff = ['auth','admin','qr','print','pamphlet','report','board'].indexOf(S.view) >= 0;
   const h = staff ? null : hoursMessage();
   // ふだんは状態行に短く出す。開場前だけは見落とすと困るのでバナーにも出す。
   const useBanner = !!h && openState().state === 'before';
@@ -10271,13 +10510,14 @@ addEventListener('resize', () => { refreshScrollEdges(); measureHead(); });
 /** 下のタブに出る来場者向けの画面 */
 const NAV_VIEWS   = ['map','list','stamp','info'];
 /** 係員向けの画面（下のタブを隠す） */
-const STAFF_VIEWS = ['auth','admin','qr','print','report','board'];
+const STAFF_VIEWS = ['auth','admin','qr','print','pamphlet','report','board'];
 /** 履歴に積む画面。係員の画面も積まないと「戻る」で一般の画面へ落ちる */
 const HIST_VIEWS  = NAV_VIEWS.concat(STAFF_VIEWS);
 /** 係員コンソールから開く、行き来する画面 */
 const STAFF_JUMP  = [
   { v:'qr',     mode:'qr',     t:'QR' },
   { v:'print',  mode:'print',  t:'紙マップ' },
+  { v:'pamphlet', mode:'pamphlet', t:'三つ折り' },
   { v:'report', mode:'report', t:'振り返り' },
   { v:'board',  mode:'board',  t:'ボード' }
 ];
@@ -10312,7 +10552,7 @@ function switchView(v, fromHistory){
   S.view = v;
   mapScale._w = 0;                        // 係員の広い画面との行き来で地図の幅が変わる
   if (v === 'stamp'){ pullLedger(5000); renderSyncBadge(); }   // 別のアプリで増えた分を見に行く
-  ['map','list','stamp','info','auth','admin','qr','print','report','board'].forEach(k =>
+  ['map','list','stamp','info','auth','admin','qr','print','pamphlet','report','board'].forEach(k =>
     $('#v-' + k).classList.toggle('on', k === v));
   $$('#nav button').forEach(b => {
     b.setAttribute('aria-pressed', String(b.dataset.view === v));
@@ -10351,6 +10591,7 @@ function switchView(v, fromHistory){
         switchView(to);
         if (to === 'qr') renderQrSheet();
         else if (to === 'print') renderPrintSheet();
+        else if (to === 'pamphlet') renderPamphlet();
         else if (to === 'report') renderReport();
         else if (to === 'board'){ renderBoard(); initBoard(); }
       }));
@@ -10364,6 +10605,8 @@ function switchView(v, fromHistory){
   // そのあいだボタンは押せるままだったので、中身が空の紙が刷れてしまっていた。
   // 画面に入った時点で止めておき、ブースが届いたら開ける。
   if (v === 'print') setPrintReady('#btn-print2', S.booths.length > 0);
+  if (v === 'pamphlet') setPrintReady('#btn-print3', S.booths.length > 0);
+  pamPageStyle(v === 'pamphlet');
   if (v === 'qr')    setPrintReady('#btn-print',  S.booths.length > 0);
   if (v === 'list') renderList();       // 見えていない間は作っていないので、開いたときに描く
   if (v === 'info') renderInfo();       // 「いまのコマ」の印を時刻に合わせる
@@ -10372,6 +10615,7 @@ function switchView(v, fromHistory){
   if (fromHistory){
     if (v === 'qr' && pw()) renderQrSheet();
     else if (v === 'print') renderPrintSheet();
+    else if (v === 'pamphlet') renderPamphlet();
     else if (v === 'report' && !S.report) renderReport();
     else if (v === 'board'){ renderBoard(); initBoard(); }
   }
@@ -11587,8 +11831,18 @@ const QR = (() => {
   function svg(text, px){
     const q = 4, { size, get } = encode(text), total = size + q * 2;
     let d = '';
-    for (let r = 0; r < size; r++) for (let c = 0; c < size; c++)
-      if (get(r, c)) d += `M${c + q} ${r + q}h1v1h-1z`;
+    // v178：1マスずつ四角を並べると、印刷機・PDF によってはマスの間に白い細い筋が入る。
+    // 横に続く黒いマスは1つの長方形にまとめる（読み取りやすくなり、データも約1/3になる）
+    for (let r = 0; r < size; r++){
+      let c = 0;
+      while (c < size){
+        if (!get(r, c)){ c++; continue; }
+        let n = 1;
+        while (c + n < size && get(r, c + n)) n++;
+        d += `M${c + q} ${r + q}h${n}v1h-${n}z`;
+        c += n;
+      }
+    }
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${total}" ` +
            `width="${px}" height="${px}" shape-rendering="crispEdges">` +
            `<rect width="${total}" height="${total}" fill="#fff"/>` +
@@ -12098,8 +12352,11 @@ function renderQrSheet(){
       : 'ブースがまだ1件もありません。先に「地図でブースを割り当てる」で決めてください。';
   }
   setPrintReady('#btn-print', S.booths.length > 0);
-  $('#qr-grid').innerHTML = items.map(it => `
-    <figure class="qr-card${it.top ? ' top' : ''}">
+  // v178：1ページ6枚（2列×3段）ずつ、ページの箱（.qr-page）に入れる。
+  // ブラウザまかせの改ページだと、Safari などでカードが2ページに割れることがあった。箱ごとに必ず改ページする。
+  // どのページも同じ位置に切り取り線が来るので、重ねてまとめて切れる
+  const card = (it, i) => `
+    <figure class="qr-card${it.top ? ' top' : ''}" data-qi="${i}">
       <div class="qr-where">${esc(it.where)}</div>
       <b>${esc(it.name)}</b>
       <div class="qr-img">${QR.svgSafe(it.url, 200)}</div>
@@ -12108,7 +12365,14 @@ function renderQrSheet(){
         <span>${esc(it.note)}</span>
         ${it.top ? `<code>${esc(base)}</code>` : ''}
       </figcaption>
-    </figure>`).join('');
+      <button type="button" class="qr-one no-print" data-one="${i}">この1枚だけ大きく刷る</button>
+    </figure>`;
+  const PER = 6, pages = [];
+  for (let i = 0; i < items.length; i += PER) pages.push(items.slice(i, i + PER).map((it, k) => card(it, i + k)).join(''));
+  $('#qr-grid').innerHTML = pages.map((h, i) =>
+    `<div class="qr-page" data-page="${i + 1}"><div class="qr-page-no no-print">${i + 1} / ${pages.length} ページ</div>${h}</div>`).join('');
+  // 1枚だけ刷る：やぶれた・よごれた1枚の貼り直し用。A4 に1枚、大きく
+  $$('#qr-grid [data-one]').forEach(el => el.addEventListener('click', () => printOneQr(el.closest('.qr-card'))));
   // 枚数はこの関数の先頭で内訳つきに出している。ここで数字だけに上書きしない
   // v156：刷る前に、この端末で全部のQRを実際に読んで確かめる（アプリ自前の読み取り）
   checkQrSheet(items.map(it => ({ name: it.name, url: it.url })));
@@ -12170,6 +12434,157 @@ function renderQrSheet(){
 }
 
 /* =====================================================================
+   三つ折りパンフレット（?mode=pamphlet）— v178（ユーザーの依頼：形だけ先に作る）
+   A4 横・両面・巻き三つ折り。
+     1枚目（外側）：［折り込む面 97mm］［裏表紙 100mm］［表紙 100mm］
+     2枚目（内側）：［中面・左 100mm］［中面・中 100mm］［中面・右 97mm］
+   折り込む面（と、その裏の中面・右）だけ 3mm 狭い。同じ幅にすると、折ったときに中で突っ張って浮く。
+   中身は仮。CONFIG.PAMPHLET があればそれを使い、無ければ下の見本を出す。
+   文字（data-ed）は画面で書き換えられ、この端末に覚える（kuroko_pamphlet_v1）。
+   ===================================================================== */
+function pamPageStyle(on){
+  // @page は全体に1つしか効かせられないので、この画面にいる間だけ「A4 横・余白なし」を足す
+  let st = document.getElementById('pam-page');
+  if (on && !st){
+    st = document.createElement('style'); st.id = 'pam-page';
+    st.textContent = '@media print{@page{size:A4 landscape;margin:0}}';
+    document.head.appendChild(st);
+  } else if (!on && st) st.remove();
+}
+function renderPamphlet(){
+  renderPamphlet._n = S.booths.length;
+  setPrintReady('#btn-print3', S.booths.length > 0);
+  const box = $('#pam');
+  if (!box) return;
+  const P = CONFIG.PAMPHLET || {};
+  const saved = load('kuroko_pamphlet_v1', {}) || {};
+  // 書き換えられる文字。key ごとに、書き換えた文があればそれを出す
+  const ed = (key, def, tag, cls) => {
+    const v = Object.prototype.hasOwnProperty.call(saved, key) ? saved[key] : def;
+    return `<${tag || 'p'} class="pam-ed${cls ? ' ' + cls : ''}" data-ed="${esc(key)}" contenteditable="plaintext-only" spellcheck="false">${esc(v)}</${tag || 'p'}>`;
+  };
+  const days = festDays();
+  const dateLine = days.length
+    ? days.map(d => `${dayLabel(d.date)}${d.label ? '　' + d.label : ''}　${d.open}〜${d.close}`).join('\n')
+    : '開催日：◯月◯日（◯）　9:30〜14:30';
+  const need = Math.max(1, CONFIG.PRIZE_COST | 0);
+  const site = publicBase();
+  const qr = QR.svgSafe(site + '?openExternalBrowser=1', 160);
+
+  // タイムテーブル（インフォと同じ元。日付ごと）
+  const tt = (CONFIG.INFO.timetable || []);
+  const ttDates = Array.from(new Set(tt.map(r => r[3] || ''))).sort();
+  const ttHtml = ttDates.map(d => {
+    const rows = tt.filter(r => (r[3] || '') === d);
+    return `${d ? `<h4 class="pam-h4">${esc(dayLabel(d))}</h4>` : ''}<table class="pam-tt">${rows.map(r =>
+      `<tr><th>${esc(r[0])}</th><td>${esc(r[1])}</td></tr>`).join('')}</table>`;
+  }).join('') || '<p class="pam-todo">タイムテーブル（決まりしだい入れます）</p>';
+
+  const help = (CONFIG.INFO.help || []).filter(h => ['flag', 'car', 'aid', 'no'].indexOf(h[0]) >= 0).slice(0, 4);
+
+  const panel = (role, label, inner) => `<section class="pam-panel pam-${role}" data-panel="${role}">
+      <span class="pam-role no-print">${label}</span>${inner}</section>`;
+
+  const cover = panel('cover', '表紙（折ったとき、いちばん上に来る面）', `
+      <div class="pam-cover-top">${ed('cover.school', P.school || '岩手県立黒沢尻工業高等学校', 'p', 'pam-school')}</div>
+      ${ed('cover.title', P.title || '黒工文化祭', 'h2', 'pam-title')}
+      ${ed('cover.theme', P.theme || 'テーマ：（ここにテーマ）', 'p', 'pam-theme')}
+      <div class="pam-art pam-todo-box">${ed('cover.art', '（ここに表紙の絵・写真・ロゴ）', 'p')}</div>
+      ${ed('cover.date', P.date || dateLine, 'p', 'pam-date')}
+      <div class="pam-qr"><div class="pam-qr-img">${qr}</div>
+        <p><b>混み具合とスタンプラリーはスマホで</b><br>カメラでQRを読むと校内マップが開きます</p></div>`);
+
+  const back = panel('back', '裏表紙（折ったとき、裏に来る面）', `
+      <h3 class="pam-h3">ご来場のみなさまへ</h3>
+      <ul class="pam-notes">${help.map(h => `<li><b>${esc(h[1])}</b>${esc(h[2])}</li>`).join('')
+        || '<li>（注意事項をここに）</li>'}</ul>
+      <h3 class="pam-h3">アクセス</h3>
+      <div class="pam-todo-box">${ed('back.access', P.access || '（ここに学校までの案内図・最寄り駅・駐車場）', 'p')}</div>
+      <h3 class="pam-h3">お問い合わせ</h3>
+      ${ed('back.contact', P.contact || '岩手県立黒沢尻工業高等学校\n（住所・電話番号をここに）', 'p', 'pam-small')}
+      <p class="pam-foot">${esc(site)}</p>`);
+
+  const flap = panel('flap', '折り込む面（開くと最初に見える面。3mm 狭い）', `
+      <h3 class="pam-h3">スタンプラリー</h3>
+      <ol class="pam-steps">
+        <li>各ブースの入口にある<b>QR</b>をスマホのカメラで読む</li>
+        <li>スタンプが1個たまる（アプリを入れる必要はありません）</li>
+        <li><b>スタンプ${need}個</b>で、お菓子1個と交換（受付へ）</li>
+      </ol>
+      ${ed('flap.note', P.stampNote || '（交換できる場所・時間、景品の数などをここに）', 'p', 'pam-small')}
+      <h3 class="pam-h3">${esc(P.flapTitle || 'ごあいさつ')}</h3>
+      <div class="pam-todo-box pam-grow">${ed('flap.greeting', P.greeting || '（ここに校長先生・実行委員長のあいさつ、今年の見どころなど）', 'p')}</div>`);
+
+  const in1 = panel('in1', '中面・左', `
+      <h3 class="pam-h3">タイムテーブル</h3>
+      ${ttHtml}
+      <h3 class="pam-h3">${esc(P.in1Title || 'ステージ・催し')}</h3>
+      <div class="pam-todo-box pam-grow">${ed('in1.events', P.events || '（ここにステージの出演順・体験コーナーの時間など）', 'p')}</div>`);
+  // 中面の中・右は、2面をまたいで1階の地図を大きく載せる（1面 86mm では番号が読みにくい）。
+  // 折り目（左から 100mm）は地図の上だけを通し、番号の一覧は折り目をまたがないよう左右の列に分ける
+  const listOf = (f, cols) => {
+    const list = S.booths.filter(b => floorOfBooth(b) === f).sort((a, b) => (S.numbers.get(a.id) || 999) - (S.numbers.get(b.id) || 999));
+    return list.length ? `<ol class="pam-list" style="columns:${cols}">${list.map(b =>
+      `<li><b>${S.numbers.get(b.id) || '-'}</b>${esc(b.name)}</li>`).join('')}</ol>` : '';
+  };
+  const mapOf = f => FLOOR_PLAN[f] && S.booths.some(b => floorOfBooth(b) === f) ? `<div class="pam-map">${printPlanSvg(f)}</div>` : '';
+  const spread = `<section class="pam-panel pam-spread" data-panel="spread">
+      <span class="pam-role no-print">中面・中と右（2面をまたぐ。右の面は 3mm 狭い）</span>
+      <h3 class="pam-h3">校内マップ　<small>数字はブースの番号（スマホのマップ・入口のQRと同じ）</small></h3>
+      <div class="pam-spread-top"><h4 class="pam-h4">1階</h4>${mapOf(1)}</div>
+      <div class="pam-spread-l">${listOf(1, 2)}${S.booths.some(b => floorOfBooth(b) === 0) ? `<h4 class="pam-h4">屋外・体育館など</h4>${listOf(0, 2)}` : ''}</div>
+      <div class="pam-spread-r">
+        <h4 class="pam-h4">2階</h4><div class="pam-mini">${mapOf(2)}</div>${listOf(2, 2)}
+        <h4 class="pam-h4">3階</h4><div class="pam-mini m3">${mapOf(3)}</div>${listOf(3, 2)}
+      </div>
+    </section>`;
+
+  const sheet = (n, title, panels) => `<div class="pam-sheet pam-s${n}" data-sheet="${n}">
+      <p class="pam-sheet-t no-print">${title}</p>
+      <div class="pam-paper"><i class="pam-fold f1"></i><i class="pam-fold f2"></i>${panels}</div></div>`;
+  box.innerHTML =
+    sheet(1, '1枚目（外側）：左から「折り込む面」「裏表紙」「表紙」', flap + back + cover) +
+    sheet(2, '2枚目（内側）：開いたときに見える3面（中と右は地図でつながる）', in1 + spread);
+
+  // 書き換えた文字を覚える（文字だけ。タグは入れさせない）
+  $$('[data-ed]', box).forEach(el => {
+    el.addEventListener('input', () => {
+      const m = load('kuroko_pamphlet_v1', {}) || {};
+      m[el.dataset.ed] = el.innerText.replace(/ /g, ' ').slice(0, 2000);
+      store('kuroko_pamphlet_v1', m);
+    });
+    // 貼り付けは文字だけ（plaintext-only が使えないブラウザ向け）
+    el.addEventListener('paste', e => {
+      const t = (e.clipboardData || window.clipboardData);
+      if (!t) return;
+      e.preventDefault();
+      document.execCommand('insertText', false, t.getData('text/plain'));
+    });
+  });
+  pamFit();
+  pamCheck();
+}
+/** 画面の幅に合わせて紙を縮めて見せる（中身は mm のまま。印刷では等倍） */
+function pamFit(){
+  $$('#pam .pam-sheet').forEach(sh => {
+    const pp = sh.querySelector('.pam-paper');
+    if (!pp) return;
+    pp.style.transform = 'none';
+    const k = Math.min(1, sh.clientWidth / pp.offsetWidth);
+    pp.style.transform = k < 1 ? `scale(${k})` : 'none';
+    pp.style.marginBottom = k < 1 ? `${-(1 - k) * pp.offsetHeight}px` : '0';
+  });
+}
+window.addEventListener('resize', () => { if (S.view === 'pamphlet'){ clearTimeout(pamFit._t); pamFit._t = setTimeout(pamFit, 120); } });
+/** 面から中身がはみ出していないかを確かめて、はみ出した面に印を付ける（刷る前に気づけるように） */
+function pamCheck(){
+  $$('#pam .pam-panel').forEach(pn => {
+    const over = pn.scrollHeight > pn.clientHeight + 2 || pn.scrollWidth > pn.clientWidth + 2;
+    pn.classList.toggle('over', over);
+  });
+}
+
+/* =====================================================================
    紙の校内マップ（?mode=print）
    混雑状況は載せず、番号と場所だけの静的な地図にする。
    最新の状況はQRから見てもらう。
@@ -12179,6 +12594,19 @@ function renderQrSheet(){
  * 紙マップもQRシートも、開いた瞬間に1回組み立てるだけなので、
  * 通信が遅れているあいだは中身が空のまま刷れてしまっていた。
  */
+/** v178：QRを1枚だけ、A4 いっぱいに大きく刷る。刷り終わったら元に戻す */
+function printOneQr(cardEl){
+  if (!cardEl) return;
+  const done = () => { document.body.classList.remove('print-one'); cardEl.classList.remove('one'); cardEl.closest('.qr-page').classList.remove('has-one'); };
+  document.body.classList.add('print-one');
+  cardEl.classList.add('one');
+  cardEl.closest('.qr-page').classList.add('has-one');
+  window.addEventListener('afterprint', done, { once:true });
+  // afterprint が来ない端末でも、戻れなくならないように
+  setTimeout(() => { if (document.body.classList.contains('print-one')) window.addEventListener('focus', done, { once:true }); }, 1000);
+  window.print();
+}
+
 function setPrintReady(sel, ready){
   const b = $(sel);
   if (!b) return;
@@ -12187,12 +12615,8 @@ function setPrintReady(sel, ready){
   b.textContent = ready ? b.dataset.label : 'ブースの情報を待っています…';
 }
 
-function renderPrintSheet(){
-  renderPrintSheet._n = S.booths.length;
-  setPrintReady('#btn-print2', S.booths.length > 0);
-  const base = publicBase();
-
-  const planSvg = (floorNum) => {
+/** 印刷用の図面（1つの階）。紙マップ（?mode=print）と三つ折りパンフレット（?mode=pamphlet）で共用（v178） */
+function printPlanSvg(floorNum){
     const plan = FLOOR_PLAN[floorNum];
     const here = S.booths.filter(b => floorOfBooth(b) === floorNum);
     // 紙の上で1単位が何mmになるかを見積もる。横長は幅150mm、縦長は高さ84mmに収まる。
@@ -12298,7 +12722,14 @@ function renderPrintSheet(){
               font-size="${(br * (S.numbers.get(b.id) > 99 ? .8 : S.numbers.get(b.id) > 9 ? 1 : 1.2)).toFixed(1)}" font-weight="bold" fill="#fff">${S.numbers.get(b.id)}</text>`;
     });
     return `<svg viewBox="${planViewBox(floorNum)}" class="sheet-plan">${h}${zoneH}</svg>`;
-  };
+  }
+
+function renderPrintSheet(){
+  renderPrintSheet._n = S.booths.length;
+  setPrintReady('#btn-print2', S.booths.length > 0);
+  const base = publicBase();
+
+  const planSvg = printPlanSvg;
 
   // ブースが多い（R8は46件）ときは、紙を A4 両面（2ページ）に収める。
   //  1枚目：1階・2階・3階の地図／2枚目：屋外の地図＋タイムテーブル・困ったとき＋ブース一覧。
@@ -12929,6 +13360,8 @@ function init(){
   $('#build-id').textContent = CONFIG.BUILD;
   $('#btn-print').addEventListener('click', () => window.print());
   $('#btn-print2').addEventListener('click', () => window.print());
+  $('#btn-print3').addEventListener('click', () => window.print());
+  $('#pam-reset').addEventListener('click', () => { store('kuroko_pamphlet_v1', {}); renderPamphlet(); toast('書き換えた文字を元に戻しました'); });
   $('#btn-report-print').addEventListener('click', () => window.print());
   $('#btn-report-reload').addEventListener('click', renderReport);
   $('#btn-report-png').addEventListener('click', exportReportPng);
@@ -12989,6 +13422,8 @@ function init(){
     // 読むだけでスタンプラリーが成立してしまう。係員コンソールと同じ扱いにする
     if (pw()) switchView('qr');
     else { S.afterLogin = 'qr'; switchView('auth'); }
+  } else if (mode === 'pamphlet'){
+    switchView('pamphlet');
   } else if (mode === 'print'){
     switchView('print');
   } else if (mode === 'report'){
@@ -13095,6 +13530,7 @@ function init(){
   sync(false).then(() => {
     if (mode === 'qr'){ if (pw()) renderQrSheet(); return; }
     if (mode === 'print'){ renderPrintSheet(); return; }
+    if (mode === 'pamphlet'){ renderPamphlet(); return; }
     if (mode === 'report') return;
     if (mode === 'board'){ renderBoard(); return; }
     if (!applyDeepLink()) S.pendingLink = applyDeepLink;
