@@ -8,8 +8,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # v176：ブラウザの部品の取り込み（apt）が混んでいると10分以上かかり、15分で打ち切られたことがある
-    timeout-minutes: 30
+    # ブラウザの部品の取り込み（apt）が混んでいると10分以上かかり、15分で打ち切られたことがある（v176・v179）
+    timeout-minutes: 50
     defaults:
       run:
         working-directory: tests
@@ -21,11 +21,20 @@ jobs:
           cache: npm
           cache-dependency-path: tests/package-lock.json
       - run: npm ci
-      # 取り込みが止まったら10分で打ち切って、3回までやり直す（テストの前の準備なので、やり直しても結果は変わらない）
+      # ブラウザ本体の取り込み（速い）と、OS の部品の取り込み（apt。混んでいると10分以上かかる）を分ける。
+      # apt が止まったら打ち切って、3回までやり直す。打ち切っても apt 自身は裏で動き続けて次の回の邪魔をする
+      #（「Could not get lock」で3回とも失敗したことがある）ので、やり直す前に必ず止めて後始末をする。
+      # テストの前の準備なので、やり直しても結果は変わらない
+      - run: npx playwright install chromium webkit
       - run: |
           for i in 1 2 3; do
-            timeout 600 npx playwright install --with-deps chromium webkit && exit 0
-            echo "install failed ($i), retrying"; sleep 15
+            if timeout -k 20 660 npx playwright install-deps chromium webkit; then exit 0; fi
+            echo "install-deps failed ($i), cleaning up and retrying"
+            sudo pkill -9 -f 'apt-get|apt |dpkg' || true
+            sleep 5
+            sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock /var/lib/apt/lists/lock
+            sudo dpkg --configure -a || true
+            sleep 10
           done
           exit 1
       - run: npm test

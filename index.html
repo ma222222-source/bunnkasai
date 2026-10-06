@@ -3304,7 +3304,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-06b',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-07a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -13028,7 +13028,9 @@ function initFontSize(){
   const apply = v => {
     document.documentElement.setAttribute('data-fs', v);
     SIZES.forEach(([k, sel]) => $(sel).setAttribute('aria-pressed', String(k === v)));
-    // 文字を変えると見出しと地図の高さが変わるので測り直す
+    // 文字を変えると見出しと地図の高さが変わるので測り直す。
+    // v179：次の描画を待たずに、その場でも合わせる（待つ間、大きくなったボタンどうしが重なって見えていた）
+    try{ if (S.view === 'map' && S.booths.length){ measureHead(); fitMapBox(S.floor); } }catch(e){}
     requestAnimationFrame(() => { measureHead(); fitMapBox(S.floor); });
   };
   const saved = load('kuroko_fs', 'n');
@@ -13690,8 +13692,10 @@ function fitMapBox(floorNum){
   const vb = svg.getAttribute('viewBox') || '';
   // 高さは 100px 刻みに丸める。スマホのURLバーの伸縮（50〜60px程度）では
   // キーが変わらず、地図を組み直さない
+  // v179：文字の大きさも条件に入れる。入れていなかったので、開いたまま「特大」に変えても地図の高さが変わらず、
+  // 大きくなったボタンどうし（「屋外」と現在地）が重なっていた（開き直せば直るので、開いた直後のテストでは見つからなかった）
   const key = floorNum + '|' + vb + '|' + window.innerWidth
-            + 'x' + Math.round(window.innerHeight / 100);
+            + 'x' + Math.round(window.innerHeight / 100) + '|' + (document.documentElement.getAttribute('data-fs') || 'n');
   if (fitMapBox._key === key && view.style.height){ if (!ZOOM.mNat) zoomMeasure(); zoomApply(false); return; }
   // 地図の箱を測り直す場面では幅も測り直す。【v146】以前は上の「変わっていない」ときにも
   // 覚えた幅を捨てていたため、そのたびに次の mapScale() が画面全体の配置の計算をやり直していた
@@ -13730,7 +13734,19 @@ function fitMapBox(floorNum){
   // v169：縦向きは、図面が横長で低くなっても下限（階の切り替え＋現在地・＋−が重ならない高さ）を守る。
   // 下限を maxH にしか効かせていなかったので、幅 320px では箱が約330px になり「屋外」が現在地のボタンに隠れていた。
   // 文字「特大」はボタンが大きい（v167）ので下限も上げる
-  const ctlMin = land ? 0 : (document.documentElement.getAttribute('data-fs') === 'xl' ? 470 : floorH);
+  // v179：決め打ち（特大 470px）だけに頼らず、その端末で実際に出ているボタンの高さから要る高さを出す。
+  // ボタンの高さは端末の字の形で少し変わる（Linux の WebKit では 470px でも「屋外」と現在地が重なった）。
+  // 右上の階の切り替えと、右下の現在地・＋−は同じ右端に縦に並ぶ（横向きでは横一列ずつ）ので、
+  // 「上の余白＋階の高さ＋すき間＋右下の高さ＋下の余白」が箱の最低の高さ
+  const ctlNeed = (() => {
+    try{
+      const fEl = document.querySelector('#map-card .map-floors'), zEl = document.querySelector('#map-card .map-zoom-ctl');
+      if (!fEl || !zEl || !fEl.offsetHeight || !zEl.offsetHeight) return 0;
+      const ft = parseFloat(getComputedStyle(fEl).top) || 8, zb = parseFloat(getComputedStyle(zEl).bottom) || 8;
+      return Math.ceil(ft + fEl.offsetHeight + 10 + zEl.offsetHeight + zb);
+    }catch(e){ return 0; }
+  })();
+  const ctlMin = Math.max(ctlNeed, land ? 0 : (document.documentElement.getAttribute('data-fs') === 'xl' ? 470 : floorH));
   const boxH = Math.max(ctlMin, Math.min(190, maxH), Math.min(maxH, Math.round(nat * FILL)));
   zoomUnbake();
   view.style.height = boxH + 'px';

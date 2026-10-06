@@ -162,3 +162,36 @@ test.describe('オフライン（Service Worker あり）', () => {
     await expect.poll(() => shellReqs.some(t => /^m\d+$/.test(t)), { timeout: 10000 }).toBe(true);
   });
 });
+
+/* ---------------- v179 ---------------- */
+test.describe('Service Worker：ほかのページ・アプリとして入れる条件（v179）', () => {
+  test.use({ serviceWorkers: 'allow' });
+
+  test('同じ場所の別のページ（.html）を、マップの画面で置き換えない', async ({ page, context }) => {
+    await mockGas(context);
+    await page.goto('/?tab=map');
+    await ready(page);
+    await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+    await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller), { timeout: 15000 }).toBe(true);
+    await page.goto('/tests/fixtures/other-page.html');
+    await expect(page.locator('#other')).toHaveText('別のページ');
+    expect(await page.title()).toContain('別のページ');
+    // マップ本体は今まで通り（引数つきでも本体として出る）
+    await page.goto('/index.html?tab=list');
+    await ready(page);
+    await expect(page.locator('#v-list')).toBeVisible();
+  });
+
+  test('ブラウザ（Chromium）の判定で、ホーム画面に追加できる条件を満たしている', async ({ page, context, browserName }) => {
+    test.skip(browserName !== 'chromium', 'Chromium の判定を使う');
+    await mockGas(context);
+    await page.goto('/index.html');
+    await ready(page);
+    await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+    const c = await context.newCDPSession(page);
+    const m = await c.send('Page.getAppManifest');
+    expect(m.url).toContain('manifest-app.json');
+    expect(m.errors).toEqual([]);
+    await expect.poll(async () => (await c.send('Page.getInstallabilityErrors')).installabilityErrors, { timeout: 15000 }).toEqual([]);
+  });
+});

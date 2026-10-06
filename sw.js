@@ -1,7 +1,7 @@
 /* 黒工文化祭マップ Service Worker
    目的：校内Wi-Fiが不安定でも「アプリの外側」が必ず開くようにする。
    混雑データ(GAS)は絶対にキャッシュしない（古い混雑状況を見せないため）。 */
-const CACHE = 'kuroko-map-v178';
+const CACHE = 'kuroko-map-v179';
 // 画面は SHELL_KEY（./index.html）1つにまとめて保存する。
 // './' も入れると同じHTMLが別の控えとして2つ残り、使われない方が約400KBを占める。
 const SHELL = ['./index.html', './manifest.json', './manifest-app.json', './apple-touch-icon.png', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
@@ -60,11 +60,16 @@ function freshFetch(u, tag){
   return fetch(new Request(url.href, { cache: 'reload' }));
 }
 
-/** アプリ本体（HTML）かどうか。中身の差分を見る対象をここだけに絞る。 */
+/**
+ * アプリ本体（このマップの画面）かどうか。中身の差分を見る対象をここだけに絞る。
+ * v179：本体は「フォルダの入口（./）」と「index.html」だけ。以前は「ページを開く操作すべて」と「.html で終わるものすべて」を
+ * 本体とみなしていたので、同じ場所に別のページ（例：omikuji.html）を置くと、一度マップを開いた端末では
+ * そのページの代わりにマップが出ていた。
+ */
+const SCOPE_PATH = new URL('./', self.location.href).pathname;
 function isShell(request){
-  if (request.mode === 'navigate') return true;
   const p = new URL(request.url).pathname;
-  return p.endsWith('/') || p.endsWith('.html');
+  return p === SCOPE_PATH || p === SCOPE_PATH + 'index.html';
 }
 
 /**
@@ -95,6 +100,17 @@ async function notifyUpdated(){
 async function handle(request, event){
   const cache = await caches.open(CACHE);
   const shell = isShell(request);
+  // v179：このマップ以外のページ（同じ場所に置いた別の .html）は、いつも新しいものを取りに行く。
+  // 取れないとき（圏外）だけ、前に開いたときの控えを出す。マップの画面で代用はしない
+  if (!shell && request.mode === 'navigate'){
+    try{
+      const res = await fetch(request);
+      if (res && res.ok) cache.put(request, res.clone()).catch(() => {});
+      return res;
+    }catch(e){
+      return (await cache.match(request)) || Response.error();
+    }
+  }
   const key = shell ? SHELL_KEY : request;
   const cached = await cache.match(key);
 
@@ -122,5 +138,5 @@ async function handle(request, event){
   // 保存が無いときはネットワークを待つしかない（取れなければ本体の控えで代用）
   const res = await refresh;
   if (res) return res;
-  return (await cache.match(SHELL_KEY)) || Response.error();
+  return (shell ? await cache.match(SHELL_KEY) : null) || Response.error();
 }
