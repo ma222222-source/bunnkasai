@@ -2317,6 +2317,10 @@ html.sheet-open{overflow:hidden}
   .icon-btn{width:40px;height:40px;font-size:14px;border-radius:10px}
   .sync{margin-top:3px;padding:2px 8px;font-size:9.5px}
   main{padding:8px 8px calc(62px + var(--safe-b));gap:8px}
+  /* v180：ここは左右の余白が 8px。一覧の上に貼りつく段は 12px ぶん外へ広げていたので、差の 4px が横にはみ出していた */
+  .list-head{margin:-6px -8px 0;padding:6px 8px 8px}
+  /* 係員の画面の上の「← もどる」の段も同じ（-12px のままで 4px はみ出していた） */
+  .staff-back{margin:-8px -8px 0;padding:8px 8px}
   .card{padding:9px}
   #map-card{padding:8px 8px 0 !important}
   .map-head{margin-bottom:6px}
@@ -3304,7 +3308,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-07a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-08a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -10662,6 +10666,8 @@ window.addEventListener('popstate', e => {
   }
   // ログインが切れている端末を、パスワードの要る画面へ戻さない
   if ((v === 'admin' || v === 'qr') && !pw()) v = 'auth';
+  // v180：逆に、ログインしている端末にパスワードの画面は出さない（係員の画面へ）
+  if (v === 'auth' && pw()) v = 'admin';
   if (HIST_VIEWS.indexOf(v) >= 0 && v !== S.view) switchView(v, true);
 });
 
@@ -10688,6 +10694,10 @@ async function login(){
       S.isAdmin = true;
       $('#auth-err').classList.add('hide');
       renderAssign(); renderAdmin(); renderChecklist();
+      // v180：履歴の「パスワードの画面」を、行き先の画面で置き換える。積み足すと、ログインしたあとの「戻る」で
+      // パスワードの画面がもう一度出て、ログアウトされたように見えていた
+      const dest = S.afterLogin === 'qr' ? 'qr' : 'admin';
+      try{ if (history.state && history.state.v === 'auth') history.replaceState({ v: dest }, '', '#' + dest); }catch(_){}
       // ?mode=qr から来たときは、ログイン後そのQRシートへ送る
       if (S.afterLogin === 'qr'){ S.afterLogin = ''; switchView('qr'); renderQrSheet(); }
       else switchView('admin');

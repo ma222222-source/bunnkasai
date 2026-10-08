@@ -1943,3 +1943,30 @@ test('地図の高さは、実際のボタンの高さから決める（端末�
   }
   expect(bad).toEqual([]);
 });
+
+/* ---------------- v180 ---------------- */
+test('横向き（844×390・640×360）でも、4つの画面が横にはみ出さない（一覧は絞り込み・0件のときも）', async ({ page }) => {
+  test.setTimeout(90000);
+  await mockGas(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); localStorage.setItem('kuroko_wish_v1', JSON.stringify(['1F-02'])); });
+  const bad = [];
+  const over = () => page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+  for (const [w, h] of [[844, 390], [640, 360]]) {
+    await page.setViewportSize({ width: w, height: h });
+    for (const tab of ['map', 'list', 'stamp', 'info']) {
+      await page.goto('/?tab=' + tab);
+      await ready(page);
+      await page.waitForTimeout(300);
+      if (await over() > 1) bad.push(`${w}x${h} ${tab}`);
+      if (tab === 'list') {
+        await page.evaluate(() => { setWishOnly(true); setTodoOnly(true); });
+        await page.waitForTimeout(200);
+        if (await over() > 1) bad.push(`${w}x${h} 一覧（★・まだ行っていない）`);
+        await page.evaluate(() => { setWishOnly(false); setTodoOnly(false); const q = document.getElementById('q'); q.value = 'ぜったいにない'; q.dispatchEvent(new Event('input', { bubbles: true })); });
+        await page.waitForTimeout(350);
+        if (await over() > 1) bad.push(`${w}x${h} 一覧（0件）`);
+      }
+    }
+  }
+  expect(bad).toEqual([]);
+});
