@@ -165,3 +165,34 @@ test('係員：1分以内にほかの端末の更新があったブースを送�
   await expect(page.locator(`.adm-booth[data-id="${id}"] .adm-preview`)).toContainText('ほかの端末からも更新');
   await expect.poll(() => log.posts.some(p => p.action === 'update' && p.id === id)).toBe(true);
 });
+
+/* ---------------- v180 ---------------- */
+test('ログインしたあとブラウザの「戻る」を押しても、パスワードの画面は出ない', async ({ page }) => {
+  await mockGas(page, { verifyOk: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=map');
+  await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
+  await page.goto('/?mode=admin');
+  await page.locator('#pw').fill('test-password-1234');
+  await page.locator('#btn-login').click();
+  await expect(page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
+  await page.evaluate(() => history.back());
+  await page.waitForTimeout(500);
+  await expect(page.locator('#v-auth')).toBeHidden();
+  await expect(page.locator('#v-admin')).toBeVisible();
+  // 進んでも同じ
+  await page.evaluate(() => history.forward());
+  await page.waitForTimeout(400);
+  await expect(page.locator('#v-auth')).toBeHidden();
+});
+
+test('横向き（高さの低い画面）でも、ログインの画面・係員の画面が横にはみ出さない', async ({ page }) => {
+  await mockGas(page, { verifyOk: true });
+  for (const [w, h] of [[844, 390], [640, 360]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto('/?mode=admin');
+    await expect(page.locator('#v-auth, #v-admin').first()).toBeVisible({ timeout: 10000 });
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), `${w}x${h} ログイン`).toBeLessThanOrEqual(1);
+  }
+});

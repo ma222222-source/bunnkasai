@@ -16,7 +16,7 @@ for (const seed of SEEDS) {
     page.on('pageerror', e => errs.push('pageerror: ' + e.message + ' @ ' + (e.stack || '').split('\n')[1]));
     page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|net::ERR/.test(m.text())) errs.push('console: ' + m.text()); });
     await mockGas(page);
-    await page.addInitScript(seed => { localStorage.setItem('kuroko_intro_v1', '1');
+    await page.addInitScript(seed => { try{ localStorage.setItem('kuroko_intro_v1', '1'); }catch(e){}   // アプリの外の白紙ページでは保存領域に触れない
       let x = seed * 2654435761 % 2147483647; Math.random = () => { x = (x * 48271) % 2147483647; return x / 2147483647; }; }, seed);
     await page.goto('/?tab=map');
     await page.waitForFunction(() => typeof S !== 'undefined' && S.booths.length > 0);
