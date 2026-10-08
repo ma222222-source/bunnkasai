@@ -95,6 +95,41 @@
       try{ document.documentElement.classList.add('can-install'); }catch(_){}
       try{ window.dispatchEvent(new Event('kuroko-can-install')); }catch(_){}
     });
+    /* v181：最後の砦。アプリ本体が起動の途中で止まったとき（保存データがこわれている・思わぬエラー）、
+       真っ白のまま・途中の画面のままにしない。読み込みが終わって4秒たっても起動の印（window.__booted）が無ければ、
+       本体に頼らないこの小さな仕組みが「直して開き直す」を出す。
+       直す中身：集めたもの（スタンプ・交換済み・★・スタンプ番号）は正しい形のものだけ残し、ほかの保存と控えを消す */
+    window.__rescue = function(){
+      try{
+        var keep = {}, ids = function(k){ try{ var a = JSON.parse(localStorage.getItem(k) || '[]'); if (!(a instanceof Array)) return [];
+          var o = [], i; for (i = 0; i < a.length && o.length < 500; i++) if (typeof a[i] === 'string' && a[i] && a[i].length <= 40 && o.indexOf(a[i]) < 0) o.push(a[i]); return o; }catch(e){ return []; } };
+        keep.kuroko_stamps_v2 = ids('kuroko_stamps_v2'); keep.kuroko_spent_v1 = ids('kuroko_spent_v1'); keep.kuroko_wish_v1 = ids('kuroko_wish_v1');
+        ['kuroko_sid', 'kuroko_cid'].forEach(function(k){ try{ var v = JSON.parse(localStorage.getItem(k) || 'null'); if (typeof v === 'string' && /^[0-9A-Za-z-]{4,40}$/.test(v)) keep[k] = v; }catch(e){} });
+        var del = [], i; for (i = 0; i < localStorage.length; i++){ var k = localStorage.key(i); if (k && k.indexOf('kuroko_') === 0) del.push(k); }
+        del.forEach(function(k){ localStorage.removeItem(k); });
+        Object.keys(keep).forEach(function(k){ localStorage.setItem(k, JSON.stringify(keep[k])); });
+      }catch(e){}
+      var go = function(){ var u = new URL(location.href); u.searchParams.set('v', Date.now().toString(36)); location.replace(u.toString()); };
+      try{
+        var ps = [];
+        if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) ps.push(navigator.serviceWorker.getRegistrations().then(function(rs){ return Promise.all(rs.map(function(r){ return r.unregister(); })); }));
+        if (window.caches && caches.keys) ps.push(caches.keys().then(function(ks){ return Promise.all(ks.map(function(k){ return caches.delete(k); })); }));
+        Promise.all(ps).then(go, go);
+        setTimeout(go, 3000);
+      }catch(e){ go(); }
+    };
+    window.addEventListener('load', function(){ setTimeout(function(){
+      if (window.__booted) return;
+      try{
+        var d = document.createElement('div');
+        d.id = 'boot-rescue'; d.setAttribute('role', 'alert');
+        d.style.cssText = 'position:fixed;left:12px;right:12px;top:12px;z-index:99999;padding:16px;border-radius:12px;background:#fff;color:#111;border:2px solid #b91c1c;font:700 14px/1.7 sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.3)';
+        d.innerHTML = '画面を開けませんでした。下のボタンを押すと、この端末の保存を直して開き直します。<b>集めたスタンプは残ります。</b>'
+          + '<button id="boot-rescue-btn" type="button" style="display:block;width:100%;min-height:48px;margin-top:10px;border:none;border-radius:10px;background:#b91c1c;color:#fff;font:900 15px sans-serif">直して開き直す</button>';
+        document.body.appendChild(d);
+        document.getElementById('boot-rescue-btn').onclick = window.__rescue;
+      }catch(e){}
+    }, 4000); });
     window.addEventListener('appinstalled', function(){
       window.__bip = null;
       try{ localStorage.setItem('kuroko_installed', '1'); document.documentElement.classList.remove('can-install'); }catch(_){}
@@ -3308,7 +3343,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-08a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-09a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -3928,7 +3963,7 @@ const S = {
   stamps: new Set(),
   spent: [],               // お菓子と交換して消費したブースid（取った順に消える）
   assigned: new Set(),
-  wish: new Set(load('kuroko_wish_v1', [])),   // 来場者が「行きたい」に★を付けたブース（v150）
+  wish: new Set(idList('kuroko_wish_v1')),   // 来場者が「行きたい」に★を付けたブース（v150）
   wishOnly: false,      // 一覧を★だけに絞っているか
   todoOnly: false,      // 一覧を「まだ行っていない」に絞っているか（v157）
   lf: null,             // 一覧を階で絞る（v166。null＝すべての階）
@@ -4042,7 +4077,7 @@ function store(k, v){ try{ v===undefined ? localStorage.removeItem(k) : localSto
 /** この端末を表すランダムな文字列。個人情報は含まない */
 function deviceId(){
   if (deviceId._v) return deviceId._v;
-  let v = load('kuroko_cid', null);
+  let v = loadStr('kuroko_cid');
   if (!v || !/^[a-z0-9]{12,40}$/i.test(v)){
     // 引き継ぎの鍵にもなるので、推測できない乱数で作る（Math.random は予測されうる）
     try{
@@ -4056,7 +4091,49 @@ function deviceId(){
   deviceId._v = v;
   return v;
 }
-function load(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } }
+/**
+ * 端末に保存した値を読む。読めない・形が違うときは既定値 d を返す。
+ * v181：既定値と形（配列／オブジェクト／文字／数／真偽）が違う値は「無いもの」として扱う。
+ * 以前は JSON として読めさえすれば何でも返していたので、保存が想定と違う形（配列のはずの所に数字など）になっていると
+ * `new Set(9)` などで起動の途中にエラーになり、画面が出ないまま（保存を消すまで直らない）になった。
+ * 既定値が null のものは形を決められないので、使う側で loadStr・idList などを使う
+ */
+function load(k, d){
+  try{
+    const raw = localStorage.getItem(k);
+    if (!raw) return d;
+    const v = JSON.parse(raw);
+    if (d !== null && d !== undefined){
+      if (Array.isArray(d)) return Array.isArray(v) ? v : d;
+      if (typeof d === 'object') return (v && typeof v === 'object' && !Array.isArray(v)) ? v : d;
+      if (typeof v !== typeof d) return d;
+      if (typeof d === 'number' && !isFinite(v)) return d;
+    }
+    return v;
+  }catch(e){ return d; }
+}
+/** 文字として保存した値（番号・設定の名前・日付など）。文字でなければ null（長すぎるものも捨てる） */
+function loadStr(k){
+  const v = load(k, null);
+  return (typeof v === 'string' && v.length <= 200) ? v : null;
+}
+/**
+ * ブースの id の並び（スタンプ・交換済み・★など）。文字でないもの・空・長すぎるものは捨て、重複も除く。
+ * id の字の種類までは決めつけない（ここで捨てると、その id のスタンプが開き直すたびに消える）
+ */
+function idList(k){
+  const out = [], seen = new Set();
+  for (const x of load(k, [])){
+    if (typeof x !== 'string' || !x || x.length > 40 || seen.has(x)) continue;
+    seen.add(x); out.push(x);
+    if (out.length >= 500) break;
+  }
+  return out;
+}
+/** 文字の並び（係員の画面の開いているまとめ など）。文字でないものは捨てる */
+function strList(k){
+  return load(k, []).filter(x => typeof x === 'string' && x.length <= 80).slice(0, 500);
+}
 
 /* =====================================================================
    通信層：タイムアウト＋指数バックオフ＋キャッシュ復元
@@ -4133,7 +4210,13 @@ async function api(opts){
     }
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const json = await res.json();
-    if (json && json.ok === false) throw new Error(json.error || 'API error');
+    // v181：返事の形を確かめる。中身のない返事（null・文字・数）は失敗として扱う。
+    // 以前はそのまま返していたので、混雑情報は「0件」として取り込まれて地図が空になり、
+    // スタンプの控えは何も保存されていないのに「サーバーに保存済み」になって送り直されなかった
+    if (json === null || typeof json !== 'object') throw new Error('bad response');
+    if (json.ok === false) throw new Error(json.error || 'API error');
+    // 書く通信（POST）の成功の返事には、サーバーが必ず ok:true を付ける（Code.gs）。無ければ成功とみなさない
+    if (isPost && (Array.isArray(json) || json.ok !== true)) throw new Error('bad response');
     return json;
   } finally { clearTimeout(to); }
 }
@@ -4201,6 +4284,9 @@ async function sync(manual){
     // 取得している間に係員が送信した場合、この結果は送信前の古い状態。
     // 取り込むと押したボタンが20秒ほど元に戻って見えるので捨てて、すぐ取り直す
     if ((update._gen || 0) !== gen || update._busy){ sync._again = true; return; }
+    // v181：ブースの一覧が入っていない返事は取り込まない（いまの表示を保つ）。
+    // 一覧が空（0件）なのは「まだ登録が無い」の意味で正しい返事なので、それは通す
+    if (!Array.isArray(raw) && !(raw && raw.booths && typeof raw.booths === 'object')) throw new Error('bad response');
     const booths = normalize(raw);
     applyRecent(booths);
     const pruned = pruneUnsent(booths);
@@ -4365,7 +4451,8 @@ function schedule(){
   const base = Math.max((isActive() && !serverBusy()) ? CONFIG.POLL_MS_ACTIVE : CONFIG.POLL_MS, S.pollMin || 0)
              * (BATT.low ? 2 : 1) * (saveData() ? 2 : 1);
   // ボードは誰も「再試行」を押さないので、待ちの上限を1分にしておく
-  const cap = S.view === 'board' ? 60000 : 5 * 60000;
+  // v181：まだ何も出せていない（控えも無い）ときは、やり直しを最長1分に。何も見えない画面で5分待たせない
+  const cap = (S.view === 'board' || !S.booths.length) ? 60000 : 5 * 60000;
   const backoff = Math.min(base * Math.pow(2, Math.min(S.failures, 4)), cap);
   // ±15%ずらす。同じ時刻に開いた（QRを読んだ・お知らせを見た）人たちの取得が
   // いつまでも同じ瞬間に重なり、GAS の同時実行の上限に当たるのを避ける
@@ -5962,7 +6049,7 @@ function setHere(id, src){
 }
 function hereEntry(){
   const h = load('kuroko_here_v1', null);
-  if (!h || !h.id) return null;
+  if (!h || typeof h !== 'object' || typeof h.id !== 'string' || !h.id || typeof h.at !== 'number') return null;
   if (Date.now() - h.at > HERE_TTL_MS){ store('kuroko_here_v1', undefined); return null; }
   return h;
 }
@@ -6843,12 +6930,12 @@ function showNearestToilet(){
 
 /** 地図の検索で最近えらんだブース（最大5件。端末に保存） */
 function rememberRecent(id){
-  const a = load('kuroko_recent_q', []).filter(x => x !== id);
+  const a = idList('kuroko_recent_q').filter(x => x !== id);
   a.unshift(id);
   store('kuroko_recent_q', a.slice(0, 5));
 }
 function recentItems(){
-  return load('kuroko_recent_q', []).map(id => S.booths.find(b => b.id === id)).filter(Boolean)
+  return idList('kuroko_recent_q').map(id => S.booths.find(b => b.id === id)).filter(Boolean)
     .map(b => ({ kind:'booth', b }));
 }
 
@@ -8255,9 +8342,9 @@ const SID_ALPHA = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';   // 0/O・1/I/L など読�
  * 同じ端末番号を持つようになったブラウザどうしは、同じスタンプ番号になって自動でつながる。
  */
 function stampId(){
-  let v = load('kuroko_sid', null);
+  let v = loadStr('kuroko_sid');
   if (!v || !/^[0-9A-Za-z]{6,40}$/.test(v)){
-    if (!load('kuroko_cid', null)) store('kuroko_migrated', 1);   // 旧版の記録は無い（引っ越し不要）
+    if (!loadStr('kuroko_cid')) store('kuroko_migrated', 1);   // 旧版の記録は無い（引っ越し不要）
     v = sidFrom(deviceId());
     store('kuroko_sid', v);
   }
@@ -8311,7 +8398,7 @@ function ledgerEvents(){
 /** サーバーの返事に番号の付け替え（統合）があれば、その番号に乗り換える */
 function adoptServerCid(l){
   const c = l && typeof l.cid === 'string' ? l.cid : '';
-  const cur = load('kuroko_sid', null);
+  const cur = loadStr('kuroko_sid');
   if (c && cur && c !== cur && /^[0-9A-Za-z]{6,40}$/.test(c)){ store('kuroko_sid', c); store('kuroko_joined', 1); return true; }
   return false;
 }
@@ -8329,7 +8416,7 @@ async function flushLedger(force){
   // 「つなぐ」の付け替え（旧番号→新番号）がまだサーバーに届いていなければ、中身が同じでも送る。
   // 本番で、付け替えの送信が失敗（GAS の 404）したあと台帳の読み込みで「保存済み」になり、
   // 付け替えが二度と送られず、旧番号のまま開いている別のアプリが取り残されていた
-  const pendingFrom = load('kuroko_join_from', null);
+  const pendingFrom = loadStr('kuroko_join_from');
   if (!pendingFrom && load('kuroko_pushed_fp', '') === ledgerFp()){ renderSyncBadge(); return; }
   if (navigator.onLine === false){ renderSyncBadge(); return; }
   flushLedger._on = true;
@@ -8338,13 +8425,13 @@ async function flushLedger(force){
   // スタンプが増えたりしたら、その分は「送った」扱いにしない
   const sid0 = stampId(), ev = ledgerEvents();
   const sent = new Set(ev.map(e => e.t + ':' + e.id));
-  const from = load('kuroko_join_from', null);
+  const from = loadStr('kuroko_join_from');
   try{
     const body = { action:'ledger', cid: sid0, ev };
     if (from && from !== sid0) body.from = from;
     const r = await api({ body, timeout: 15000 });
     if (from) store('kuroko_join_from', undefined);
-    if (load('kuroko_sid', null) !== sid0){
+    if (loadStr('kuroko_sid') !== sid0){
       flushLedger._again = true;                           // 送っている間に番号が変わった。新しい番号へ送り直す
     } else {
       adoptServerCid(r);
@@ -8400,7 +8487,7 @@ function absorbLedger(l, sent){
     .concat(S.spent.filter(id => !sr.has(id) && LEDGER_ID_RE.test(id)).map(id => 'r:' + id));
   if (!missing.length || (sent && missing.every(k => sent.has(k)))) store('kuroko_pushed_fp', ledgerFp());
   else { store('kuroko_pushed_fp', ''); scheduleLedgerPush(300, !!sent); }
-  if (load('kuroko_join_from', null) && !flushLedger._on) scheduleLedgerPush(500, false);   // 付け替えが未送信なら送る
+  if (loadStr('kuroko_join_from') && !flushLedger._on) scheduleLedgerPush(500, false);   // 付け替えが未送信なら送る
   return changed;
 }
 /**
@@ -8413,7 +8500,7 @@ async function pullLedger(gap){
   if (flushLedger._on || scheduleLedgerPush._pending) return false;
   const min = gap === true ? 0 : typeof gap === 'number' ? gap : 25000;
   if (Date.now() - (pullLedger._at || 0) < min) return false;
-  const sid = load('kuroko_sid', null);
+  const sid = loadStr('kuroko_sid');
   pullStamps();
   if (!sid || (!S.stamps.size && !S.spent.length)) return false;   // まだ1つも集めていない人は見に行かない
   if (flushLedger._old) return false;                               // サーバーが旧版のあいだは読みに行かない
@@ -8421,7 +8508,7 @@ async function pullLedger(gap){
   let changed = false;
   try{
     const l = await fetchLedger(sid);
-    if (load('kuroko_sid', null) === sid){                          // 読んでいる間に番号が変わっていなければ
+    if (loadStr('kuroko_sid') === sid){                          // 読んでいる間に番号が変わっていなければ
       adoptServerCid(l);
       changed = absorbLedger(l);
       store('kuroko_pulled_at', Date.now());
@@ -8436,7 +8523,7 @@ async function pullLedger(gap){
  */
 async function migrateLegacy(){
   if (load('kuroko_migrated', null) || navigator.onLine === false) return;
-  const cid = load('kuroko_cid', null);
+  const cid = loadStr('kuroko_cid');
   if (!cid || !/^[a-z0-9]{12,40}$/i.test(cid)){ store('kuroko_migrated', 1); return; }
   try{
     const l = await fetchLedger(cid);
@@ -8466,7 +8553,7 @@ function renderSyncBadge(state){
       : '保存待ち：まもなく自動でサーバーにも保存します';
     if (el.textContent !== txt) el.textContent = txt;
   }
-  const n = $('#sid-no'); if (n) n.textContent = nothing && !load('kuroko_sid', null) ? '----' : sidLabel();
+  const n = $('#sid-no'); if (n) n.textContent = nothing && !loadStr('kuroko_sid') ? '----' : sidLabel();
   const env = $('#sid-env'), where = openedIn();
   if (env){
     env.classList.toggle('hide', !where);
@@ -8517,7 +8604,7 @@ async function runDiag(){
         for (let i = 0; i < 30 && (flushLedger._on || scheduleLedgerPush._pending); i++) await new Promise(r => setTimeout(r, 200));
       }catch(e){}
     }
-    const sid = load('kuroko_sid', null);
+    const sid = loadStr('kuroko_sid');
     add('ok', 'スタンプ（この端末）', `${S.stamps.size}個・交換済み${S.spent.length}個`);
     add(sid ? 'ok' : (S.stamps.size ? 'warn' : 'ok'), 'スタンプ番号', sid ? sidLabel(sid).replace(/.{4}$/, '****') : 'まだ無し');
     const pushed = load('kuroko_pushed_fp', '') === ledgerFp();
@@ -8590,7 +8677,7 @@ async function joinSid(input){
   if (!(l.stamps || []).length && !(l.spent || []).length) throw new Error('その番号の記録が見つかりません。番号を確かめてください');
   // その番号がさらに別の番号へつながれていれば、行き先の番号に乗る
   const target = (typeof l.cid === 'string' && /^[0-9A-Za-z]{6,40}$/.test(l.cid)) ? l.cid : sid;
-  const prev = load('kuroko_sid', null);
+  const prev = loadStr('kuroko_sid');
   if (prev && prev !== target && (S.stamps.size || S.spent.length)) store('kuroko_join_from', prev);   // 旧番号→新番号の付け替えをサーバーに残す
   store('kuroko_sid', target);
   store('kuroko_joined', 1);
@@ -8678,10 +8765,10 @@ function codeSkewMin(v){
  */
 function pullStamps(){
   let changed = false;
-  const disk = load('kuroko_stamps_v2', []) || [];
+  const disk = idList('kuroko_stamps_v2');
   for (const id of disk) if (!S.stamps.has(id)){ S.stamps.add(id); changed = true; }
   const have = new Set(S.spent);
-  for (const id of (load('kuroko_spent_v1', []) || [])){
+  for (const id of idList('kuroko_spent_v1')){
     if (!have.has(id)){ S.spent.push(id); have.add(id); changed = true; }
   }
   return changed;
@@ -9205,7 +9292,7 @@ function renderStamps(){
   // 完走記録。達成した瞬間の時刻を保存し、以後は同じ時刻を表示する
   $('#stamp-cert').classList.toggle('hide', !done);
   if (done){
-    let at = load('kuroko_cert_at', null);
+    let at = loadStr('kuroko_cert_at');
     if (!at){ at = new Date().toISOString(); store('kuroko_cert_at', at); confetti(); ding('done'); }
     $('#cert-sub').textContent = `${total}ブースすべてを回りました`;
     $('#cert-date').textContent = new Date(at).toLocaleString('ja-JP',
@@ -10042,7 +10129,7 @@ function chkKey(){
 }
 
 function renderChecklist(){
-  const done = new Set(load(chkKey(), []));
+  const done = new Set(strList(chkKey()));
   let total = 0;
   $('#chk-body').innerHTML = CHECKLIST.map(([sec, items]) => `
     <div class="chk-sec">${esc(sec)}</div>` +
@@ -10055,17 +10142,21 @@ function renderChecklist(){
     }).join('')).join('');
   $('#chk-count').textContent = `　${done.size} / ${total}`;
   $$('#chk-body input').forEach(el => el.addEventListener('change', () => {
-    const d = new Set(load(chkKey(), []));
+    const d = new Set(strList(chkKey()));
     el.checked ? d.add(el.dataset.chk) : d.delete(el.dataset.chk);
     store(chkKey(), Array.from(d));
     renderChecklist();
   }));
 }
 
+/** 受付の人数の「まだ送っていない分」。形の合わないもの（番号 uid と数 n が無いもの）は捨てる（v181） */
+function visQueue(){
+  return load('kuroko_vis_q', []).filter(x => x && typeof x === 'object' && typeof x.uid === 'string' && x.uid.length <= 60 && isFinite(Number(x.n)));
+}
 /** 受付の来場者カウンタ */
 function renderVisitors(){
   // 送れていない分（電波待ち）も足して見せる。受付が「押したのに増えない」と押し直さないように
-  const q = load('kuroko_vis_q', []) || [];
+  const q = visQueue();
   const pend = q.reduce((t, x) => t + (Number(x.n) || 0), 0);
   animateNumber($('#vis-n'), Math.max(0, (S.visitors.today || 0) + pend));
   $('#vis-time').textContent = (q.length ? `未送信 ${q.length}件（電波が戻ると自動で送ります）　` : '')
@@ -10079,7 +10170,7 @@ function renderVisitors(){
  * （以前は圏外だと押しても記録されず、失敗すると数が消えていた）
  */
 function addVisitors(n){
-  const q = load('kuroko_vis_q', []) || [];
+  const q = visQueue();
   const uid = deviceId().slice(0, 8) + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
   q.push({ uid, n, at: Date.now() });
   if (!store('kuroko_vis_q', q)){ toast('この端末に保存できません。プライベートモードを解除してください'); return; }
@@ -10096,7 +10187,7 @@ async function flushVisitors(force){
   if (!force && flushVisitors._t) return;
   if (flushVisitors._on || navigator.onLine === false) { renderVisitors(); return; }
   clearTimeout(flushVisitors._t); flushVisitors._t = null;
-  let q = load('kuroko_vis_q', []) || [];
+  let q = visQueue();
   if (!q.length) return;
   flushVisitors._on = true;
   const visCard = $('.vis-card');
@@ -10105,7 +10196,7 @@ async function flushVisitors(force){
     while (q.length){
       const it = q[0];
       const r = await api({ body:{ action:'visitor', n: it.n, uid: it.uid, pass: pw() }, timeout: 20000 });
-      q = (load('kuroko_vis_q', []) || []).filter(x => x.uid !== it.uid);
+      q = visQueue().filter(x => x.uid !== it.uid);
       store('kuroko_vis_q', q);
       if (r && r.visitors) S.visitors = r.visitors;
       renderVisitors();
@@ -10366,7 +10457,7 @@ function remindPrize(){
     if (close == null || close - cur > 45 || close - cur < 0) return;
     const need = Math.max(1, CONFIG.PRIZE_COST | 0);
     if (stampsLeft() < need) return;
-    if (load('kuroko_prize_remind', null) === ymd(d)) return;
+    if (loadStr('kuroko_prize_remind') === ymd(d)) return;
     store('kuroko_prize_remind', ymd(d));
     toast(`本日は ${st.day.close} までです。お菓子と交換できるスタンプがあります（スタンプ画面の「お菓子と交換する」）`,
       { label:'スタンプを見る', fn: () => switchView('stamp') }, 10000);
@@ -11480,11 +11571,16 @@ function pruneUnsent(booths){
 }
 function loadUnsent(){
   const v = load('kuroko_unsent', {});
-  if (v && typeof v === 'object' && !Array.isArray(v)) S.unsent = v;
+  // v181：1件ずつ形を確かめる（オブジェクトでないものが混ざると、送り直しの途中で止まる）
+  if (v && typeof v === 'object' && !Array.isArray(v)){
+    S.unsent = {};
+    Object.keys(v).forEach(id => { if (v[id] && typeof v[id] === 'object' && !Array.isArray(v[id])) S.unsent[id] = v[id]; });
+  }
   // 数えかけの人数（送信前）も戻す。30分より古いものは今の状況ではないので捨てる
   const d = load('kuroko_drafts', null);
-  if (d && d.w && d.a){
+  if (d && typeof d === 'object' && d.w && typeof d.w === 'object' && d.a && typeof d.a === 'object'){
     for (const id of Object.keys(d.w)){
+      if (!isFinite(Number(d.w[id])) || typeof d.a[id] !== 'number') continue;
       if (Date.now() - (d.a[id] || 0) < 30 * 60000){ S.draftWait[id] = d.w[id]; S.draftAt[id] = d.a[id]; }
     }
   }
@@ -13075,7 +13171,7 @@ function setThemeColor(){
 
 function initTheme(){
   // 以前の light / cyber を選んでいた人も、消えた見た目に取り残されないよう既定へ寄せる
-  const saved = load('kuroko_theme', null);
+  const saved = loadStr('kuroko_theme');
   const ok = THEMES.some(x => x.id === saved);
   // まだ選んでいない人には、端末の設定に合わせた方を出す。
   // 暗くした端末に真っ白な画面を出すと、夜の校内では特にまぶしい。
@@ -13090,7 +13186,7 @@ function initTheme(){
   // v163：夕方に端末が自動で暗くなったとき、開きっぱなしの画面も合わせる（自分で選んだ人はそのまま）
   try{
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', m => {
-      if (THEMES.some(x => x.id === load('kuroko_theme', null))) return;
+      if (THEMES.some(x => x.id === loadStr('kuroko_theme'))) return;
       t = m.matches ? 'heavy' : THEMES[0].id;
       document.documentElement.setAttribute('data-theme', t); setThemeColor();
       btn.setAttribute('aria-label', '見た目を変える（いま：' + label() + '）');
@@ -13131,11 +13227,11 @@ function init(){
   initZoom();
   initNotice();
   requestAnimationFrame(() => fitMapBox(S.floor));
-  S.stamps   = new Set(load('kuroko_stamps_v2', []));
+  S.stamps   = new Set(idList('kuroko_stamps_v2'));
   // 交換済みの印は、スタンプ側が消えても残す（消すと、同じQRを読み直して二重に交換できてしまう）
-  S.spent    = Array.from(new Set(load('kuroko_spent_v1', []) || []));
-  S.assigned = new Set(load('kuroko_assigned_v2', []));
-  S.admOpen = new Set(load('kuroko_adm_open', []));
+  S.spent    = idList('kuroko_spent_v1');
+  S.assigned = new Set(idList('kuroko_assigned_v2'));
+  S.admOpen = new Set(strList('kuroko_adm_open'));
   { const m = load('kuroko_adm_mode', 'floor'); S.admMode = ['floor', 'dept', 'flat'].indexOf(m) >= 0 ? m : 'floor'; }
   $$('#adm-mode button').forEach(el => el.addEventListener('click', () => {
     S.admMode = ['floor', 'dept', 'flat'].indexOf(el.dataset.m) >= 0 ? el.dataset.m : 'floor';
@@ -13155,8 +13251,11 @@ function init(){
   const cache = load('kuroko_cache_v2', null);
   if (cache && cache.fetchedAt && Date.now() - cache.fetchedAt > CONFIG.CACHE_MAX_AGE_MS){
     store('kuroko_cache_v2', undefined);
-  } else if (cache && cache.booths){
-    S.booths = cache.booths; S.notice = cache.notice || null;
+  } else if (cache && typeof cache === 'object' && Array.isArray(cache.booths)){
+    // v181：控えも、サーバーの返事と同じ道（normalize）を通して形を確かめる（控えが壊れていても起動を止めない）
+    let cb = [];
+    try{ cb = normalize({ booths: cache.booths }) || []; }catch(e){ cb = []; }
+    S.booths = cb; S.notice = (cache.notice && typeof cache.notice === 'object' && !Array.isArray(cache.notice)) ? cache.notice : null;
     S.numbers = new Map(S.booths.map((b, i) => [b.id, i + 1]));
     S.updatedAt = cache.updatedAt; S.fetchedAt = cache.fetchedAt || 0;
     ageStale();                         // 前回から時間がたっていれば、古い状況は「情報なし」で出す
@@ -13216,7 +13315,7 @@ function init(){
     }); }
   $('#sort-free').addEventListener('click', () => setSort('free', true));
   $('#sort-name').addEventListener('click', () => setSort('name', true));
-  if (load('kuroko_sort', null) === 'name'){
+  if (loadStr('kuroko_sort') === 'name'){
     S.sort = 'name';
     $('#sort-free').setAttribute('aria-pressed', 'false');
     $('#sort-name').setAttribute('aria-pressed', 'true');
@@ -13867,17 +13966,49 @@ function setSort(s, user){
   scrollListTop();          // 並びが総入れ替えになるので、途中の位置に留めない
 }
 
+/**
+ * v181：保存データの修理。スタンプ・交換済み・★・スタンプ番号など「集めたもの」は、正しい形のものだけ残して書き直し、
+ * それ以外の設定・控え（文字の大きさ・見た目・前回の混雑情報など）は消す。消えても、開けばまた作られる。
+ * 起動に失敗したときの「直して開き直す」と、?mode=check の画面から使う
+ */
+function repairStorage(){
+  const keep = {};
+  try{
+    keep.kuroko_stamps_v2 = idList('kuroko_stamps_v2');
+    keep.kuroko_spent_v1 = idList('kuroko_spent_v1');
+    keep.kuroko_wish_v1 = idList('kuroko_wish_v1');
+    const at = load('kuroko_stamp_at', {}), at2 = {};
+    Object.keys(at).forEach(id => { if (id && id.length <= 40 && typeof at[id] === 'number' && isFinite(at[id])) at2[id] = at[id]; });
+    keep.kuroko_stamp_at = at2;
+    ['kuroko_sid', 'kuroko_cid', 'kuroko_join_from'].forEach(k => { const v = loadStr(k); if (v && /^[0-9A-Za-z-]{4,40}$/.test(v)) keep[k] = v; });
+    ['kuroko_joined', 'kuroko_migrated', 'kuroko_intro_v1'].forEach(k => { const v = load(k, null); if (v === 1 || v === true) keep[k] = v; });
+  }catch(e){}
+  try{
+    const del = [];
+    for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if (k && k.indexOf('kuroko_') === 0) del.push(k); }
+    del.forEach(k => localStorage.removeItem(k));
+    Object.keys(keep).forEach(k => { try{ localStorage.setItem(k, JSON.stringify(keep[k])); }catch(e){} });
+  }catch(e){}
+  return keep;
+}
+function repairAndReload(){
+  repairStorage();
+  try{ sessionStorage.setItem('kuroko_repaired', '1'); }catch(e){}
+  hardReload();
+}
+
 // 何かの拍子に初期化が失敗しても真っ白にはせず、状況と復旧手段を出す
 document.addEventListener('DOMContentLoaded', () => {
-  try{ init(); }
+  try{ init(); window.__booted = true; }
   catch(e){
+    window.__booted = 'failed';            // 下の案内を出すので、最後の砦（boot-rescue）は出さない
     console.error(e);
     document.querySelector('main').innerHTML =
       `<div class="banner alert"><span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20.5h19z"/><path d="M12 9.5v5M12 17.5h.01"/></svg></span><span>
-        画面の読み込みに失敗しました。下のボタンで保存データを消して読み直してください。<br>
+        画面の読み込みに失敗しました。下のボタンを押すと、この端末の保存を直して開き直します。<b>集めたスタンプは残ります</b>（文字の大きさなどの設定は初めに戻ります）。<br>
         <small style="font-weight:600">${esc(String(e && e.message || e))}</small>
       </span></div>
-      <button class="btn" onclick="hardReload()">読み直す</button>`;
+      <button class="btn" onclick="repairAndReload()">直して開き直す</button>`;
   }
 });
 
