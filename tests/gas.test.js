@@ -357,3 +357,23 @@ test('端末のエラー記録（clientlog）：パスワードなしで1行書�
   assert.ok(sh.getLastRow() - 1 <= g.CLIENT_LOG_RATE_MAX, '1分あたりの上限');
   assert.match(g.validate(), /端末で起きたエラー：今日 \d+件/);
 });
+
+/* ---------------- v181：でたらめな送信 ---------------- */
+const { fuzzPosts, fuzzLedger } = require('./gas-fuzz');
+
+test('でたらめな送信（3000回×2通り）：落ちない・返事はいつも JSON・パスワードなしではシートが変わらない', () => {
+  for (const seed of [1, 2]) {
+    const r = fuzzPosts(seed, 3000);
+    const msg = Object.keys(r.problems).map(k => `${k}：${r.problems[k].length}件 例）${r.problems[k][0]}`).join(' ／ ');
+    assert.deepStrictEqual(Object.keys(r.problems), [], msg);
+    assert.ok(r.rows.err <= 61 * 3, 'エラー記録の行数は1分あたりの上限で抑えられる');
+  }
+});
+
+test('スタンプの控え・交換・番号をつなぐ（乱数で3000回×2通り）：あるべき状態といつも一致（二重交換・取りこぼしなし）', () => {
+  for (const seed of [1, 2]) {
+    const r = fuzzLedger(seed, 3000);
+    assert.deepStrictEqual(r.bad, [], r.bad.join(' ／ '));
+    assert.ok(r.merged > 0, '番号をつなぐ操作も入っている');
+  }
+});
