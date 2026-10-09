@@ -1552,6 +1552,23 @@ html.sfx-open,html.sfx-open body{overflow:hidden}
 .sfx-acts{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 .sfx-acts .btn{width:100%;min-height:48px}
 .sfx-note{margin-top:10px;font-size:10.5px;font-weight:700;color:var(--text-mute);line-height:1.5}
+/* v186：押した瞬間の手ごたえ。判子のまわりに光の筋が広がり、数が弾み、棒は前の数から伸び、お菓子までの丸が1つ入る */
+.sfx-stamp::before{content:"";position:absolute;inset:-14%;border-radius:50%;pointer-events:none;opacity:0;
+  background:repeating-conic-gradient(from 4deg,color-mix(in srgb,var(--accent) 70%,transparent) 0 5deg,transparent 5deg 18deg);
+  -webkit-mask:radial-gradient(circle,transparent 52%,#000 54%,#000 66%,transparent 72%);mask:radial-gradient(circle,transparent 52%,#000 54%,#000 66%,transparent 72%)}
+.sfx.first.fresh .sfx-stamp.slam::before{animation:sfx-rays .62s .27s ease-out both}
+@keyframes sfx-rays{0%{transform:scale(.62) rotate(-8deg);opacity:0}25%{opacity:.75}100%{transform:scale(1.16) rotate(6deg);opacity:0}}
+.sfx.first.fresh .sfx-count b{display:inline-block;animation:sfx-num .5s .36s var(--ease-out-back) both}
+@keyframes sfx-num{0%{transform:scale(1.7);color:var(--accent-ink)}100%{transform:none}}
+.sfx.first.fresh .sfx-bar i{animation:sfx-fill .7s .34s var(--ease) both}
+@keyframes sfx-fill{from{width:var(--w0,0%)}}
+.sfx-dots{justify-content:center;margin-top:10px}
+.sfx.first .sfx-dots i.new{animation:sfx-dot .5s .62s var(--ease-out-back) both}
+@keyframes sfx-dot{0%{transform:scale(0);opacity:0}60%{transform:scale(1.35);opacity:1}100%{transform:none}}
+html.lite .sfx-stamp::before{display:none}
+html.lite .sfx-count b,html.lite .sfx-bar i,html.lite .sfx-dots i.new{animation:none !important}
+@media (prefers-reduced-motion:reduce){ .sfx-stamp::before{display:none} .sfx-count b,.sfx-bar i,.sfx-dots i.new{animation:none !important} }
+@media (max-height:600px){ .sfx-dots{margin-top:6px} .sfx-dots i{width:18px;height:18px;font-size:10px} }
 /* v185：まだ画面に触っていなくて音を鳴らせないときだけ出す（QR から開いた直後） */
 .sfx-tap{display:none;font-size:12px;color:var(--text-dim)}
 html.snd-wait .sfx-tap{display:block}
@@ -3520,7 +3537,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-09e',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-09f',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -9181,7 +9198,7 @@ function showStampFx(id, fresh){
   const old = $('#sfx'); if (old) old.remove();
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const el = document.createElement('div');
-  el.id = 'sfx'; el.className = 'sfx' + (fresh ? ' fresh' : ' dup');
+  el.id = 'sfx'; el.className = 'sfx first' + (fresh ? ' fresh' : ' dup');
   el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
   el.setAttribute('aria-label', fresh ? 'スタンプを獲得しました' : 'このブースはスタンプ済みです');
   document.body.appendChild(el);
@@ -9211,7 +9228,14 @@ function showStampFx(id, fresh){
         <div class="sfx-stamp${reduce ? '' : ' slam'}">${stampArt(id)}<i class="sfx-ink" aria-hidden="true"></i></div>
         <h2 class="sfx-name">${esc(L.name)}</h2>
         <p class="sfx-count"><b>${got}</b>${total ? ` / ${total} ブース` : ' 個目'}</p>
-        ${total ? `<div class="sfx-bar"><i style="width:${Math.round(got / total * 100)}%"></i></div>` : ''}
+        ${total ? `<div class="sfx-bar"><i style="width:${Math.round(got / total * 100)}%;--w0:${Math.round(Math.max(0, got - (fresh ? 1 : 0)) / total * 100)}%"></i></div>` : ''}
+        ${(() => {
+          // v186：お菓子までの丸（スタンプ帳と同じ絵）。いま押した1個が、ぽんと入る
+          if (done || need > 8) return '';
+          const have = left >= need ? need : left % need;
+          return `<div class="prize-dots sfx-dots" aria-hidden="true">${Array.from({ length: need }, (x, i) =>
+            `<i class="${i < have ? 'on' : ''}${fresh && i === have - 1 ? ' new' : ''}">${i < have ? '✓' : ''}</i>`).join('')}</div>`;
+        })()}
         <p class="sfx-goal">${esc(goal)}</p>
         ${!fresh && stampAt()[id] ? `<p class="sfx-note">${new Date(stampAt()[id]).toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' })} に押しています</p>` : ''}
         <div class="sfx-acts">
@@ -9278,6 +9302,7 @@ function showStampFx(id, fresh){
   document.documentElement.classList.add('sfx-open');
   showStampFx.refresh = () => {
     if (!showStampFx._open || !document.body.contains(el)) return;
+    el.classList.remove('first');               // 描き直しでは、入りの動き（光・数字・丸）をくり返さない
     // 描き直すとボタンが作り直され、押そうとしていたボタンからフォーカスが外れる。同じボタンに戻す
     const a = document.activeElement;
     const k = a && el.contains(a) ? a.dataset.fx : (a === document.body ? 'book' : null);
