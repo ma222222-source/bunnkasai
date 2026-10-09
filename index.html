@@ -3343,7 +3343,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-09a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-09b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -6426,7 +6426,29 @@ document.addEventListener('keydown', e => {
 });
 
 /** ★行きたい を付け外しする（端末に保存。サーバーには送らない） */
+/**
+ * v182：★を、端末の保存（ほかのタブが書いた最新）に合わせる。変わったら true。
+ * QR を標準のカメラで読むたびに新しいタブが開くので、同じ端末にこの画面がいくつも開いていることは珍しくない。
+ * 以前は、このタブが開いたときの★のまま上書きしていたので、別のタブで付けた★が消え、別のタブで外した★が復活していた
+ */
+function pullWish(){
+  const a = idList('kuroko_wish_v1');
+  if (a.length === S.wish.size && a.every(x => S.wish.has(x))) return false;
+  S.wish = new Set(a);
+  return true;
+}
+/** ★が変わったあとの描き直し（付け外し・すべて外す・ほかのタブでの変更で共通） */
+function renderWishAll(){
+  renderWishChip();
+  renderFloorCounts();
+  renderSheet._fp = null; if (S.sheetId) renderSheet();
+  renderList._fp = null; if (S.view === 'list') renderList();
+  renderRouteChips();
+  if (S.route === 'wish') renderRouteSteps();
+  drawFloor._fp = null; drawFloor(S.floor);
+}
 function toggleWish(id){
+  pullWish();                                   // ほかのタブで増えた・外した分を先に取り込む
   if (S.wish.has(id)) S.wish.delete(id); else S.wish.add(id);
   store('kuroko_wish_v1', Array.from(S.wish));
   renderWishChip();
@@ -8782,6 +8804,17 @@ function refreshStampsFromDisk(){
 window.addEventListener('storage', e => {
   if (e.key === 'kuroko_stamps_v2' || e.key === 'kuroko_spent_v1' || e.key === null) refreshStampsFromDisk();
 });
+// v182：ほかのタブで変えた★・設定・いまここを、開いたままのこのタブにも反映する
+window.addEventListener('storage', e => {
+  try{
+    const k = e.key;
+    if (k === 'kuroko_wish_v1' || k === null){ if (pullWish()) renderWishAll(); }
+    if (k === 'kuroko_sound' || k === null) syncSoundFromDisk();
+    if (k === 'kuroko_fs' || k === null){ const v = load('kuroko_fs', 'n'); if (initFontSize._apply && ['n', 'lg', 'xl'].indexOf(v) >= 0 && v !== document.documentElement.getAttribute('data-fs')) initFontSize._apply(v); }
+    if (k === 'kuroko_theme' || k === null){ const v = loadStr('kuroko_theme'); if (initTheme._set && v && THEMES.some(x => x.id === v) && v !== document.documentElement.getAttribute('data-theme')) initTheme._set(v); }
+    if (k === 'kuroko_here_v1' || k === null){ renderHere(); drawFloor(S.floor); renderFloorCounts(); if (S.view === 'list'){ renderList._fp = null; renderList(); } }
+  }catch(err){}
+});
 // 同じ端末の別の係員画面で未送信が増えたら、こちらにも取り込む（どちらの画面からでも再送できるように）
 window.addEventListener('storage', e => {
   if (e.key !== 'kuroko_unsent' || !S.isAdmin) return;
@@ -8796,8 +8829,8 @@ window.addEventListener('storage', e => {
   if (ch){ applyUnsent(S.booths); renderAdmin(); }
 });
 // アプリを切り替えて戻ってきたとき＝別のアプリで集めてきた直後。間隔を短くして読みに行く
-window.addEventListener('pageshow', () => { refreshStampsFromDisk(); pullLedger(3000); });
-window.addEventListener('focus', () => { refreshStampsFromDisk(); pullLedger(3000); });
+window.addEventListener('pageshow', () => { refreshStampsFromDisk(); if (pullWish()) renderWishAll(); pullLedger(3000); });
+window.addEventListener('focus', () => { refreshStampsFromDisk(); if (pullWish()) renderWishAll(); pullLedger(3000); });
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden){ beaconLedger._sent = false; refreshStampsFromDisk(); pullLedger(3000); return; }
   beaconLedger();
@@ -10287,8 +10320,12 @@ function hoursMessage(now){
   const pub = festDays().find(x => !/校内/.test(x.label || '') && x.date >= ymd(d));
   if (st.state === 'before'){
     const h = Math.floor(st.minutes / 60), m = st.minutes % 60;
+    // v182：校内公開日（一般の方は入れない日）に一般の方が開くと「本日は 10:00 開場」とだけ出て、今日来られるように読めた。
+    // 一般公開の日があとにあるときは、それも並べて出す
+    const pubNote = (/校内/.test(nm) && pub && pub.date > day.date)
+      ? `一般公開は ${dayLabel(pub.date)} ${pub.open}〜${pub.close} です。` : '';
     return { short: `${day.open} 開場（あと${h ? h + '時間' : ''}${m}分）`,
-             long: `本日（${nm}）は ${day.open} 開場です。混雑状況は開場後に出ます。` };
+             long: `本日（${nm}）は ${day.open} 開場です。混雑状況は開場後に出ます。${pubNote}` };
   }
   if (st.state === 'after'){
     const next = pub && pub.date > day.date ? `一般公開は${dayLabel(pub.date)} ${pub.open}〜${pub.close}です。` : 'ご来場ありがとうございました。';
@@ -13105,6 +13142,15 @@ function initBoard(){
 /* =====================================================================
    初期化
    ===================================================================== */
+/** ほかのタブで変えた音の設定に合わせる（鳴らさない・試しの音も出さない）（v182） */
+function syncSoundFromDisk(){
+  const on = load('kuroko_sound', null) !== false;
+  if (on === S.sound) return;
+  S.sound = on;
+  const a = $('#snd-on'), b = $('#snd-off');
+  if (a) a.setAttribute('aria-pressed', String(on));
+  if (b) b.setAttribute('aria-pressed', String(!on));
+}
 /** 音の設定を変える（インフォとスタンプの演出で共通。v172） */
 function setSound(on){
   S.sound = !!on;
@@ -13139,6 +13185,7 @@ function initFontSize(){
     try{ if (S.view === 'map' && S.booths.length){ measureHead(); fitMapBox(S.floor); } }catch(e){}
     requestAnimationFrame(() => { measureHead(); fitMapBox(S.floor); });
   };
+  initFontSize._apply = apply;                  // ほかのタブで変えたときに、ここから合わせる（v182）
   const saved = load('kuroko_fs', 'n');
   apply(SIZES.some(x => x[0] === saved) ? saved : 'n');
   SIZES.forEach(([k, sel, msg]) => $(sel).addEventListener('click', () => {
@@ -13183,6 +13230,13 @@ function initTheme(){
   const label = () => (THEMES.find(x => x.id === t) || THEMES[0]).name;
   const btn = $('#btn-theme');
   btn.setAttribute('aria-label', '見た目を変える（いま：' + label() + '）');
+  // ほかのタブで変えた見た目に合わせる（v182）
+  initTheme._set = v => {
+    t = v;
+    document.documentElement.setAttribute('data-theme', t); setThemeColor();
+    btn.setAttribute('aria-label', '見た目を変える（いま：' + label() + '）');
+    try{ drawFloor._fp = null; drawFloor(S.floor); fitMapBox._key = null; fitMapBox(S.floor); measureHead(); }catch(e){}
+  };
   // v163：夕方に端末が自動で暗くなったとき、開きっぱなしの画面も合わせる（自分で選んだ人はそのまま）
   try{
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', m => {
@@ -13931,6 +13985,7 @@ function renderWishChip(){
   if (c) c.classList.toggle('hide', !(S.wishOnly && S.wish.size));
 }
 function clearWish(){
+  pullWish();
   const before = Array.from(S.wish);
   if (!before.length) return;
   S.wish = new Set();
