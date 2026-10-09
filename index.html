@@ -1552,6 +1552,9 @@ html.sfx-open,html.sfx-open body{overflow:hidden}
 .sfx-acts{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 .sfx-acts .btn{width:100%;min-height:48px}
 .sfx-note{margin-top:10px;font-size:10.5px;font-weight:700;color:var(--text-mute);line-height:1.5}
+/* v185：まだ画面に触っていなくて音を鳴らせないときだけ出す（QR から開いた直後） */
+.sfx-tap{display:none;font-size:12px;color:var(--text-dim)}
+html.snd-wait .sfx-tap{display:block}
 /* 背の低い画面（iPhone SE・LINEの中）では判子を小さくし、下の案内まで1画面に収める */
 @media (max-height:700px){
   .sfx{padding:10px}
@@ -2705,14 +2708,27 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 /* ---- 中面の地図 ---- */
 .pam-map{line-height:0}
 .pam .pam-map .sheet-plan{display:block;width:100%;height:auto;max-height:none}
-.pam-spread{grid-column:2 / 4;display:grid;grid-template-columns:83mm 17mm 80mm;grid-template-rows:auto auto 1fr;gap:1.5mm 0;align-content:start}
+/* v185：1階の地図は2面いっぱいの幅（180mm）。下の段は、折り目（左から100mm）をまたがないよう左右に分ける */
+.pam-spread{grid-column:2 / 4;display:flex;flex-direction:column;gap:1.6mm;padding-top:6.5mm;padding-bottom:6mm}
+.pam-spread > .pam-h3{margin-bottom:0}
+/* 2階・3階は、ブースのある棟だけに絞って横に並べる */
+.pam-spread-mid{display:flex;align-items:flex-start;justify-content:space-between;gap:5mm}
+.pam-spread-mid .pam-mini{position:relative;flex:none}
+.pam-spread-mid .m2{width:122mm} .pam-spread-mid .m3{width:47mm}
+/* 番号の一覧は4段。折り目（左から100mm）は2段目と3段目のあいだを通る */
+.pam-lists{columns:4;column-gap:4mm;font-size:6.6pt;line-height:1.4}
+.pam-lists .pam-h4{margin:0 0 .5mm;break-after:avoid;display:inline-block}
+.pam-lists .pam-list{margin:0 0 1.2mm;font-size:inherit;line-height:inherit}
+.pam-in{flex:1;min-height:0;display:flex;flex-direction:column;gap:2.4mm;zoom:var(--ks,1)}
+.pam.as-print .pam-opt.is-empty{display:none !important}
 .pam-spread > .pam-h3{grid-column:1 / -1}
-.pam-spread-top{grid-column:1 / -1;min-height:0;display:flex;flex-direction:column;gap:1mm}
-.pam .pam-spread-top .sheet-plan{width:100%;height:77mm;max-height:none}
+.pam-spread-top{grid-column:1 / -1;min-height:0;position:relative}
+.pam .pam-spread-top .sheet-plan{width:100%;height:auto;max-height:none}
+.pam-fl-on{position:absolute;left:0;top:0;z-index:1}
 .pam-spread-l{grid-column:1;min-height:0;display:flex;flex-direction:column;gap:1.2mm}
 .pam-spread-r{grid-column:3;min-height:0;display:flex;flex-direction:column;gap:1.2mm}
-.pam .pam-mini .sheet-plan{width:100%;height:34mm;max-height:none}
-.pam .pam-mini.m3 .sheet-plan{height:23mm}
+.pam .pam-mini .sheet-plan{width:100%;height:auto;max-height:none}
+
 .pam-list{margin:0;padding:0;list-style:none;column-gap:3mm;font-size:6.3pt;line-height:1.42}
 .pam-list li{break-inside:avoid;display:flex;gap:1mm}
 .pam-list b{flex:none;min-width:3.4mm;text-align:right;font-weight:900;color:#b91c1c;font-variant-numeric:tabular-nums}
@@ -2735,6 +2751,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
   .pam-sheet-t{display:none !important}
   .pam-sheet:last-child{break-after:auto;page-break-after:auto}
   .pam-paper{box-shadow:none;transform:none !important;margin:0 !important}
+  .pam-in{zoom:var(--kp,1)}
   /* v184：ふつうの両面印刷（長辺とじ）は、裏を「上の辺でめくる」向きに刷る。三つ折りは横にめくるので、そのままだと内側が上下逆になる。
      長辺とじ用では、2ページ目をはじめから上下逆（180度）に置く。紙の真ん中で回すので、折り目の位置は表と合う */
   .pam[data-flip="long"] .pam-s2 .pam-paper{transform:rotate(180deg) !important;transform-origin:50% 50%}
@@ -3096,7 +3113,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
           <button id="snd-on" aria-pressed="true">鳴らす</button>
         </div>
         <p style="font-size:10.5px;color:var(--text-mute);font-weight:700;margin-top:6px">
-          スタンプが押されたときに小さな音が鳴ります（初期設定は「鳴らす」）。<b>マナーモード（消音）のときは鳴らないことがあります。</b>
+          QR を読んでスタンプが押されたときに、すぐ音が鳴ります（初期設定は「鳴らす」）。<b>マナーモード（消音）でも鳴ることがあります。静かな場所では「鳴らさない」にしてください。</b>
           校内では周りの迷惑にならないよう気をつけてください。
         </p>
       </div>
@@ -3503,7 +3520,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-09d',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-09e',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -6947,15 +6964,19 @@ function scanLoop(){
       buzz(40);
       // v171：読み込み直さず、その場でスタンプを付ける（読み込み直すと、スマホのブラウザが音を止めていた。待ち時間も減る）
       // 署名の照合は QR から開いたときと同じ（sigOf）。合わないQRは付けない
+      let u = null;
+      try{ u = new URL(url, location.href); }catch(e){}
+      const b = u && u.searchParams.get('booth'), k = u && u.searchParams.get('k');
+      const valid = !!b && k === sigOf(b);
+      // v185：読めた瞬間に鳴らす（カメラを閉じる・画面を移る・演出を出す、を待たない）
+      let rung = false;
+      if (valid){ const kind = dingKindFor(b); if (kind){ ding(kind); rung = true; } }
       setTimeout(() => {
-        let u = null;
-        try{ u = new URL(url, location.href); }catch(e){}
-        const b = u && u.searchParams.get('booth'), k = u && u.searchParams.get('k');
         closeScanner();
         $('#scan').classList.remove('read-ok');
-        if (!b || k !== sigOf(b)){ toast('このQRではスタンプが付きません。ブース入口のQRを読み取ってください'); return; }
+        if (!valid){ toast('このQRではスタンプが付きません。ブース入口のQRを読み取ってください'); return; }
         if (S.sheetId) closeSheet();
-        stampNow(b);
+        stampNow(b, { rung });
       }, 150);
       return;
     }
@@ -9030,9 +9051,14 @@ function beaconLedger(){
  * 署名を確かめたブースにスタンプを付けて、スタンプ帳で演出を見せる（v171：QRから開いたときと、アプリの中のカメラで読んだときで共通）
  * @returns {boolean} 新しく付いたか
  */
-function stampNow(b){
+function stampNow(b, opt){
+  const kind = dingKindFor(b);      // 付ける前に、鳴らす音を決める
   const fresh = earnStamp(b);       // すでに持っていれば false
-  if (fresh) setHere(b, 'qr');      // 読んだ場所＝いまいる場所
+  if (fresh){
+    setHere(b, 'qr');               // 読んだ場所＝いまいる場所
+    // v185：演出を待たずに、付けた瞬間に鳴らす（アプリの中のカメラは、読めた瞬間にもう鳴らしている＝opt.rung）
+    if (!(opt && opt.rung)) ding(kind || 'stamp');
+  }
   switchView('stamp');
   setTimeout(() => showStampFx(b, fresh), 120);
   return fresh;
@@ -9195,6 +9221,7 @@ function showStampFx(id, fresh){
           ${fresh && got <= 2 && window.__bip ? '<button class="btn ghost" data-fx="a2hs">ホーム画面に追加する（次からすぐ開ける）</button>' : ''}
           ${next ? `<button class="btn ghost" data-fx="next" data-id="${esc(next.id)}">次は空いている「${esc(next.name)}」へ</button>` : ''}
         </div>
+        <p class="sfx-note sfx-tap" role="status">画面にふれると、音が鳴ります</p>
         <p class="sfx-note sid-sync" id="sfx-sync"></p>
         <button class="sfx-link sfx-snd" data-fx="snd" aria-pressed="${S.sound}">${S.sound ? '音：鳴らす（押すと鳴らさない）' : '音：鳴らさない（押すと鳴らす）'}</button>
         ${fresh && got <= 2 && !load('kuroko_joined', null)
@@ -9265,8 +9292,7 @@ function showStampFx(id, fresh){
   if (fresh){
     const total = S.booths.length, got = S.booths.filter(b => S.stamps.has(b.id)).length;
     const left = stampsLeft(), need = Math.max(1, CONFIG.PRIZE_COST | 0);
-    // 全部回った・交換できる数に届いた、は特別な音（v171）
-    ding(total && got >= total ? 'done' : (left >= need && left - 1 < need) ? 'prize' : undefined);
+    // 音は、スタンプを付けた瞬間に鳴らしている（stampNow。v185）
     buzz([18, 40, 70]);
     // 節目だけ紙吹雪（毎回だと特別感がなくなる）
     if ((total && got >= total) || (left >= need && left - 1 < need) || got === 1 || stampLook(id).shiny){
@@ -9514,43 +9540,130 @@ function renderStamps(){
 
 /**
  * スタンプの音。音声ファイルは持たず、その場で短い音を作る。
- * 既定では鳴らさない（校内で不意に音が出るのを避けるため）。
- */
-/**
- * スタンプの音。
  * v171：スマホのブラウザは「画面に触っていない間」は音を出させない（QRから開いた直後・読み込み直した直後）。
- * そのときは鳴らせなかった音を覚えておき、20秒以内に画面に触ったらその場で鳴らす（unlockAudio）
+ *       そのときは鳴らせなかった音を覚えておき、次に画面に触ったらその場で鳴らす（unlockAudio）。
+ * v185（ユーザーの依頼：QR を読んだらすぐ・確実に）：
+ *   1) 鳴らす道を2本にした。まず <audio>（その場で作った WAV）、だめなら Web Audio。
+ *      iPhone の Web Audio はマナーモード（消音スイッチ）で黙り、カメラを使ったあとは止まったままになることがある。
+ *      <audio> は、一度でも画面に触った操作の中で鳴らしておけば、あとは触らなくても鳴らせ、消音スイッチでも鳴る。
+ *   2) 鳴らす時を早めた。アプリの中のカメラは「読めた瞬間」、QR から開いたときは「スタンプを付けた瞬間」（演出の前）。
+ *   3) 触るまで鳴らせなかったときは、最初に触ったときに鳴らし、スタンプの演出ももう一度見せる（音と絵が合う）。
  */
-function ding(kind){
-  if (!S.sound) return;
+const DING_NOTES = { stamp: [880, 1320], prize: [880, 1175, 1568], done: [660, 880, 1320] };
+/** その場で作った WAV（16bit・モノラル）のアドレス。kind='silent' は、触った操作の中で鳴らしておくための無音 */
+function dingWavUrl(kind){
+  const c = dingWavUrl._c || (dingWavUrl._c = {});
+  if (c[kind]) return c[kind];
+  const sr = 22050, notes = kind === 'silent' ? [] : (DING_NOTES[kind] || DING_NOTES.stamp);
+  const n = Math.round(sr * (kind === 'silent' ? 0.06 : (notes.length - 1) * 0.09 + 0.3));
+  const f32 = new Float32Array(n);
+  notes.forEach((f, i) => {
+    const j0 = Math.round(i * 0.09 * sr);
+    for (let j = j0; j < n; j++){
+      const t = (j - j0) / sr;
+      if (t > 0.28) break;
+      const env = t < 0.012 ? t / 0.012 : Math.exp(-(t - 0.012) * 15);   // 12ms で立ち上がり、すっと消える
+      const ph = (t * f) % 1;
+      f32[j] += (4 * Math.abs(ph - 0.5) - 1) * env * 0.4;               // 三角波（やわらかい音）
+    }
+  });
+  const buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const w = (o, t) => { for (let k = 0; k < t.length; k++) v.setUint8(o + k, t.charCodeAt(k)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, 'data'); v.setUint32(40, n * 2, true);
+  for (let j = 0; j < n; j++){
+    const fade = Math.min(1, (n - j) / (sr * 0.012));                   // 終わりのプツッという音を消す
+    v.setInt16(44 + j * 2, Math.max(-1, Math.min(1, f32[j] * fade)) * 32767, true);
+  }
+  return (c[kind] = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' })));
+}
+/** 音を鳴らす <audio>。1つを使い回す（iPhone は「触った操作の中で鳴らした要素」だけ、あとから鳴らせる） */
+function dingEl(){
+  if (dingEl._el !== undefined) return dingEl._el;
+  let a = null;
+  try{
+    if (typeof Audio === 'function' && window.URL && URL.createObjectURL && window.Blob){ a = new Audio(); a.preload = 'auto'; }
+  }catch(e){ a = null; }
+  return (dingEl._el = a);
+}
+/** <audio> で鳴らす。鳴らせたら true（触っていない・対応していない などで鳴らせなければ false） */
+function dingViaEl(kind){
+  const a = dingEl();
+  if (!a) return Promise.resolve(false);
+  try{
+    a.muted = false; a.volume = 1;
+    a.src = dingWavUrl(kind);
+    const p = a.play();
+    if (!p || !p.then) return Promise.resolve(true);
+    // 次の音に差し替えられて止まった（AbortError）のは「鳴らせなかった」ではない
+    return p.then(() => true, e => !!(e && e.name === 'AbortError'));
+  }catch(e){ return Promise.resolve(false); }
+}
+function dingAc(){
   try{
     const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    const ac = ding._ac || (ding._ac = new AC());
-    if (ac.state !== 'running'){
-      ding._pending = { kind, at: Date.now() };
+    if (!AC) return null;
+    return ding._ac || (ding._ac = new AC());
+  }catch(e){ return null; }
+}
+/** 鳴らせた（どちらの道でも）。待ちを解く */
+function dingDone(kind){
+  ding._n = (ding._n || 0) + 1; ding._last = kind;
+  document.documentElement.classList.remove('snd-wait');
+}
+/** いまは鳴らせない（まだ画面に触っていない）。次に触ったときに鳴らす */
+function dingWait(kind){
+  ding._pending = { kind, at: Date.now() };
+  document.documentElement.classList.add('snd-wait');
+}
+function ding(kind){
+  if (!S.sound) return;
+  const k = DING_NOTES[kind] ? kind : 'stamp';
+  ding._pending = null;
+  // Web Audio も先に起こしておく（<audio> がだめだったときに、すぐ鳴らせるように）
+  const ac = dingAc();
+  try{ if (ac && ac.state !== 'running' && ac.resume){ const r = ac.resume(); if (r && r.catch) r.catch(() => {}); } }catch(e){}
+  dingViaEl(k).then(ok => {
+    if (ok){ dingDone(k); return; }
+    if (!ac){ dingWait(k); return; }
+    if (ac.state === 'running'){ dingPlay(ac, k); dingDone(k); return; }
+    dingWait(k);
+    try{
       const r = ac.resume && ac.resume();
-      if (r && r.then) r.then(() => { if (ac.state === 'running' && ding._pending){ const k = ding._pending.kind; ding._pending = null; dingPlay(ac, k); } }).catch(() => {});
-      return;
-    }
-    dingPlay(ac, kind);
-  }catch(e){ /* 音が出せない環境では黙って諦める */ }
+      if (r && r.then) r.then(() => {
+        const p = ding._pending;
+        if (ac.state === 'running' && p && p.kind === k){ ding._pending = null; dingPlay(ac, k); dingDone(k); }
+      }).catch(() => {});
+    }catch(e){}
+  });
 }
 function dingPlay(ac, kind){
   try{
     const t = ac.currentTime;
     // v171：交換できる数に届いたときは3音で上がる（いつもの2音と聞き分けられる）
-    const notes = kind === 'done' ? [660, 880, 1320] : kind === 'prize' ? [880, 1175, 1568] : [880, 1320];
+    const notes = DING_NOTES[kind] || DING_NOTES.stamp;
     notes.forEach((f, i) => {
       const o = ac.createOscillator(), g = ac.createGain();
       o.type = 'triangle'; o.frequency.value = f;
       g.gain.setValueAtTime(0.0001, t + i * 0.09);
-      g.gain.exponentialRampToValueAtTime(0.13, t + i * 0.09 + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.22, t + i * 0.09 + 0.012);
       g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.09 + 0.22);
       o.connect(g); g.connect(ac.destination);
       o.start(t + i * 0.09); o.stop(t + i * 0.09 + 0.24);
     });
   }catch(e){}
+}
+/** このブースのスタンプを付けると鳴る音（付ける前に決める。もう持っていれば鳴らさない） */
+function dingKindFor(id){
+  if (S.stamps.has(id)) return null;
+  const total = S.booths.length;
+  const got = S.booths.filter(b => b.id === id || S.stamps.has(b.id)).length;
+  const need = Math.max(1, CONFIG.PRIZE_COST | 0);
+  const left = stampsLeft() + (S.booths.some(b => b.id === id) ? 1 : 0);
+  // 全部回った・交換できる数に届いた、は特別な音（v171）
+  return total && got >= total ? 'done' : (left >= need && left - 1 < need) ? 'prize' : 'stamp';
 }
 /**
  * v171：画面に触った瞬間に音の準備をする（iPhone は触った操作の中で一度音を出さないと、あとで鳴らせない）。
@@ -9559,21 +9672,38 @@ function dingPlay(ac, kind){
 function unlockAudio(){
   try{
     if (S.sound){
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (AC){
-        const ac = ding._ac || (ding._ac = new AC());
+      const ac = dingAc();
+      if (ac){
         if (ac.state !== 'running' && ac.resume) ac.resume().catch(() => {});
         if (!unlockAudio._silent && ac.createBuffer){
           unlockAudio._silent = true;
           const src = ac.createBufferSource(); src.buffer = ac.createBuffer(1, 1, 22050);
           src.connect(ac.destination); src.start(0);
         }
-        const p = ding._pending;
-        if (p && Date.now() - p.at < 20000 && ac.state === 'running'){ ding._pending = null; dingPlay(ac, p.kind); }
+      }
+      const p = ding._pending;
+      if (p && Date.now() - p.at < 60000){
+        // 待っていた音を、触ったこの操作の中で鳴らす。スタンプの演出が出ていれば、音に合わせてもう一度押す
+        ding._pending = null;
+        ding(p.kind);
+        const st = document.querySelector('#sfx .sfx-stamp');
+        if (st && st.classList.contains('slam')){ st.classList.remove('slam'); void st.offsetWidth; st.classList.add('slam'); }
+      } else {
+        if (p){ ding._pending = null; document.documentElement.classList.remove('snd-wait'); }
+        // 触った操作の中で <audio> を一度（無音で）鳴らしておく。以後は、触っていなくても鳴らせる
+        const a = dingEl();
+        if (a && !dingEl._primed && a.paused){
+          dingEl._primed = true;
+          try{
+            a.src = dingWavUrl('silent');
+            const q = a.play();
+            if (q && q.catch) q.catch(e => { if (!e || e.name !== 'AbortError') dingEl._primed = false; });
+          }catch(e){ dingEl._primed = false; }
+        }
       }
     }
     const bp = buzz._pending;
-    if (bp && Date.now() - bp.at < 20000){ buzz._pending = null; if (navigator.vibrate) navigator.vibrate(bp.pattern); }
+    if (bp && Date.now() - bp.at < 60000){ buzz._pending = null; if (navigator.vibrate) navigator.vibrate(bp.pattern); }
   }catch(e){}
 }
 ['pointerdown', 'keydown', 'touchend'].forEach(t => document.addEventListener(t, unlockAudio, { capture:true, passive:true }));
@@ -12885,7 +13015,8 @@ function renderPamphlet(){
   const lvHtml = `<ul class="pam-lv">${LEVELS.map(l =>
     `<li data-lv="${l.lv}"><i>${esc(l.icon)}</i><b>${esc(l.short)}</b><span>${esc(l.wait)}</span></li>`).join('')}</ul>`;
 
-  const panel = (role, inner) => `<section class="pam-panel pam-${role}" data-panel="${role}">${inner}</section>`;
+  // v185：折り込む面・裏表紙は、中身を1つの箱（.pam-in）に包み、面の空きが無くなるまで全体を大きくする（pamCheck）
+  const panel = (role, inner) => `<section class="pam-panel pam-${role}" data-panel="${role}">${role === 'flap' || role === 'back' ? `<div class="pam-in">${inner}</div>` : inner}</section>`;
 
   // ---- 表紙：濃い地に白い字。四隅は紙の白を残す（家庭用・学校のプリンターは端まで刷れないので、はじめから余白を絵にする）
   const cover = panel('cover', `
@@ -12957,19 +13088,20 @@ function renderPamphlet(){
   // 折り目（左から 100mm）は地図の上だけを通し、番号の一覧は折り目をまたがないよう左右の列に分ける
   const listOf = (f, cols) => {
     const list = S.booths.filter(b => floorOfBooth(b) === f).sort((a, b) => (S.numbers.get(a.id) || 999) - (S.numbers.get(b.id) || 999));
-    return list.length ? `<ol class="pam-list" style="columns:${cols}">${list.map(b =>
+    return list.length ? `<ol class="pam-list">${list.map(b =>
       `<li><b>${S.numbers.get(b.id) || '-'}</b>${esc(b.name)}</li>`).join('')}</ol>` : '';
   };
-  const mapOf = f => FLOOR_PLAN[f] && S.booths.some(b => floorOfBooth(b) === f) ? `<div class="pam-map">${printPlanSvg(f)}</div>` : '';
+  // v185：紙の上での幅（mm）を渡して、その大きさで読める字を描かせる。2階・3階は、ブースのある棟だけに絞って大きく
+  const mapOf = (f, o) => FLOOR_PLAN[f] && S.booths.some(b => floorOfBooth(b) === f) ? `<div class="pam-map">${printPlanSvg(f, o)}</div>` : '';
   const has = f => S.booths.some(b => floorOfBooth(b) === f);
   const spread = `<section class="pam-panel pam-spread" data-panel="spread">
       <h3 class="pam-h3">校内マップ<small>数字はブースの番号です。スマホのマップ・入口のQRの番号と同じ</small></h3>
-      <div class="pam-spread-top"><h4 class="pam-h4 pam-fl">1階</h4>${mapOf(1)}</div>
-      <div class="pam-spread-l">${listOf(1, 2)}${has(0) ? `<h4 class="pam-h4 pam-fl">屋外・体育館など</h4>${listOf(0, 2)}` : ''}</div>
-      <div class="pam-spread-r">
-        ${has(2) ? `<h4 class="pam-h4 pam-fl">2階</h4><div class="pam-mini">${mapOf(2)}</div>${listOf(2, 2)}` : ''}
-        ${has(3) ? `<h4 class="pam-h4 pam-fl">3階</h4><div class="pam-mini m3">${mapOf(3)}</div>${listOf(3, 2)}` : ''}
+      <div class="pam-spread-top"><span class="pam-fl pam-fl-on">1階</span>${mapOf(1, { mmW: 180 })}</div>
+      <div class="pam-spread-mid">
+        ${has(2) ? `<div class="pam-mini m2"><span class="pam-fl pam-fl-on">2階</span>${mapOf(2, { crop: true, mmW: 122 })}</div>` : ''}
+        ${has(3) ? `<div class="pam-mini m3"><span class="pam-fl pam-fl-on">3階</span>${mapOf(3, { crop: true, mmW: 47 })}</div>` : ''}
       </div>
+      <div class="pam-lists">${[1, 0, 2, 3].filter(has).map(f => `<h4 class="pam-h4 pam-fl">${f === 0 ? '屋外・体育館など' : f + '階'}</h4>${listOf(f)}`).join('')}</div>
     </section>`;
 
   // v184：とじ方（long＝長辺とじ・ふつう／short＝短辺とじ）。書いた文字と同じ所に覚える（保存のキーを増やさない）
@@ -13027,12 +13159,38 @@ function pamFit(){
   });
 }
 window.addEventListener('resize', () => { if (S.view === 'pamphlet'){ clearTimeout(pamFit._t); pamFit._t = setTimeout(pamFit, 120); } });
-/** 面から中身がはみ出していないかを確かめて、はみ出した面に印を付ける（刷る前に気づけるように） */
+/**
+ * 面から中身がはみ出していないかを確かめて、はみ出した面に印を付ける（刷る前に気づけるように）。
+ * v185（ユーザーの依頼：紙の空きを使い切る）：折り込む面・裏表紙は、中身（.pam-in）を、面からはみ出さない範囲でいちばん大きくする。
+ * 測るのは「紙に出る形」（空の欄は出ない）。画面では空の欄の案内も出るので、画面用の倍率（--ks）は別に測る
+ */
 function pamCheck(){
-  $$('#pam .pam-panel').forEach(pn => {
+  const box = $('#pam');
+  if (!box) return;
+  const inns = $$('.pam-panel > .pam-in', box);
+  const fitAll = prop => inns.forEach(inn => {
+    const pn = inn.parentElement;
+    let k = 1.36;
+    for (; k > 1.005; k -= 0.02){
+      inn.style.zoom = k.toFixed(2);
+      // 面の下の余白（9mm）に食い込ませない。箱（.pam-in）の中に収まっているかで見る
+      if (inn.scrollHeight <= inn.clientHeight + 1 && inn.scrollWidth <= inn.clientWidth + 1
+          && pn.scrollHeight <= pn.clientHeight + 1 && pn.scrollWidth <= pn.clientWidth + 1) break;
+    }
+    if (k <= 1.005) k = 1;
+    inn.style.zoom = k.toFixed(2);
+    inn.style.setProperty(prop, k.toFixed(2));
+    if (prop === '--kp') pn.dataset.zoom = k.toFixed(2);
+  });
+  box.classList.add('as-print');
+  fitAll('--kp');
+  $$('.pam-panel', box).forEach(pn => {
     const over = pn.scrollHeight > pn.clientHeight + 2 || pn.scrollWidth > pn.clientWidth + 2;
     pn.classList.toggle('over', over);
   });
+  box.classList.remove('as-print');
+  fitAll('--ks');
+  inns.forEach(inn => { inn.style.zoom = ''; });
 }
 
 /* =====================================================================
@@ -13067,18 +13225,52 @@ function setPrintReady(sel, ready){
 }
 
 /** 印刷用の図面（1つの階）。紙マップ（?mode=print）と三つ折りパンフレット（?mode=pamphlet）で共用（v178） */
-function printPlanSvg(floorNum){
+/**
+ * v185：印刷用の図面を、ブースのある棟だけに絞るときの範囲（2階・3階は、使っていない本館などを外すと倍近く大きく刷れる）。
+ * ブースの部屋と、その部屋が入っている棟を囲む。棟の名札が上下に付くので、上下は広めにとる
+ */
+function printCropBox(floorNum, here){
+  const plan = FLOOR_PLAN[floorNum];
+  const ids = new Set(here.map(b => b.id));
+  const rs = plan.rooms.filter(r => ids.has(r.id));
+  if (!rs.length) return null;
+  const inside = (r, t) => r.x + r.w / 2 >= t.x && r.x + r.w / 2 <= t.x + t.w && r.y + r.h / 2 >= t.y - 2 && r.y + r.h / 2 <= t.y + t.h + 2;
+  const hosts = plan.struct.filter(t => t.type === 'bldg' && rs.some(r => inside(r, t)));
+  const bx = rs.concat(hosts);
+  const x0 = Math.min(...bx.map(b => b.x)) - 8, x1 = Math.max(...bx.map(b => b.x + b.w)) + 8;
+  const y0 = Math.min(...bx.map(b => b.y)) - 18, y1 = Math.max(...bx.map(b => b.y + b.h)) + 7;
+  // 範囲に真ん中が入っている部屋・トイレは、丸ごと入るように広げる（半分で切れた部屋を残さない）
+  let X0 = x0, Y0 = y0, X1 = x1, Y1 = y1;
+  plan.rooms.concat(plan.utils).forEach(r => {
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    if (cx < x0 + 8 || cx > x1 - 8 || cy < y0 + 18 || cy > y1 - 7) return;
+    X0 = Math.min(X0, r.x - 4); X1 = Math.max(X1, r.x + r.w + 4); Y0 = Math.min(Y0, r.y - 4); Y1 = Math.max(Y1, r.y + r.h + 4);
+  });
+  return [X0, Y0, X1 - X0, Y1 - Y0];
+}
+/**
+ * 印刷用の図面（1つの階）。
+ * opt.mmW：紙の上での幅（mm）。渡すと、その大きさで読める字だけを描く（三つ折りパンフレット用。v185）
+ * opt.crop：ブースのある棟だけに絞る
+ */
+function printPlanSvg(floorNum, opt){
+    opt = opt || {};
     const plan = FLOOR_PLAN[floorNum];
     const here = S.booths.filter(b => floorOfBooth(b) === floorNum);
     // 紙の上で1単位が何mmになるかを見積もる。横長は幅150mm、縦長は高さ84mmに収まる。
     // これが分からないと「4.6単位なら読める」の判定が階ごとに大きく外れる
     //（屋外は幅を絞るので、同じ4.6単位でも1.9ptにしかならない）。
-    const vb0 = planViewBox(floorNum).split(' ').map(Number);
-    const mmPer = (vb0[2] / vb0[3] < 1.1) ? 92 / vb0[3] : 150 / vb0[2];
+    const crop = opt.crop ? printCropBox(floorNum, here) : null;
+    let vbStr = crop ? crop.map(v => +v.toFixed(1)).join(' ') : planViewBox(floorNum);
+    const vb0 = vbStr.split(' ').map(Number);
+    const inVb = (x, y, w, h) => x >= vb0[0] && y >= vb0[1] && x + w <= vb0[0] + vb0[2] && y + h <= vb0[1] + vb0[3];
+    const mmPer = opt.mmW ? opt.mmW / vb0[2] : (vb0[2] / vb0[3] < 1.1) ? 92 / vb0[3] : 150 / vb0[2];
     const MIN_MM = 1.4;                       // ≒4pt。これを下回る字は紙で潰れて読めない
     const readable = f => f && f.size * mmPer >= MIN_MM;
     let h = '';
     plan.struct.forEach(st => {
+      // 絞った図面で、端で切れる棟の枠・立入禁止の枠は描かない（廊下・道は切れてよい）
+      if (crop && (st.type === 'blocked' || st.type === 'bldg') && !inVb(st.x, st.y, st.w, st.h)) return;
       const fill = st.type === 'corridor' ? '#e6ecf4'
                  : st.type === 'road' ? '#e9e9e9'
                  : st.type === 'blocked' ? '#f0f0f0'
@@ -13133,6 +13325,8 @@ function printPlanSvg(floorNum){
       }, 0);
       let y = cands[0], best = Infinity;
       for (const ty of cands){ const v = area(ty); if (v < best){ best = v; y = ty; } if (!v) break; }
+      // 絞った図面では、範囲の外にはみ出す名札（ブースの無い棟のもの）は描かない。端で切れた札が残るため
+      if (crop && !inVb(x, y, w, th)) return;
       placedTags.push({ x, y, w, h: th });
       zoneH += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${th.toFixed(1)}" rx="${(FS * 0.8).toFixed(1)}"
               fill="#fff" stroke="#bbb"/>
@@ -13140,6 +13334,7 @@ function printPlanSvg(floorNum){
               font-size="${FS}" font-weight="bold" fill="#444">${esc(nm)}</text>`;
     });
     plan.utils.forEach(u => {
+      if (crop && !inVb(u.x, u.y, u.w, u.h)) return;
       h += `<rect x="${u.x}" y="${u.y}" width="${u.w}" height="${u.h}" rx="4" fill="#fff" stroke="#bbb"/>
             ${utilLabel(u).replace(/class="util"/g, 'fill="#444" font-weight="700"')
                           .replace(/class="wc-icon"/g, 'fill="#555"')}`;
@@ -13148,6 +13343,7 @@ function printPlanSvg(floorNum){
     const used = new Set(here.map(b => b.id));
     plan.rooms.forEach(r => {
       if (used.has(r.id)) return;
+      if (crop && !inVb(r.x, r.y, r.w, r.h)) return;
       const d = deptOf(r);
       h += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="4" fill="#fff" stroke="#ccc"/>`
          + (d ? `<rect x="${r.x}" y="${r.y}" width="${Math.min(3, r.w / 6)}" height="${r.h}" rx="1.5" fill="${d.c}"/>` : '')
@@ -13165,15 +13361,86 @@ function printPlanSvg(floorNum){
       // 番号を大きく打てるぶん、遠目でも探しやすくなる。
       const d2 = deptOf(s);
       const cx2 = s.x + s.w / 2, cy2 = s.y + s.h / 2;
-      const br = Math.max(4, Math.min(8.5, Math.min(s.w, s.h) * 0.4));
+      const br = Math.max(4, Math.min(8.5, Math.min(s.w, s.h) * 0.46));    // v185：小さい教室の番号が紙でつぶれていた（0.4 → 0.46）
       h += `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="6" fill="#fff" stroke="#333" stroke-width="1.4"/>`
          + (d2 ? `<rect x="${s.x}" y="${s.y}" width="${Math.min(3, s.w / 6)}" height="${s.h}" rx="1.5" fill="${d2.c}"/>` : '');
       h += `<circle cx="${cx2.toFixed(1)}" cy="${cy2.toFixed(1)}" r="${br.toFixed(1)}" fill="#b91c1c"/>
             <text x="${cx2.toFixed(1)}" y="${(cy2 + br * 0.38).toFixed(1)}" text-anchor="middle"
               font-size="${(br * (S.numbers.get(b.id) > 99 ? .8 : S.numbers.get(b.id) > 9 ? 1 : 1.2)).toFixed(1)}" font-weight="bold" fill="#fff">${S.numbers.get(b.id)}</text>`;
     });
-    return `<svg viewBox="${planViewBox(floorNum)}" class="sheet-plan">${h}${zoneH}</svg>`;
+    // ---- v185（ユーザーの依頼）：体育館など、催しのある場所は、引き出し線つきの札で場所の名前を出す。
+    // 番号だけだと、どれが体育館か分からない。札は、部屋・トイレ・棟の名札・ほかの札に重ならない所（上・下・左・右）へ置く
+    // 三つ折りパンフレット（大きさを渡されたとき）は、上下の余白を詰める。
+    // planViewBox は棟の名札の置き場所を広めに見積もるので、そのままだと紙の上下に空きができ、そのぶん地図が小さくなる
+    if (opt.mmW && !crop){
+      const bxs = plan.struct.concat(plan.utils, plan.rooms, placedTags);
+      const tx0 = Math.min(...bxs.map(b => b.x)) - 4, ty0 = Math.min(...bxs.map(b => b.y)) - 4;
+      const tx1 = Math.max(...bxs.map(b => b.x + b.w)) + 4, ty1 = Math.max(...bxs.map(b => b.y + b.h)) + 4;
+      vb0[0] = tx0; vb0[1] = ty0; vb0[2] = tx1 - tx0; vb0[3] = ty1 - ty0;
+      vbStr = vb0.map(v => +v.toFixed(1)).join(' ');
+    }
+    let callH = '';
+    const ttIds = new Set((CONFIG.INFO.timetable || []).map(r => r[2]).filter(Boolean));
+    const callAvoid = avoid.concat(placedTags);
+    const ov = (a, b) => { const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y); return ox > 0 && oy > 0 ? ox * oy : 0; };
+    const cl = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    const F1 = 6.2, F2 = 5;
+    const calls = [];
+    here.forEach(b => {
+      const r = plan.rooms.find(x => x.id === b.id);
+      if (!r || !(PLAN_LANDMARK.test(r.nm || '') || ttIds.has(b.id))) return;
+      // 札の文字：場所の名前（太字）＋そこでやっていること。同じことを2回書かない（「記念館」と「記念館公開」など）
+      const place = String(r.nm || '').trim();
+      const what = String(b.name || '').replace(/[（(][^）)]*[）)]\s*$/, '').trim();
+      const l1 = !place || what.indexOf(place) >= 0 || place.indexOf(what) >= 0 ? what : place;
+      const l2 = l1 === what ? '' : what;
+      const w = Math.max(l1.length * F1 * 1.04, l2.length * F2 * 1.04) + 8, hh = l2 ? F1 * 1.3 + F2 * 1.3 + 3.6 : F1 * 1.3 + 4;
+      const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+      const fx = x => cl(x, vb0[0] + 2, vb0[0] + vb0[2] - w - 2), fy = y => cl(y, vb0[1] + 2, vb0[1] + vb0[3] - hh - 2);
+      // 置き場所の候補：すぐ上・下・左・右、その斜め、少し離れた所（線を長くする）
+      const cands = [];
+      [3, 14, 26].forEach(gap => {
+        // 上・下は左右に、左・右は上下に、少しずつずらして探す（トイレの印などのすき間に入れる）。真ん中に近いほどよい
+        for (let t = 0; t <= 10; t++){
+          const x = fx(r.x - w - 2 + t * (r.w + w + 4) / 10), dx = Math.abs(x + w / 2 - cx) * 0.03;
+          cands.push({ x, y: r.y - gap - hh, d: gap + dx }); cands.push({ x, y: r.y + r.h + gap, d: gap + dx });
+        }
+        for (let t = 0; t <= 6; t++){
+          const y = fy(r.y - hh - 2 + t * (r.h + hh + 4) / 6), dy = Math.abs(y + hh / 2 - cy) * 0.03;
+          cands.push({ x: r.x - gap - w, y, d: gap + dy }); cands.push({ x: r.x + r.w + gap, y, d: gap + dy });
+        }
+      });
+      const cost = (c, extra) => {
+        const box = { x: c.x, y: c.y, w, h: hh };
+        if (!inVb(c.x, c.y, w, hh)) return 1e6;
+        // 部屋・トイレ・棟の名札・ほかの札に重ならない所。近いほどよい。自分の部屋には重ねない
+        return ov(box, r) * 50 + callAvoid.concat(extra || []).reduce((t, a) => t + (a === r ? 0 : ov(box, a)), 0) + c.d * 0.2;
+      };
+      calls.push({ b, r, l1, l2, w, hh, cx, cy, cands, cost, free: cands.filter(c => cost(c) < 6).length });
+    });
+    // 置ける所が少ない札から先に置く（先に置いた札が、ほかの札のたった1つの置き場所をふさがないように）
+    const placed = [];
+    calls.sort((a, b) => a.free - b.free).forEach(k => {
+      let best = null, bestV = Infinity;
+      k.cands.forEach(c => { const v = k.cost(c, placed); if (v < bestV){ bestV = v; best = { x: c.x, y: c.y, w: k.w, h: k.hh }; } });
+      if (!best || bestV >= 1e6) return;
+      placed.push(best);
+      const r = k.r, w = k.w, hh = k.hh;
+      // 線：札のいちばん近い辺から、部屋の中の点へ
+      const bx = cl(k.cx, best.x + 3, best.x + best.w - 3), by = cl(k.cy, best.y, best.y + best.h);
+      const px = cl(bx, r.x + 3, r.x + r.w - 3), py = cl(by, r.y + 3, r.y + r.h - 3);
+      callH += `<g class="pl-call" data-call="${esc(k.b.id)}">
+          <path d="M${bx.toFixed(1)} ${by.toFixed(1)}L${px.toFixed(1)} ${py.toFixed(1)}" stroke="#b91c1c" stroke-width="1.3" fill="none"/>
+          <circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="1.9" fill="#b91c1c"/>
+          <rect x="${best.x.toFixed(1)}" y="${best.y.toFixed(1)}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}" rx="2.2" fill="#1a1814"/>
+          <text x="${(best.x + w / 2).toFixed(1)}" y="${(best.y + F1 * 1.12 + 1.3).toFixed(1)}" text-anchor="middle" font-size="${F1}" font-weight="bold" fill="#fff">${esc(k.l1)}</text>
+          ${k.l2 ? `<text x="${(best.x + w / 2).toFixed(1)}" y="${(best.y + F1 * 1.3 + F2 * 1.1 + 1.8).toFixed(1)}" text-anchor="middle" font-size="${F2}" font-weight="bold" fill="#f3c9c9">${esc(k.l2)}</text>` : ''}
+        </g>`;
+    });
+    return `<svg viewBox="${vbStr}" class="sheet-plan">${h}${zoneH}${callH}</svg>`;
   }
+/** 印刷用の図面で、引き出し線つきの札を出す場所（部屋の名前で決める。タイムテーブルに場所として出てくる部屋も出す） */
+const PLAN_LANDMARK = /体育館|記念館|昇降口|ホール|会館|講堂|武道場|広場|グラウンド|出店/;
 
 function renderPrintSheet(){
   renderPrintSheet._n = S.booths.length;
@@ -13467,6 +13734,7 @@ function setSound(on){
   if (a) a.setAttribute('aria-pressed', String(S.sound));
   if (b) b.setAttribute('aria-pressed', String(!S.sound));
   if (S.sound) ding();
+  else { ding._pending = null; document.documentElement.classList.remove('snd-wait'); try{ const el = dingEl(); if (el && !el.paused) el.pause(); }catch(e){} }
 }
 function initSound(){
   const apply = on => {

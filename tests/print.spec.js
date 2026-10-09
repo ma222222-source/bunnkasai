@@ -341,3 +341,101 @@ test('作ってある PDF は2種類（長辺とじ用・短辺とじ用）。�
     expect(buf.toString('latin1')).toMatch(/MediaBox\s*\[\s*0\s+0\s+84[12](\.\d+)?\s+59[45](\.\d+)?\s*\]/);
   }
 });
+
+/* ---------------- v185：パンフレットの地図を大きく・体育館などに引き出し線・紙の空きを使い切る（ユーザーの依頼） ---------------- */
+test('三つ折りパンフレット：地図は紙で読める大きさ（1階は2面いっぱい。番号の字は 5pt 以上）。体育館などは引き出し線つきの札', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/?mode=pamphlet');
+  await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
+  await page.emulateMedia({ media: 'print' });
+  const r = await page.evaluate(() => {
+    const mm = 96 / 25.4;
+    const maps = [...document.querySelectorAll('#pam .sheet-plan')].map(svg => {
+      const b = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal, k = b.width / mm / vb.width;      // 1単位が紙の上で何mmか
+      const nums = [...svg.querySelectorAll('circle[fill="#b91c1c"] + text')].map(t => parseFloat(t.getAttribute('font-size')) * k);
+      const inBox = el => { const e = el.getBBox(); return e.x >= vb.x - 0.5 && e.y >= vb.y - 0.5 && e.x + e.width <= vb.x + vb.width + 0.5 && e.y + e.height <= vb.y + vb.height + 0.5; };
+      const calls = [...svg.querySelectorAll('.pl-call')].map(g => ({ id: g.dataset.call, text: g.textContent.replace(/\s+/g, ' ').trim(), box: (() => { const e = g.querySelector('rect').getBBox(); return [e.x, e.y, e.width, e.height]; })(),
+        inside: inBox(g.querySelector('rect')), fs: parseFloat(g.querySelector('text').getAttribute('font-size')) * k }));
+      // 札が、ブースの番号の丸に重なっていない
+      const circles = [...svg.querySelectorAll('circle[fill="#b91c1c"]')].filter(c => !c.closest('.pl-call')).map(c => ({ x: +c.getAttribute('cx'), y: +c.getAttribute('cy'), r: +c.getAttribute('r') }));
+      const hit = calls.filter(c => circles.some(o => o.x + o.r > c.box[0] && o.x - o.r < c.box[0] + c.box[2] && o.y + o.r > c.box[1] && o.y - o.r < c.box[1] + c.box[3])).map(c => c.id);
+      const cross = calls.filter((c, i) => calls.some((d, j) => j > i && c.box[0] < d.box[0] + d.box[2] && d.box[0] < c.box[0] + c.box[2] && c.box[1] < d.box[1] + d.box[3] && d.box[1] < c.box[1] + c.box[3])).map(c => c.id);
+      return { w: Math.round(b.width / mm), h: Math.round(b.height / mm), k: +k.toFixed(3), minNum: +Math.min(...nums).toFixed(2), n: nums.length, calls, hit, cross };
+    });
+    const pn = s => document.querySelector(s);
+    return { maps, over: document.querySelectorAll('#pam .pam-panel.over').length,
+      // 番号の一覧の字
+      listPt: parseFloat(getComputedStyle(pn('#pam .pam-list')).fontSize) * 0.75,
+      // 折り目（紙の左から 200mm）をまたぐ一覧の段が無い
+      fold: (() => { const p = pn('.pam-s2 .pam-paper').getBoundingClientRect(), fx = p.left + 200 * mm * (p.width / (297 * mm));
+        return [...document.querySelectorAll('#pam .pam-list li')].filter(li => { const b = li.getBoundingClientRect(); return b.left < fx - 1 && b.right > fx + 1; }).length; })() };
+  });
+  expect(r.over).toBe(0);
+  expect(r.maps.length).toBe(3);
+  const [f1, f2, f3] = r.maps;
+  expect(f1.w).toBeGreaterThanOrEqual(178);            // 1階は、2面の幅いっぱい（180mm）
+  expect(f1.k).toBeGreaterThanOrEqual(0.4);            // v184 までは 0.30mm/単位（部屋の名前が 4pt でつぶれていた）
+  expect(f2.k).toBeGreaterThanOrEqual(0.36);           // 2階は 0.20 → 倍近く
+  expect(f3.k).toBeGreaterThanOrEqual(0.4);
+  expect(f1.n + f2.n + f3.n).toBe(46);
+  for (const m of r.maps) expect(m.minNum).toBeGreaterThanOrEqual(1.76);   // 番号の字は 5pt（1.76mm）以上
+  expect(r.listPt).toBeGreaterThanOrEqual(6.5);
+  expect(r.fold).toBe(0);
+  // 引き出し線つきの札：体育館（ステージ・飲食）・受付（タイムテーブルに出てくる場所）
+  const byId = Object.fromEntries(f1.calls.map(c => [c.id, c]));
+  expect(byId['1F-42'].text).toContain('第一体育館');
+  expect(byId['1F-42'].text).toContain('ステージ');
+  expect(byId['1F-57'].text).toContain('第二体育館');
+  expect(byId['1F-48'].text).toContain('受付');
+  for (const c of f1.calls) { expect(c.inside, c.id).toBe(true); expect(c.fs, c.id).toBeGreaterThanOrEqual(2.1); }   // 札の字は 6pt 以上
+  expect(f1.hit).toEqual([]);
+  expect(f1.cross).toEqual([]);
+});
+
+test('三つ折りパンフレット：折り込む面・裏表紙は、面の空きが無くなるまで中身を大きくする（はみ出さない。欄に書き足したら小さくなる）', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/?mode=pamphlet');
+  await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
+  const look = async () => {
+    await page.emulateMedia({ media: 'print' });
+    const o = await page.evaluate(() => ['flap', 'back'].map(role => {
+      const pn = document.querySelector('.pam-' + role), inn = pn.querySelector('.pam-in'), mm = 96 / 25.4;
+      const pb = pn.getBoundingClientRect();
+      const last = [...inn.children].filter(e => getComputedStyle(e).display !== 'none').pop().getBoundingClientRect();
+      return { role, zoom: +getComputedStyle(inn).zoom, kp: +pn.dataset.zoom, over: pn.classList.contains('over'),
+        blank: Math.round((pb.bottom - last.bottom) / mm), fits: inn.scrollHeight <= inn.clientHeight + 1 };
+    }));
+    await page.emulateMedia({ media: 'screen' });
+    return o;
+  };
+  let r = await look();
+  for (const p of r) {
+    expect(p.zoom, p.role).toBeGreaterThan(1.05);      // 等倍のままだと、下 1/4 が空いていた
+    expect(p.zoom, p.role).toBe(p.kp);
+    expect(p.over, p.role).toBe(false);
+    expect(p.fits, p.role).toBe(true);
+    expect(p.blank, p.role).toBeGreaterThanOrEqual(8); // 下の余白（9mm）には食い込まない
+    expect(p.blank, p.role).toBeLessThanOrEqual(30);
+  }
+  const before = r.find(p => p.role === 'back').zoom;
+  // 裏表紙に「アクセス」を書き足すと、そのぶん小さくして収める
+  await page.locator('[data-ed="back.access"]').click();
+  await page.keyboard.insertText('JR北上駅から車で10分。駐車場は校舎南東の一般駐車場をご利用ください。\n公共交通機関のご利用にご協力ください。');
+  r = await look();
+  const back = r.find(p => p.role === 'back');
+  expect(back.zoom).toBeLessThan(before);
+  expect(back.over).toBe(false);
+  expect(back.fits).toBe(true);
+});
+
+test('紙マップ（?mode=print）にも、体育館などの引き出し線つきの札が出る（A4 2ページのまま）', async ({ page }) => {
+  await mockGas(page);
+  await page.goto('/?mode=print');
+  await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
+  const calls = await page.locator('#print-sheet .pl-call').evaluateAll(gs => gs.map(g => g.textContent.replace(/\s+/g, ' ').trim()));
+  expect(calls.join('|')).toContain('第一体育館');
+  expect(calls.join('|')).toContain('第二体育館');
+  expect(pdfPages(await page.pdf({ format: 'A4', printBackground: true }))).toBe(2);
+});
