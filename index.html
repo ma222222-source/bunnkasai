@@ -1840,6 +1840,24 @@ html.lite .hero-gear{animation:none}
 [data-fs="lg"] .hero-title{font-size:33px} [data-fs="lg"] .hero-day-t{font-size:13.5px} [data-fs="lg"] .hero-badge{font-size:13.5px}
 [data-fs="xl"] .hero-title{font-size:36px} [data-fs="xl"] .hero-day-t{font-size:15px} [data-fs="xl"] .hero-badge{font-size:15px} [data-fs="xl"] .hero-en{font-size:11.5px}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
+/* ---- v184：見た目の仕上げ・2 ---- */
+/* タイムテーブルは時刻の線つき（三つ折りパンフレットと同じ絵）。いまのコマは点が塗られて、ゆっくり光る */
+.tt tr:not(.tt-day) td:first-child:not([colspan]){position:relative;padding-right:28px;font-variant-numeric:tabular-nums}
+.tt tr:not(.tt-day) td:first-child:not([colspan])::before{content:"";position:absolute;right:12px;top:0;bottom:0;width:2px;background:var(--border)}
+.tt tr:not(.tt-day) td:first-child:not([colspan])::after{content:"";position:absolute;right:7px;top:calc(7px + .8em - 6px);width:12px;height:12px;
+  box-sizing:border-box;border-radius:50%;background:var(--surface);border:2.5px solid var(--accent)}
+.tt tr.tt-now td:first-child:not([colspan])::after{background:var(--accent);animation:tt-pulse 2s ease-out infinite}
+@keyframes tt-pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 55%,transparent)}70%,100%{box-shadow:0 0 0 9px transparent}}
+html.lite .tt tr.tt-now td:first-child::after{animation:none}
+/* はじめての方へ：手順は丸い番号（スタンプラリーの手順・パンフレットと同じ） */
+.intro-card ol{list-style:none;margin:8px 0 10px;padding:0;counter-reset:ic;display:grid;gap:7px}
+.intro-card ol li{position:relative;padding-left:32px;min-height:24px;counter-increment:ic}
+.intro-card ol li::before{content:counter(ic);position:absolute;left:0;top:0;width:24px;height:24px;border-radius:50%;
+  background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-size:12.5px;font-weight:900;line-height:1}
+/* 文化祭の顔：きょうの開場・終了の時刻 */
+.hero-sub{font-size:12.5px;font-weight:800;line-height:1.5;color:#fff;letter-spacing:.02em}
+.hero-sub b{color:#f3c9c9;font-weight:800;margin-left:8px}
+[data-fs="lg"] .hero-sub{font-size:14px} [data-fs="xl"] .hero-sub{font-size:15.5px}
 /* ========================= トースト ========================= */
 .toast-act{margin-left:12px;padding:4px 10px;border-radius:8px;font-size:11px;font-weight:900;
            background:var(--bg);color:var(--text);border:1px solid var(--text-mute)}
@@ -2703,6 +2721,12 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 .pam-bar-ui .btn{flex:1;min-width:150px;width:auto}
 .pam-bar-ui a.btn{text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
 .pam-hint{margin:8px 0 0;font-size:11.5px;font-weight:700;color:var(--text-mute);line-height:1.6}
+.pam-flip{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:12px}
+.pam-flip-t{font-size:12px;font-weight:800;color:var(--text-dim)}
+.pam-flip .seg{flex:1;min-width:240px}
+.pam-flip .seg button{flex:1}
+#pam-flip-msg{color:var(--text-dim)}
+#pam-flip-msg:empty{display:none}
 @media print{
   body.pam-printing,.pam{background:#fff}
   #v-pamphlet.on .pam{display:block;gap:0}
@@ -2711,6 +2735,9 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
   .pam-sheet-t{display:none !important}
   .pam-sheet:last-child{break-after:auto;page-break-after:auto}
   .pam-paper{box-shadow:none;transform:none !important;margin:0 !important}
+  /* v184：ふつうの両面印刷（長辺とじ）は、裏を「上の辺でめくる」向きに刷る。三つ折りは横にめくるので、そのままだと内側が上下逆になる。
+     長辺とじ用では、2ページ目をはじめから上下逆（180度）に置く。紙の真ん中で回すので、折り目の位置は表と合う */
+  .pam[data-flip="long"] .pam-s2 .pam-paper{transform:rotate(180deg) !important;transform-origin:50% 50%}
   .pam-panel.over{outline:none} .pam-panel.over::after{display:none}
   .pam-ed{outline:none !important;background:transparent !important}
   /* 空の欄は、見出しごと紙に出さない */
@@ -3281,7 +3308,17 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
           <a class="btn ghost" id="pam-pdf" href="docs/pamphlet.pdf" download="黒工文化祭-三つ折りパンフレット.pdf">作ってあるPDFを開く</a>
           <button class="btn ghost" id="pam-reset">書いた文字を消す</button>
         </div>
-        <p class="pam-hint">A4 横・両面（短辺とじ）・倍率100%・余白なし・「背景のグラフィック」オン。点線の欄は押して書けます（空のままなら紙に出ません。あいさつの2つの欄だけは、空でも見出しと空白が出ます）。</p>
+        <!-- v184（ユーザーの報告）：ふつうの両面印刷（長辺とじ）で刷ると、内側が上下逆になった。
+             プリンターの設定に合わせて、2ページ目の向きをこちらで合わせる。はじめは「長辺とじ」（ふつうの設定）用 -->
+        <div class="pam-flip">
+          <span class="pam-flip-t" id="pam-flip-t">プリンターの両面印刷のとじ方</span>
+          <div class="seg" role="group" aria-labelledby="pam-flip-t">
+            <button id="pam-flip-long" type="button" aria-pressed="true">長辺とじ（ふつうはこれ）</button>
+            <button id="pam-flip-short" type="button" aria-pressed="false">短辺とじ</button>
+          </div>
+        </div>
+        <p class="pam-hint" id="pam-flip-msg" role="status" aria-live="polite"></p>
+        <p class="pam-hint">A4 横・両面・倍率100%・余白なし・「背景のグラフィック」オン。内側が上下逆に刷れたら、上のとじ方をもう片方にしてください。点線の欄は押して書けます（空のままなら紙に出ません。あいさつの2つの欄だけは、空でも見出しと空白が出ます）。</p>
       </div>
       <div id="pam" class="pam"></div>
     </section>
@@ -3466,7 +3503,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-09c',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-09d',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -6418,7 +6455,11 @@ function revealUnderSheet(id){
   const view = $('#map-view'), sh = $('#bsh');
   if (!g || !view || !sh || !z.el) return;
   const r = g.getBoundingClientRect(), v = view.getBoundingClientRect();
-  const shTop = sh.getBoundingClientRect().top;
+  // v184：詳細がせり上がっている途中に測ると（遅い端末では 380ms たってもまだ動いている）、上がりきったあとでブースが隠れた。
+  // いまの位置から、動かしている分（translateY）を引いて、上がりきった位置で測る
+  let ty = 0;
+  try{ ty = new DOMMatrixReadOnly(getComputedStyle(sh).transform).m42 || 0; }catch(e){}
+  const shTop = sh.getBoundingClientRect().top - ty;
   const top = Math.max(v.top, 0) + 8, bottom = Math.min(v.bottom, shTop) - 8, left = v.left + 8, right = v.right - 8;
   if (bottom - top < 40) return;
   if (r.top >= top && r.bottom <= bottom && r.left >= left && r.right <= right) return;
@@ -9827,14 +9868,23 @@ function renderHero(now){
   const st = openState(d).state;
   const next = days.find(x => x.date > today);
   const mid = t => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t); return m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : NaN; };
-  let badge = '', live = false;
-  if (st === 'open' && days.some(x => x.date === today)){ badge = '開催中'; live = true; }
-  else if (st === 'before') badge = 'きょう開催';
+  let badge = '', live = false, sub = '', subMore = '';
+  const os = openState(d);
+  const left = n => n < 60 ? 'あと' + n + '分' : 'あと' + Math.floor(n / 60) + '時間' + (n % 60 ? (n % 60) + '分' : '');
+  if (st === 'open' && os.day){
+    badge = '開催中'; live = true;
+    // v184：きょうは何時までか（最終入場があればそれも）
+    sub = os.day.close + ' まで'; subMore = os.day.last ? '最終入場 ' + os.day.last : '';
+  }
+  else if (st === 'before'){
+    badge = 'きょう開催';
+    sub = os.day.open + ' 開場'; subMore = os.minutes > 0 ? left(os.minutes) : '';
+  }
   else if (next){
     const n = Math.round((mid(next.date) - mid(today)) / 86400000);
     badge = n === 1 ? 'あした開催' : n > 1 ? 'あと' + n + '日' : '';
   } else badge = 'ご来場ありがとうございました';
-  const key = today + '|' + badge + '|' + days.map(x => x.date + x.open + x.close + (x.label || '')).join(',');
+  const key = today + '|' + badge + '|' + sub + subMore + '|' + days.map(x => x.date + x.open + x.close + (x.label || '')).join(',');
   if (renderHero._k === key) return;
   renderHero._k = key;
   const year = days[0].date.slice(0, 4);
@@ -9853,6 +9903,7 @@ function renderHero(now){
       <p class="hero-en">KUROKO FESTIVAL<b>${esc(year)}</b></p>
       <p class="hero-title">黒工文化祭</p>
       ${badge ? `<p class="hero-badge${live ? ' live' : ''}">${esc(badge)}</p>` : ''}
+      ${sub ? `<p class="hero-sub">${esc(sub)}${subMore ? `<b>${esc(subMore)}</b>` : ''}</p>` : ''}
       <div class="hero-days">${rows}</div>
     </div>`;
   el.classList.remove('hide');
@@ -12771,6 +12822,8 @@ function renderQrSheet(){
      1枚目（外側）：［折り込む面 97mm］［裏表紙 100mm］［表紙 100mm］
      2枚目（内側）：［中面・左 100mm＝校長・生徒会長のあいさつ（v183）］［中面・中 100mm］［中面・右 97mm］
    折り込む面（と、その裏の中面・右）だけ 3mm 狭い。同じ幅にすると、折ったときに中で突っ張って浮く。
+   v184：この並びは「横にめくる」向き（短辺とじ）。ふつうの両面印刷（長辺とじ）では裏が上下逆になるので、
+   はじめの設定（data-flip="long"）では、紙に刷るときだけ2ページ目を180度回す。
    v183：そのまま刷れる形。CONFIG.PAMPHLET（title・theme・principal・president など）があればそれを初めの文に使い、無ければ空の欄にする。
    文字（data-ed）は画面で書き換えられ、この端末に覚える（kuroko_pamphlet_v1）。
    ===================================================================== */
@@ -12919,6 +12972,16 @@ function renderPamphlet(){
       </div>
     </section>`;
 
+  // v184：とじ方（long＝長辺とじ・ふつう／short＝短辺とじ）。書いた文字と同じ所に覚える（保存のキーを増やさない）
+  const flip = saved._flip === 'short' ? 'short' : 'long';
+  box.dataset.flip = flip;
+  { const a = $('#pam-flip-long'), b = $('#pam-flip-short'), pdf = $('#pam-pdf'), msg = $('#pam-flip-msg');
+    if (a) a.setAttribute('aria-pressed', String(flip === 'long'));
+    if (b) b.setAttribute('aria-pressed', String(flip === 'short'));
+    if (pdf) pdf.setAttribute('href', flip === 'long' ? 'docs/pamphlet.pdf' : 'docs/pamphlet-tanpen.pdf');
+    if (msg) msg.textContent = flip === 'long'
+      ? '長辺とじ用：2ページ目（内側）は、紙には上下逆に刷ります（PDF でも逆さに見えますが、刷って折ると正しい向きになります）。'
+      : '短辺とじ用：印刷の画面で、両面印刷を「短辺とじ（短辺を軸に反転）」にしてください。'; }
   const sheet = (n, title, panels) => `<div class="pam-sheet pam-s${n}" data-sheet="${n}">
       <p class="pam-sheet-t no-print">${title}</p>
       <div class="pam-paper"><i class="pam-fold f1"></i><i class="pam-fold f2"></i>${panels}</div></div>`;
@@ -13771,7 +13834,11 @@ function init(){
   $('#btn-print').addEventListener('click', () => window.print());
   $('#btn-print2').addEventListener('click', () => window.print());
   $('#btn-print3').addEventListener('click', () => window.print());
-  $('#pam-reset').addEventListener('click', () => { store('kuroko_pamphlet_v1', {}); renderPamphlet(); toast('書いた文字を消しました'); });
+  // 書いた文字だけ消す（とじ方は残す）
+  $('#pam-reset').addEventListener('click', () => { const f = (load('kuroko_pamphlet_v1', {}) || {})._flip; store('kuroko_pamphlet_v1', f ? { _flip: f } : {}); renderPamphlet(); toast('書いた文字を消しました'); });
+  const setFlip = f => { const m = load('kuroko_pamphlet_v1', {}) || {}; m._flip = f; store('kuroko_pamphlet_v1', m); renderPamphlet(); };
+  $('#pam-flip-long').addEventListener('click', () => setFlip('long'));
+  $('#pam-flip-short').addEventListener('click', () => setFlip('short'));
   $('#btn-report-print').addEventListener('click', () => window.print());
   $('#btn-report-reload').addEventListener('click', renderReport);
   $('#btn-report-png').addEventListener('click', exportReportPng);

@@ -272,3 +272,72 @@ test('作ってある PDF（docs/pamphlet.pdf）：A4 横・2ページ。画面�
   await page.goto('/?mode=pamphlet');
   await expect(page.locator('#pam-pdf')).toHaveAttribute('href', 'docs/pamphlet.pdf');
 });
+
+/* ---------------- v184：両面印刷のとじ方（ユーザーの報告：内側が上下逆に刷れた） ---------------- */
+test('三つ折りパンフレット：ふつうの両面印刷（長辺とじ）用に、2ページ目を上下逆に刷る。短辺とじ用にも切り替えられ、覚える', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/?mode=pamphlet');
+  await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
+  // 紙の上での面の位置（mm）。表の折り目は左から 97・197mm
+  const lay = () => page.evaluate(() => {
+    const mm = 96 / 25.4, q = s => document.querySelector(s);
+    const x = (s, sh) => { const b = q(s).getBoundingClientRect(), p = q(sh).getBoundingClientRect(); return [Math.round((b.left - p.left) / mm), Math.round((b.right - p.left) / mm)]; };
+    const top = (s, sh) => Math.round((q(s).getBoundingClientRect().top - q(sh).getBoundingClientRect().top) / mm);
+    return { flip: q('#pam').dataset.flip, tr: getComputedStyle(q('.pam-s2 .pam-paper')).transform, tr1: getComputedStyle(q('.pam-s1 .pam-paper')).transform,
+      flap: x('.pam-flap', '.pam-s1'), cover: x('.pam-cover', '.pam-s1'), in1: x('.pam-in1', '.pam-s2'), spread: x('.pam-spread', '.pam-s2'),
+      h3top: top('.pam-in1 .pam-h3', '.pam-s2'), folds: [x('.pam-s2 .pam-fold.f1', '.pam-s2')[0], x('.pam-s2 .pam-fold.f2', '.pam-s2')[0]].sort((a, b) => a - b),
+      long: q('#pam-flip-long').getAttribute('aria-pressed'), href: q('#pam-pdf').getAttribute('href') };
+  });
+  await page.emulateMedia({ media: 'print' });
+  let r = await lay();
+  // はじめは長辺とじ用：2ページ目だけ 180度。長辺とじは「上の辺でめくる」ので、左右はそのまま重なる
+  //（表紙＝右の 100mm の裏に、あいさつの面が来る。折り込む面＝左の 97mm の裏に、地図の右の面）
+  expect(r.flip).toBe('long');
+  expect(r.long).toBe('true');
+  expect(r.tr).toBe('matrix(-1, 0, 0, -1, 0, 0)');
+  expect(r.tr1).toBe('none');
+  expect(r.cover).toEqual([197, 297]);
+  expect(r.in1).toEqual([197, 297]);
+  expect(r.flap).toEqual([0, 97]);
+  expect(r.spread).toEqual([0, 197]);
+  expect(r.folds).toEqual([97, 197]);                  // 裏の折り目の印が、表の折り目と同じ位置
+  expect(r.h3top).toBeGreaterThan(150);                // 見出しが紙の下のほう＝上下逆
+  expect(r.href).toBe('docs/pamphlet.pdf');
+  expect(pdfPages(await page.pdf({ preferCSSPageSize: true, printBackground: true }))).toBe(2);
+  // 画面では逆さにしない（読める・書ける）
+  await page.emulateMedia({ media: 'screen' });
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector('.pam-s2 .pam-paper')).transform)).not.toContain('-1');
+  await expect(page.locator('#pam-flip-msg')).toContainText('上下逆に刷ります');
+  // 短辺とじ用：2ページ目も同じ向き。「横にめくる」ので、左右は入れ替わって重なる
+  await page.locator('#pam-flip-short').click();
+  await page.emulateMedia({ media: 'print' });
+  r = await lay();
+  expect(r.flip).toBe('short');
+  expect(r.tr).toBe('none');
+  expect(r.in1).toEqual([0, 100]);
+  expect(r.spread).toEqual([100, 297]);
+  expect(r.h3top).toBeLessThan(20);
+  expect(r.href).toBe('docs/pamphlet-tanpen.pdf');
+  await page.emulateMedia({ media: 'screen' });
+  // 覚える。「書いた文字を消す」でも、とじ方は残る
+  await page.locator('[data-ed="cover.theme"]').click();
+  await page.keyboard.insertText('テーマ');
+  await page.locator('#pam-reset').click();
+  await expect(page.locator('[data-ed="cover.theme"]')).toHaveText('');
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
+  await expect(page.locator('#pam-flip-short')).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => document.getElementById('pam').dataset.flip)).toBe('short');
+});
+
+test('作ってある PDF は2種類（長辺とじ用・短辺とじ用）。どちらも A4 横・2ページ', async ({ request }) => {
+  for (const f of ['/docs/pamphlet.pdf', '/docs/pamphlet-tanpen.pdf']) {
+    const res = await request.get(f);
+    expect(res.status(), f).toBe(200);
+    const buf = await res.body();
+    expect(buf.slice(0, 5).toString('latin1')).toBe('%PDF-');
+    expect(pdfPages(buf), f).toBe(2);
+    expect(buf.toString('latin1')).toMatch(/MediaBox\s*\[\s*0\s+0\s+84[12](\.\d+)?\s+59[45](\.\d+)?\s*\]/);
+  }
+});
