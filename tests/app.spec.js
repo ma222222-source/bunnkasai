@@ -797,6 +797,11 @@ test('地図に重ねたボタンは半透明で、地図を動かしている�
   await expect(page.locator('.map-stage')).toHaveClass(/touching/);
   await page.mouse.up();
   await expect(page.locator('.map-stage')).not.toHaveClass(/touching/, { timeout: 3000 });
+  // v189：離したあと、地図の上でマウスを動かしただけでは薄くならない（薄いまま戻らなくなっていた）
+  await page.mouse.move(box.x + box.width / 2 - 20, box.y + box.height / 2 - 10, { steps: 4 });
+  await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2 + 20, { steps: 4 });
+  await page.waitForTimeout(300);
+  await expect(page.locator('.map-stage')).not.toHaveClass(/touching/);
 });
 
 test('一覧：★・まだ行っていないで絞ったときも件数が出る', async ({ page }) => {

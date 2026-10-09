@@ -7508,7 +7508,10 @@ function initZoom(){
   const stage = z.el.closest('.map-stage');
   const touchOn = () => { if (!stage) return; clearTimeout(touchOn._t); stage.classList.add('touching'); };
   const touchOff = () => { if (!stage) return; clearTimeout(touchOn._t); touchOn._t = setTimeout(() => stage.classList.remove('touching'), 900); };
-  z.el.addEventListener('pointermove', e => { if (z.moved || z.tBase) touchOn(); });
+  // v189：動かしている指・マウスのボタンが「いま押されている」ときだけ薄くする。
+  // z.moved は次に押すまで true のままなので、それだけで見ると、マウスで動かして離したあと、
+  // 地図の上でマウスを動かすだけでまた薄くなり、そのまま戻らなかった（離す合図がもう来ないため）
+  z.el.addEventListener('pointermove', e => { if ((z.moved && z.panId === e.pointerId) || z.tBase) touchOn(); });
   ['pointerup', 'pointercancel', 'touchend', 'touchcancel'].forEach(t => z.el.addEventListener(t, touchOff, { passive:true }));
   z.el.addEventListener('wheel', () => { touchOn(); touchOff(); }, { passive:true });
   // v163：地図のブースを長押し（0.55秒・動かさない）で ★行きたい を付け外し。離したあとの詳細は開かない
