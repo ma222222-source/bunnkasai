@@ -1299,6 +1299,19 @@ text.util:not([font-size]){font-size:7.5px}
 .booth-meta{font-size:10.5px;color:var(--text-mute);font-weight:600;margin-top:2px;
   display:flex;flex-wrap:wrap;align-items:center}
 .booth-meta > span{white-space:nowrap}
+/* v187：種類・階の札は、名前の行に置くと、名前の長さで場所が毎回ちがって見えた（右へ飛ぶ・1つだけ次の行へ落ちる）。
+   名前の下の行の頭にそろえる */
+.booth-meta{row-gap:3px}
+/* 区切りの点は「次の項目の左」に付ける。項目が次の行へ折り返したとき、点だけが行の終わりに残っていた。
+   行の頭に来た点は見せない：全体を左へ 15px ずらして、その 15px を切り落とす（点は項目の左 9px の所にある） */
+.booth-meta{margin-left:-15px;clip-path:inset(0 0 0 15px)}
+.booth-meta > span{margin-left:15px;position:relative}
+.booth-meta > .tag{margin-right:-10px}
+.booth-meta > .bm-sep{display:none}
+.booth-meta > .bm-sep + span::before{content:"";position:absolute;left:-9px;top:50%;width:3px;height:3px;margin-top:-1.5px;
+  border-radius:50%;background:currentColor;opacity:.45}
+.booth-meta > .tag + .bm-sep + span::before{display:none}
+.booth-meta .bm-room{max-width:calc(100% - 15px)}
 .booth-meta .bm-room{overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .booth-note{font-size:11px;color:var(--text-dim);margin-top:5px;font-weight:600;
    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1860,6 +1873,24 @@ html.lite .hero-gear{animation:none}
 [data-fs="lg"] .hero-title{font-size:33px} [data-fs="lg"] .hero-day-t{font-size:13.5px} [data-fs="lg"] .hero-badge{font-size:13.5px}
 [data-fs="xl"] .hero-title{font-size:36px} [data-fs="xl"] .hero-day-t{font-size:15px} [data-fs="xl"] .hero-badge{font-size:15px} [data-fs="xl"] .hero-en{font-size:11.5px}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
+/* ---- v187：見た目の仕上げ・4 ---- */
+/* いちばん大事なボタン（カメラでQRを読む）に、ときどき光が走る（4.8秒に1回。目を引くが、うるさくしない） */
+.scan-cta{position:relative;overflow:hidden}
+.scan-cta::after{content:"";position:absolute;top:0;bottom:0;left:-40%;width:34%;pointer-events:none;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.34),transparent);transform:skewX(-18deg);
+  animation:cta-sheen 4.8s 1.2s ease-in-out infinite}
+@keyframes cta-sheen{0%,62%{left:-40%}100%{left:112%}}
+html.lite .scan-cta::after{display:none}
+@media (prefers-reduced-motion:reduce){ .scan-cta::after{display:none} }
+/* 階・絞り込みを選んだ手ごたえ：選んだボタンが小さく弾む */
+#map-card.gmap .map-floors button[aria-pressed="true"]{animation:sel-pop .3s var(--ease-out-back)}
+.chip[aria-pressed="true"],.seg button[aria-pressed="true"]{animation:sel-pop .3s var(--ease-out-back)}
+@keyframes sel-pop{0%{transform:scale(.9)}100%{transform:none}}
+html.lite #map-card.gmap .map-floors button[aria-pressed="true"],html.lite .chip[aria-pressed="true"],html.lite .seg button[aria-pressed="true"]{animation:none}
+/* 見つからなかったとき・★がまだ無いとき：絵をひとつ置く（文字だけの箱は、こわれて見える） */
+.empty-ic{display:block;width:44px;height:44px;margin:0 auto 10px;color:var(--text-mute);opacity:.8}
+.empty-ic svg{width:100%;height:100%}
+.empty.has-ic{animation:rise .32s var(--ease) both}
 /* ---- v184：見た目の仕上げ・2 ---- */
 /* タイムテーブルは時刻の線つき（三つ折りパンフレットと同じ絵）。いまのコマは点が塗られて、ゆっくり光る */
 .tt tr:not(.tt-day) td:first-child:not([colspan]){position:relative;padding-right:28px;font-variant-numeric:tabular-nums}
@@ -3537,7 +3568,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-09f',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-09g',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -8393,9 +8424,9 @@ function renderList(){
       }</span></div>`).join('');
   if (!items.length){
     box.innerHTML = helpHtml || (S.wishOnly && !S.wish.size
-      ? `<p class="empty">★を付けたブースはまだありません。<br>
+      ? `<p class="empty has-ic"><span class="empty-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.7l5.9-.8z"/></svg></span>★を付けたブースはまだありません。<br>
           ブースの詳細で「★ 行きたい」を押すと、ここに集まります。</p>`
-      : `<p class="empty">さがしたブースは見つかりませんでした。<br>
+      : `<p class="empty has-ic"><span class="empty-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L20 20M8.2 8.2l4.6 4.6M12.8 8.2l-4.6 4.6"/></svg></span>さがしたブースは見つかりませんでした。<br>
       文字をけすか、絞り込みを外してください。${fixSuggest(S.q)}
       <button type="button" class="btn ghost empty-reset" data-reset-filters>絞り込みをすべて外す</button></p>`);
     wireHelpHits(box);
@@ -8427,9 +8458,9 @@ function renderList(){
             class="nm"><button type="button" class="booth-open"
               aria-label="${S.numbers.get(b.id) ? S.numbers.get(b.id) + '番 ' : ''}${esc(b.name)} ${esc(L.short)}${
               b.wait > 0 && L.lv >= 0 && L.lv < 3 ? ` ${b.wait}人待ち` : ''}${got ? ' スタンプ済' : ''}${S.wish.has(b.id) ? ' 行きたい' : ''} の詳細をひらく"
-              >${S.wish.has(b.id) ? '<span class="wish-mk" aria-hidden="true">★</span>' : ''}${markHit(b.name, S.q)}</button></span><span class="tag">${esc(b.category)}</span><span
-            class="tag">${esc(flLabel(b))}</span>${nearTag(b)}</h3>
-          <p class="booth-meta">${(() => {
+              >${S.wish.has(b.id) ? '<span class="wish-mk" aria-hidden="true">★</span>' : ''}${markHit(b.name, S.q)}</button></span></h3>
+          <p class="booth-meta"><span class="tag">${esc(b.category)}</span><span
+            class="tag">${esc(flLabel(b))}</span>${nearTag(b)}${(() => {
             // 部屋と更新時刻を別々の行に置くと、1枚が高くなって1画面に5件しか入らなかった。
             // どちらも補助情報なので同じ行に畳む。
             const r = roomLabel(b);

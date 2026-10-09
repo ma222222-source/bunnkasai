@@ -2173,3 +2173,67 @@ test('スタンプの演出：お菓子までの丸に、いま押した1個が�
   expect(r.on).toBe(r.n);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v187：見た目の仕上げ・4 ---------------- */
+test('一覧のカード：種類・階の札は名前の下の行の頭にそろう（見出しは名前だけ）。区切りの点が行の終わり・頭に残らない', async ({ page }) => {
+  const errors = watchErrors(page);
+  await mockGas(page);
+  for (const [w, fs] of [[390, 'n'], [320, 'xl']]) {
+    await page.setViewportSize({ width: w, height: 800 });
+    await page.addInitScript(f => { try { localStorage.setItem('kuroko_fs', JSON.stringify(f)); } catch (e) {} }, fs);
+    await page.goto('/?tab=list');
+    await ready(page);
+    const r = await page.evaluate(() => {
+      const cards = [...document.querySelectorAll('#booth-list > .booth')].slice(0, 12);
+      let inHead = 0, noTags = 0, sepShown = 0, dotAtStart = 0, tagLeftBad = 0, nameBad = 0;
+      cards.forEach(c => {
+        const b = S.booths.find(x => x.id === c.dataset.sid), meta = c.querySelector('.booth-meta');
+        inHead += c.querySelectorAll('.booth-nm .tag').length;
+        if (meta.querySelectorAll(':scope > .tag').length < 2) noTags++;
+        if (c.querySelector('.booth-nm .booth-open').textContent.replace('★', '').trim() !== b.name) nameBad++;
+        const vis = meta.getBoundingClientRect().left + 15;                 // 切り落としたあとの左端
+        const first = meta.querySelector(':scope > .tag').getBoundingClientRect().left;
+        if (Math.abs(first - vis) > 1) tagLeftBad++;
+        [...meta.querySelectorAll(':scope > .bm-sep')].forEach(s => { if (getComputedStyle(s).display !== 'none') sepShown++; });
+        // 点のある項目：点（項目の左 9px）が見える範囲にあるなら、その行の頭ではない
+        [...meta.querySelectorAll(':scope > .bm-sep + span')].forEach(sp => {
+          if (getComputedStyle(sp, '::before').display === 'none') return;
+          const dot = sp.getBoundingClientRect().left - 9, prev = [...meta.children].filter(e => e !== sp && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().top === sp.getBoundingClientRect().top && e.getBoundingClientRect().left < sp.getBoundingClientRect().left);
+          if (dot >= vis && !prev.length) dotAtStart++;
+        });
+      });
+      return { n: cards.length, inHead, noTags, sepShown, dotAtStart, tagLeftBad, nameBad, clip: getComputedStyle(cards[0].querySelector('.booth-meta')).clipPath,
+        over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    });
+    expect(r.n).toBeGreaterThan(3);
+    expect([r.inHead, r.noTags, r.sepShown, r.dotAtStart, r.tagLeftBad, r.nameBad], `幅${w}・文字${fs}`).toEqual([0, 0, 0, 0, 0, 0]);
+    expect(r.clip).toContain('inset');
+    expect(r.over).toBeLessThanOrEqual(0);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('見つからなかったとき・★がまだ無いときは、絵つきの案内。主なボタンに光、選んだ階・絞り込みが弾む', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.fill('#q', 'zzzzzz');
+  await expect(page.locator('#booth-list .empty.has-ic')).toContainText('見つかりませんでした');
+  await expect(page.locator('#booth-list .empty .empty-ic svg')).toHaveCount(1);
+  await expect(page.locator('#booth-list .empty .empty-ic')).toHaveAttribute('aria-hidden', 'true');
+  await page.locator('[data-reset-filters]').click();
+  await expect(page.locator('#booth-list > .booth').first()).toBeVisible();
+  // 選んだ絞り込みが弾む
+  const chip = page.locator('.chip[aria-pressed="true"]').first();
+  expect(await chip.evaluate(el => getComputedStyle(el).animationName)).toBe('sel-pop');
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  expect(await page.locator('#stamp-scan').evaluate(el => getComputedStyle(el, '::after').animationName)).toBe('cta-sheen');
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.locator('#fl-2').click();
+  expect(await page.locator('#fl-2').evaluate(el => getComputedStyle(el).animationName)).toBe('sel-pop');
+  expect(errors).toEqual([]);
+});
