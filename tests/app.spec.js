@@ -970,6 +970,13 @@ test('地図で開いたブースが詳細に隠れていたら、地図を動�
   await ready(page);
   await page.locator('#zoom-in').click();
   await page.locator('#zoom-in').click();
+  // 地図を見出しのすぐ下へ寄せる。画面のどこに地図があるかは、上の案内（はじめての方へ・開催時間）の有無で変わり、
+  // 地図がほとんど詳細の下になる位置だと、動かしようがなくて確かめにならない（v185）
+  await page.evaluate(() => {
+    const v = document.getElementById('map-view').getBoundingClientRect(), h = document.querySelector('.head').getBoundingClientRect();
+    window.scrollBy(0, v.top - h.bottom - 8);
+  });
+  await page.waitForTimeout(200);
   // いちばん下に見えているブースを開く
   const id = await page.evaluate(() => {
     const v = document.getElementById('map-view').getBoundingClientRect();

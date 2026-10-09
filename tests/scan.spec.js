@@ -252,16 +252,32 @@ test('カメラの拡大が使える端末では「2倍」が出て、押すと�
 });
 
 /* ---------------- v171：スタンプの音 ---------------- */
-// 音の代わり：AudioContext を差し替えて、鳴らした音の数（オシレーター）を数える。
-// suspended のまま始まり、画面に触った（pointerdown）あとでないと resume できない（スマホのブラウザと同じ）
+// 音の代わり：<audio> と AudioContext を差し替えて、鳴らした音の数を数える（v185：先に <audio>、だめなら Web Audio）。
+// どちらも、画面に触った（pointerdown）あとでないと鳴らせない（スマホのブラウザと同じ）
 const FAKE_AUDIO = () => {
-  window.__notes = []; window.__gesture = false;
+  window.__notes = []; window.__gesture = false; window.__via = []; window.__ringAt = 0; window.__sfxAt = 0;
+  // スタンプの演出（#sfx）が出た時刻（音が演出より先に鳴ることを確かめる）
+  new MutationObserver(() => { if (!window.__sfxAt && document.getElementById('sfx')) window.__sfxAt = performance.now(); })
+    .observe(document, { childList: true, subtree: true });
+  if (!window.__noAudioEl){
+    window.Audio = class {
+      constructor(){ this.paused = true; this.src = ''; this.muted = false; this.volume = 1; }
+      play(){
+        if (!window.__gesture) return Promise.reject(Object.assign(new Error('まだ触っていない'), { name: 'NotAllowedError' }));
+        this.paused = false; setTimeout(() => { this.paused = true; }, 40);
+        const c = dingWavUrl._c || {}, kind = Object.keys(c).find(k => c[k] === this.src);
+        if (kind && kind !== 'silent'){ DING_NOTES[kind].forEach(f => window.__notes.push(f)); window.__via.push('audio'); window.__ringAt = performance.now(); }
+        return Promise.resolve();
+      }
+      pause(){ this.paused = true; }
+    };
+  } else { window.Audio = undefined; }
   document.addEventListener('pointerdown', () => { window.__gesture = true; }, true);
   document.addEventListener('keydown', () => { window.__gesture = true; }, true);
   class FakeAC {
     constructor(){ this.state = 'suspended'; this.currentTime = 0; this.destination = {}; }
     resume(){ if (window.__gesture){ this.state = 'running'; return Promise.resolve(); } return new Promise(() => {}); }
-    createOscillator(){ const o = { type: '', frequency: { value: 0 }, connect(){}, start(){ window.__notes.push(o.frequency.value); }, stop(){} }; return o; }
+    createOscillator(){ const o = { type: '', frequency: { value: 0 }, connect(){}, start(){ window.__notes.push(o.frequency.value); if (window.__via[window.__via.length - 1] !== 'web') window.__via.push('web'); window.__ringAt = window.__ringAt || performance.now(); }, stop(){} }; return o; }
     createGain(){ return { gain: { setValueAtTime(){}, exponentialRampToValueAtTime(){} }, connect(){} }; }
     createBuffer(){ return {}; }
     createBufferSource(){ return { connect(){}, start(){} }; }
@@ -288,7 +304,45 @@ test('アプリの中のカメラで読むと、読み込み直さずにスタ�
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('kuroko_stamps_v2') || '[]'))).toContain('1F-05');
   expect(await page.evaluate(() => window.__same)).toBe(1);            // 読み込み直していない
   await expect.poll(() => page.evaluate(() => window.__notes.length)).toBe(2);   // いつもの2音が1回だけ
+  await expect(page.locator('#sfx')).toBeVisible();
   await page.waitForTimeout(400);
+  const r = await page.evaluate(() => ({ n: window.__notes.length, via: window.__via, ring: window.__ringAt, sfx: window.__sfxAt }));
+  expect(r.n).toBe(2);
+  expect(r.via).toEqual(['audio']);                    // <audio> で1回（Web Audio と二重に鳴らさない）
+  // v185：読めた瞬間に鳴る。カメラを閉じてスタンプの演出が出るのを待たない
+  expect(r.ring).toBeGreaterThan(0);
+  expect(r.ring).toBeLessThan(r.sfx);
+});
+
+test('<audio> が使えない端末では、Web Audio で鳴る（二重には鳴らない）', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(() => { window.__noAudioEl = true; });
+  await page.addInitScript(FAKE_AUDIO);
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await page.mouse.click(5, 5);                                          // 先に触っておく
+  await page.evaluate(() => stampNow('1F-05'));
+  await expect.poll(() => page.evaluate(() => window.__notes.length)).toBe(2);
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => ({ n: window.__notes.length, via: window.__via }))).toEqual({ n: 2, via: ['web'] });
+});
+
+test('スタンプを付けた瞬間に鳴る（演出が出るより先）。もう持っているブースでは鳴らない', async ({ page }) => {
+  await mockGas(page);
+  await page.addInitScript(FAKE_AUDIO);
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await page.mouse.click(5, 5);
+  await page.evaluate(() => stampNow('1F-05'));
+  await expect(page.locator('#sfx')).toBeVisible();
+  let r = await page.evaluate(() => ({ n: window.__notes.length, ring: window.__ringAt, sfx: window.__sfxAt, last: ding._last }));
+  expect(r.n).toBe(2);
+  expect(r.last).toBe('stamp');
+  expect(r.ring).toBeLessThan(r.sfx);
+  await page.evaluate(() => { showStampFx.close && showStampFx.close(); });
+  await page.waitForTimeout(500);
+  await page.evaluate(() => stampNow('1F-05'));                          // 同じブースをもう一度
+  await page.waitForTimeout(500);
   expect(await page.evaluate(() => window.__notes.length)).toBe(2);
 });
 
@@ -301,8 +355,17 @@ test('QRから開いた直後（まだ触っていない）は、最初に触っ
   await page.goto(`/?booth=1F-05&qr=1&k=${k}`);
   await expect(page.locator('.sfx, [data-fx="book"]').first()).toBeVisible({ timeout: 15000 });
   expect(await page.evaluate(() => window.__notes.length)).toBe(0);    // 触る前は鳴らせない
+  // v185：鳴らせずに待っているあいだは、演出の中に「画面にふれると、音が鳴ります」
+  await expect(page.locator('#sfx .sfx-tap')).toBeVisible();
   await page.mouse.click(5, 5);
   await expect.poll(() => page.evaluate(() => window.__notes.length)).toBe(2);
+  await expect(page.locator('#sfx .sfx-tap')).toBeHidden();
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => window.__notes.length)).toBe(2);    // 1回だけ
+  // 一度触ったあとは、触らなくても鳴らせる（<audio> を触った操作の中で鳴らしてある）
+  await page.evaluate(() => { showStampFx.close && showStampFx.close(); window.__gesture = true; });
+  await page.evaluate(() => stampNow('1F-07'));
+  await expect.poll(() => page.evaluate(() => window.__notes.length)).toBe(4);
 });
 
 test('交換できる数に届いたスタンプは3音（特別な音）', async ({ page }) => {
