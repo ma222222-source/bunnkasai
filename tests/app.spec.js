@@ -1118,10 +1118,12 @@ test('詳細を開いたとき、情報が1分半より古ければ取り直す'
   await page.goto('/?tab=list');
   await ready(page);
   await page.waitForTimeout(500);
+  // ちょうど自動の更新が動いている最中だと、取り直しは重ねない（それで正しい）。終わるのを待ってから確かめる（v185）
+  await page.waitForFunction(() => !sync._busy, null, { timeout: 15000 });
   await page.evaluate(() => { S.fetchedAt = Date.now() - 120000; });
   const n0 = log.gets.length;
   await page.evaluate(() => openSheet(S.booths[1].id));
-  await expect.poll(() => log.gets.length).toBeGreaterThan(n0);
+  await expect.poll(() => log.gets.length, { timeout: 10000 }).toBeGreaterThan(n0);
 });
 
 test('一覧の並べ方（名前順）を覚える', async ({ page }) => {
@@ -1425,6 +1427,8 @@ test('通信が戻ったら「つながりました」', async ({ page, context 
   await page.goto('/?tab=map');
   await ready(page);
   await context.setOffline(true);
+  // 切れたことがページに伝わってから戻す（続けて切り替えると、重いときに「戻った」の合図が出ないことがある。v185）
+  await expect.poll(() => page.evaluate(() => navigator.onLine), { timeout: 5000 }).toBe(false);
   await context.setOffline(false);
   await expect(page.locator('#toast')).toContainText('つながりました');
 });
@@ -2118,5 +2122,54 @@ test('タイムテーブルは時刻の線と点つき。はじめての方へ�
     expect(nums.length).toBeGreaterThanOrEqual(3);
     for (const c of nums) expect(c).toContain('counter');
   }
+  expect(errors).toEqual([]);
+});
+
+/* ---------------- v186：スタンプを押した瞬間の演出 ---------------- */
+test('スタンプの演出：お菓子までの丸に、いま押した1個が入る。棒は前の数から伸びる。描き直しでは動きをくり返さない', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => { if (!sessionStorage.getItem('x')){ sessionStorage.setItem('x', 1); localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03'])); } });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await page.evaluate(() => stampNow('1F-05'));
+  await expect(page.locator('#sfx')).toBeVisible();
+  let r = await page.evaluate(() => {
+    const el = document.getElementById('sfx'), dots = [...el.querySelectorAll('.sfx-dots i')], bar = el.querySelector('.sfx-bar i');
+    return { cls: el.className, need: CONFIG.PRIZE_COST, n: dots.length, on: dots.filter(d => d.classList.contains('on')).length,
+      neu: dots.map((d, i) => d.classList.contains('new') ? i : -1).filter(i => i >= 0), w0: parseFloat(bar.style.getPropertyValue('--w0')), w: parseFloat(bar.style.width),
+      hidden: el.querySelector('.sfx-dots').getAttribute('aria-hidden'),
+      over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  });
+  expect(r.cls).toContain('first');
+  expect(r.cls).toContain('fresh');
+  expect(r.n).toBe(r.need);
+  expect(r.on).toBe(3);
+  expect(r.neu).toEqual([2]);                          // 3個目の丸が、いま入った1個
+  expect(r.w0).toBeLessThan(r.w);                      // 棒は、押す前の数から伸びる
+  expect(r.hidden).toBe('true');                       // 読み上げは下の文（あと◯個で…）にまかせる
+  expect(r.over).toBeLessThanOrEqual(0);
+  // 通信のあとなどの描き直しでは、入りの動きをくり返さない
+  await page.evaluate(() => showStampFx.refresh());
+  expect(await page.evaluate(() => document.getElementById('sfx').classList.contains('first'))).toBe(false);
+  // 同じブースをもう一度読んだとき（スタンプ済み）は、新しい丸は無い
+  await page.evaluate(() => showStampFx.close());
+  await expect(page.locator('#sfx')).toBeHidden({ timeout: 3000 });
+  await page.evaluate(() => stampNow('1F-05'));
+  await expect(page.locator('#sfx.dup')).toBeVisible();
+  expect(await page.locator('#sfx .sfx-dots i.new').count()).toBe(0);
+  expect(await page.locator('#sfx .sfx-dots i.on').count()).toBe(3);
+  // 交換できる数に届いたら、丸がぜんぶ入る
+  await page.evaluate(() => showStampFx.close());
+  await expect(page.locator('#sfx')).toBeHidden({ timeout: 3000 });
+  await page.evaluate(() => { stampNow('1F-07'); });
+  await expect(page.locator('#sfx.fresh')).toBeVisible();
+  await page.evaluate(() => showStampFx.close());
+  await expect(page.locator('#sfx')).toBeHidden({ timeout: 3000 });
+  await page.evaluate(() => { stampNow('1F-08'); });
+  await expect(page.locator('#sfx.fresh')).toBeVisible();
+  r = await page.evaluate(() => ({ on: document.querySelectorAll('#sfx .sfx-dots i.on').length, n: document.querySelectorAll('#sfx .sfx-dots i').length }));
+  expect(r.on).toBe(r.n);
   expect(errors).toEqual([]);
 });
