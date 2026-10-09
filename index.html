@@ -1873,6 +1873,21 @@ html.lite .hero-gear{animation:none}
 [data-fs="lg"] .hero-title{font-size:33px} [data-fs="lg"] .hero-day-t{font-size:13.5px} [data-fs="lg"] .hero-badge{font-size:13.5px}
 [data-fs="xl"] .hero-title{font-size:36px} [data-fs="xl"] .hero-day-t{font-size:15px} [data-fs="xl"] .hero-badge{font-size:15px} [data-fs="xl"] .hero-en{font-size:11.5px}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
+/* ---- v189：スタンプの数は、輪が伸びていく形で ---- */
+.stamp-count{display:flex;align-items:center;gap:12px;margin-top:12px}
+.stamp-ring{position:relative;flex:none;width:64px;height:64px;display:grid;place-items:center}
+.stamp-ring svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+.stamp-ring circle{fill:none;stroke-width:4.5}
+.stamp-ring .rg-bg{stroke:var(--surface-3)}
+.stamp-ring .rg-fg{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .8s var(--ease),stroke var(--t) var(--ease)}
+.stamp-ring.done .rg-fg{stroke:var(--free)}
+.stamp-ring #stamp-n{position:relative;font-size:24px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+.stamp-count-tx{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 8px}
+.stamp-count-tx .tot{font-size:12px;font-weight:800;color:var(--text-mute)}
+.stamp-count-tx #stamp-msg{flex-basis:100%;font-size:11.5px;font-weight:800;color:var(--free)}
+[data-fs="lg"] .stamp-ring{width:70px;height:70px} [data-fs="lg"] .stamp-ring #stamp-n{font-size:26px} [data-fs="lg"] .stamp-count-tx .tot{font-size:13.5px} [data-fs="lg"] .stamp-count-tx #stamp-msg{font-size:13px}
+[data-fs="xl"] .stamp-ring{width:78px;height:78px} [data-fs="xl"] .stamp-ring #stamp-n{font-size:29px} [data-fs="xl"] .stamp-count-tx .tot{font-size:15px} [data-fs="xl"] .stamp-count-tx #stamp-msg{font-size:14.5px}
+html.lite .stamp-ring .rg-fg{transition:none}
 /* ---- v187：見た目の仕上げ・4 ---- */
 /* いちばん大事なボタン（カメラでQRを読む）に、ときどき光が走る（4.8秒に1回。目を引くが、うるさくしない） */
 .scan-cta{position:relative;overflow:hidden}
@@ -3008,11 +3023,18 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
           各ブース入口の<b>QRコード</b>を読むとスタンプが付きます。手で付けることはできません。
         </p>
         <button class="scan-cta" id="stamp-scan" data-scan><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8" y="8" width="3" height="3"/><rect x="13" y="8" width="3" height="3"/><rect x="8" y="13" width="3" height="3"/><path d="M13 13h3v3"/></svg> カメラでQRを読む</button>
-        <div style="display:flex;align-items:baseline;gap:6px;margin-top:10px">
-          <span style="font-size:26px;font-weight:900" id="stamp-n">0</span>
-          <span style="font-size:12px;font-weight:800;color:var(--text-mute)">/ <span id="stamp-total">0</span> ブース</span>
-          <span class="rank-chip hide" id="stamp-rank"></span>
-          <span style="margin-left:auto;font-size:11px;font-weight:800;color:var(--free)" id="stamp-msg"></span>
+        <!-- v189：集めた数は、輪が伸びていく形で見せる（数字だけだと、全体のどのくらいかが分からない） -->
+        <div class="stamp-count">
+          <div class="stamp-ring" id="stamp-ring-box">
+            <svg viewBox="0 0 44 44" aria-hidden="true" focusable="false"><circle class="rg-bg" cx="22" cy="22" r="19"/><circle
+              class="rg-fg" id="stamp-ring" cx="22" cy="22" r="19" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></svg>
+            <span id="stamp-n">0</span>
+          </div>
+          <div class="stamp-count-tx">
+            <span class="tot">/ <span id="stamp-total">0</span> ブース</span>
+            <span class="rank-chip hide" id="stamp-rank"></span>
+            <span id="stamp-msg"></span>
+          </div>
         </div>
         <div class="progress"><i id="stamp-bar" style="width:0%"></i></div>
         <!-- v141：いちばん気になる「お菓子まであと何個か」を最初のカードに出す。
@@ -3568,7 +3590,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-10a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-10b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -7486,7 +7508,10 @@ function initZoom(){
   const stage = z.el.closest('.map-stage');
   const touchOn = () => { if (!stage) return; clearTimeout(touchOn._t); stage.classList.add('touching'); };
   const touchOff = () => { if (!stage) return; clearTimeout(touchOn._t); touchOn._t = setTimeout(() => stage.classList.remove('touching'), 900); };
-  z.el.addEventListener('pointermove', e => { if (z.moved || z.tBase) touchOn(); });
+  // v189：動かしている指・マウスのボタンが「いま押されている」ときだけ薄くする。
+  // z.moved は次に押すまで true のままなので、それだけで見ると、マウスで動かして離したあと、
+  // 地図の上でマウスを動かすだけでまた薄くなり、そのまま戻らなかった（離す合図がもう来ないため）
+  z.el.addEventListener('pointermove', e => { if ((z.moved && z.panId === e.pointerId) || z.tBase) touchOn(); });
   ['pointerup', 'pointercancel', 'touchend', 'touchcancel'].forEach(t => z.el.addEventListener(t, touchOff, { passive:true }));
   z.el.addEventListener('wheel', () => { touchOn(); touchOff(); }, { passive:true });
   // v163：地図のブースを長押し（0.55秒・動かさない）で ★行きたい を付け外し。離したあとの詳細は開かない
@@ -9465,6 +9490,11 @@ function renderStamps(){
   $('#stamp-n').textContent = got;
   $('#stamp-total').textContent = total;
   $('#stamp-bar').style.width = total ? (got / total * 100) + '%' : '0%';
+  { // v189：輪（集めた割合）。全部回ったら色を変える
+    const rg = $('#stamp-ring'), rb = $('#stamp-ring-box');
+    if (rg) rg.style.strokeDashoffset = String(Math.max(0, 100 - (total ? got / total * 100 : 0)));
+    if (rb) rb.classList.toggle('done', total > 0 && got >= total);
+  }
   const rk = stampRank(got, total);
   const chip = $('#stamp-rank');
   chip.classList.toggle('hide', !rk);

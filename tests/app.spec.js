@@ -797,6 +797,11 @@ test('地図に重ねたボタンは半透明で、地図を動かしている�
   await expect(page.locator('.map-stage')).toHaveClass(/touching/);
   await page.mouse.up();
   await expect(page.locator('.map-stage')).not.toHaveClass(/touching/, { timeout: 3000 });
+  // v189：離したあと、地図の上でマウスを動かしただけでは薄くならない（薄いまま戻らなくなっていた）
+  await page.mouse.move(box.x + box.width / 2 - 20, box.y + box.height / 2 - 10, { steps: 4 });
+  await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2 + 20, { steps: 4 });
+  await page.waitForTimeout(300);
+  await expect(page.locator('.map-stage')).not.toHaveClass(/touching/);
 });
 
 test('一覧：★・まだ行っていないで絞ったときも件数が出る', async ({ page }) => {
@@ -2235,5 +2240,41 @@ test('見つからなかったとき・★がまだ無いときは、絵つき�
   await ready(page);
   await page.locator('#fl-2').click();
   expect(await page.locator('#fl-2').evaluate(el => getComputedStyle(el).animationName)).toBe('sel-pop');
+  expect(errors).toEqual([]);
+});
+
+/* ---------------- v189：スタンプの数は、輪が伸びていく形で ---------------- */
+test('スタンプ帳：集めた数の輪が、割合のぶんだけ伸びる。全部回ると色が変わる（幅320px・文字「特大」でもはみ出さない）', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.addInitScript(() => localStorage.setItem('kuroko_fs', JSON.stringify('xl')));
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  const look = () => page.evaluate(() => {
+    const rg = document.getElementById('stamp-ring'), box = document.getElementById('stamp-ring-box'), n = document.getElementById('stamp-n');
+    const b = box.getBoundingClientRect(), nb = n.getBoundingClientRect();
+    return { off: parseFloat(rg.style.strokeDashoffset), n: n.textContent, total: +document.getElementById('stamp-total').textContent, done: box.classList.contains('done'),
+      inside: nb.left >= b.left && nb.right <= b.right && nb.top >= b.top && nb.bottom <= b.bottom, svgHidden: box.querySelector('svg').getAttribute('aria-hidden'),
+      over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  });
+  let r = await look();
+  expect(r.n).toBe('0');
+  expect(r.off).toBe(100);                             // まだ0個：輪は空
+  expect(r.done).toBe(false);
+  expect(r.svgHidden).toBe('true');                    // 読み上げは数字と「/ 46 ブース」
+  await page.evaluate(() => { S.booths.slice(0, 23).forEach(b => S.stamps.add(b.id)); renderStamps(); });
+  r = await look();
+  expect(r.n).toBe('23');
+  expect(r.total).toBe(46);
+  expect(r.off).toBeCloseTo(50, 1);                    // 半分
+  expect(r.inside).toBe(true);                         // 2けたの数字も輪の中に入る
+  expect(r.over).toBeLessThanOrEqual(0);
+  await page.evaluate(() => { S.booths.forEach(b => S.stamps.add(b.id)); renderStamps(); });
+  r = await look();
+  expect(r.off).toBe(0);
+  expect(r.done).toBe(true);
+  expect(r.inside).toBe(true);
+  expect(r.over).toBeLessThanOrEqual(0);
   expect(errors).toEqual([]);
 });
