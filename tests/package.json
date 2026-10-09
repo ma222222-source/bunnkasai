@@ -5,7 +5,8 @@
   "scripts": {
     "test": "node static.test.js && node --test gas.test.js && playwright test",
     "static": "node static.test.js",
-    "gas": "node --test gas.test.js"
+    "gas": "node --test gas.test.js",
+    "pamphlet": "node make-pamphlet.js"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

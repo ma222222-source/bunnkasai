@@ -135,7 +135,7 @@ test('QRを1枚だけ大きく刷る：そのカードだけが残り、刷り�
   await expect(page.locator('body')).not.toHaveClass(/print-one/);
 });
 
-/* ---------------- v178：三つ折りパンフレット ---------------- */
+/* ---------------- v178・v183：三つ折りパンフレット ---------------- */
 test('三つ折りパンフレット（?mode=pamphlet）：A4横・両面2ページ、面の幅は 97/100/100mm（折り込む面だけ狭い）、はみ出しなし', async ({ page }) => {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -167,18 +167,108 @@ test('三つ折りパンフレット（?mode=pamphlet）：A4横・両面2ペー
   expect(errors).toEqual([]);
 });
 
-test('三つ折りパンフレット：文字を書き換えると覚え、「元に戻す」で戻る', async ({ page }) => {
+test('三つ折りパンフレット：そのまま刷れる（仮の文字・作る人への説明が紙に出ない。空の欄は見出しごと出ない）', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/?mode=pamphlet');
+  await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
+  await page.emulateMedia({ media: 'print' });
+  const r = await page.evaluate(() => {
+    const shown = el => { const c = getComputedStyle(el); return c.display !== 'none' && c.visibility !== 'hidden' && el.getClientRects().length > 0; };
+    const pam = document.querySelector('#pam');
+    return {
+      text: pam.innerText,                                                        // 紙に出る文字
+      // 空の欄の薄い案内（data-ph）は画面にだけ出す
+      ph: [...pam.querySelectorAll('.pam-ed')].filter(e => !e.textContent.trim() && getComputedStyle(e, '::before').content !== 'none').length,
+      emptyOptShown: [...pam.querySelectorAll('.pam-opt.is-empty')].filter(shown).length,
+      emptyOpt: pam.querySelectorAll('.pam-opt.is-empty').length,
+      old: pam.querySelectorAll('.pam-todo,.pam-role').length,
+      ui: [...document.querySelectorAll('#v-pamphlet .no-print')].filter(shown).length,
+      outline: [...pam.querySelectorAll('.pam-ed')].filter(e => getComputedStyle(e).outlineStyle !== 'none' && parseFloat(getComputedStyle(e).outlineWidth) > 0).length,
+    };
+  });
+  expect(r.text).not.toMatch(/ここに|押して|空なら|空のまま|仮の|見本|あとで|資料|折り込む面|裏表紙|中面/);
+  expect(r.ph).toBe(0);
+  expect(r.emptyOpt).toBeGreaterThan(0);               // 何も書いていない欄がある
+  expect(r.emptyOptShown).toBe(0);                     // それは紙に出ない
+  expect(r.old).toBe(0);
+  expect(r.ui).toBe(0);
+  expect(r.outline).toBe(0);
+  // 載せるもの：表紙（題・日にち・QR）、スタンプラリー、混み具合の見かた、タイムテーブル、来場の案内、地図と番号
+  for (const s of ['黒工', '文化祭', 'KUROKO FESTIVAL', '10/23', '10/24', 'スタンプラリー', '個でお菓子と交換', '空き', 'タイムテーブル', 'ご来場のみなさまへ', '校内マップ', '1階'])
+    expect(r.text.replace(/\s+/g, ''), s).toContain(s.replace(/\s+/g, ''));
+  expect(await page.locator('.pam-cover .pam-qr-img svg').count()).toBe(1);
+});
+
+test('三つ折りパンフレット：校長・生徒会長のあいさつの欄がある（空でも見出しと空白を刷る。書けば覚える。長すぎれば知らせる）', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/?mode=pamphlet');
+  await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
+  await expect(page.locator('.pam-in1 .pam-greet')).toHaveCount(2);
+  await expect(page.locator('[data-ed="greet.principal.title"]')).toHaveText('校長あいさつ');
+  await expect(page.locator('[data-ed="greet.president.title"]')).toHaveText('生徒会長あいさつ');
+  await expect(page.locator('[data-ed="greet.principal.body"]')).toHaveText('');
+  await page.emulateMedia({ media: 'print' });
+  const blank = await page.evaluate(() => {
+    const mm = 96 / 25.4;
+    return [...document.querySelectorAll('.pam-in1 .pam-greet')].map(g => ({
+      h: Math.round(g.getBoundingClientRect().height / mm), body: Math.round(g.querySelector('.pam-gbody').getBoundingClientRect().height / mm),
+      shown: getComputedStyle(g).display !== 'none', sign: g.querySelector('.pam-gsign').textContent }));
+  });
+  // 空でも、2つの欄が面を半分ずつ使って刷られる（文を書く・貼る場所が 5cm 以上ある）
+  expect(blank.map(b => b.shown)).toEqual([true, true]);
+  expect(blank.map(b => b.sign)).toEqual(['校長', '生徒会長']);
+  for (const b of blank) expect(b.body).toBeGreaterThanOrEqual(50);
+  expect(Math.abs(blank[0].h - blank[1].h)).toBeLessThanOrEqual(4);
+  await page.emulateMedia({ media: 'screen' });
+  // 書くと覚える
+  const body = page.locator('[data-ed="greet.principal.body"]');
+  await body.click();
+  await page.keyboard.insertText('本日はご来場いただき、ありがとうございます。生徒たちが日ごろの学習の成果を発表します。');
+  await page.locator('[data-ed="greet.principal.name"]').click();
+  await page.keyboard.press('Control+A');
+  await page.keyboard.insertText('校長　黒沢 太郎');
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
+  await expect(page.locator('[data-ed="greet.principal.body"]')).toContainText('日ごろの学習の成果');
+  await expect(page.locator('[data-ed="greet.principal.name"]')).toHaveText('校長　黒沢 太郎');
+  expect(await page.locator('#pam .pam-panel.over').count()).toBe(0);
+  // 面に入りきらない長さを書いたら、刷る前に分かる（面に赤い印）
+  await page.locator('[data-ed="greet.president.body"]').click();
+  await page.keyboard.insertText('文化祭を楽しんでください。'.repeat(160));
+  await expect(page.locator('.pam-in1')).toHaveClass(/over/);
+  // 「書いた文字を消す」で、空の欄に戻る
+  await page.locator('#pam-reset').click();
+  await expect(page.locator('[data-ed="greet.president.body"]')).toHaveText('');
+  await expect(page.locator('[data-ed="greet.principal.name"]')).toHaveText('校長');
+  expect(await page.locator('#pam .pam-panel.over').count()).toBe(0);
+});
+
+test('三つ折りパンフレット：文字を書き換えると覚え、「書いた文字を消す」で空に戻る', async ({ page }) => {
   await mockGas(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/?mode=pamphlet');
   await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
   const t = page.locator('[data-ed="cover.theme"]');
+  await expect(t).toHaveText('');                      // はじめは空（紙に出ない）
   await t.click();
-  await page.keyboard.press('Control+A');
-  await page.keyboard.type('テーマ：つなぐ');
+  await page.keyboard.insertText('テーマ：つなぐ');
   await page.reload();
   await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
   await expect(page.locator('[data-ed="cover.theme"]')).toHaveText('テーマ：つなぐ');
   await page.locator('#pam-reset').click();
-  await expect(page.locator('[data-ed="cover.theme"]')).toContainText('ここにテーマ');
+  await expect(page.locator('[data-ed="cover.theme"]')).toHaveText('');
+});
+
+test('作ってある PDF（docs/pamphlet.pdf）：A4 横・2ページ。画面の「作ってあるPDFを開く」から届く', async ({ page, request }) => {
+  const res = await request.get('/docs/pamphlet.pdf');
+  expect(res.status()).toBe(200);
+  const buf = await res.body();
+  expect(buf.slice(0, 5).toString('latin1')).toBe('%PDF-');
+  expect(pdfPages(buf)).toBe(2);
+  expect(buf.toString('latin1')).toMatch(/MediaBox\s*\[\s*0\s+0\s+84[12](\.\d+)?\s+59[45](\.\d+)?\s*\]/);
+  await mockGas(page);
+  await page.goto('/?mode=pamphlet');
+  await expect(page.locator('#pam-pdf')).toHaveAttribute('href', 'docs/pamphlet.pdf');
 });
