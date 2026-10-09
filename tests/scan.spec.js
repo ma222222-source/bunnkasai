@@ -266,6 +266,7 @@ const FAKE_AUDIO = () => {
         if (!window.__gesture) return Promise.reject(Object.assign(new Error('まだ触っていない'), { name: 'NotAllowedError' }));
         this.paused = false; setTimeout(() => { this.paused = true; }, 40);
         const c = dingWavUrl._c || {}, kind = Object.keys(c).find(k => c[k] === this.src);
+        if (kind === 'silent') window.__silent = (window.__silent || 0) + 1;
         if (kind && kind !== 'silent'){ DING_NOTES[kind].forEach(f => window.__notes.push(f)); window.__via.push('audio'); window.__ringAt = performance.now(); }
         return Promise.resolve();
       }
@@ -377,4 +378,31 @@ test('交換できる数に届いたスタンプは3音（特別な音）', asyn
   await page.mouse.click(5, 5);                                          // 先に触っておく
   await page.evaluate(() => stampNow('1F-05'));
   await expect.poll(() => page.evaluate(() => window.__notes.length)).toBe(3);
+});
+
+test('<audio> の準備（無音で鳴らす）は、カメラを開いたときだけ。ふつうに画面に触っただけではしない（ほかのアプリの音楽を止めない）', async ({ page, browserName }) => {
+  await mockGas(page);
+  await page.addInitScript(FAKE_AUDIO);
+  await page.addInitScript(() => {
+    window.BarcodeDetector = class { static async getSupportedFormats(){ return ['qr_code']; } async detect(){ return []; } };
+    const md = navigator.mediaDevices || {};
+    md.getUserMedia = async () => { throw Object.assign(new Error('no camera'), { name: 'NotFoundError' }); };
+    try{ Object.defineProperty(navigator, 'mediaDevices', { value: md, configurable: true }); }catch(e){}
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?tab=list');
+  await ready(page);
+  // タブ・絞り込み・検索・詳細…と触っても、<audio> は鳴らさない
+  await page.locator('#nav button[data-view="map"]').click();
+  await page.locator('#nav button[data-view="stamp"]').click();
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => window.__silent || 0)).toBe(0);
+  expect(await page.evaluate(() => window.__notes.length)).toBe(0);
+  // カメラを開いた操作の中で、1回だけ準備する
+  await page.locator('#stamp-scan').click();
+  await expect.poll(() => page.evaluate(() => window.__silent || 0)).toBe(1);
+  // ページを離れるときは、音の部品を手放す
+  const src = await page.evaluate(() => { window.dispatchEvent(new Event('pagehide')); return { has: !!dingEl._el, primed: !!dingEl._primed }; });
+  expect(src.primed).toBe(false);
 });
