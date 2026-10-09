@@ -12,6 +12,19 @@ async function overflowX(page) {
 async function ready(page) {
   // GASの応答（46件）が画面の状態に入るまで
   await expect.poll(() => page.evaluate(() => (typeof S !== 'undefined' && S.booths) ? S.booths.length : 0), { timeout: 15000 }).toBe(46);
+  // 描いた直後は、地図の高さ合わせ・画面の入りの動き（10px）で、部品の位置がまだ動く。
+  // 位置を測って押すテストが、重いとき（テストを並べて動かしているとき）に外していたので、位置が落ち着くまで待つ（v184）
+  await page.evaluate(() => new Promise(res => {
+    let last = '', same = 0, n = 0;
+    const tick = () => {
+      const v = document.querySelector('.view.on') || document.body, m = document.getElementById('map-view');
+      const r = (m && m.offsetParent ? m : v).getBoundingClientRect();
+      const k = [r.top, r.left, r.width, r.height, document.documentElement.scrollHeight].map(Math.round).join(',');
+      same = k === last ? same + 1 : 0; last = k;
+      if (same >= 3 || ++n > 40) res(); else setTimeout(tick, 30);
+    };
+    setTimeout(tick, 30);
+  })).catch(() => {});
 }
 
 for (const w of WIDTHS) {
@@ -967,14 +980,21 @@ test('地図で開いたブースが詳細に隠れていたら、地図を動�
   });
   expect(id).toBeTruthy();
   await page.evaluate(id => openSheet(id), id);
-  await page.waitForTimeout(900);
-  const ok = await page.evaluate(id => {
+  // 詳細が上がりきり、地図が動き終わるまで待ってから測る（決まった時間だけ待つと、重いときにまだ動いている。v184）
+  const look = () => page.evaluate(id => {
     const r = document.querySelector(`#plan-${S.floor} .room[data-id="${id}"]`).getBoundingClientRect();
-    const top = document.getElementById('bsh').getBoundingClientRect().top;
+    const sh = document.getElementById('bsh'), top = sh.getBoundingClientRect().top;
     const v = document.getElementById('map-view').getBoundingClientRect();
-    return { below: (r.top + r.bottom) / 2 > top, mapH: Math.min(v.bottom, top) - Math.max(v.top, 0) };
+    const moving = (new DOMMatrixReadOnly(getComputedStyle(sh).transform).m42 || 0) > 0.5 || !sh.classList.contains('on');
+    return { moving, rc: Math.round((r.top + r.bottom) / 2), below: (r.top + r.bottom) / 2 > top, mapH: Math.min(v.bottom, top) - Math.max(v.top, 0) };
   }, id);
-  if (ok.mapH >= 40) expect(ok.below).toBe(false);
+  // 詳細が上がりきったあと、ブースの真ん中が詳細より上に見えている
+  await expect.poll(async () => { const o = await look(); return !o.moving && o.mapH >= 40 && !o.below; }, { timeout: 8000 }).toBe(true);
+  // そのまま隠れ直さない（地図の字の入れ直し＝拡大のあとの描き直しが済んでも）
+  await page.waitForTimeout(1200);
+  const ok = await look();
+  expect(ok.mapH).toBeGreaterThanOrEqual(40);
+  expect(ok.below).toBe(false);
 });
 
 /* ---------------- v164 ---------------- */
@@ -2061,5 +2081,35 @@ test('インフォの顔：日にちが出る。幅320px・文字「特大」で
   expect(r.first).toBe('info-hero');
   await page.evaluate(() => { CONFIG.HOURS = { days: [] }; renderHero(); });
   await expect(hero).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+/* ---------------- v184：見た目の仕上げ・2 ---------------- */
+test('タイムテーブルは時刻の線と点つき。はじめての方への手順は丸い番号', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.goto('/?tab=info');
+  await ready(page);
+  const tt = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#tt-body tr:not(.tt-day)')];
+    const dot = td => { const c = getComputedStyle(td, '::after'); return c.content !== 'none' && parseFloat(c.width) >= 10 && c.borderRadius !== '0px'; };
+    return { n: rows.length, dots: rows.filter(r => dot(r.cells[0])).length, heads: [...document.querySelectorAll('#tt-body tr.tt-day th')].filter(th => getComputedStyle(th, '::after').content !== 'none').length,
+      over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  });
+  expect(tt.n).toBeGreaterThan(0);
+  expect(tt.dots).toBe(tt.n);                          // どのコマにも点
+  expect(tt.heads).toBe(0);                            // 日付の見出しには付けない
+  expect(tt.over).toBeLessThanOrEqual(0);
+  // はじめての方へ（まだ「わかった」を押していない人に出る）
+  await page.evaluate(() => { try { localStorage.removeItem('kuroko_intro_v1'); } catch (e) {} });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const card = page.locator('#intro-card');
+  if (await card.isVisible()) {
+    const nums = await card.locator('ol li').evaluateAll(ls => ls.map(li => getComputedStyle(li, '::before').content));
+    expect(nums.length).toBeGreaterThanOrEqual(3);
+    for (const c of nums) expect(c).toContain('counter');
+  }
   expect(errors).toEqual([]);
 });

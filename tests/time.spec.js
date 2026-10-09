@@ -40,6 +40,7 @@ async function lookAt(page, when) {
       out.state = openState().state; out.short = hm ? hm.short : ''; out.banner = vis('banner-hours');
       out.sync = document.getElementById('sync-text').textContent;
       out.hero = (document.querySelector('#info-hero .hero-badge') || {}).textContent || '';
+      out.sub = ((document.querySelector('#info-hero .hero-sub') || {}).textContent || '').replace(/\s+/g, ' ');
       out.today = [...document.querySelectorAll('#info-hero .hero-day.today b')].map(e => e.textContent).join(',');
       out.bad = (document.body.innerText.match(/NaN|undefined|Invalid Date|あと-\d|-\d+分/g) || []).slice(0, 3).join(',');
     } catch (e) { out.err = String(e && e.stack || e).split('\n').slice(0, 2).join(' | '); }
@@ -74,6 +75,7 @@ test('時刻ごとの案内：前日・開場前・開催中・最終入場の�
   // 一般の方が「今日来られる」と読まないよう、一般公開の日も並べて出す（v182）
   expect(r.banner).toContain('一般公開は 10月24日');
   expect(r.hero).toBe('きょう開催');
+  expect(r.sub).toBe('10:00 開場あと1時間');                     // v184：きょうの開場まで
   expect(r.today).toBe('10/23');
   r = await lookAt(page, at('2026-10-23T12:00'));               // 開催中は、開催時間の案内ではなく更新の状況
   expect(r.state).toBe('open');
@@ -81,6 +83,7 @@ test('時刻ごとの案内：前日・開場前・開催中・最終入場の�
   expect(r.banner).toBe('');
   expect(r.sync).toContain('最新の情報');
   expect(r.hero).toBe('開催中');
+  expect(r.sub).toBe('14:25 まで');
   r = await lookAt(page, at('2026-10-23T14:10'));               // 終わる30分前から
   expect(r.short).toContain('まもなく終了');
   r = await lookAt(page, at('2026-10-23T15:00'));
@@ -93,6 +96,7 @@ test('時刻ごとの案内：前日・開場前・開催中・最終入場の�
   expect(r.banner).not.toContain('一般公開は');
   r = await lookAt(page, at('2026-10-24T13:45'));               // 最終入場の30分前から
   expect(r.short).toContain('最終入場は 14:00');
+  expect(r.sub).toBe('14:30 まで最終入場 14:00');
   r = await lookAt(page, at('2026-10-24T14:10'));
   expect(r.short).toContain('最終入場（14:00）を過ぎました');
   r = await lookAt(page, at('2026-10-24T15:00'));
@@ -101,6 +105,7 @@ test('時刻ごとの案内：前日・開場前・開催中・最終入場の�
   expect(r.state).toBe('otherday');
   expect(r.short).toContain('今年の文化祭は終了しました');
   expect(r.hero).toBe('ご来場ありがとうございました');
+  expect(r.sub).toBe('');
   expect(r.today).toBe('');
   expect(errs).toEqual([]);
 });

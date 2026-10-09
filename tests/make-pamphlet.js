@@ -1,5 +1,7 @@
 // 三つ折りパンフレットを PDF にする（v183）。
-//   cd tests && npm run pamphlet            … 本番のサーバーから、いまのブースの一覧を取って作る → ../docs/pamphlet.pdf
+//   cd tests && npm run pamphlet            … 本番のサーバーから、いまのブースの一覧を取って作る
+//       → ../docs/pamphlet.pdf        長辺とじ用（ふつうの両面印刷。2ページ目は上下逆に入っている）
+//       → ../docs/pamphlet-tanpen.pdf 短辺とじ用（2ページ目も同じ向き）
 //   cd tests && npm run pamphlet -- --mock  … 手元の写し（fixtures/booths.json）で作る（通信しない）
 // 中身は ?mode=pamphlet の画面そのもの（A4 横・両面2ページ・余白なし）。ブースの名前や数が変わったら作り直す。
 // 見本の画像（1ページ目・2ページ目）も tests/shots/ に出す（GitHub には上げない）
@@ -11,7 +13,7 @@ const { chromium } = require('@playwright/test');
 
 const ROOT = path.join(__dirname, '..');
 const MOCK = process.argv.includes('--mock');
-const OUT = path.join(ROOT, 'docs', 'pamphlet.pdf');
+const OUT = { long: path.join(ROOT, 'docs', 'pamphlet.pdf'), short: path.join(ROOT, 'docs', 'pamphlet-tanpen.pdf') };
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.css': 'text/css', '.pdf': 'application/pdf' };
 
 (async () => {
@@ -34,29 +36,41 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '
     await page.addInitScript(() => { window.__PAM_PUBLIC = true; });
     await page.goto(`http://127.0.0.1:${port}/?mode=pamphlet`);
     await page.waitForFunction(() => typeof S !== 'undefined' && S.booths.length > 0, null, { timeout: 60000 });
-    await page.evaluate(() => {
-      const m = document.querySelector('meta[property="og:url"]');
-      if (m && m.content) { window.publicBase = () => m.content.replace(/[^/]*$/, ''); }
-      localStorage.removeItem('kuroko_pamphlet_v1');
-      renderPamphlet();
-    });
-    await page.waitForTimeout(600);
-    const info = await page.evaluate(() => ({ booths: S.booths.length, over: [...document.querySelectorAll('#pam .pam-panel.over')].map(p => p.dataset.panel),
-      url: (typeof publicBase === 'function' ? publicBase() : ''), build: CONFIG.BUILD }));
-    if (info.over.length) throw new Error('面から中身がはみ出しています：' + info.over.join(', '));
-    fs.mkdirSync(path.dirname(OUT), { recursive: true });
-    const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
-    const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
-    if (pages !== 2) throw new Error('ページ数が 2 ではありません：' + pages);
-    fs.writeFileSync(OUT, pdf);
-    // 見本の画像
-    const shots = path.join(__dirname, 'shots');
-    fs.mkdirSync(shots, { recursive: true });
-    await page.emulateMedia({ media: 'print' });
-    await page.setViewportSize({ width: 1123, height: 794 });
-    await page.locator('.pam-s1 .pam-paper').screenshot({ path: path.join(shots, 'pamphlet-1.png'), scale: 'device' });
-    await page.locator('.pam-s2 .pam-paper').screenshot({ path: path.join(shots, 'pamphlet-2.png'), scale: 'device' });
-    console.log(`作りました：${OUT}（${Math.round(pdf.length / 1024)}KB・2ページ・ブース${info.booths}件・${MOCK ? '手元の写し' : '本番のデータ'}・BUILD ${info.build}・QR ${info.url}）`);
+    fs.mkdirSync(path.dirname(OUT.long), { recursive: true });
+    let info = null;
+    // 短辺とじ用（2ページ目も同じ向き）を先に作り、見本の画像もこの向きで撮る。次に長辺とじ用
+    for (const flip of ['short', 'long']) {
+      await page.emulateMedia({ media: null });       // 'screen' にすると PDF まで画面用の見た目になる（A4 横にならない）
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.evaluate(f => {
+        const m = document.querySelector('meta[property="og:url"]');
+        if (m && m.content) { window.publicBase = () => m.content.replace(/[^/]*$/, ''); }
+        localStorage.setItem('kuroko_pamphlet_v1', JSON.stringify({ _flip: f }));
+        renderPamphlet();
+      }, flip);
+      await page.waitForTimeout(600);
+      info = await page.evaluate(() => ({ booths: S.booths.length, over: [...document.querySelectorAll('#pam .pam-panel.over')].map(p => p.dataset.panel),
+        url: (typeof publicBase === 'function' ? publicBase() : ''), build: CONFIG.BUILD, flip: document.getElementById('pam').dataset.flip }));
+      if (info.over.length) throw new Error('面から中身がはみ出しています：' + info.over.join(', '));
+      if (info.flip !== flip) throw new Error('とじ方が切り替わっていません：' + info.flip);
+      const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
+      const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
+      if (pages !== 2) throw new Error('ページ数が 2 ではありません：' + pages);
+      if (!/MediaBox\s*\[\s*0\s+0\s+84[12](\.\d+)?\s+59[45](\.\d+)?\s*\]/.test(pdf.toString('latin1'))) throw new Error('A4 横になっていません');
+      fs.writeFileSync(OUT[flip], pdf);
+      console.log(`作りました：${OUT[flip]}（${flip === 'long' ? '長辺とじ用' : '短辺とじ用'}・${Math.round(pdf.length / 1024)}KB・2ページ）`);
+      if (flip === 'short') {
+        // 見本の画像
+        const shots = path.join(__dirname, 'shots');
+        fs.mkdirSync(shots, { recursive: true });
+        await page.emulateMedia({ media: 'print' });
+        await page.setViewportSize({ width: 1123, height: 794 });
+        await page.locator('.pam-s1 .pam-paper').screenshot({ path: path.join(shots, 'pamphlet-1.png'), scale: 'device' });
+        await page.locator('.pam-s2 .pam-paper').screenshot({ path: path.join(shots, 'pamphlet-2.png'), scale: 'device' });
+      }
+    }
+    await page.evaluate(() => localStorage.removeItem('kuroko_pamphlet_v1'));
+    console.log(`ブース${info.booths}件・${MOCK ? '手元の写し' : '本番のデータ'}・BUILD ${info.build}・QR ${info.url}`);
   } finally {
     await browser.close();
     server.close();
