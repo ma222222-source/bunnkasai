@@ -3568,7 +3568,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-09g',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-10a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -6910,7 +6910,7 @@ function renderScanCount(){
 }
 
 async function openScanner(){
-  unlockAudio();
+  unlockAudio(true);                                            // v188：<audio> の準備は、カメラを開いたこの操作の中でだけ
   SCAN.darkTold = false; SCAN.darkAt = 0;                       // v171：押した操作の中で音の準備をしておく
   renderScanCount();
   // v167：閉じたあと、開いたボタンへ戻る（キーボード・読み上げの人が迷子にならない）
@@ -9725,7 +9725,7 @@ function dingKindFor(id){
  * v171：画面に触った瞬間に音の準備をする（iPhone は触った操作の中で一度音を出さないと、あとで鳴らせない）。
  * 鳴らせずに待っていた音・振動があれば、ここで出す
  */
-function unlockAudio(){
+function unlockAudio(prime){
   try{
     if (S.sound){
       const ac = dingAc();
@@ -9746,8 +9746,11 @@ function unlockAudio(){
         if (st && st.classList.contains('slam')){ st.classList.remove('slam'); void st.offsetWidth; st.classList.add('slam'); }
       } else {
         if (p){ ding._pending = null; document.documentElement.classList.remove('snd-wait'); }
-        // 触った操作の中で <audio> を一度（無音で）鳴らしておく。以後は、触っていなくても鳴らせる
-        const a = dingEl();
+        // 触った操作の中で <audio> を一度（無音で）鳴らしておく。以後は、触っていなくても鳴らせる。
+        // v188：これをするのは、アプリの中のカメラを開いたとき（prime）だけ。v185〜v187 は、どのページでも最初に触ったときにしていた。
+        //   ・スマホは <audio> を鳴らすと、ほかのアプリの音楽が止まることがある。スタンプを読む気の無い人の音楽まで止めていた
+        //   ・自動テストの Linux の WebKit では、<audio> を鳴らしたあとにページを開き直すと、読み込みが止まることがあった
+        const a = prime === true ? dingEl() : null;
         if (a && !dingEl._primed && a.paused){
           dingEl._primed = true;
           try{
@@ -9762,7 +9765,15 @@ function unlockAudio(){
     if (bp && Date.now() - bp.at < 60000){ buzz._pending = null; if (navigator.vibrate) navigator.vibrate(bp.pattern); }
   }catch(e){}
 }
-['pointerdown', 'keydown', 'touchend'].forEach(t => document.addEventListener(t, unlockAudio, { capture:true, passive:true }));
+['pointerdown', 'keydown', 'touchend'].forEach(t => document.addEventListener(t, () => unlockAudio(), { capture:true, passive:true }));
+// v188：ページを離れるときは、音の部品を止めて手放す（鳴らしたままの <audio> を残して次のページへ行かない）
+window.addEventListener('pagehide', () => {
+  try{
+    const a = dingEl._el;
+    dingEl._primed = false;
+    if (a){ a.pause(); if (a.removeAttribute) a.removeAttribute('src'); if (a.load) a.load(); }
+  }catch(e){}
+});
 
 /**
  * 全制覇したときだけ降らせる。要素は使い捨てで、終わったら自分で片付ける。

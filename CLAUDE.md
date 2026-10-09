@@ -12,7 +12,7 @@
 2. 作業用ブランチ（`claude/<内容>`）で直す。版を上げる（RULES.md §4）
 3. テスト：`cd tests && npm test`（静的テスト＋画面テスト）。必要ならスクリーンショットで目視
 4. `SPEC.md`・`RULES.md`・`PROGRESS.md`・このファイルを実装に合わせて直す
-5. コミット → 作業用ブランチへプッシュ → PR → GitHub Actions のテストが通ったら **main へマージ**（GitHub Pages が公開する）
+5. コミット → 作業用ブランチへプッシュ → PR → GitHub Actions のテストが通ったら **main へマージ**（GitHub Pages が公開する）。「通った」でも、やり直して通ったテスト（flaky・✘）が無いかをログで見る。マージのあと、main のテストの結果も確かめる（v188：どちらも見ていなくて、Linux の WebKit でだけ出る失敗を3版つづけて見落とした）
 6. `Code.gs` を変えたときは `bash tools/gas.sh deploy "vNNN GAS-YYYY-MM-DDx"`（既存の本番デプロイを新しい版に。URL は変えない）
 7. 公開の確認：公開URLの `BUILD`、GAS の `serverVersion`、`?mode=check`
 8. 問題があれば安全に戻せる範囲で直す（直しも同じ手順で）。日本語で結果と公開中の版を報告する

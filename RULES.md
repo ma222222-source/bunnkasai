@@ -65,7 +65,7 @@
 | `Code.gs` | `GAS_VERSION` を変える（`YYYY-MM-DD` ＋ 英小文字）。画面が前提とする最低版は `index.html` の `CONFIG.GAS_MIN` |
 | 納品 | 版番号 vNNN ごとにフォルダを分ける（例：ユーザーのPCの `Downloads\bunnkasai-vNNN-deploy\`）。**一式**を入れる |
 
-版番号の対応（v187 時点）：v187 ＝ `BUILD 2026-10-09g` ／ `CACHE kuroko-map-v187` ／ `GAS_VERSION 2026-10-04b`（エラー記録）。
+版番号の対応（v188 時点）：v188 ＝ `BUILD 2026-10-10a` ／ `CACHE kuroko-map-v188` ／ `GAS_VERSION 2026-10-04b`（エラー記録）。
 
 ## 5. 反映の手順
 
