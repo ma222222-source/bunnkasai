@@ -420,7 +420,10 @@ main{flex:1;padding:14px 12px calc(88px + var(--safe-b));display:flex;flex-direc
 .view.on{display:flex;animation:view-in var(--t) var(--ease)}
 /* scale を混ぜると図面SVG(400要素超)を毎フレーム描き直すことになるので、
    合成だけで済む opacity と translate に留める（安い端末での切替の重さ対策） */
-@keyframes view-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+/* v183：下のタブの並び（マップ→一覧→スタンプ→インフォ）に合わせて、右のタブへは右から、左のタブへは左から入る。
+   動かす幅は main の左右の余白（12px）より小さくして、横にはみ出さないようにする */
+@keyframes view-in{from{opacity:0;transform:translate(var(--view-dx,0px),var(--view-dy,10px))}to{opacity:1;transform:none}}
+body:not(.staff-wide):not(.wide-mode) main{overflow-x:clip}
 
 /* 一覧やスタンプは、少しずつ現れると量が把握しやすい */
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
@@ -1774,6 +1777,69 @@ html.sfx-open,html.sfx-open body{overflow:hidden}
                    transition:width var(--t) var(--ease)}
 .nav button[aria-pressed="true"]::after{width:34px}
 .nav button{position:relative}
+/* v183：選んだタブの印は、1本の線が横へすべる（ボタンごとに伸び縮みさせない） */
+.nav-ind{position:absolute;top:0;left:0;width:25%;height:3px;pointer-events:none;
+         transform:translateX(calc(var(--nav-i,0) * 100%));transition:transform .36s var(--ease-out-back)}
+.nav-ind::before{content:"";position:absolute;top:0;left:50%;width:34px;height:3px;margin-left:-17px;
+                 border-radius:0 0 3px 3px;background:var(--accent)}
+.nav button::after{display:none}
+.nav button[aria-pressed="true"] em{animation:nav-pop .44s var(--ease-out-back)}
+@keyframes nav-pop{0%{transform:translateY(0) scale(1)}55%{transform:translateY(-4px) scale(1.26)}100%{transform:translateY(-2px) scale(1.14)}}
+html.lite .nav-ind{transition:none} html.lite .nav button[aria-pressed="true"] em{animation:none}
+/* 更新のあいだ、見出しの「更新」の印が回る（押したのに何も起きていないように見えていた） */
+#btn-reload.busy .ib-ic{animation:spin-r .8s linear infinite}
+@keyframes spin-r{to{transform:rotate(360deg)}}
+html.lite #btn-reload.busy .ib-ic{animation:none}
+/* 階を替えたとき、図面がふわっと出る（透明度だけ。400要素を超える図面を毎フレーム描き直さない） */
+#map-view .plan{animation:plan-in .32s var(--ease)}
+@keyframes plan-in{from{opacity:.2}to{opacity:1}}
+html.lite #map-view .plan{animation:none}
+/* 下へ送ったら、見出しの下に影（中身が見出しの下にもぐっていることが分かる） */
+.head{transition:box-shadow var(--t) var(--ease)}
+.head.scrolled{box-shadow:0 8px 20px -10px rgba(0,0,0,.55)}
+/* ブースの詳細は、開いたときだけ中身が上から順に出る（描き直しのたびには動かさない） */
+.bsh.intro #bsh-body > *{animation:rise .36s var(--ease) both}
+.bsh.intro #bsh-body > *:nth-child(2){animation-delay:.04s}
+.bsh.intro #bsh-body > *:nth-child(3){animation-delay:.08s}
+.bsh.intro #bsh-body > *:nth-child(4){animation-delay:.12s}
+.bsh.intro #bsh-body > *:nth-child(5){animation-delay:.16s}
+.bsh.intro #bsh-body > *:nth-child(n+6){animation-delay:.2s}
+html.lite .bsh.intro #bsh-body > *{animation:none}
+
+/* v183：インフォのいちばん上に、文化祭の顔（三つ折りパンフレットの表紙と同じ絵）。
+   見た目（ふつう・暗い・紙…）を替えても、ここだけはいつも濃い地に白い字 */
+.hero{position:relative;overflow:hidden;border-radius:var(--radius,16px);background:#1a1814;color:#fff;padding:18px 16px 16px;
+      box-shadow:0 6px 22px -10px rgba(0,0,0,.6)}
+.hero::before{content:"";position:absolute;left:0;right:0;top:0;height:7px;
+              background:repeating-linear-gradient(-45deg,#b91c1c 0 7px,transparent 7px 14px)}
+.hero::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.07;
+             background:linear-gradient(#fff 1px,transparent 1px) 0 0/18px 18px,linear-gradient(90deg,#fff 1px,transparent 1px) 0 0/18px 18px}
+.hero-gear{position:absolute;right:-88px;top:50%;width:190px;height:190px;margin-top:-95px;pointer-events:none;opacity:.85;
+           animation:hero-gear 80s linear infinite}
+@keyframes hero-gear{to{transform:rotate(360deg)}}
+html.lite .hero-gear{animation:none}
+.hero-in{position:relative;z-index:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+.hero-en{font-size:10px;font-weight:800;letter-spacing:.3em;color:#f3c9c9;line-height:1.4}
+.hero-en b{color:#fff;font-size:13px;letter-spacing:.12em;margin-left:4px}
+.hero-title{font-size:30px;font-weight:900;letter-spacing:.06em;line-height:1.2}
+.hero-title,.hero-day-t,.hero-day b{text-shadow:0 0 6px #1a1814,0 0 10px #1a1814}
+.hero-badge{align-self:flex-start;margin:8px 0 2px;padding:3px 12px;border-radius:999px;background:#b91c1c;color:#fff;
+            font-size:12px;font-weight:900;letter-spacing:.08em;line-height:1.5}
+.hero-badge.live{background:#fff;color:#1a1814}
+.hero-badge.live::before{content:"";display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;background:#dc2626;
+                         animation:blink 1.6s ease-in-out infinite}
+.hero-days{display:grid;gap:6px;margin-top:8px}
+.hero-day{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;line-height:1.15}
+.hero-day b{font-size:24px;font-weight:900;font-variant-numeric:tabular-nums}
+.hero-day b i{font-style:normal;font-weight:400;opacity:.6;margin:0 1px}
+.hero-wd{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#fff;color:#1a1814;
+         font-size:11px;font-weight:900;align-self:center}
+.hero-day-t{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.4}
+.hero-day-t em{font-style:normal;color:#f3c9c9;margin-right:6px}
+.hero-day.today b{color:#fff;text-decoration:underline;text-decoration-color:#b91c1c;text-decoration-thickness:3px;text-underline-offset:5px}
+[data-fs="lg"] .hero-title{font-size:33px} [data-fs="lg"] .hero-day-t{font-size:13.5px} [data-fs="lg"] .hero-badge{font-size:13.5px}
+[data-fs="xl"] .hero-title{font-size:36px} [data-fs="xl"] .hero-day-t{font-size:15px} [data-fs="xl"] .hero-badge{font-size:15px} [data-fs="xl"] .hero-en{font-size:11.5px}
+@media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
 /* ========================= トースト ========================= */
 .toast-act{margin-left:12px;padding:4px 10px;border-radius:8px;font-size:11px;font-weight:900;
            background:var(--bg);color:var(--text);border:1px solid var(--text-mute)}
@@ -2511,72 +2577,132 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 .a2hs-steps{margin:6px 0 8px 1.4em;font-weight:700;line-height:1.9}
 .a2hs-ic{display:inline-grid;place-items:center;min-width:30px;height:22px;padding:0 4px;border:1.5px solid currentColor;border-radius:6px;font-size:11px;font-weight:900;vertical-align:middle}
 
-/* ============ 三つ折りパンフレット（v178） ============ */
+/* ============ 三つ折りパンフレット（v178 → v183：そのまま刷れる仕上げに） ============ */
 .pam{display:flex;flex-direction:column;gap:18px}
 .pam-sheet-t{margin:0 0 6px;font-size:12px;font-weight:800;color:var(--text-dim)}
 /* 紙1枚＝A4 横（297×210mm）。画面では幅に合わせて縮めて見せる（中身の単位は mm のまま） */
-.pam-paper{position:relative;display:grid;grid-template-columns:97mm 100mm 100mm;width:297mm;height:210mm;background:#fff;color:#111;
-  box-shadow:0 2px 14px rgba(0,0,0,.18);overflow:hidden;font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
-  transform-origin:0 0}
+.pam-paper{position:relative;display:grid;grid-template-columns:97mm 100mm 100mm;width:297mm;height:210mm;background:#fff;color:#1a1814;
+  box-shadow:0 2px 14px rgba(0,0,0,.18);overflow:hidden;font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+  transform-origin:0 0;font-feature-settings:"palt";-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .pam-s2 .pam-paper{grid-template-columns:100mm 100mm 97mm}
 .pam-sheet{overflow:hidden}
-.pam-panel{position:relative;box-sizing:border-box;height:210mm;padding:8mm 7mm 7mm;overflow:hidden;display:flex;flex-direction:column;gap:2.2mm;
-  font-size:8.6pt;line-height:1.6}
+/* 面の余白は 9mm。たいていのプリンターは紙の端 3〜5mm が刷れないので、端に物を置かない */
+.pam-panel{position:relative;box-sizing:border-box;height:210mm;padding:10mm 8.5mm 9mm;overflow:hidden;display:flex;flex-direction:column;gap:2.4mm;
+  font-size:8.4pt;line-height:1.62}
 .pam-panel.over{outline:2px solid #dc2626;outline-offset:-2px}
 .pam-panel.over::after{content:'中身がこの面からはみ出しています';position:absolute;left:0;right:0;bottom:0;padding:1mm;background:#dc2626;color:#fff;
   font-size:8pt;font-weight:800;text-align:center}
-.pam-role{position:absolute;left:2mm;top:1.2mm;font-size:6.5pt;font-weight:800;color:#b91c1c;background:#fff;padding:0 1mm;border-radius:2px;z-index:2}
-/* 折り目：画面では点線、紙では上下の端に小さな印だけ */
-.pam-fold{position:absolute;top:0;bottom:0;width:0;border-left:1px dashed #b91c1c;z-index:3;pointer-events:none}
+/* 折り目：画面では薄い線、紙では上下の端に小さな印だけ */
+.pam-fold{position:absolute;top:0;bottom:0;width:0;border-left:1px dashed rgba(0,0,0,.22);z-index:3;pointer-events:none}
 .pam-s1 .pam-fold.f1{left:97mm} .pam-s1 .pam-fold.f2{left:197mm}
 .pam-s2 .pam-fold.f1{left:100mm} .pam-s2 .pam-fold.f2{left:200mm}
-.pam-h3{margin:1mm 0 0;padding:0 0 .8mm;font-size:11pt;font-weight:900;color:#b91c1c;border-bottom:.5mm solid #b91c1c;line-height:1.3}
-.pam-h4{margin:1mm 0 0;font-size:9pt;font-weight:900;line-height:1.3}
-.pam-small{font-size:7.6pt;line-height:1.55;margin:0}
-.pam-ed{margin:0;white-space:pre-wrap;outline:1px dashed transparent;border-radius:2px;min-height:1em}
-.pam-ed:hover,.pam-ed:focus{outline-color:#b91c1c;background:#fff8e1}
-.pam-todo-box{border:.35mm dashed #999;border-radius:2mm;padding:2mm;color:#666;font-size:8pt;min-height:16mm}
-.pam-todo{color:#666}
+/* 見出し：赤い四角＋太い字＋下に細い線 */
+.pam-h3{display:flex;align-items:baseline;gap:2mm;margin:1.2mm 0 .4mm;padding:0 0 1.1mm;font-size:11.5pt;font-weight:900;line-height:1.25;letter-spacing:.04em;
+  color:#1a1814;border-bottom:.35mm solid #1a1814}
+.pam-h3::before{content:'';flex:none;align-self:center;width:2.6mm;height:2.6mm;background:#b91c1c}
+.pam-h3 small{margin-left:auto;font-size:6.6pt;font-weight:700;letter-spacing:0;color:#555}
+.pam-panel > .pam-h3:first-child,.pam-panel > .pam-opt:first-child > .pam-h3{margin-top:0}
+.pam-h4{display:flex;align-items:baseline;gap:2mm;margin:.8mm 0 0;font-size:9pt;font-weight:900;line-height:1.3}
+.pam-h4 small{font-size:7pt;font-weight:700;color:#b91c1c}
+.pam-fl{align-self:flex-start;padding:.2mm 2.4mm;background:#1a1814;color:#fff;border-radius:1mm;font-size:8pt;letter-spacing:.06em}
+.pam-small{font-size:7.6pt;line-height:1.6;margin:0}
+.pam-dim{color:#555}
+/* 書き換えられる欄。画面でだけ、点線と薄い案内を出す */
+.pam-ed{margin:0;white-space:pre-wrap;outline:1px dashed transparent;outline-offset:1px;border-radius:2px;min-height:1.2em}
+.pam-opt{display:flex;flex-direction:column;gap:1.6mm}
 .pam-grow{flex:1;min-height:0}
-/* 表紙 */
-.pam-cover{background:#b91c1c;color:#fff;text-align:center;justify-content:flex-start;gap:3mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.pam-cover .pam-role{color:#b91c1c}
-.pam-school{font-size:9pt;font-weight:800;letter-spacing:.06em;margin-top:6mm}
-.pam-title{margin:0;font-size:30pt;font-weight:900;line-height:1.15;letter-spacing:.04em}
-.pam-theme{font-size:11pt;font-weight:800}
-.pam-art{flex:1;min-height:30mm;display:grid;place-items:center;border-color:rgba(255,255,255,.7);color:#fff;background:rgba(255,255,255,.08)}
-.pam-date{font-size:11pt;font-weight:900;line-height:1.5}
-.pam-qr{display:flex;align-items:center;gap:3mm;background:#fff;color:#111;border-radius:2.5mm;padding:2.5mm;text-align:left;font-size:7.6pt;line-height:1.5;
-  -webkit-print-color-adjust:exact;print-color-adjust:exact}
-.pam-qr-img{flex:none;width:27mm;height:27mm;line-height:0}
-.pam-qr-img svg{width:27mm;height:27mm}
-.pam-qr p{margin:0}
-.pam-cover .pam-ed:hover,.pam-cover .pam-ed:focus{background:rgba(255,255,255,.18);outline-color:#fff}
-/* 裏表紙・折り込む面 */
-.pam-notes{margin:0;padding:0;list-style:none;display:grid;gap:1.4mm;font-size:7.8pt;line-height:1.5}
-.pam-notes b{display:block;font-size:8.4pt}
-.pam-steps{margin:0;padding-left:1.5em;display:grid;gap:1.2mm;font-size:8.6pt;font-weight:700;line-height:1.5}
-.pam-foot{margin:auto 0 0;font-size:6.5pt;color:#555;word-break:break-all;text-align:center}
-/* 中面 */
-.pam-tt{width:100%;border-collapse:collapse;font-size:8.2pt}
-.pam-tt th{width:13mm;text-align:left;vertical-align:top;font-weight:900;color:#b91c1c;padding:.5mm 0}
-.pam-tt td{padding:.5mm 0;border-bottom:.2mm solid #ddd}
-.pam-floor{display:flex;flex-direction:column;gap:1mm;min-height:0}
+@media screen{
+  .pam-ed{outline-color:rgba(185,28,28,.35)}
+  .pam-ed:hover,.pam-ed:focus{outline-color:#b91c1c;background:#fff8e1}
+  .pam-ed:empty::before{content:attr(data-ph);color:#b0a79a;font-weight:600;pointer-events:none}
+  .pam-opt.is-empty > .pam-h3{color:#b0a79a;border-color:#d8d0c2}
+  .pam-opt.is-empty > .pam-h3::before{background:#d8d0c2}
+  .pam-cover .pam-ed{outline-color:rgba(255,255,255,.4)}
+  .pam-cover .pam-ed:hover,.pam-cover .pam-ed:focus{background:rgba(255,255,255,.14);outline-color:#fff}
+  .pam-cover .pam-ed:empty::before{color:rgba(255,255,255,.5)}
+}
+/* ---- 表紙 ---- */
+.pam-cover{padding:6mm}
+.pam-cv{position:relative;flex:1;border-radius:2.4mm;overflow:hidden;background:#1a1814;color:#fff}
+.pam-cv-art{position:absolute;inset:0;width:100%;height:100%}
+.pam-cv-in{position:relative;z-index:1;height:100%;box-sizing:border-box;display:flex;flex-direction:column;padding:13mm 7.5mm 7mm}
+.pam-school{font-size:8.2pt;font-weight:800;letter-spacing:.14em;line-height:1.5}
+.pam-en{margin:7mm 0 0;font-size:7.4pt;font-weight:800;letter-spacing:.32em;color:#f3c9c9;line-height:1.3}
+.pam-en b{color:#fff;font-size:11pt;letter-spacing:.12em;margin-left:1mm}
+.pam-title{margin:1.5mm 0 0;font-size:40pt;font-weight:900;line-height:1.08;letter-spacing:.06em}
+.pam-bar{display:block;width:17mm;height:1.6mm;margin:4.5mm 0 0;background:#b91c1c}
+.pam-theme{margin:4mm 0 0;font-size:11pt;font-weight:800;line-height:1.5;letter-spacing:.04em}
+.pam-days{margin-top:auto;display:grid;gap:1.6mm;padding-bottom:5mm}
+.pam-day{display:flex;align-items:baseline;gap:1.6mm;line-height:1}
+.pam-day b{font-size:23pt;font-weight:900;letter-spacing:.01em;font-variant-numeric:tabular-nums}
+.pam-day b i{font-style:normal;font-weight:400;opacity:.6;margin:0 .3mm}
+.pam-wd{display:inline-grid;place-items:center;width:5.2mm;height:5.2mm;border-radius:50%;background:#fff;color:#1a1814;font-size:7.6pt;font-weight:900;align-self:center}
+.pam-day-t{margin-left:1mm;font-size:8.6pt;font-weight:800;line-height:1.35;font-variant-numeric:tabular-nums}
+.pam-day-t em{display:block;font-style:normal;font-size:6.8pt;font-weight:800;color:#f3c9c9;letter-spacing:.08em}
+.pam-qr{display:flex;align-items:center;gap:3mm;background:#fff;color:#1a1814;border-radius:2mm;padding:2.4mm}
+.pam-qr-img{flex:none;width:25mm;height:25mm;line-height:0}
+.pam-qr-img svg{width:25mm;height:25mm}
+.pam-qr p{margin:0;font-size:7pt;line-height:1.55;font-weight:700}
+.pam-qr p b{display:block;font-size:10pt;font-weight:900;letter-spacing:.06em;margin-bottom:.6mm}
+.pam-qr p small{display:block;margin-top:.8mm;font-size:5.6pt;font-weight:600;color:#666;word-break:break-all}
+/* ---- スタンプラリー・混み具合 ---- */
+.pam-steps{margin:.6mm 0 0;padding:0;list-style:none;counter-reset:st;display:grid;gap:2.2mm}
+.pam-steps li{position:relative;padding-left:9mm;font-size:7.6pt;line-height:1.55;counter-increment:st;min-height:6.6mm}
+.pam-steps li::before{content:counter(st);position:absolute;left:0;top:.2mm;width:6.6mm;height:6.6mm;border-radius:50%;background:#b91c1c;color:#fff;
+  display:grid;place-items:center;font-size:10pt;font-weight:900}
+.pam-steps li b{display:block;font-size:9.2pt;font-weight:900;line-height:1.35}
+.pam-lv{margin:.4mm 0 0;padding:0;list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:1.4mm}
+.pam-lv li{display:grid;grid-template-columns:auto 1fr;column-gap:1.6mm;align-items:center;padding:1.4mm 2mm;border-radius:1.4mm;border:.3mm solid #c9c2b6;font-size:6.6pt;line-height:1.35}
+.pam-lv li i{grid-row:span 2;font-style:normal;font-size:11pt;line-height:1}
+.pam-lv li b{font-size:8.4pt;font-weight:900}
+.pam-lv li span{color:#555}
+.pam-lv li[data-lv="0"]{background:#e8f5ec;border-color:#15803d} .pam-lv li[data-lv="0"] i{color:#15803d}
+.pam-lv li[data-lv="1"]{background:#fdf3d7;border-color:#b45309} .pam-lv li[data-lv="1"] i{color:#b45309}
+.pam-lv li[data-lv="2"]{background:#fde4e4;border-color:#b91c1c} .pam-lv li[data-lv="2"] i{color:#b91c1c}
+.pam-lv li[data-lv="3"]{background:#eeeeec;border-color:#777} .pam-lv li[data-lv="3"] i{color:#555}
+/* ---- 来場の案内 ---- */
+.pam-notes{margin:.4mm 0 0;padding:0;list-style:none;display:grid;gap:1.9mm;font-size:7.3pt;line-height:1.5}
+.pam-notes li{display:grid;grid-template-columns:5.4mm 1fr;gap:1.8mm;align-items:start}
+.pam-notes b{display:block;font-size:8.4pt;font-weight:900;line-height:1.35}
+.pam-ic{display:grid;place-items:center;width:5.4mm;height:5.4mm;border-radius:1.2mm;background:#1a1814;color:#fff;font-style:normal}
+.pam-ic svg{width:3.6mm;height:3.6mm}
+.pam-foot{margin:auto 0 0;padding-top:2mm;border-top:.25mm solid #c9c2b6;font-size:6pt;color:#555;word-break:break-all;line-height:1.5}
+.pam-foot b{display:block;font-size:7.6pt;color:#1a1814;letter-spacing:.08em}
+/* ---- あいさつ（校長・生徒会長）：空でも欄として刷る ---- */
+.pam-greet{flex:1 0 auto;display:flex;flex-direction:column;gap:1.6mm;min-height:44mm}
+.pam-greet + .pam-greet{padding-top:3mm;border-top:.25mm solid #c9c2b6}
+.pam-gh{margin:.8mm 0 0;font-size:9.8pt;font-weight:900;line-height:1.3;letter-spacing:.08em;color:#b91c1c}
+.pam-gbody{flex:1 0 auto;font-size:8.2pt;line-height:1.85;text-align:justify}
+.pam-gsign{align-self:flex-end;min-width:26mm;text-align:right;font-size:8.8pt;font-weight:800;letter-spacing:.1em;line-height:1.4}
+.pam-flap .pam-tt li{padding:.75mm 0;font-size:7.9pt}
+.pam-flap .pam-ttday{gap:.6mm}
+/* ---- タイムテーブル：時刻の縦の線 ---- */
+.pam-ttday{display:flex;flex-direction:column;gap:1mm}
+.pam-tt{margin:0;padding:0 0 0 1mm;list-style:none;display:grid;gap:0}
+.pam-tt li{position:relative;display:grid;grid-template-columns:11.5mm 1fr;gap:5mm;padding:1.05mm 0;font-size:8.2pt;line-height:1.4}
+.pam-tt li::before{content:'';position:absolute;left:13.6mm;top:0;bottom:0;width:.3mm;background:#c9c2b6}
+.pam-tt li:first-child::before{top:50%} .pam-tt li:last-child::before{bottom:50%}
+.pam-tt li::after{content:'';position:absolute;left:12.75mm;top:50%;width:2mm;height:2mm;margin-top:-1mm;border-radius:50%;background:#fff;border:.45mm solid #b91c1c;box-sizing:border-box}
+.pam-tt time{font-weight:900;font-variant-numeric:tabular-nums;color:#1a1814}
+/* ---- 中面の地図 ---- */
 .pam-map{line-height:0}
 .pam .pam-map .sheet-plan{display:block;width:100%;height:auto;max-height:none}
-.pam-spread{grid-column:2 / 4;display:grid;grid-template-columns:86mm 14mm 83mm;grid-template-rows:auto auto 1fr;gap:1.5mm 0;align-content:start}
+.pam-spread{grid-column:2 / 4;display:grid;grid-template-columns:83mm 17mm 80mm;grid-template-rows:auto auto 1fr;gap:1.5mm 0;align-content:start}
 .pam-spread > .pam-h3{grid-column:1 / -1}
-.pam-spread > .pam-h3 small{font-size:7pt;font-weight:700;color:#444}
-.pam-spread-top{grid-column:1 / -1;min-height:0}
-.pam .pam-spread-top .sheet-plan{width:100%;height:80mm;max-height:none}
-.pam-spread-l{grid-column:1;min-height:0;display:flex;flex-direction:column;gap:1mm}
-.pam-spread-r{grid-column:3;min-height:0;display:flex;flex-direction:column;gap:1mm}
-.pam .pam-mini .sheet-plan{width:100%;height:36mm;max-height:none}
-.pam .pam-mini.m3 .sheet-plan{height:24mm}
-.pam-list{margin:0;padding:0;list-style:none;column-gap:3mm;font-size:6.4pt;line-height:1.42}
+.pam-spread-top{grid-column:1 / -1;min-height:0;display:flex;flex-direction:column;gap:1mm}
+.pam .pam-spread-top .sheet-plan{width:100%;height:77mm;max-height:none}
+.pam-spread-l{grid-column:1;min-height:0;display:flex;flex-direction:column;gap:1.2mm}
+.pam-spread-r{grid-column:3;min-height:0;display:flex;flex-direction:column;gap:1.2mm}
+.pam .pam-mini .sheet-plan{width:100%;height:34mm;max-height:none}
+.pam .pam-mini.m3 .sheet-plan{height:23mm}
+.pam-list{margin:0;padding:0;list-style:none;column-gap:3mm;font-size:6.3pt;line-height:1.42}
 .pam-list li{break-inside:avoid;display:flex;gap:1mm}
-.pam-list b{flex:none;min-width:3.4mm;text-align:right;font-weight:900;color:#b91c1c}
-.pam-legend{margin-top:auto;color:#444}
+.pam-list b{flex:none;min-width:3.4mm;text-align:right;font-weight:900;color:#b91c1c;font-variant-numeric:tabular-nums}
+/* 画面の上の操作の段 */
+.pam-bar-ui{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pam-bar-ui .btn{flex:1;min-width:150px;width:auto}
+.pam-bar-ui a.btn{text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.pam-hint{margin:8px 0 0;font-size:11.5px;font-weight:700;color:var(--text-mute);line-height:1.6}
 @media print{
   body.pam-printing,.pam{background:#fff}
   #v-pamphlet.on .pam{display:block;gap:0}
@@ -2587,6 +2713,8 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
   .pam-paper{box-shadow:none;transform:none !important;margin:0 !important}
   .pam-panel.over{outline:none} .pam-panel.over::after{display:none}
   .pam-ed{outline:none !important;background:transparent !important}
+  /* 空の欄は、見出しごと紙に出さない */
+  .pam-opt.is-empty{display:none !important}
   /* 折り目は、紙の上下の端 3mm だけに細い印 */
   .pam-fold{border-left:none;top:0;bottom:0;background:
     linear-gradient(#000,#000) top/.2mm 3mm no-repeat,linear-gradient(#000,#000) bottom/.2mm 3mm no-repeat;width:.2mm;
@@ -2878,6 +3006,8 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 
     <!-- ============ インフォ ============ -->
     <section class="view" id="v-info">
+      <!-- v183：文化祭の顔（日にち・あと何日・開催中） -->
+      <div class="hero hide" id="info-hero"></div>
       <div class="card">
         <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.2 1.9"/></svg> タイムテーブル</div>
         <table class="tt"><tbody id="tt-body"></tbody></table>
@@ -3110,7 +3240,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
         </details>
 
         <a class="btn ghost" href="?mode=qr" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg> QRコード印刷シートを開く</a>
-        <a class="btn ghost" href="?mode=pamphlet" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px">三つ折りパンフレット（形の見本）を開く</a>
+        <a class="btn ghost" href="?mode=pamphlet" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px">三つ折りパンフレットを開く</a>
         <a class="btn ghost" href="?mode=print" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg> 配布用の紙マップを開く</a>
         <a class="btn ghost" href="?mode=report" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M8 17V10M13 17V6M18 17v-4"/></svg> 混雑の振り返りを見る</a>
         <a class="btn ghost" href="?mode=board" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5h20v12H2z"/><path d="M8.5 20.5h7M12 16.5v4"/></svg> 本部用の大画面ボードを開く</a>
@@ -3144,22 +3274,14 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 
     <!-- ============ 三つ折りパンフレット（v178） ============ -->
     <section class="view" id="v-pamphlet">
+      <!-- v183：説明は最小限に。空の欄は紙に出ないので、そのまま刷れる -->
       <div class="card no-print">
-        <div class="card-t">三つ折りパンフレット（形の見本）</div>
-        <p style="font-size:11.5px;color:var(--text-dim);font-weight:600;line-height:1.7">
-          A4 を横に使い、両面に刷って三つに折る形です（巻き三つ折り）。<b>中身はまだ仮</b>で、資料がそろったら差し替えます。
-          点線の枠の文字は、<b>押すとその場で書き換えられます</b>（このパソコンに覚えます）。
-        </p>
-        <ul class="print-tips">
-          <li><b>用紙：A4・横</b>、<b>倍率：100%</b>、<b>余白：なし</b>（選べないときは「最小」）、<b>両面・短辺とじ</b></li>
-          <li>「背景のグラフィック」は<b>オン</b>（表紙の色・地図の色が出ます）。「ヘッダーとフッター」はオフ</li>
-          <li>折り方：<b>内側の面（2枚目・地図の面）を上</b>にして置き、<b>先に右の面</b>を内へ折り、<b>次に左の面</b>をその上へ折ります。表紙がいちばん上に来ます。紙の上下の小さな印が折り目です</li>
-          <li>左の面（折り込む面）は、ほかより 3mm 狭くしてあります（折ったときに中で突っ張らないため）</li>
-        </ul>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-          <button class="btn" id="btn-print3" style="flex:1;min-width:160px">印刷する</button>
-          <button class="btn ghost" id="pam-reset" style="flex:1;min-width:160px">書き換えた文字を元に戻す</button>
+        <div class="pam-bar-ui">
+          <button class="btn" id="btn-print3">印刷する・PDFにする</button>
+          <a class="btn ghost" id="pam-pdf" href="docs/pamphlet.pdf" download="黒工文化祭-三つ折りパンフレット.pdf">作ってあるPDFを開く</a>
+          <button class="btn ghost" id="pam-reset">書いた文字を消す</button>
         </div>
+        <p class="pam-hint">A4 横・両面（短辺とじ）・倍率100%・余白なし・「背景のグラフィック」オン。点線の欄は押して書けます（空のままなら紙に出ません。あいさつの2つの欄だけは、空でも見出しと空白が出ます）。</p>
       </div>
       <div id="pam" class="pam"></div>
     </section>
@@ -3234,6 +3356,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
     <button id="edit-off">やめる</button>
   </div>
   <nav class="nav" id="nav">
+    <span class="nav-ind" aria-hidden="true"></span>
     <button data-view="map" aria-pressed="true"><em><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg></em>マップ</button>
     <button data-view="list" aria-pressed="false"><em><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg></em>一覧</button>
     <button data-view="stamp" aria-pressed="false"><em><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M8.2 12.5 6 22l6-3 6 3-2.2-9.5"/></svg></em>スタンプ</button>
@@ -3343,7 +3466,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-09b',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-09c',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4275,6 +4398,7 @@ async function sync(manual){
   if (update._busy && !manual){ schedule(); return; }
   sync._busy = true;
   sync._at = Date.now();
+  { const rb = $('#btn-reload'); if (rb) rb.classList.add('busy'); }      // v183：更新のあいだ印を回す
   // 1秒たっても返ってこなければ「取りに行っています」を出す
   clearTimeout(sync._slow);
   sync._slow = setTimeout(() => { if (sync._busy) renderSyncState(); }, 1100);
@@ -4381,6 +4505,8 @@ async function sync(manual){
   }finally{
     sync._busy = false;
     clearTimeout(sync._slow);
+    // 速く終わっても、ひと回りはさせる（一瞬だけ動くと、ちらついて見える）
+    setTimeout(() => { if (!sync._busy){ const rb = $('#btn-reload'); if (rb) rb.classList.remove('busy'); } }, Math.max(0, 700 - (Date.now() - sync._at)));
     // 取得中（1秒超）に描くと「取りに行っています…」のまま次の同期まで残っていた
     // （本番の GAS は3秒前後かかるので、ほぼ常にこの表示になっていた）。終わった時点で描き直す
     renderSyncState();
@@ -6261,6 +6387,11 @@ function openSheet(id, fromHistory){
   const back = $('#bsh-back'), sh = $('#bsh');
   back.hidden = false; sh.hidden = false;
   renderSheet();
+  if (first){                                    // v183：開いたときだけ、中身が上から順に出る
+    sh.classList.add('intro');
+    clearTimeout(openSheet._intro);
+    openSheet._intro = setTimeout(() => sh.classList.remove('intro'), 800);
+  }
   requestAnimationFrame(() => { back.classList.add('on'); sh.classList.add('on'); });
   if (first && !fromHistory){
     try{ history.pushState({ v:S.view, sheet:id }, '', location.hash || '#map'); }catch(e){}
@@ -9682,7 +9813,52 @@ function ttWithDays(rows){
   return out;
 }
 
+/**
+ * v183：インフォのいちばん上の「文化祭の顔」。日にちと、あと何日・きょう開催・開催中・終了 を出す。
+ * 開催日（CONFIG.HOURS.days）が入っていなければ出さない
+ */
+function renderHero(now){
+  const el = $('#info-hero');
+  if (!el) return;
+  const d = now || new Date();
+  const days = festDays();
+  if (!days.length){ el.classList.add('hide'); renderHero._k = ''; return; }
+  const today = ymd(d);
+  const st = openState(d).state;
+  const next = days.find(x => x.date > today);
+  const mid = t => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t); return m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : NaN; };
+  let badge = '', live = false;
+  if (st === 'open' && days.some(x => x.date === today)){ badge = '開催中'; live = true; }
+  else if (st === 'before') badge = 'きょう開催';
+  else if (next){
+    const n = Math.round((mid(next.date) - mid(today)) / 86400000);
+    badge = n === 1 ? 'あした開催' : n > 1 ? 'あと' + n + '日' : '';
+  } else badge = 'ご来場ありがとうございました';
+  const key = today + '|' + badge + '|' + days.map(x => x.date + x.open + x.close + (x.label || '')).join(',');
+  if (renderHero._k === key) return;
+  renderHero._k = key;
+  const year = days[0].date.slice(0, 4);
+  const rows = days.map(x => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(x.date);
+    if (!m) return '';
+    const wd = '日月火水木金土'[new Date(+m[1], +m[2] - 1, +m[3]).getDay()];
+    return `<div class="hero-day${x.date === today ? ' today' : ''}"><b>${+m[2]}<i>/</i>${+m[3]}</b><span class="hero-wd" aria-hidden="true">${wd}</span>
+      <span class="hero-day-t">${x.label ? `<em>${esc(x.label)}</em>` : ''}${esc(x.open)}–${esc(x.close)}</span></div>`;
+  }).join('');
+  el.innerHTML = `
+    <svg class="hero-gear" viewBox="-40 -40 80 80" aria-hidden="true" focusable="false"><g fill="none" stroke="#b91c1c" stroke-width="1.2">
+      <circle r="30"/><circle r="19.5"/><circle r="5.8" fill="#b91c1c" stroke="none"/>
+      <g stroke-width="6.4">${Array.from({ length: 12 }, (_, i) => `<path d="M0 -30V-36.5" transform="rotate(${i * 30 + 8})"/>`).join('')}</g></g></svg>
+    <div class="hero-in">
+      <p class="hero-en">KUROKO FESTIVAL<b>${esc(year)}</b></p>
+      <p class="hero-title">黒工文化祭</p>
+      ${badge ? `<p class="hero-badge${live ? ' live' : ''}">${esc(badge)}</p>` : ''}
+      <div class="hero-days">${rows}</div>
+    </div>`;
+  el.classList.remove('hide');
+}
 function renderInfo(){
+  try{ renderHero(); }catch(e){}
   // 「今どのコマか」を強調する（現在時刻を過ぎた直近の行）
   const now = new Date();
   const mins = now.getHours() * 60 + now.getMinutes();
@@ -10657,6 +10833,7 @@ const STAFF_JUMP  = [
 /** タブごとに、どこまで見ていたかを覚えておく */
 const VIEW_SCROLL = {};
 
+const TAB_ORDER = ['map', 'list', 'stamp', 'info'];
 function switchView(v, fromHistory){
   // 一覧を下まで見てから地図を確かめて戻ると、毎回いちばん上に戻されていた。
   // 40ブースあると、さっき見ていた場所まで指でなぞり直すことになる。
@@ -10681,6 +10858,14 @@ function switchView(v, fromHistory){
     if (S.edit) setEditMode(false);
     zoomResetIfNeeded();
   }
+  // v183：下のタブの並びに合わせて、入ってくる向きを決める（タブ以外の画面は、これまでどおり下から）
+  try{
+    const a = TAB_ORDER.indexOf(S.view), b = TAB_ORDER.indexOf(v), mb = $('#main-body');
+    const side = a >= 0 && b >= 0 && a !== b;
+    mb.style.setProperty('--view-dx', side ? (b > a ? '8px' : '-8px') : '0px');
+    mb.style.setProperty('--view-dy', side ? '0px' : '10px');
+    if (b >= 0) $('#nav').style.setProperty('--nav-i', String(b));
+  }catch(e){}
   S.view = v;
   mapScale._w = 0;                        // 係員の広い画面との行き来で地図の幅が変わる
   if (v === 'stamp'){ pullLedger(5000); renderSyncBadge(); }   // 別のアプリで増えた分を見に行く
@@ -11028,7 +11213,11 @@ document.addEventListener('keydown', e => {
 // v160：一覧・スタンプ帳で 1200px 以上下へ行ったら「上へ戻る」を出す
 {
   const tt = document.getElementById('to-top');
-  const upd = () => { if (tt) tt.classList.toggle('hide', !(['list', 'stamp'].indexOf(S.view) >= 0 && window.scrollY > 1200)); };
+  const hd = document.querySelector('.head');
+  const upd = () => {
+    if (tt) tt.classList.toggle('hide', !(['list', 'stamp'].indexOf(S.view) >= 0 && window.scrollY > 1200));
+    if (hd) hd.classList.toggle('scrolled', window.scrollY > 6);          // v183
+  };
   addEventListener('scroll', upd, { passive:true });
   if (tt) tt.addEventListener('click', () => window.scrollTo({ top:0, behavior: smoothBehavior() }));
   document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#nav')) setTimeout(upd, 50); });
@@ -12580,9 +12769,9 @@ function renderQrSheet(){
    三つ折りパンフレット（?mode=pamphlet）— v178（ユーザーの依頼：形だけ先に作る）
    A4 横・両面・巻き三つ折り。
      1枚目（外側）：［折り込む面 97mm］［裏表紙 100mm］［表紙 100mm］
-     2枚目（内側）：［中面・左 100mm］［中面・中 100mm］［中面・右 97mm］
+     2枚目（内側）：［中面・左 100mm＝校長・生徒会長のあいさつ（v183）］［中面・中 100mm］［中面・右 97mm］
    折り込む面（と、その裏の中面・右）だけ 3mm 狭い。同じ幅にすると、折ったときに中で突っ張って浮く。
-   中身は仮。CONFIG.PAMPHLET があればそれを使い、無ければ下の見本を出す。
+   v183：そのまま刷れる形。CONFIG.PAMPHLET（title・theme・principal・president など）があればそれを初めの文に使い、無ければ空の欄にする。
    文字（data-ed）は画面で書き換えられ、この端末に覚える（kuroko_pamphlet_v1）。
    ===================================================================== */
 function pamPageStyle(on){
@@ -12601,69 +12790,117 @@ function renderPamphlet(){
   if (!box) return;
   const P = CONFIG.PAMPHLET || {};
   const saved = load('kuroko_pamphlet_v1', {}) || {};
-  // 書き換えられる文字。key ごとに、書き換えた文があればそれを出す
-  const ed = (key, def, tag, cls) => {
-    const v = Object.prototype.hasOwnProperty.call(saved, key) ? saved[key] : def;
-    return `<${tag || 'p'} class="pam-ed${cls ? ' ' + cls : ''}" data-ed="${esc(key)}" contenteditable="plaintext-only" spellcheck="false">${esc(v)}</${tag || 'p'}>`;
+  // 書き換えられる文字。key ごとに、書き換えた文があればそれを出す。
+  // v183：仮の文字（「ここに〜」）は紙に出さない。空の欄は、画面にだけ薄く案内（data-ph）を出し、紙では何も出ない
+  const ed = (key, def, tag, cls, ph) => {
+    const v = Object.prototype.hasOwnProperty.call(saved, key) && typeof saved[key] === 'string' ? saved[key] : (def || '');
+    return `<${tag || 'p'} class="pam-ed${cls ? ' ' + cls : ''}" data-ed="${esc(key)}" data-ph="${esc(ph || '')}" contenteditable="plaintext-only" spellcheck="false">${esc(v)}</${tag || 'p'}>`;
   };
+  /** 中身（書き換えられる欄）が空なら、見出しごと紙に出さないまとまり */
+  const opt = (title, inner, cls) => `<div class="pam-opt${cls ? ' ' + cls : ''}">${title ? `<h3 class="pam-h3">${esc(title)}</h3>` : ''}${inner}</div>`;
   const days = festDays();
-  const dateLine = days.length
-    ? days.map(d => `${dayLabel(d.date)}${d.label ? '　' + d.label : ''}　${d.open}〜${d.close}`).join('\n')
-    : '開催日：◯月◯日（◯）　9:30〜14:30';
+  const year = days.length ? days[0].date.slice(0, 4) : String(new Date().getFullYear());
   const need = Math.max(1, CONFIG.PRIZE_COST | 0);
   const site = publicBase();
   const qr = QR.svgSafe(site + '?openExternalBrowser=1', 160);
+  const siteShort = site.replace(/^https?:\/\//, '').replace(/\/$/, '');
+
+  // 日程（表紙）。日付は大きく、時間は小さく
+  const dateHtml = days.length ? days.map(d => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d.date);
+    const wd = '日月火水木金土'[new Date(+m[1], +m[2] - 1, +m[3]).getDay()];
+    return `<div class="pam-day"><b>${+m[2]}<i>/</i>${+m[3]}</b><span class="pam-wd">${wd}</span>
+      <span class="pam-day-t">${d.label ? `<em>${esc(d.label)}</em>` : ''}${esc(d.open)}–${esc(d.close)}</span></div>`;
+  }).join('') : '';
 
   // タイムテーブル（インフォと同じ元。日付ごと）
   const tt = (CONFIG.INFO.timetable || []);
   const ttDates = Array.from(new Set(tt.map(r => r[3] || ''))).sort();
   const ttHtml = ttDates.map(d => {
     const rows = tt.filter(r => (r[3] || '') === d);
-    return `${d ? `<h4 class="pam-h4">${esc(dayLabel(d))}</h4>` : ''}<table class="pam-tt">${rows.map(r =>
-      `<tr><th>${esc(r[0])}</th><td>${esc(r[1])}</td></tr>`).join('')}</table>`;
-  }).join('') || '<p class="pam-todo">タイムテーブル（決まりしだい入れます）</p>';
+    const day = days.find(x => x.date === d);
+    return `<div class="pam-ttday">${d ? `<h4 class="pam-h4">${esc(dayLabel(d))}${day && day.label ? `<small>${esc(day.label)}</small>` : ''}</h4>` : ''}
+      <ol class="pam-tt">${rows.map(r => `<li><time>${esc(r[0])}</time><span>${esc(r[1])}</span></li>`).join('')}</ol></div>`;
+  }).join('');
 
-  const help = (CONFIG.INFO.help || []).filter(h => ['flag', 'car', 'aid', 'no'].indexOf(h[0]) >= 0).slice(0, 4);
+  // 困ったときは（インフォと同じ元）。スタンプの読み方はスタンプラリーの面に書くので外す
+  const help = (CONFIG.INFO.help || []).filter(h => h[0] !== 'note');
+  const helpHtml = `<ul class="pam-notes">${help.map(h =>
+    `<li><i class="pam-ic">${ICON[h[0]] || ''}</i><span><b>${esc(h[1])}</b>${esc(h[2])}</span></li>`).join('')}</ul>`;
 
-  const panel = (role, label, inner) => `<section class="pam-panel pam-${role}" data-panel="${role}">
-      <span class="pam-role no-print">${label}</span>${inner}</section>`;
+  // 混み具合の見かた（画面と同じ印・言葉）
+  const lvHtml = `<ul class="pam-lv">${LEVELS.map(l =>
+    `<li data-lv="${l.lv}"><i>${esc(l.icon)}</i><b>${esc(l.short)}</b><span>${esc(l.wait)}</span></li>`).join('')}</ul>`;
 
-  const cover = panel('cover', '表紙（折ったとき、いちばん上に来る面）', `
-      <div class="pam-cover-top">${ed('cover.school', P.school || '岩手県立黒沢尻工業高等学校', 'p', 'pam-school')}</div>
-      ${ed('cover.title', P.title || '黒工文化祭', 'h2', 'pam-title')}
-      ${ed('cover.theme', P.theme || 'テーマ：（ここにテーマ）', 'p', 'pam-theme')}
-      <div class="pam-art pam-todo-box">${ed('cover.art', '（ここに表紙の絵・写真・ロゴ）', 'p')}</div>
-      ${ed('cover.date', P.date || dateLine, 'p', 'pam-date')}
-      <div class="pam-qr"><div class="pam-qr-img">${qr}</div>
-        <p><b>混み具合とスタンプラリーはスマホで</b><br>カメラでQRを読むと校内マップが開きます</p></div>`);
+  const panel = (role, inner) => `<section class="pam-panel pam-${role}" data-panel="${role}">${inner}</section>`;
 
-  const back = panel('back', '裏表紙（折ったとき、裏に来る面）', `
-      <h3 class="pam-h3">ご来場のみなさまへ</h3>
-      <ul class="pam-notes">${help.map(h => `<li><b>${esc(h[1])}</b>${esc(h[2])}</li>`).join('')
-        || '<li>（注意事項をここに）</li>'}</ul>
-      <h3 class="pam-h3">アクセス</h3>
-      <div class="pam-todo-box">${ed('back.access', P.access || '（ここに学校までの案内図・最寄り駅・駐車場）', 'p')}</div>
-      <h3 class="pam-h3">お問い合わせ</h3>
-      ${ed('back.contact', P.contact || '岩手県立黒沢尻工業高等学校\n（住所・電話番号をここに）', 'p', 'pam-small')}
-      <p class="pam-foot">${esc(site)}</p>`);
+  // ---- 表紙：濃い地に白い字。四隅は紙の白を残す（家庭用・学校のプリンターは端まで刷れないので、はじめから余白を絵にする）
+  const cover = panel('cover', `
+      <div class="pam-cv">
+        <svg class="pam-cv-art" viewBox="0 0 100 210" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs>
+            <pattern id="pam-grid" width="5" height="5" patternUnits="userSpaceOnUse"><path d="M5 0H0V5" fill="none" stroke="#fff" stroke-opacity=".07" stroke-width=".2"/></pattern>
+            <pattern id="pam-hz" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><rect width="3" height="6" fill="#b91c1c"/></pattern>
+          </defs>
+          <rect width="100" height="210" fill="url(#pam-grid)"/>
+          <rect x="0" y="0" width="100" height="4.5" fill="url(#pam-hz)"/>
+          <!-- 歯車は右の中ほど。題字（左上）と日付（左下）には重ねない -->
+          <g fill="none" stroke="#b91c1c" stroke-width="1.1" transform="translate(88 104)">
+            <circle r="30"/><circle r="19.5"/><circle r="5.8" fill="#b91c1c" stroke="none"/>
+            <g stroke-width="6.4" stroke-linecap="butt">${Array.from({ length: 12 }, (_, i) => `<path d="M0 -30V-36.5" transform="rotate(${i * 30 + 8})"/>`).join('')}</g>
+          </g>
+        </svg>
+        <div class="pam-cv-in">
+          ${ed('cover.school', P.school || '岩手県立黒沢尻工業高等学校', 'p', 'pam-school', '学校名')}
+          <p class="pam-en">KUROKO FESTIVAL <b>${esc(year)}</b></p>
+          ${ed('cover.title', P.title || '黒工\n文化祭', 'h2', 'pam-title', 'タイトル')}
+          <i class="pam-bar"></i>
+          ${ed('cover.theme', P.theme || '', 'p', 'pam-theme', 'テーマ（空なら出ません）')}
+          <div class="pam-days">${dateHtml}</div>
+          <div class="pam-qr"><div class="pam-qr-img">${qr}</div>
+            <p><b>校内マップ</b>混み具合・スタンプラリーは<br>スマホのカメラでQRを読むだけ<small>${esc(siteShort)}</small></p></div>
+        </div>
+      </div>`);
 
-  const flap = panel('flap', '折り込む面（開くと最初に見える面。3mm 狭い）', `
+  // ---- 折り込む面（開くと最初に見える）：スタンプラリーと、スマホで分かること
+  const flap = panel('flap', `
       <h3 class="pam-h3">スタンプラリー</h3>
       <ol class="pam-steps">
-        <li>各ブースの入口にある<b>QR</b>をスマホのカメラで読む</li>
-        <li>スタンプが1個たまる（アプリを入れる必要はありません）</li>
-        <li><b>スタンプ${need}個</b>で、お菓子1個と交換（受付へ）</li>
+        <li><b>入口のQRを読む</b>各ブースの入口のQRを、スマホのカメラで読みます。アプリを入れる必要はありません</li>
+        <li><b>スタンプがたまる</b>読むたびに1個。スタンプ帳で、回った所が分かります</li>
+        <li><b>${need}個でお菓子と交換</b>スタンプの画面を、受付の係の人に見せてください</li>
       </ol>
-      ${ed('flap.note', P.stampNote || '（交換できる場所・時間、景品の数などをここに）', 'p', 'pam-small')}
-      <h3 class="pam-h3">${esc(P.flapTitle || 'ごあいさつ')}</h3>
-      <div class="pam-todo-box pam-grow">${ed('flap.greeting', P.greeting || '（ここに校長先生・実行委員長のあいさつ、今年の見どころなど）', 'p')}</div>`);
-
-  const in1 = panel('in1', '中面・左', `
+      ${opt('', ed('flap.note', P.stampNote || '', 'p', 'pam-small', '交換できる場所・時間など（空なら出ません）'))}
+      <h3 class="pam-h3">スマホで混み具合が分かります</h3>
+      <p class="pam-small">表紙のQRを読むと校内マップが開き、ブースごとのいまの混み具合と待ち人数が見られます。</p>
+      ${lvHtml}
+      <p class="pam-small pam-dim">スマホが無いときは、各ブースの入口の掲示か、近くの係の人にきいてください。</p>
       <h3 class="pam-h3">タイムテーブル</h3>
-      ${ttHtml}
-      <h3 class="pam-h3">${esc(P.in1Title || 'ステージ・催し')}</h3>
-      <div class="pam-todo-box pam-grow">${ed('in1.events', P.events || '（ここにステージの出演順・体験コーナーの時間など）', 'p')}</div>`);
-  // 中面の中・右は、2面をまたいで1階の地図を大きく載せる（1面 86mm では番号が読みにくい）。
+      ${ttHtml || ''}
+      ${opt(P.in1Title || 'ステージ・催し', ed('in1.events', P.events || '', 'p', 'pam-small', 'ステージの出演順・体験コーナーの時間など（空なら見出しごと出ません）'))}`);
+
+  // ---- 裏表紙：来場の案内
+  const back = panel('back', `
+      <h3 class="pam-h3">ご来場のみなさまへ</h3>
+      ${helpHtml}
+      ${opt('アクセス', ed('back.access', P.access || '', 'p', 'pam-small', '最寄り駅・駐車場など（空なら見出しごと出ません）'))}
+      ${opt('お問い合わせ', ed('back.contact', P.contact || '', 'p', 'pam-small', '住所・電話番号など（空なら見出しごと出ません）'))}
+      <p class="pam-foot"><b>${esc(P.school || '岩手県立黒沢尻工業高等学校')}</b>${esc(siteShort)}</p>`);
+
+  // ---- 中面・左（表紙を開くと最初に目に入る面）：校長・生徒会長のあいさつ（ユーザーの依頼）。
+  // この2つの欄は、文が空でも見出しと空白をそのまま刷る（あとから貼る・手で書く場所として残す）。
+  // 面を半分ずつ使い、文が長いほうへ自然に広がる
+  const greet = (k, title, body, name, ph) => `<div class="pam-greet" data-greet="${k}">
+        ${ed('greet.' + k + '.title', title, 'h4', 'pam-gh', '見出し')}
+        ${ed('greet.' + k + '.body', body, 'p', 'pam-gbody', ph)}
+        ${ed('greet.' + k + '.name', name, 'p', 'pam-gsign', '肩書き・名前')}
+      </div>`;
+  const in1 = panel('in1', `
+      <h3 class="pam-h3">ごあいさつ</h3>
+      ${greet('principal', P.principalTitle || '校長あいさつ', P.principal || '', P.principalName || '校長', '校長先生のお言葉（押して書けます。空のままなら、空白で刷れます）')}
+      ${greet('president', P.presidentTitle || '生徒会長あいさつ', P.president || '', P.presidentName || '生徒会長', '生徒会長のお言葉（押して書けます。空のままなら、空白で刷れます）')}`);
+
+  // ---- 中面の中・右：2面をまたいで1階の地図を大きく載せる（1面 86mm では番号が読みにくい）。
   // 折り目（左から 100mm）は地図の上だけを通し、番号の一覧は折り目をまたがないよう左右の列に分ける
   const listOf = (f, cols) => {
     const list = S.booths.filter(b => floorOfBooth(b) === f).sort((a, b) => (S.numbers.get(a.id) || 999) - (S.numbers.get(b.id) || 999));
@@ -12671,14 +12908,14 @@ function renderPamphlet(){
       `<li><b>${S.numbers.get(b.id) || '-'}</b>${esc(b.name)}</li>`).join('')}</ol>` : '';
   };
   const mapOf = f => FLOOR_PLAN[f] && S.booths.some(b => floorOfBooth(b) === f) ? `<div class="pam-map">${printPlanSvg(f)}</div>` : '';
+  const has = f => S.booths.some(b => floorOfBooth(b) === f);
   const spread = `<section class="pam-panel pam-spread" data-panel="spread">
-      <span class="pam-role no-print">中面・中と右（2面をまたぐ。右の面は 3mm 狭い）</span>
-      <h3 class="pam-h3">校内マップ　<small>数字はブースの番号（スマホのマップ・入口のQRと同じ）</small></h3>
-      <div class="pam-spread-top"><h4 class="pam-h4">1階</h4>${mapOf(1)}</div>
-      <div class="pam-spread-l">${listOf(1, 2)}${S.booths.some(b => floorOfBooth(b) === 0) ? `<h4 class="pam-h4">屋外・体育館など</h4>${listOf(0, 2)}` : ''}</div>
+      <h3 class="pam-h3">校内マップ<small>数字はブースの番号です。スマホのマップ・入口のQRの番号と同じ</small></h3>
+      <div class="pam-spread-top"><h4 class="pam-h4 pam-fl">1階</h4>${mapOf(1)}</div>
+      <div class="pam-spread-l">${listOf(1, 2)}${has(0) ? `<h4 class="pam-h4 pam-fl">屋外・体育館など</h4>${listOf(0, 2)}` : ''}</div>
       <div class="pam-spread-r">
-        <h4 class="pam-h4">2階</h4><div class="pam-mini">${mapOf(2)}</div>${listOf(2, 2)}
-        <h4 class="pam-h4">3階</h4><div class="pam-mini m3">${mapOf(3)}</div>${listOf(3, 2)}
+        ${has(2) ? `<h4 class="pam-h4 pam-fl">2階</h4><div class="pam-mini">${mapOf(2)}</div>${listOf(2, 2)}` : ''}
+        ${has(3) ? `<h4 class="pam-h4 pam-fl">3階</h4><div class="pam-mini m3">${mapOf(3)}</div>${listOf(3, 2)}` : ''}
       </div>
     </section>`;
 
@@ -12686,15 +12923,22 @@ function renderPamphlet(){
       <p class="pam-sheet-t no-print">${title}</p>
       <div class="pam-paper"><i class="pam-fold f1"></i><i class="pam-fold f2"></i>${panels}</div></div>`;
   box.innerHTML =
-    sheet(1, '1枚目（外側）：左から「折り込む面」「裏表紙」「表紙」', flap + back + cover) +
-    sheet(2, '2枚目（内側）：開いたときに見える3面（中と右は地図でつながる）', in1 + spread);
+    sheet(1, 'おもて（外側）', flap + back + cover) +
+    sheet(2, 'うら（内側）', in1 + spread);
 
+  // 空の欄は中身を完全に空にする（改行だけ残ると「空」と見なされず、画面の案内も出ない）。
+  // 空のまとまり（.pam-opt）には印を付け、紙では見出しごと出さない
+  const markEmpty = () => {
+    $$('.pam-ed', box).forEach(el => { if (!el.textContent.trim() && el.innerHTML) el.innerHTML = ''; });
+    $$('.pam-opt', box).forEach(o => o.classList.toggle('is-empty', $$('.pam-ed', o).every(el => !el.textContent.trim())));
+  };
   // 書き換えた文字を覚える（文字だけ。タグは入れさせない）
   $$('[data-ed]', box).forEach(el => {
     el.addEventListener('input', () => {
       const m = load('kuroko_pamphlet_v1', {}) || {};
-      m[el.dataset.ed] = el.innerText.replace(/ /g, ' ').slice(0, 2000);
+      m[el.dataset.ed] = el.innerText.replace(/ /g, ' ').replace(/\n+$/, '').slice(0, 2000);
       store('kuroko_pamphlet_v1', m);
+      markEmpty(); pamCheck();
     });
     // 貼り付けは文字だけ（plaintext-only が使えないブラウザ向け）
     el.addEventListener('paste', e => {
@@ -12704,6 +12948,7 @@ function renderPamphlet(){
       document.execCommand('insertText', false, t.getData('text/plain'));
     });
   });
+  markEmpty();
   pamFit();
   pamCheck();
 }
@@ -13526,7 +13771,7 @@ function init(){
   $('#btn-print').addEventListener('click', () => window.print());
   $('#btn-print2').addEventListener('click', () => window.print());
   $('#btn-print3').addEventListener('click', () => window.print());
-  $('#pam-reset').addEventListener('click', () => { store('kuroko_pamphlet_v1', {}); renderPamphlet(); toast('書き換えた文字を元に戻しました'); });
+  $('#pam-reset').addEventListener('click', () => { store('kuroko_pamphlet_v1', {}); renderPamphlet(); toast('書いた文字を消しました'); });
   $('#btn-report-print').addEventListener('click', () => window.print());
   $('#btn-report-reload').addEventListener('click', renderReport);
   $('#btn-report-png').addEventListener('click', exportReportPng);

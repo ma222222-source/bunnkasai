@@ -836,9 +836,12 @@ test('地図：部屋の外をダブルクリックすると、その場所が�
     return null;
   });
   expect(pt).not.toBeNull();
-  await page.mouse.click(pt.x, pt.y);
-  await page.mouse.click(pt.x, pt.y);
-  await expect.poll(() => page.evaluate(() => ZOOM.k)).toBeGreaterThan(k0 * 1.4);
+  // 2回の押しのあいだが空くと（テストを並べて動かして重いとき）「2回続けて」にならない。そのときは押し直す（v183）
+  await expect(async () => {
+    await page.mouse.click(pt.x, pt.y);
+    await page.mouse.click(pt.x, pt.y);
+    await expect.poll(() => page.evaluate(() => ZOOM.k), { timeout: 1500 }).toBeGreaterThan(k0 * 1.4);
+  }).toPass({ timeout: 12000 });
   await expect(page.locator('#bsh')).toBeHidden();
 });
 
@@ -1666,8 +1669,11 @@ test('地図：番号だけのブースが多いときは「拡大すると名�
   await page.goto('/?tab=map');
   await ready(page);
   await expect(page.locator('#name-hint')).toBeVisible();
-  await page.evaluate(() => { zoomTo(8, null, null, false); });
-  await expect(page.locator('#name-hint')).toBeHidden({ timeout: 3000 });
+  // 開いた直後の「全体に合わせる」が遅れて来ると（重いとき）拡大が戻る。そのときは拡大し直す（v183）
+  await expect(async () => {
+    await page.evaluate(() => { zoomTo(8, null, null, false); });
+    await expect(page.locator('#name-hint')).toBeHidden({ timeout: 2000 });
+  }).toPass({ timeout: 12000 });
 });
 
 test('軽い表示（力の弱い端末）では、字の入れ方の描き直しは 0.25倍ごと', async ({ page }) => {
@@ -1969,4 +1975,91 @@ test('横向き（844×390・640×360）でも、4つの画面が横にはみ出
     }
   }
   expect(bad).toEqual([]);
+});
+
+/* ---------------- v183：動きと見た目 ---------------- */
+test('タブの切り替え：印が選んだタブへ動き、右のタブへは右から・左のタブへは左から入る（その間も横にはみ出さない）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  const st = () => page.evaluate(() => ({
+    i: document.getElementById('nav').style.getPropertyValue('--nav-i'),
+    dx: document.getElementById('main-body').style.getPropertyValue('--view-dx'),
+    dy: document.getElementById('main-body').style.getPropertyValue('--view-dy'),
+    over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  }));
+  await page.click('#nav button[data-view="stamp"]');
+  let r = await st();                                   // 動いている最中に測る
+  expect(r).toEqual({ i: '2', dx: '8px', dy: '0px', over: 0 });
+  await page.click('#nav button[data-view="list"]');
+  r = await st();
+  expect(r).toEqual({ i: '1', dx: '-8px', dy: '0px', over: 0 });
+  await page.click('#nav button[data-view="info"]');
+  r = await st();
+  expect(r).toEqual({ i: '3', dx: '8px', dy: '0px', over: 0 });
+  // 印は1本だけで、選んだタブの真上にある
+  const gap = () => page.evaluate(() => {
+    const ind = document.querySelector('.nav-ind').getBoundingClientRect(), b = document.querySelector('#nav button[aria-pressed="true"]').getBoundingClientRect();
+    return Math.abs((ind.left + ind.width / 2) - (b.left + b.width / 2));
+  });
+  await expect.poll(gap, { timeout: 3000 }).toBeLessThanOrEqual(1);      // 動き終わったら真上
+  expect(await page.locator('.nav-ind').count()).toBe(1);
+  await expect(page.locator('.nav-ind')).toHaveAttribute('aria-hidden', 'true');
+  // タブ以外の画面（係員のログインなど）へは、これまでどおり下から
+  await page.evaluate(() => switchView('auth'));
+  r = await st();
+  expect([r.dx, r.dy]).toEqual(['0px', '10px']);
+  expect(errors).toEqual([]);
+});
+
+test('更新のあいだ「更新」の印が回り、終われば止まる。下へ送ると見出しに影。詳細は開いたときだけ順に出る', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await expect(page.locator('#btn-reload')).not.toHaveClass(/busy/, { timeout: 5000 });
+  await page.evaluate(() => { sync(true); });
+  await expect(page.locator('#btn-reload')).toHaveClass(/busy/);
+  await expect(page.locator('#btn-reload')).not.toHaveClass(/busy/, { timeout: 8000 });
+  // 見出しの影
+  expect(await page.evaluate(() => document.querySelector('.head').classList.contains('scrolled'))).toBe(false);
+  await page.evaluate(() => window.scrollTo(0, 400));
+  await expect(page.locator('.head')).toHaveClass(/scrolled/);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(page.locator('.head')).not.toHaveClass(/scrolled/);
+  // 詳細：開いたときだけ
+  await page.evaluate(() => openSheet(S.booths[2].id));
+  await expect(page.locator('#bsh')).toHaveClass(/intro/);
+  await expect(page.locator('#bsh')).not.toHaveClass(/intro/, { timeout: 3000 });
+  await page.evaluate(() => { renderSheet._fp = null; renderSheet(); });   // 描き直しでは動かさない
+  expect(await page.evaluate(() => document.getElementById('bsh').classList.contains('intro'))).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('インフォの顔：日にちが出る。幅320px・文字「特大」でもはみ出さない。開催日が未設定なら出さない', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.addInitScript(() => localStorage.setItem('kuroko_fs', JSON.stringify('xl')));
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.goto('/?tab=info');
+  await ready(page);
+  const hero = page.locator('#info-hero');
+  await expect(hero).toBeVisible();
+  await expect(hero).toContainText('黒工文化祭');
+  const r = await page.evaluate(() => {
+    const h = document.getElementById('info-hero'), hb = h.getBoundingClientRect();
+    const out = [...h.querySelectorAll('.hero-in *')].filter(e => { const b = e.getBoundingClientRect(); return b.width && (b.right > hb.right + 1 || b.left < hb.left - 1); }).length;
+    return { days: h.querySelectorAll('.hero-day').length, conf: CONFIG.HOURS.days.length, out, first: document.querySelector('#v-info').firstElementChild.id,
+      over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  });
+  expect(r.days).toBe(r.conf);
+  expect(r.out).toBe(0);
+  expect(r.over).toBeLessThanOrEqual(0);
+  expect(r.first).toBe('info-hero');
+  await page.evaluate(() => { CONFIG.HOURS = { days: [] }; renderHero(); });
+  await expect(hero).toBeHidden();
+  expect(errors).toEqual([]);
 });

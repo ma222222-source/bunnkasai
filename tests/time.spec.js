@@ -39,6 +39,8 @@ async function lookAt(page, when) {
       const hm = hoursMessage();
       out.state = openState().state; out.short = hm ? hm.short : ''; out.banner = vis('banner-hours');
       out.sync = document.getElementById('sync-text').textContent;
+      out.hero = (document.querySelector('#info-hero .hero-badge') || {}).textContent || '';
+      out.today = [...document.querySelectorAll('#info-hero .hero-day.today b')].map(e => e.textContent).join(',');
       out.bad = (document.body.innerText.match(/NaN|undefined|Invalid Date|あと-\d|-\d+分/g) || []).slice(0, 3).join(',');
     } catch (e) { out.err = String(e && e.stack || e).split('\n').slice(0, 2).join(' | '); }
     return out;
@@ -62,22 +64,29 @@ test('時刻ごとの案内：前日・開場前・開催中・最終入場の�
   let r = await lookAt(page, at('2026-10-22T12:00'));           // 前日
   expect(r.state).toBe('otherday');
   expect(r.short).toContain('一般公開は 10月24日');
+  expect(r.hero).toBe('あした開催');                              // v183：インフォの顔
+  r = await lookAt(page, at('2026-10-20T12:00'));
+  expect(r.hero).toBe('あと3日');
   r = await lookAt(page, at('2026-10-23T09:00'));               // 校内公開日の開場前
   expect(r.state).toBe('before');
   expect(r.short).toContain('10:00 開場');
   expect(r.banner).toContain('校内公開日');
   // 一般の方が「今日来られる」と読まないよう、一般公開の日も並べて出す（v182）
   expect(r.banner).toContain('一般公開は 10月24日');
+  expect(r.hero).toBe('きょう開催');
+  expect(r.today).toBe('10/23');
   r = await lookAt(page, at('2026-10-23T12:00'));               // 開催中は、開催時間の案内ではなく更新の状況
   expect(r.state).toBe('open');
   expect(r.short).toBe('');
   expect(r.banner).toBe('');
   expect(r.sync).toContain('最新の情報');
+  expect(r.hero).toBe('開催中');
   r = await lookAt(page, at('2026-10-23T14:10'));               // 終わる30分前から
   expect(r.short).toContain('まもなく終了');
   r = await lookAt(page, at('2026-10-23T15:00'));
   expect(r.state).toBe('after');
   expect(r.short).toContain('本日は終了しました');
+  expect(r.hero).toBe('あした開催');                              // 1日目が終わったら、次の日を案内
   r = await lookAt(page, at('2026-10-24T09:00'));               // 一般公開日の開場前（一般公開の日の案内は足さない）
   expect(r.state).toBe('before');
   expect(r.banner).toContain('09:30 開場');
@@ -91,5 +100,7 @@ test('時刻ごとの案内：前日・開場前・開催中・最終入場の�
   r = await lookAt(page, at('2026-10-25T10:00'));               // 終わった次の日
   expect(r.state).toBe('otherday');
   expect(r.short).toContain('今年の文化祭は終了しました');
+  expect(r.hero).toBe('ご来場ありがとうございました');
+  expect(r.today).toBe('');
   expect(errs).toEqual([]);
 });

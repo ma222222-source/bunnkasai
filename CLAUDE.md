@@ -49,7 +49,7 @@
   - `hardening.spec.js`：XSS（悪い文字列を全画面・係員画面に流す）、地図の押しやすさ、Service Worker でのオフライン、SW が同じ場所の別のページ（`tests/fixtures/other-page.html`）を置き換えないこと、Chromium の判定でホーム画面に追加できる条件
   - `staff.spec.js`：係員の待ち人数・混雑度の送信、送れなかった更新の再送、科・場所ごとのまとめ（開く・覚える・古い順）、担当ブースえらび（科→ブース・ぜんぶ）
   - `gas.test.js`（Node、`gas-mock.js`）：**サーバー（Code.gs）をそのまま動かす**。スプレッドシート・キャッシュ・ロック等は模擬。セットアップ46件、GET とキャッシュ、係員の更新（人数→状態・名前の列を触らない・不正値）、パスワード（締め出し・短い設定）、45分で情報なし、お知らせ、来場者、ブースの追加・削除、一括、スタンプの控え、二重交換の防止（つないだ番号も）、見出しの扱い、端末のエラー記録（clientlog）、振り返りレポートの集計、ピーク時のキャッシュ（作成中は控えを返す・作成中に更新が入ったら置かない・障害時は控え）。Code.gs を直したら必ず通す。`gas-fuzz.js` のでたらめな送信（落ちない・返事は JSON・パスワードなしではシートが変わらない）と、スタンプの控え・交換・番号をつなぐ操作を手本と比べるテストも入っている。`app.spec.js` には Code.gs が作ったレポートを画面に描かせるテストもある
-  - `print.spec.js`：印刷物の番人。QR印刷シートを本番のアドレスで作り、47枚すべてを自前の読み取りで読む（ブース・署名・外部ブラウザの引数、小さく刷っても読める）。紙マップ A4 2ページ、QRシート 9ページ以内（PDF にして数える）。QRシートは1ページ6枚の箱・はみ出しなし・QR 43mm 以上、1枚だけ刷る。三つ折りパンフレット（`?mode=pamphlet`）は A4 横 2ページ・面の幅 97/100/100mm・はみ出しなし
+  - `print.spec.js`：印刷物の番人。QR印刷シートを本番のアドレスで作り、47枚すべてを自前の読み取りで読む（ブース・署名・外部ブラウザの引数、小さく刷っても読める）。紙マップ A4 2ページ、QRシート 9ページ以内（PDF にして数える）。QRシートは1ページ6枚の箱・はみ出しなし・QR 43mm 以上、1枚だけ刷る。三つ折りパンフレット（`?mode=pamphlet`）は A4 横 2ページ・面の幅 97/100/100mm・はみ出しなし・仮の文字や説明が紙に出ない・校長と生徒会長のあいさつの欄（空でも刷る）・`docs/pamphlet.pdf` が A4 横 2ページ
   - `monkey.spec.js`：でたらめ操作（種つき乱数で階・拡大・タブ・詳細・検索・絞り込み・★・スタンプ・画面や文字の大きさを次々に操作）。エラーと崩れ（横はみ出し・地図のボタンの重なり・拡大の値）が無いこと。操作の組み合わせで起きる不具合を拾う。もっと回すとき：`SEEDS=1,2,3,4,5,6 STEPS=300 npx playwright test monkey.spec.js`
   - `monkey-tap.spec.js`：本物のタップ・なぞり・長押し・キー・戻る／進むでのでたらめ操作（来場者の画面と、模擬のサーバーにつないだ係員の画面）。係員の画面を多く回すとき：`START="/?mode=admin" STAFF=1 SEEDS=1,2,3,4 STEPS=300 npx playwright test monkey-tap.spec.js`
   - `fuzz.spec.js`：サーバーの返事が変な形（0件・156件・でたらめな値・欄の欠け・配列でない など12種類）でも、来場者の画面と印刷の画面がエラー・真っ白・横はみ出しにならないこと
@@ -64,6 +64,7 @@
   - `app.spec.js`・`scan.spec.js` は iPhone 13（WebKit）・Pixel 7（Android の Chrome）のまねでも動く（`playwright.config.js` の projects `iphone`・`android`）。Windows の WebKit はカメラの映像を作れないので、映像を使う3件は WebKit では飛ばす
 - GAS は `tests/mock.js` が模擬する（`fixtures/booths.json` は本番の応答の写し）。本番のシートには届かない
 - スクリーンショット：`SHOTS=shots npx playwright test shots.spec.js`（`tests/shots/` は GitHub に上げない）
+- 三つ折りパンフレットの PDF：`cd tests && npm run pamphlet`（`make-pamphlet.js`）。本番のブースの一覧を読んで `docs/pamphlet.pdf` を作り直す（読むだけ。シートには書かない）。`-- --mock` で手元の写し。ブースの名前・数やタイムテーブルを変えたら作り直してコミットする。画面で書いた文字（あいさつなど）はその端末にしか無いので、PDF に入れるときは `CONFIG.PAMPHLET` に書く
 - `STAMP_KEY` を意図して変えたときだけ `node static.test.js --update-sigs`（刷ったQRが全部無効になるので、ふつうはしない）
 - GitHub Actions（`.github/workflows/test.yml`）が push・PR ごとに同じテストを動かす
 
