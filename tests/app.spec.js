@@ -2463,3 +2463,49 @@ test('インフォの「見た目」：絵を見て選べる。選ぶとすぐ�
   await expect(page.locator('#theme-pick button').first()).toHaveText(/落ち着き/);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v194：カメラが使えないときの案内・詳細のボタンの並び ---------------- */
+test('カメラが使えないときの案内：絵と、丸い番号の手順。ブースの詳細のボタンは、半端な1つを横いっぱいに', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => {
+    const md = navigator.mediaDevices || {};
+    md.getUserMedia = async () => { throw Object.assign(new Error('no camera'), { name: 'NotFoundError' }); };
+    try{ Object.defineProperty(navigator, 'mediaDevices', { value: md, configurable: true }); }catch(e){}
+  });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await page.locator('#stamp-scan').click();
+  await expect(page.locator('#scan.no-cam')).toBeVisible();
+  await expect(page.locator('#scan-help')).toContainText('カメラ');
+  const r = await page.evaluate(() => {
+    const help = document.getElementById('scan-help'), ill = help.querySelector('.scan-ill'), lis = [...help.querySelectorAll('ol li')];
+    return { ill: !!ill && !!ill.querySelector('svg'), hidden: ill && ill.getAttribute('aria-hidden'), first: help.firstElementChild.className,
+      n: lis.length, nums: lis.map(li => getComputedStyle(li, '::before').content), dot: lis.map(li => parseFloat(getComputedStyle(li, '::before').width)),
+      ok: !!document.getElementById('scan-ok'), over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  });
+  expect(r.ill).toBe(true);
+  expect(r.hidden).toBe('true');                       // 絵は飾り。読み上げは文と手順
+  expect(r.first).toBe('scan-ill');
+  expect(r.n).toBe(3);
+  for (const c of r.nums) expect(c).toContain('counter');
+  for (const w of r.dot) expect(w).toBeGreaterThanOrEqual(24);
+  expect(r.ok).toBe(true);
+  expect(r.over).toBeLessThanOrEqual(0);
+  await page.locator('#scan-ok').click();
+  await expect(page.locator('#scan')).toBeHidden();
+  // 詳細のボタン：2つずつ並べて、最後の横いっぱいのボタンの手前で1つだけ余るときは、それも横いっぱい
+  await page.evaluate(() => openSheet(S.booths[1].id));
+  await expect(page.locator('#bsh')).toBeVisible();
+  const a = await page.evaluate(() => {
+    const box = document.querySelector('#bsh-body .bsh-acts'), kids = [...box.children], bw = box.getBoundingClientRect().width;
+    // 行ごとの幅の合計（すき間を除く）が、どの行も箱の幅いっぱい＝右に空きが無い
+    const rows = {};
+    kids.forEach(k => { const b = k.getBoundingClientRect(); const y = Math.round(b.top); rows[y] = (rows[y] || 0) + b.width; });
+    return { n: kids.length, holes: Object.values(rows).filter(w => w < bw - 60).length, wideLast: kids[kids.length - 1].classList.contains('wide') };
+  });
+  expect(a.wideLast).toBe(true);
+  expect(a.holes).toBe(0);
+  expect(errors).toEqual([]);
+});

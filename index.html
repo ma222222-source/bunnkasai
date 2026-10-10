@@ -1873,6 +1873,18 @@ html.lite .hero-gear{animation:none}
 [data-fs="lg"] .hero-title{font-size:33px} [data-fs="lg"] .hero-day-t{font-size:13.5px} [data-fs="lg"] .hero-badge{font-size:13.5px}
 [data-fs="xl"] .hero-title{font-size:36px} [data-fs="xl"] .hero-day-t{font-size:15px} [data-fs="xl"] .hero-badge{font-size:15px} [data-fs="xl"] .hero-en{font-size:11.5px}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
+/* ---- v194 ---- */
+/* カメラが使えないときの案内：絵と、丸い番号の手順（LINE の中などで開いたとき、いちばんよく見る画面） */
+.scan.no-cam .scan-help{width:100%;max-width:480px;margin:0 auto}
+.scan-ill{display:grid;place-items:center;margin:4px 0 14px;color:var(--text-dim)}
+.scan-ill svg{width:168px;height:105px}
+.scan-ill .scan-ill-qr{color:var(--accent);stroke:var(--accent)}
+.scan.no-cam .scan-help ol{list-style:none;margin:10px 0 2px;padding:0;counter-reset:sc;display:grid;gap:10px}
+.scan.no-cam .scan-help ol li{position:relative;padding-left:38px;min-height:28px;counter-increment:sc}
+.scan.no-cam .scan-help ol li::before{content:counter(sc);position:absolute;left:0;top:0;width:28px;height:28px;border-radius:50%;
+  background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-size:13.5px;font-weight:900;line-height:1}
+/* ブースの詳細のボタン：1つだけ半端に残るときは、横いっぱいにする（右に空きができていた） */
+.bsh-acts > :nth-child(odd):has(+ .wide):not(.wide){grid-column:1 / -1}
 /* ---- v193：見た目を、絵を見て選ぶ ---- */
 .theme-pick{display:flex;gap:10px;flex-wrap:wrap}
 .theme-pick button{flex:1;min-width:128px;min-height:58px;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;
@@ -3652,7 +3664,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-10f',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-10g',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -7126,7 +7138,14 @@ function scanFallback(why){
   const box = $('#scan');
   box.classList.add('no-cam');
   const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  $('#scan-help').innerHTML = `${why ? `<p>${esc(why)}</p>` : '<p>この端末では、画面の中でカメラを使えません。</p>'}
+  // v194：文字だけの画面だったので、何をすればよいかが一目で分かる絵（スマホのカメラ → 入口のQR）を置く
+  const ill = `<div class="scan-ill" aria-hidden="true"><svg viewBox="0 0 160 100" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="14" y="10" width="46" height="80" rx="8"/><circle cx="37" cy="26" r="6"/><path d="M30 78h14"/>
+      <path d="M70 50h24" stroke-dasharray="3 7"/><path d="M90 43l8 7-8 7"/>
+      <g class="scan-ill-qr"><rect x="106" y="24" width="44" height="52" rx="5"/>
+        <rect x="113" y="31" width="10" height="10" rx="1.5"/><rect x="133" y="31" width="10" height="10" rx="1.5"/><rect x="113" y="59" width="10" height="10" rx="1.5"/>
+        <path d="M129 49h4M139 49h4M129 57h4M137 63h6M131 67h2M125 41v4"/></g></svg></div>`;
+  $('#scan-help').innerHTML = `${ill}${why ? `<p>${esc(why)}</p>` : '<p>この端末では、画面の中でカメラを使えません。</p>'}
     <p style="margin-top:8px">スマホの<b>カメラ</b>でQRを読んでください：</p>
     <ol>${ios
       ? '<li>このあとホーム画面の<b>カメラ</b>アプリを開く</li><li>ブース入口のQRに向ける</li><li>出てきた黄色い表示をタップ（Safari で開いてスタンプが付きます）</li>'
