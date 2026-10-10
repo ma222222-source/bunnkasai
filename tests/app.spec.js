@@ -2555,3 +2555,39 @@ test('一覧：下へ送ると検索・絞り込みの段が引っ込み、少�
   await expect(head).not.toHaveClass(/tuck/);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v196：「★行きたい」を付けた瞬間の手ごたえ ---------------- */
+test('★行きたい：付けた瞬間、いま付けた星だけが弾む（外したとき・ほかの星・描き直しでは弾まない）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  const ids = await page.evaluate(() => [...document.querySelectorAll('#booth-list > .booth')].slice(0, 3).map(c => c.dataset.sid));
+  const btn = id => page.locator(`#booth-list [data-wishbtn="${id}"]`);
+  await btn(ids[0]).click();
+  await expect(btn(ids[0])).toHaveAttribute('aria-pressed', 'true');
+  await expect(btn(ids[0])).toHaveClass(/just/);
+  expect(await btn(ids[0]).evaluate(el => getComputedStyle(el).animationName)).toBe('wish-pop');
+  // 弾みは 0.7秒で終わる（印が残らない）
+  await expect(btn(ids[0])).not.toHaveClass(/just/, { timeout: 3000 });
+  // 2つめを付けても、1つめは弾まない
+  await btn(ids[1]).click();
+  await expect(btn(ids[1])).toHaveClass(/just/);
+  expect(await btn(ids[0]).evaluate(el => el.classList.contains('just'))).toBe(false);
+  await expect(btn(ids[1])).not.toHaveClass(/just/, { timeout: 3000 });
+  // 外したときは弾まない
+  await btn(ids[0]).click();
+  await expect(btn(ids[0])).toHaveAttribute('aria-pressed', 'false');
+  expect(await btn(ids[0]).evaluate(el => el.classList.contains('just'))).toBe(false);
+  // 描き直し（通信のあと）では弾まない
+  await page.evaluate(() => { renderList._fp = null; renderList(); });
+  expect(await page.locator('#booth-list .wish-btn.just').count()).toBe(0);
+  // 詳細の「行きたい」でも、押したボタンが弾む
+  await page.evaluate(id => openSheet(id), ids[2]);
+  await page.locator('#bsh-body [data-wish]').click();
+  await expect(page.locator('#bsh-body [data-wish]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#bsh-body [data-wish]')).toHaveClass(/just/);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('kuroko_wish_v1')).length)).toBe(2);
+  expect(errors).toEqual([]);
+});
