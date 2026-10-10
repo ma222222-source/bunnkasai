@@ -2591,3 +2591,32 @@ test('★行きたい：付けた瞬間、いま付けた星だけが弾む（�
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('kuroko_wish_v1')).length)).toBe(2);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v197：「更新」を押して取れたら ✓ ---------------- */
+test('「更新」を押して取れたら、回っていた印が ✓ に変わって消える。自動の更新・失敗したときは ✓ を出さない', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  const rb = page.locator('#btn-reload');
+  await expect(rb).not.toHaveClass(/busy/, { timeout: 5000 });
+  // 開いたときの自動の取得では ✓ を出さない
+  expect(await rb.evaluate(el => el.classList.contains('done'))).toBe(false);
+  await rb.click();
+  await expect(rb).toHaveClass(/done/, { timeout: 5000 });
+  const c = await rb.evaluate(el => { const s = getComputedStyle(el.querySelector('.ib-ic'), '::after'); return { content: s.content, hidden: el.querySelector('.ib-ic').getAttribute('aria-hidden') }; });
+  expect(c.content).toContain('✓');
+  expect(c.hidden).toBe('true');                       // 飾り。読み上げは状態の行（最新の情報です など）
+  await expect(rb).not.toHaveClass(/done/, { timeout: 4000 });
+  // 自動の更新では出さない
+  await page.evaluate(() => sync(false));
+  await page.waitForTimeout(1200);
+  expect(await rb.evaluate(el => el.classList.contains('done'))).toBe(false);
+  // 失敗したときは出さない
+  await page.route('**/macros/s/**', route => route.fulfill({ status: 500, contentType: 'text/html', body: 'x' }));
+  await rb.click();
+  await expect(rb).not.toHaveClass(/busy/, { timeout: 20000 });
+  await page.waitForTimeout(300);
+  expect(await rb.evaluate(el => el.classList.contains('done'))).toBe(false);
+});

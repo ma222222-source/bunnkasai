@@ -1873,6 +1873,11 @@ html.lite .hero-gear{animation:none}
 [data-fs="lg"] .hero-title{font-size:33px} [data-fs="lg"] .hero-day-t{font-size:13.5px} [data-fs="lg"] .hero-badge{font-size:13.5px}
 [data-fs="xl"] .hero-title{font-size:36px} [data-fs="xl"] .hero-day-t{font-size:15px} [data-fs="xl"] .hero-badge{font-size:15px} [data-fs="xl"] .hero-en{font-size:11.5px}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
+/* ---- v197：「更新」を押して取れたら、回っていた印が ✓ に変わる ---- */
+#btn-reload.done .ib-ic{position:relative;color:transparent}
+#btn-reload.done .ib-ic::after{content:"\2713";position:absolute;inset:0;display:grid;place-items:center;color:#8ef0b4;font-weight:900;
+  animation:sel-pop .3s var(--ease-out-back)}
+html.lite #btn-reload.done .ib-ic::after{animation:none}
 /* ---- v196：「★行きたい」を付けた瞬間、いま付けた星が弾んで、輪がひとつ広がる ---- */
 .wish-btn{position:relative}
 .wish-btn.just{animation:wish-pop .5s var(--ease-out-back)}
@@ -3681,7 +3686,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-11b',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-11c',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4654,6 +4659,7 @@ async function sync(manual){
     S.fetchedAt = Date.now();
     if (raw && raw.updatedAt) noteClock(raw.updatedAt);
     S.online = true; S.failures = 0;
+    sync._okAt = Date.now();                       // v197：今回の取得が成功した（更新ボタンに「できた」の印を出す）
     // 往復にかかった時間を覚えておく（重いときは間隔を詰めない）。
     // 1回目は必ず遅い（GASの起動ぶん。実測でも初回3.8〜6.4秒、
     // 2回目以降は1.0〜1.4秒）。1回の遅さで一日中20秒間隔に落とさないよう、
@@ -4721,7 +4727,20 @@ async function sync(manual){
     sync._busy = false;
     clearTimeout(sync._slow);
     // 速く終わっても、ひと回りはさせる（一瞬だけ動くと、ちらついて見える）
-    setTimeout(() => { if (!sync._busy){ const rb = $('#btn-reload'); if (rb) rb.classList.remove('busy'); } }, Math.max(0, 700 - (Date.now() - sync._at)));
+    const okNow = manual && (sync._okAt || 0) >= sync._at;
+    setTimeout(() => {
+      if (sync._busy) return;
+      const rb = $('#btn-reload');
+      if (!rb) return;
+      rb.classList.remove('busy');
+      // v197：自分で「更新」を押して取れたときは、回っていた印が ✓ に変わって1秒ほど出る。
+      // 回り終わるだけだと、取れたのか・失敗したのかが分からなかった（失敗したときは ✓ を出さない）
+      if (okNow){
+        rb.classList.add('done');
+        clearTimeout(sync._doneT);
+        sync._doneT = setTimeout(() => rb.classList.remove('done'), 1300);
+      }
+    }, Math.max(0, 700 - (Date.now() - sync._at)));
     // 取得中（1秒超）に描くと「取りに行っています…」のまま次の同期まで残っていた
     // （本番の GAS は3秒前後かかるので、ほぼ常にこの表示になっていた）。終わった時点で描き直す
     renderSyncState();
