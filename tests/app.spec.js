@@ -2509,3 +2509,49 @@ test('カメラが使えないときの案内：絵と、丸い番号の手順�
   expect(a.holes).toBe(0);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v195：一覧の検索・絞り込みの段を、送る向きで出し入れ ---------------- */
+test('一覧：下へ送ると検索・絞り込みの段が引っ込み、少し上へ戻すと出る。画面が自分で動いたときは引っ込めない', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  const head = page.locator('#v-list .list-head');
+  const cardsY = () => page.evaluate(() => Math.round(document.querySelector('#booth-list > .booth').getBoundingClientRect().top + window.scrollY));
+  const y0 = await cardsY();
+  // 人が送ったときのまね：指でなぞった合図（touchmove）のあとに画面が動く。スマホの WebKit はホイールを出せないので、どの端末のまねでもこの形にする
+  const userScroll = async (dy, times) => { for (let i = 0; i < times; i++) { await page.evaluate(d => { window.dispatchEvent(new Event('touchmove')); window.scrollBy(0, d); }, dy); await page.waitForTimeout(70); } };
+  // 人が下へ送る → 引っ込む
+  await userScroll(160, 6);
+  await expect(head).toHaveClass(/tuck/);
+  // 引っ込んでも、一覧の中身の位置は変わらない（場所は取ったまま、上へずらすだけ）
+  expect(await cardsY()).toBe(y0);
+  // 見出し（黒い帯）の下にもぐって、見えなくなっている
+  await page.waitForTimeout(400);
+  const hidden = await page.evaluate(() => {
+    const h = document.querySelector('#v-list .list-head').getBoundingClientRect(), top = document.querySelector('.head').getBoundingClientRect().bottom;
+    return h.bottom <= top + 1;
+  });
+  expect(hidden).toBe(true);
+  // 少し上へ戻す → 出る
+  await userScroll(-60, 1);
+  await expect(head).not.toHaveClass(/tuck/);
+  await expect(page.locator('#q')).toBeInViewport();
+  // 画面が自分で動いたとき（プログラムからの移動）は引っ込めない
+  await page.waitForTimeout(900);
+  await page.evaluate(() => window.scrollTo(0, 1800));
+  await page.waitForTimeout(300);
+  await expect(head).not.toHaveClass(/tuck/);
+  // 引っ込んでいても、キーボードで検索欄へ入ると出る。タブを移っても出しておく
+  await userScroll(160, 4);
+  await expect(head).toHaveClass(/tuck/);
+  await page.evaluate(() => document.getElementById('q').focus({ preventScroll: true }));
+  await expect(head).not.toHaveClass(/tuck/);
+  await page.evaluate(() => document.activeElement.blur());
+  await userScroll(160, 3);
+  await expect(head).toHaveClass(/tuck/);
+  await page.evaluate(() => { switchView('map'); switchView('list'); });
+  await expect(head).not.toHaveClass(/tuck/);
+  expect(errors).toEqual([]);
+});
