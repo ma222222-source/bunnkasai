@@ -2278,3 +2278,61 @@ test('スタンプ帳：集めた数の輪が、割合のぶんだけ伸びる�
   expect(r.over).toBeLessThanOrEqual(0);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v190：スタンプ帳の下絵・下のタブの印 ---------------- */
+test('スタンプ帳：まだ押していないマスは、そのブースの判子の形の下絵（押したマスは判子、交換に使ったマスは「換」）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => { if (!sessionStorage.getItem('x')){ sessionStorage.setItem('x', 1); localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03'])); } });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  const r = await page.evaluate(() => {
+    const cells = [...document.querySelectorAll('#stamp-grid .stamp')];
+    const empty = cells.filter(c => !c.classList.contains('got'));
+    const kind = svg => { const e = svg.querySelector('g g > *'); return e ? e.tagName + (e.tagName === 'polygon' ? ':' + e.getAttribute('points').split(' ').length : '') : ''; };
+    const shapes = empty.map(c => { const s = c.querySelector('.mk.ghost svg'); return s ? kind(s) : 'なし'; });
+    // 下絵の形は、押したときに入る判子の形と同じ
+    const same = empty.every(c => { const L = stampLook(c.dataset.sid), k = kind(c.querySelector('.mk.ghost svg'));
+      return ({ circle: 'circle', square: 'rect', hex: 'polygon:6', burst: 'polygon:28', flower: 'path' })[L.shape] === k; });
+    return { n: cells.length, empty: empty.length, noGhost: shapes.filter(s => s === 'なし').length, kinds: new Set(shapes).size, same,
+      got: cells.filter(c => c.classList.contains('got') && c.querySelector('.mk.art .stamp-art')).length,
+      hidden: empty.every(c => c.querySelector('.mk.ghost svg').getAttribute('aria-hidden') === 'true'),
+      label: empty[0].getAttribute('aria-label'), over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  });
+  expect(r.n).toBe(46);
+  expect(r.empty).toBe(44);
+  expect(r.got).toBe(2);
+  expect(r.noGhost).toBe(0);
+  expect(r.kinds).toBeGreaterThanOrEqual(3);           // マスごとに形がちがう（丸・花・六角・ぎざぎざ・四角）
+  expect(r.same).toBe(true);
+  expect(r.hidden).toBe(true);                         // 飾り。読み上げはブースの名前（ボタンの名前）
+  expect(r.label).toContain('の詳細をひらく');
+  expect(r.over).toBeLessThanOrEqual(0);
+  // 押すと、下絵が判子に入れ替わる
+  await page.evaluate(() => stampNow('1F-05'));
+  await expect(page.locator('#stamp-grid .stamp[data-sid="1F-05"] .mk.art .stamp-art')).toHaveCount(1);
+  await expect(page.locator('#stamp-grid .stamp[data-sid="1F-05"] .mk.ghost')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('下のタブ：選んだタブの絵の後ろに丸い地が付き、線と一緒に動く', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.click('#nav button[data-view="stamp"]');
+  const gap = () => page.evaluate(() => {
+    const ind = document.querySelector('.nav-ind').getBoundingClientRect(), b = document.querySelector('#nav button[aria-pressed="true"] em').getBoundingClientRect();
+    return Math.abs((ind.left + ind.width / 2) - (b.left + b.width / 2));
+  });
+  await expect.poll(gap, { timeout: 3000 }).toBeLessThanOrEqual(1.5);
+  const r = await page.evaluate(() => { const c = getComputedStyle(document.querySelector('.nav-ind'), '::after');
+    return { content: c.content, w: parseFloat(c.width), radius: parseFloat(c.borderRadius), over: document.documentElement.scrollWidth - document.documentElement.clientWidth }; });
+  expect(r.content).not.toBe('none');
+  expect(r.w).toBeGreaterThanOrEqual(50);
+  expect(r.radius).toBeGreaterThan(10);
+  expect(r.over).toBeLessThanOrEqual(0);
+  expect(errors).toEqual([]);
+});

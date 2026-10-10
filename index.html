@@ -1873,6 +1873,15 @@ html.lite .hero-gear{animation:none}
 [data-fs="lg"] .hero-title{font-size:33px} [data-fs="lg"] .hero-day-t{font-size:13.5px} [data-fs="lg"] .hero-badge{font-size:13.5px}
 [data-fs="xl"] .hero-title{font-size:36px} [data-fs="xl"] .hero-day-t{font-size:15px} [data-fs="xl"] .hero-badge{font-size:15px} [data-fs="xl"] .hero-en{font-size:11.5px}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
+/* ---- v190 ---- */
+/* まだ押していないマスの下絵：そのブースの判子の形 */
+.stamp .mk.ghost{width:40px;height:40px;border:none;border-radius:0;background:none;color:var(--border-strong)}
+.stamp .mk.ghost::after{display:none}
+.stamp .mk.ghost svg{display:block;width:100%;height:100%;transform:rotate(var(--tilt,0deg))}
+/* 下のタブ：選んだタブの絵の後ろに、やわらかい丸い地。上の線と一緒に横へすべる */
+.nav-ind::after{content:"";position:absolute;top:5px;left:50%;width:60px;height:31px;margin-left:-30px;border-radius:999px;
+  background:color-mix(in srgb,var(--accent) 11%,transparent)}
+@media (max-height:480px) and (orientation:landscape){ .nav-ind::after{top:2px;height:25px;width:52px;margin-left:-26px} }
 /* ---- v189：スタンプの数は、輪が伸びていく形で ---- */
 .stamp-count{display:flex;align-items:center;gap:12px;margin-top:12px}
 .stamp-ring{position:relative;flex:none;width:64px;height:64px;display:grid;place-items:center}
@@ -3590,7 +3599,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-10b',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-10c',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -9207,6 +9216,17 @@ function stampOutline(shape, r){
   return `<path d="${d}Z"/>`;
 }
 /**
+ * v190：まだ押していないマスの下絵。そのブースの判子の形（丸・花・六角・ぎざぎざ・四角）を、点線でうすく置く。
+ * どのマスも同じ点線の丸だったので、帳面が単調だった。押すとこの形の判子が入る、という予告にもなる。
+ * 線だけの小さな絵（にじみ・文字・色なし）なので、46マス並べても軽い
+ */
+function stampGhost(id){
+  const L = stampLook(id);
+  return `<svg viewBox="0 0 200 200" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+      <g stroke-width="10" stroke-dasharray="16 15">${stampOutline(L.shape, 86)}</g>
+      <g stroke-width="5" stroke-dasharray="9 13" opacity=".7">${stampOutline(L.shape, 64)}</g></g></svg>`;
+}
+/**
  * 判子のSVG。mini はスタンプ帳のマス用（名前の円弧・インクのにじみを省いて軽くする）
  */
 function stampArt(id, mini){
@@ -9591,7 +9611,8 @@ function renderStamps(){
                  aria-label="${esc(b.name)}${u ? ' 交換に使用済み' : g ? ' 訪問済み' : ''} の詳細をひらく">
       <span class="no">${no}</span>
       ${g && !u ? `<span class="mk art">${stampArt(b.id, true)}</span>`
-               : `<span class="mk">${u ? '換' : ''}</span>`}
+               : u ? '<span class="mk">換</span>'
+               : `<span class="mk ghost">${stampGhost(b.id)}</span>`}
       <span class="lb">${esc(b.name)}</span></button>`;
   }
 
