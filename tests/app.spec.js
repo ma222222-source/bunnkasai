@@ -2336,3 +2336,39 @@ test('下のタブ：選んだタブの絵の後ろに丸い地が付き、線�
   expect(r.over).toBeLessThanOrEqual(0);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v191：全体の混み具合の割合の帯 ---------------- */
+test('地図の下の数字の上に、混み具合の割合の帯（空き｜やや混雑｜混雑｜準備中など）。ブースが0件なら出さない', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  const look = () => page.evaluate(() => {
+    const box = document.getElementById('summary'), n = [...box.querySelectorAll('.sum b')].map(b => +b.dataset.v || +b.textContent);
+    const c = [0, 0, 0, 0]; S.booths.forEach(b => { const lv = lvOf(b).lv; c[lv === 0 ? 0 : lv === 1 ? 1 : lv === 2 ? 2 : 3]++; });
+    const cs = getComputedStyle(box, '::before');
+    return { has: box.classList.contains('has-bar'), c, sa: parseFloat(box.style.getPropertyValue('--sa')), sb: parseFloat(box.style.getPropertyValue('--sb')), sc: parseFloat(box.style.getPropertyValue('--sc')),
+      barH: parseFloat(cs.height), content: cs.content, tiles: box.querySelectorAll('.sum').length, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  });
+  let r = await look();
+  const total = r.c.reduce((a, b) => a + b, 0);
+  expect(total).toBe(46);
+  expect(r.has).toBe(true);
+  expect(r.tiles).toBe(4);                             // 数字の箱はこれまでどおり4つ（帯は飾り）
+  expect(r.barH).toBeGreaterThanOrEqual(6);
+  expect(r.sa).toBeCloseTo(r.c[0] / total * 100, 1);
+  expect(r.sb).toBeCloseTo((r.c[0] + r.c[1]) / total * 100, 1);
+  expect(r.sc).toBeCloseTo((r.c[0] + r.c[1] + r.c[2]) / total * 100, 1);
+  expect(r.over).toBeLessThanOrEqual(0);
+  // 混み具合が変わると、帯も変わる
+  await page.evaluate(() => { S.booths.forEach(b => { b.status = '空いています'; b.wait = 0; b.time = new Date().toISOString(); }); renderSummary(); });
+  r = await look();
+  expect(r.sa).toBeGreaterThan(90);
+  // ブースが1件も無いとき（読み込み前・障害時）は帯を出さない
+  await page.evaluate(() => { S.booths = []; renderSummary(); });
+  r = await look();
+  expect(r.has).toBe(false);
+  expect(r.content).toBe('none');
+  expect(errors).toEqual([]);
+});
