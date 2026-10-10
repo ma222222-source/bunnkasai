@@ -2372,3 +2372,44 @@ test('地図の下の数字の上に、混み具合の割合の帯（空き｜�
   expect(r.content).toBe('none');
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v192：スタンプ帳の階の見出し ---------------- */
+test('スタンプ帳の階の見出し：階の札・数・進み具合の線・矢印が1行にそろう（矢印が文字より下にずれない）', async ({ page }) => {
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03', '1F-05', '1F-07'])));
+  for (const [w, fs] of [[390, 'n'], [320, 'xl']]) {
+    await page.setViewportSize({ width: w, height: 800 });
+    await page.addInitScript(f => { try { localStorage.setItem('kuroko_fs', JSON.stringify(f)); } catch (e) {} }, fs);
+    await page.goto('/?tab=stamp');
+    await ready(page);
+    const r = await page.evaluate(() => {
+      const btn = document.querySelector('#stamp-grid [data-fold="1"]'), bb = btn.getBoundingClientRect();
+      const mid = e => { const b = e.getBoundingClientRect(); return (b.top + b.bottom) / 2; };
+      const fl = btn.querySelector('.sf-fl'), cnt = btn.querySelector(':scope > span'), bar = btn.querySelector('.sf-bar'), fill = bar.firstElementChild;
+      // 矢印（::after）は、ボタンの右端・上下の真ん中あたり
+      const after = getComputedStyle(btn, '::after'), cy = (bb.top + bb.bottom) / 2;
+      const inFl = S.booths.filter(b => floorOfBooth(b) === 1), got = inFl.filter(b => S.stamps.has(b.id)).length;
+      return { dFl: Math.abs(mid(fl) - cy), dCnt: Math.abs(mid(cnt) - cy), dBar: Math.abs(mid(bar) - cy), align: getComputedStyle(btn).alignItems,
+        full: Math.round(bb.width), grid: Math.round(document.getElementById('stamp-grid').getBoundingClientRect().width),
+        barW: bar.getBoundingClientRect().width, pct: parseFloat(fill.style.width), want: Math.round(got / inFl.length * 100), text: btn.textContent.replace(/\s+/g, ' ').trim(),
+        hidden: bar.getAttribute('aria-hidden'), arrow: after.content !== 'none', over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    });
+    expect(r.align, `幅${w}`).toBe('center');
+    expect(Math.max(r.dFl, r.dCnt, r.dBar), `幅${w}`).toBeLessThanOrEqual(4);
+    expect(r.full).toBeGreaterThan(r.grid * 0.9);       // 見出しは行いっぱい（押せる所が広い）
+    expect(r.barW).toBeGreaterThanOrEqual(24);
+    expect(r.pct).toBe(r.want);
+    expect(r.text).toMatch(/^1階\s*\d+ \/ \d+$/);        // 読み上げ・文字は「1階 4 / 29」のまま
+    expect(r.hidden).toBe('true');
+    expect(r.arrow).toBe(true);
+    expect(r.over).toBeLessThanOrEqual(0);
+  }
+  // その階をぜんぶ回ると、線の色が変わる
+  await page.evaluate(() => { S.booths.filter(b => floorOfBooth(b) === 3).forEach(b => S.stamps.add(b.id)); renderStamps(); });
+  await expect(page.locator('#stamp-grid [data-fold="3"] .sf-bar.full')).toHaveCount(1);
+  // たたむ／広げるは、これまでどおり
+  await page.locator('#stamp-grid [data-fold="3"]').click();
+  await expect(page.locator('#stamp-grid [data-fold="3"]')).toHaveAttribute('aria-expanded', 'false');
+  expect(errors).toEqual([]);
+});

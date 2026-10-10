@@ -1873,6 +1873,18 @@ html.lite .hero-gear{animation:none}
 [data-fs="lg"] .hero-title{font-size:33px} [data-fs="lg"] .hero-day-t{font-size:13.5px} [data-fs="lg"] .hero-badge{font-size:13.5px}
 [data-fs="xl"] .hero-title{font-size:36px} [data-fs="xl"] .hero-day-t{font-size:15px} [data-fs="xl"] .hero-badge{font-size:15px} [data-fs="xl"] .hero-en{font-size:11.5px}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
+/* ---- v192：スタンプ帳の階の見出し。開閉の矢印が文字より下にずれていた（上ぞろえの中で、矢印だけ真ん中にしていた）。
+   階の札・数・その階の進み具合の線・矢印を、1行の真ん中にそろえる ---- */
+.stamp-floor{align-items:center}
+.stamp-floor .stamp-fold{flex:1;align-items:center;min-width:0}
+.stamp-fold .sf-fl{flex:none;padding:2px 10px;border-radius:7px;background:var(--text);color:var(--surface);font-size:12px;font-weight:900;letter-spacing:.04em;line-height:1.5}
+.stamp-fold > span{flex:none}
+.stamp-fold .sf-bar{flex:1;min-width:24px;height:4px;border-radius:99px;background:var(--surface-3);overflow:hidden}
+.stamp-fold .sf-bar > i{display:block;height:100%;border-radius:inherit;background:var(--accent);transition:width .6s var(--ease)}
+.stamp-fold .sf-bar.full > i{background:var(--free)}
+.stamp-floor .stamp-fold::after{flex:none;margin:-4px 4px 0 2px}
+.stamp-floor .stamp-fold[aria-expanded="false"]::after{margin-top:0}
+[data-fs="lg"] .stamp-fold .sf-fl{font-size:13.5px} [data-fs="xl"] .stamp-fold .sf-fl{font-size:15px}
 /* ---- v191：全体の混み具合の割合の帯（数字の上）。4つの数字を足して比べなくても、空いているのか混んでいるのかが分かる ---- */
 @property --sa{syntax:'<percentage>';inherits:true;initial-value:0%}
 @property --sb{syntax:'<percentage>';inherits:true;initial-value:0%}
@@ -3607,7 +3619,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-10d',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-10e',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -9602,7 +9614,9 @@ function renderStamps(){
       const inFl = S.booths.filter(x => floorOfBooth(x) === f);
       // v177：見出しを押すと、その階をたたむ／広げる
       const folded = !!(S.stampFold && S.stampFold[f]);
-      head = `<h4 class="stamp-floor"><button type="button" class="stamp-fold" data-fold="${f}" aria-expanded="${!folded}">${f === 0 ? '屋外・体育館など' : f + '階'}<span>${inFl.filter(x => S.stamps.has(x.id)).length} / ${inFl.length}</span></button></h4>`;
+      const gotFl = inFl.filter(x => S.stamps.has(x.id)).length;
+      // v192：見出しは「階の札・数・その階の進み具合の線・開閉の矢印」を1行に
+      head = `<h4 class="stamp-floor"><button type="button" class="stamp-fold" data-fold="${f}" aria-expanded="${!folded}"><b class="sf-fl">${f === 0 ? '屋外・体育館など' : f + '階'}</b><span>${gotFl} / ${inFl.length}</span><i class="sf-bar${inFl.length && gotFl >= inFl.length ? ' full' : ''}" aria-hidden="true"><i style="width:${inFl.length ? Math.round(gotFl / inFl.length * 100) : 0}%"></i></i></button></h4>`;
     }
     return head + stampCell(b);
   }).join('');
