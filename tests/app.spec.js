@@ -2620,3 +2620,50 @@ test('「更新」を押して取れたら、回っていた印が ✓ に変わ
   await page.waitForTimeout(300);
   expect(await rb.evaluate(el => el.classList.contains('done'))).toBe(false);
 });
+
+/* ---------------- v198：お菓子と交換できたときの表示 ---------------- */
+test('お菓子と交換：係の人の4桁を入れて交換すると、画面いっぱいの「交換しました」が出る（とじると元の画面。スタンプは使用済みに）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => { if (!sessionStorage.getItem('x')){ sessionStorage.setItem('x', 1); localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03', '1F-05', '1F-07', '1F-08', '1F-10'])); } });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  // スタンプを6個にそろえる（5個を使って、1個残る）
+  await page.evaluate(() => { S.stamps = new Set(S.booths.slice(0, 6).map(b => b.id)); store('kuroko_stamps_v2', Array.from(S.stamps)); renderStamps(); });
+  expect(await page.evaluate(() => stampsLeft())).toBe(6);
+  await page.locator('#redeem-open').click();
+  // 番号が違うときは交換しない（表示も出ない）
+  const input = page.locator('#redeem-pad input');
+  const good = await page.evaluate(() => redeemCode(0));
+  await input.fill(good === '0000' ? '1111' : '0000');
+  await page.locator('#redeem-ok').click();
+  await expect(page.locator('#redeem-err')).toBeVisible();
+  expect(await page.locator('#pfx').count()).toBe(0);
+  // 正しい番号 → 交換できた表示
+  await input.fill(await page.evaluate(() => redeemCode(0)));
+  await page.locator('#redeem-ok').click();
+  const fx = page.locator('#pfx');
+  await expect(fx).toBeVisible({ timeout: 15000 });
+  await expect(fx).toContainText('交換しました');
+  await expect(fx).toContainText('お菓子を1個 受け取ってください');
+  await expect(fx).toContainText('スタンプ5個分を使いました');
+  await expect(fx).toContainText('次のお菓子まで あと4個');           // 6個のうち5個を使って、残り1個
+  expect(await fx.getAttribute('role')).toBe('dialog');
+  expect(await fx.getAttribute('aria-modal')).toBe('true');
+  // 押せる物は「とじる」だけ。そこにフォーカスが入る
+  await expect(fx.locator('[data-fx="close"]')).toBeFocused();
+  const r = await page.evaluate(() => ({ spent: S.spent.length, left: stampsLeft(), gift: !!document.querySelector('#pfx .pfx-gift svg'),
+    over: document.documentElement.scrollWidth - document.documentElement.clientWidth, lock: document.documentElement.classList.contains('sfx-open') }));
+  expect(r.spent).toBe(5);
+  expect(r.left).toBe(1);
+  expect(r.gift).toBe(true);
+  expect(r.lock).toBe(true);                           // 出ている間は後ろを動かさない
+  expect(r.over).toBeLessThanOrEqual(0);
+  // Esc でも とじる でも閉じる。閉じたら元の画面（交換済みの数が増えている）
+  await page.keyboard.press('Escape');
+  await expect(fx).toBeHidden({ timeout: 3000 });
+  expect(await page.evaluate(() => document.documentElement.classList.contains('sfx-open'))).toBe(false);
+  await expect(page.locator('#redeem-log')).toContainText('お菓子1個');
+  expect(errors).toEqual([]);
+});

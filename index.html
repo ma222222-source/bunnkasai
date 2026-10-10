@@ -1873,6 +1873,18 @@ html.lite .hero-gear{animation:none}
 [data-fs="lg"] .hero-title{font-size:33px} [data-fs="lg"] .hero-day-t{font-size:13.5px} [data-fs="lg"] .hero-badge{font-size:13.5px}
 [data-fs="xl"] .hero-title{font-size:36px} [data-fs="xl"] .hero-day-t{font-size:15px} [data-fs="xl"] .hero-badge{font-size:15px} [data-fs="xl"] .hero-en{font-size:11.5px}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
+/* ---- v198：お菓子と交換できたときの表示（スタンプの演出と同じカード） ---- */
+.pfx-gift{position:relative;width:112px;height:112px;margin:10px auto 6px;display:grid;place-items:center;color:var(--accent-ink)}
+.pfx-gift svg{position:relative;width:84px;height:84px;animation:pfx-pop .55s .12s var(--ease-out-back) both}
+@keyframes pfx-pop{0%{transform:scale(.3) rotate(-14deg);opacity:0}60%{transform:scale(1.12) rotate(4deg);opacity:1}100%{transform:none;opacity:1}}
+.pfx-gift i{position:absolute;inset:0;border-radius:50%;background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.pfx-gift::before{content:"";position:absolute;inset:-8%;border-radius:50%;pointer-events:none;opacity:0;
+  background:repeating-conic-gradient(from 4deg,color-mix(in srgb,var(--accent) 70%,transparent) 0 5deg,transparent 5deg 18deg);
+  -webkit-mask:radial-gradient(circle,transparent 56%,#000 58%,#000 70%,transparent 76%);mask:radial-gradient(circle,transparent 56%,#000 58%,#000 70%,transparent 76%);
+  animation:sfx-rays .62s .3s ease-out both}
+.pfx .sfx-kicker{color:var(--free);font-size:15px}
+html.lite .pfx-gift svg{animation:none} html.lite .pfx-gift::before{display:none}
+@media (prefers-reduced-motion:reduce){ .pfx-gift svg{animation:none} .pfx-gift::before{display:none} }
 /* ---- v197：「更新」を押して取れたら、回っていた印が ✓ に変わる ---- */
 #btn-reload.done .ib-ic{position:relative;color:transparent}
 #btn-reload.done .ib-ic::after{content:"\2713";position:absolute;inset:0;display:grid;place-items:center;color:#8ef0b4;font-weight:900;
@@ -3686,7 +3698,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-11c',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-11d',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -9942,6 +9954,52 @@ window.addEventListener('pagehide', () => {
 });
 
 /**
+ * v198：お菓子と交換できたときの表示。スタンプの演出（.sfx）と同じ形のカードを使う。
+ * @param {number} n 使ったスタンプの数
+ * @param {boolean} later 通信できなかったので、控えはあとでサーバーへ送る
+ */
+function showPrizeFx(n, later){
+  const old = $('#pfx'); if (old) old.remove();
+  const el = document.createElement('div');
+  el.id = 'pfx'; el.className = 'sfx pfx first fresh';
+  el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'お菓子と交換しました');
+  const left = stampsLeft(), need = Math.max(1, CONFIG.PRIZE_COST | 0);
+  const at = new Date().toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' });
+  el.innerHTML = `
+    <div class="sfx-card pfx-card">
+      <p class="sfx-kicker">交換しました</p>
+      <div class="pfx-gift" aria-hidden="true"><svg viewBox="0 0 96 96" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="14" y="40" width="68" height="42" rx="6"/><rect x="9" y="27" width="78" height="15" rx="5"/><path d="M48 27v55"/>
+        <path d="M48 27c-6-14-24-14-22-3 1 5 9 5 22 3zM48 27c6-14 24-14 22-3-1 5-9 5-22 3z"/></svg><i></i></div>
+      <h2 class="sfx-name">お菓子を1個 受け取ってください</h2>
+      <p class="sfx-goal">スタンプ${n}個分を使いました（${esc(at)}）。<br>${left >= need ? `まだ ${Math.floor(left / need)}個 交換できます` : `次のお菓子まで あと${need - left % need}個です`}</p>
+      ${later ? '<p class="sfx-note">通信できなかったので、この端末に記録しました。つながったときに自動で送ります</p>' : ''}
+      <div class="sfx-acts"><button class="btn" data-fx="close">とじる</button></div>
+    </div>`;
+  document.body.appendChild(el);
+  document.documentElement.classList.add('sfx-open');
+  const prev = document.activeElement;
+  const close = () => {
+    if (!document.body.contains(el)) return;
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 260);
+    document.documentElement.classList.remove('sfx-open');
+    document.removeEventListener('keydown', onKey);
+    try{ if (prev && prev.focus && document.body.contains(prev)) prev.focus({ preventScroll:true }); }catch(e){}
+  };
+  const onKey = e => {
+    if (e.key === 'Escape'){ close(); return; }
+    if (e.key === 'Tab'){ e.preventDefault(); const b = el.querySelector('[data-fx="close"]'); if (b) b.focus(); }   // 押せる物は「とじる」だけ
+  };
+  showPrizeFx.close = close;
+  el.querySelector('[data-fx="close"]').addEventListener('click', close);
+  el.addEventListener('click', e => { if (e.target === el) close(); });
+  document.addEventListener('keydown', onKey);
+  setTimeout(() => { const b = el.querySelector('[data-fx="close"]'); if (b) b.focus({ preventScroll:true }); }, 60);
+  buzz([18, 40, 70]);
+  setTimeout(() => confetti(), 300);
+}
+/**
  * 全制覇したときだけ降らせる。要素は使い捨てで、終わったら自分で片付ける。
  * 動きを減らす設定のときは何もしない。
  */
@@ -14364,7 +14422,9 @@ function init(){
     closePad();
     renderStamps(); renderList(); drawFloor(S.floor);
     ding('done');
-    toast(`スタンプ${n}個分を使いました。お菓子を1個受け取ってください`);
+    // v198：交換できたことを、画面いっぱいの表示で見せる（受付の係の人にも、ひと目で分かるように）。
+    // これまでは下に小さな知らせが数秒出るだけで、見逃すと「交換できたのか」を数字の変化から読み取るしかなかった
+    showPrizeFx(n, server !== 'ok');
   }
 
   setInterval(() => { if (!document.hidden) tickCode(); }, 15000);
