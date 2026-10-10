@@ -1873,6 +1873,29 @@ html.lite .hero-gear{animation:none}
 [data-fs="lg"] .hero-title{font-size:33px} [data-fs="lg"] .hero-day-t{font-size:13.5px} [data-fs="lg"] .hero-badge{font-size:13.5px}
 [data-fs="xl"] .hero-title{font-size:36px} [data-fs="xl"] .hero-day-t{font-size:15px} [data-fs="xl"] .hero-badge{font-size:15px} [data-fs="xl"] .hero-en{font-size:11.5px}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
+/* ---- v193：見た目を、絵を見て選ぶ ---- */
+.theme-pick{display:flex;gap:10px;flex-wrap:wrap}
+.theme-pick button{flex:1;min-width:128px;min-height:58px;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;
+  border:1.5px solid var(--border-strong);background:var(--surface);color:var(--text);font-size:13px;font-weight:800;text-align:left;
+  transition:border-color var(--t) var(--ease),box-shadow var(--t) var(--ease)}
+.theme-pick button:active{transform:scale(.98)}
+.theme-pick button[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
+.theme-pick button[aria-pressed="true"] .tp-nm::after{content:" \2713";color:var(--accent-ink);font-weight:900}
+/* 小さな見本：見出しの帯・カード・赤い印。その見た目の色そのまま（いまの見た目に左右されない） */
+.tp-pv{position:relative;flex:none;width:58px;height:42px;border-radius:7px;overflow:hidden;border:1px solid rgba(128,128,128,.5)}
+.tp-pv i{position:absolute;left:0;right:0;top:0;height:13px}
+.tp-pv em{position:absolute;left:5px;right:5px;top:18px;bottom:5px;border-radius:3px}
+.tp-pv em::before{content:"";position:absolute;left:4px;top:4px;width:24px;height:3px;border-radius:2px}
+.tp-pv em::after{content:"";position:absolute;left:4px;bottom:3px;width:15px;height:5px;border-radius:3px}
+.tp-pv[data-pv="paper"]{background:#e6e1d9}
+.tp-pv[data-pv="paper"] i{background:#1c1a17;border-bottom:2px solid #9b1c22}
+.tp-pv[data-pv="paper"] em{background:#faf9f5;box-shadow:0 0 0 1px #d8d2c6}
+.tp-pv[data-pv="paper"] em::before{background:#3a3631} .tp-pv[data-pv="paper"] em::after{background:#9b1c22}
+.tp-pv[data-pv="heavy"]{background:#0b0d11}
+.tp-pv[data-pv="heavy"] i{background:linear-gradient(100deg,#08090c,#2e0a11);border-bottom:2px solid #e4142a}
+.tp-pv[data-pv="heavy"] em{background:#151a22;box-shadow:0 0 0 1px #2a313d}
+.tp-pv[data-pv="heavy"] em::before{background:#e8eaee} .tp-pv[data-pv="heavy"] em::after{background:#e4142a}
+[data-fs="lg"] .theme-pick button{font-size:14.5px} [data-fs="xl"] .theme-pick button{font-size:16px;min-height:64px}
 /* ---- v192：スタンプ帳の階の見出し。開閉の矢印が文字より下にずれていた（上ぞろえの中で、矢印だけ真ん中にしていた）。
    階の札・数・その階の進み具合の線・矢印を、1行の真ん中にそろえる ---- */
 .stamp-floor{align-items:center}
@@ -3206,6 +3229,16 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
           読みにくいときは「大きく」か「特大」を選んでください。設定はこの端末に保存されます。
         </p>
 
+        <!-- v193：見た目は、絵を見て選べるように（右上の「見た目」は、押すまで何が変わるか分からなかった） -->
+        <div class="card-t" style="margin-top:14px">見た目</div>
+        <div class="theme-pick" id="theme-pick" role="group" aria-label="見た目">
+          <button type="button" data-theme-id="paper" aria-pressed="false"><span class="tp-pv" data-pv="paper" aria-hidden="true"><i></i><em></em></span><span class="tp-nm">落ち着き</span></button>
+          <button type="button" data-theme-id="heavy" aria-pressed="false"><span class="tp-pv" data-pv="heavy" aria-hidden="true"><i></i><em></em></span><span class="tp-nm">重厚</span></button>
+        </div>
+        <p style="font-size:10.5px;color:var(--text-mute);font-weight:700;margin-top:6px">
+          右上の「見た目」ボタンでも切り替えられます。暗い場所では「重厚」がまぶしくありません。
+        </p>
+
         <div class="card-t" style="margin-top:14px">スタンプの音</div>
         <div class="seg" role="group" aria-label="スタンプの音" style="width:fit-content">
           <button id="snd-off" aria-pressed="false">鳴らさない</button>
@@ -3619,7 +3652,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-10e',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-10f',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -13956,11 +13989,15 @@ function initTheme(){
   const label = () => (THEMES.find(x => x.id === t) || THEMES[0]).name;
   const btn = $('#btn-theme');
   btn.setAttribute('aria-label', '見た目を変える（いま：' + label() + '）');
+  // v193：インフォの「見た目」の欄（絵を見て選ぶ）に、いまの見た目を映す
+  const syncPick = () => $$('#theme-pick [data-theme-id]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.themeId === t)));
+  syncPick();
   // ほかのタブで変えた見た目に合わせる（v182）
   initTheme._set = v => {
     t = v;
     document.documentElement.setAttribute('data-theme', t); setThemeColor();
     btn.setAttribute('aria-label', '見た目を変える（いま：' + label() + '）');
+    syncPick();
     try{ drawFloor._fp = null; drawFloor(S.floor); fitMapBox._key = null; fitMapBox(S.floor); measureHead(); }catch(e){}
   };
   // v163：夕方に端末が自動で暗くなったとき、開きっぱなしの画面も合わせる（自分で選んだ人はそのまま）
@@ -13970,22 +14007,30 @@ function initTheme(){
       t = m.matches ? 'heavy' : THEMES[0].id;
       document.documentElement.setAttribute('data-theme', t); setThemeColor();
       btn.setAttribute('aria-label', '見た目を変える（いま：' + label() + '）');
+      syncPick();
       drawFloor._fp = null; drawFloor(S.floor);
     });
   }catch(e){}
-  btn.addEventListener('click', () => {
-    const i = THEMES.findIndex(x => x.id === t);
-    t = THEMES[(i + 1) % THEMES.length].id;
+  // 見た目を選ぶ（右上のボタン＝次の見た目へ／インフォの欄＝選んだ見た目へ）
+  const choose = v => {
+    if (!THEMES.some(x => x.id === v)) return;
+    t = v;
     document.documentElement.setAttribute('data-theme', t); setThemeColor();
     store('kuroko_theme', t);
     btn.setAttribute('aria-label', '見た目を変える（いま：' + label() + '）');
+    syncPick();
     toast('見た目：' + label());
     // 地図の線の太さや塗りがテーマで変わるので、描き直して測り直す。
     // 見出しの字の大きさもテーマで変わる（係員のタブがその下に貼りつく）
     drawFloor._fp = null; drawFloor(S.floor);
     fitMapBox._key = null; fitMapBox(S.floor);
     measureHead();
+  };
+  btn.addEventListener('click', () => {
+    const i = THEMES.findIndex(x => x.id === t);
+    choose(THEMES[(i + 1) % THEMES.length].id);
   });
+  $$('#theme-pick [data-theme-id]').forEach(b => b.addEventListener('click', () => { if (b.dataset.themeId !== t) choose(b.dataset.themeId); }));
 }
 
 /** 静的HTMLに置いた <i data-ic="..."> をアイコンで埋める */

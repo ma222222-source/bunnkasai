@@ -2413,3 +2413,53 @@ test('スタンプ帳の階の見出し：階の札・数・進み具合の線�
   await expect(page.locator('#stamp-grid [data-fold="3"]')).toHaveAttribute('aria-expanded', 'false');
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v193：見た目を、絵を見て選ぶ ---------------- */
+test('インフォの「見た目」：絵を見て選べる。選ぶとすぐ変わり、覚える。右上のボタンで変えても、欄の印が合う', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => { if (!sessionStorage.getItem('x')){ sessionStorage.setItem('x', 1); localStorage.setItem('kuroko_theme', JSON.stringify('paper')); } });
+  await page.goto('/?tab=info');
+  await ready(page);
+  const st = () => page.evaluate(() => ({
+    theme: document.documentElement.getAttribute('data-theme'), saved: JSON.parse(localStorage.getItem('kuroko_theme') || 'null'),
+    pressed: [...document.querySelectorAll('#theme-pick [data-theme-id]')].filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.dataset.themeId),
+    label: document.getElementById('btn-theme').getAttribute('aria-label'),
+    over: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
+  let r = await st();
+  expect(r.theme).toBe('paper');
+  expect(r.pressed).toEqual(['paper']);
+  // 2つの見本は、どちらの見た目のときも、それぞれの色のまま（いまの見た目に左右されない）
+  const pv = () => page.evaluate(() => [...document.querySelectorAll('#theme-pick .tp-pv')].map(e => getComputedStyle(e).backgroundColor));
+  const before = await pv();
+  expect(before[0]).not.toBe(before[1]);
+  await page.locator('#theme-pick [data-theme-id="heavy"]').click();
+  r = await st();
+  expect(r.theme).toBe('heavy');
+  expect(r.saved).toBe('heavy');
+  expect(r.pressed).toEqual(['heavy']);
+  expect(r.label).toContain('重厚');
+  expect(r.over).toBeLessThanOrEqual(0);
+  expect(await pv()).toEqual(before);
+  await expect(page.locator('#toast')).toContainText('見た目：重厚');
+  // 開き直しても残る
+  await page.reload();
+  await ready(page);
+  r = await st();
+  expect(r.theme).toBe('heavy');
+  expect(r.pressed).toEqual(['heavy']);
+  // 右上のボタンで変えても、欄の印が合う
+  await page.locator('#btn-theme').click();
+  r = await st();
+  expect(r.theme).toBe('paper');
+  expect(r.pressed).toEqual(['paper']);
+  // いま選んでいる見た目をもう一度押しても、何も起きない
+  await page.locator('#theme-pick [data-theme-id="paper"]').click();
+  r = await st();
+  expect(r.theme).toBe('paper');
+  // 見本は飾り。ボタンの名前は「落ち着き」「重厚」
+  expect(await page.locator('#theme-pick .tp-pv').evaluateAll(es => es.every(e => e.getAttribute('aria-hidden') === 'true'))).toBe(true);
+  await expect(page.locator('#theme-pick button').first()).toHaveText(/落ち着き/);
+  expect(errors).toEqual([]);
+});
