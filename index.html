@@ -1153,7 +1153,9 @@ text.util:not([font-size]){font-size:7.5px}
 .rs-more{width:100%;margin-top:4px;padding:9px;border-radius:10px;border:1px dashed var(--border-strong);
   background:none;color:var(--accent-ink);font-size:11.5px;font-weight:900;cursor:pointer}
 .route-badge circle{fill:var(--accent);stroke:var(--surface);stroke-width:2}
-.route-badge text{font-size:9px;font-weight:900;fill:var(--on-accent)}
+/* v199：字の大きさは、丸の大きさに合わせて要素ごとに決める（ここで 9px と決めると、小さい丸から数字がはみ出して読めなかった） */
+.route-badge text{font-weight:900;fill:var(--on-accent)}
+.route-badge{pointer-events:none}
 /* 番号の輪は科の色。部屋の塗りが混雑度で埋まるぶん、
    ここが「その部屋が何科か」を示す唯一の確実な手がかりになる */
 .room-no circle{fill:var(--surface);stroke:var(--dept,var(--border-strong));stroke-width:1.8}
@@ -3698,7 +3700,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-11d',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-11e',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5836,6 +5838,8 @@ function drawFloor(floorNum){
     routeHops = hops;
   }
 
+  let routeBadges = '';                 // v199：回る順番の丸（部屋より上の層）
+  const routeOrder = [];
   const roomFrags = new Map();          // ブースごとの <g class="room">（変わった部屋だけ差し替えるため）
   placed.forEach(({ b, s }) => {
     const L = lvOf(b);
@@ -5986,10 +5990,15 @@ function drawFloor(floorNum){
     }
     if (onRoute){
       const n = routeIds.indexOf(b.id) + 1;
-      const rr = Math.max(4, Math.min(8.5, Math.min(s.w, s.h) * 0.34));
-      extra += `<g class="route-badge"><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${rr.toFixed(1)}"/>
-                <text x="${cx.toFixed(1)}" y="${(cy + rr * 0.38).toFixed(1)}" text-anchor="middle"
-                  font-size="${(rr * 1.15).toFixed(1)}">${n}</text></g>`;
+      // v199：回る順番の丸は、部屋の上の辺にまたがせて置く。部屋の真ん中に置いていたので、ブースの名前や番号の上に重なって、
+      // どちらも読めなくなっていた（「キッ③カー」「ミニ⑯見学」、小さい教室では番号の丸と重なって数字がつぶれる）
+      const rr = Math.max(4, Math.min(7, Math.min(s.w, s.h) * 0.3));
+      const by = s.y - rr * 0.7;                 // ほとんどを部屋の外（上）に出す。中へ入るのは丸の下 15% ほど
+      // 部屋の絵（塗り・柄）より上の層に描く。部屋の中に入れると、丸の下半分が部屋の絵に隠れる
+      routeOrder.push(b.id + ':' + n);
+      routeBadges += `<g class="route-badge" data-rs="${n}"><circle cx="${cx.toFixed(1)}" cy="${by.toFixed(1)}" r="${rr.toFixed(1)}"/>
+                <text x="${cx.toFixed(1)}" y="${(by + rr * 0.38).toFixed(1)}" text-anchor="middle"
+                  style="font-size:${(rr * (n > 9 ? 1.02 : 1.15)).toFixed(1)}px">${n}</text></g>`;
     }
 
     // QRを読んだ場所を「いまここ」として光らせる
@@ -6035,11 +6044,12 @@ function drawFloor(floorNum){
   if (svg.getAttribute('viewBox') !== vb) svg.setAttribute('viewBox', vb);
   svg.classList.toggle('has-booth', placed.length > 0);
   renderDeptLegend(floorNum);
-  html += routeHops;
+  html += routeHops + routeBadges;
   // 部屋の並び・倍率・コース・現在地などが前回と同じなら、中身が変わった部屋だけ差し替える。
   // 図面まるごと（1000要素超）を作り直すと、安い端末では1回0.3〜0.4秒のレイアウトになり、
   // 係員が1件更新しただけでも地図を触っている指の下で全体が組み直されていた
-  const struct = [floorNum, S.route, S.lvFilter, S.dept, S.spot, hereId(), lod, S.edit, S.picking, zoneTags.length,
+  // v199：回る順番（上の層に描く丸）が変わったときも、まるごと描き直す
+  const struct = [floorNum, S.route, routeOrder.join(','), S.lvFilter, S.dept, S.spot, hereId(), lod, S.edit, S.picking, zoneTags.length,
                   placed.map(p => p.b.id + '@' + p.s.id).join(',')].join('|');
   const prevFr = drawFloor._frags && drawFloor._frags[floorNum];
   let patched = false;

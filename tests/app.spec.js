@@ -2667,3 +2667,53 @@ test('お菓子と交換：係の人の4桁を入れて交換すると、画面�
   await expect(page.locator('#redeem-log')).toContainText('お菓子1個');
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v199：回る順番の丸 ---------------- */
+test('おすすめの回りかた：順番の丸は部屋の上の辺に置き、数字が丸に収まる（ブースの名前・番号に重ならない。押すと部屋が開く）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => localStorage.setItem('kuroko_intro_v1', '1'));
+  await page.goto('/?tab=map');
+  await ready(page);
+  const chip = page.locator('.chip[data-route]:not(.hide)').first();
+  await chip.scrollIntoViewIfNeeded();
+  await chip.click();
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll('#plan-' + S.floor + ' .route-badge').length)).toBeGreaterThan(1);
+  const r = await page.evaluate(() => {
+    const svg = document.getElementById('plan-' + S.floor), kids = [...svg.children];
+    const badges = [...svg.querySelectorAll('.route-badge')];
+    const lastRoom = kids.map((k, i) => k.classList.contains('room') ? i : -1).filter(i => i >= 0).pop();
+    const ids = CONFIG.ROUTES[S.route].filter(id => S.booths.some(b => b.id === id) && floorOfBooth(S.booths.find(b => b.id === id)) === S.floor);
+    let textOut = 0, overName = 0, notOnEdge = 0;
+    badges.forEach(g => {
+      const c = g.querySelector('circle').getBoundingClientRect(), t = g.querySelector('text').getBoundingClientRect();
+      // 数字は丸の中に収まる（はみ出すと、丸の外の白い数字が見えず、欠けて見える）
+      if (t.left < c.left - 1 || t.right > c.right + 1 || t.top < c.top - 2 || t.bottom > c.bottom + 2) textOut++;
+    });
+    // 丸は、その部屋の上の辺にまたがっている（真ん中に置かない）。部屋の名前の字に重ならない
+    ids.forEach((id, i) => {
+      const room = svg.querySelector(`.room[data-id="${CSS.escape(id)}"]`), g = badges.find(b => b.dataset.rs === String(CONFIG.ROUTES[S.route].indexOf(id) + 1));
+      if (!room || !g) return;
+      const fill = (room.querySelector('.fill') || room).getBoundingClientRect(), c = g.querySelector('circle').getBoundingClientRect();
+      const cy = (c.top + c.bottom) / 2;
+      if (Math.abs(cy - fill.top) > c.height * 0.6) notOnEdge++;
+      room.querySelectorAll('text.nm').forEach(tx => { const b = tx.getBoundingClientRect();
+        // 名前の字と、縦に 3px を超えて重なっていない（上の辺の線ぶんは重なる）
+        if (b.width && c.left < b.right && b.left < c.right && Math.min(c.bottom, b.bottom) - Math.max(c.top, b.top) > 3) overName++; });
+    });
+    return { n: badges.length, steps: ids.length, top: badges.every(g => kids.indexOf(g) > lastRoom), textOut, overName, notOnEdge,
+      pe: getComputedStyle(badges[0]).pointerEvents, firstId: ids[0] };
+  });
+  expect(r.n).toBe(r.steps);                           // この階の行き先ぶん、丸が1つずつ
+  expect(r.top).toBe(true);                            // 部屋の絵より上の層
+  expect(r.textOut).toBe(0);
+  expect(r.notOnEdge).toBe(0);
+  expect(r.overName).toBe(0);
+  expect(r.pe).toBe('none');                           // 丸の上を押しても、下の部屋が開く
+  // コースをやめると、丸も消える
+  await chip.scrollIntoViewIfNeeded();
+  await chip.click();
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll('#plan-' + S.floor + ' .route-badge').length)).toBe(0);
+  expect(errors).toEqual([]);
+});
