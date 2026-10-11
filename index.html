@@ -1875,6 +1875,8 @@ html.lite .hero-gear{animation:none}
 [data-fs="lg"] .hero-title{font-size:33px} [data-fs="lg"] .hero-day-t{font-size:13.5px} [data-fs="lg"] .hero-badge{font-size:13.5px}
 [data-fs="xl"] .hero-title{font-size:36px} [data-fs="xl"] .hero-day-t{font-size:15px} [data-fs="xl"] .hero-badge{font-size:15px} [data-fs="xl"] .hero-en{font-size:11.5px}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
+/* ---- v206：地図の左下のボタン。開いた直後は「全体」だけ（左の角）。動かしたら、その右に「ブースに寄せる」が出る ---- */
+#map-card.gmap .map-fit-ctl #zoom-reset{order:-1}
 /* ---- v205：ブースが届いた瞬間。骨組みから本物の地図へ、ぱっと切り替わらずに、すっと現れる ---- */
 #map-view .plan.arrive{animation:plan-arrive .55s var(--ease)}
 @keyframes plan-arrive{from{opacity:.15}to{opacity:1}}
@@ -3771,7 +3773,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-11k',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-11l',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5767,7 +5769,9 @@ function drawFloor(floorNum){
       ${st.type === 'corridor' ? corridorMark(st) : ''}
       ${st.label && st.type !== 'corridor' && !(st.type === 'road' && st.link) ? (st.type === 'road'
             ? fitTextSvg(st.label, st.x, st.y, st.w, st.h, 'road-t', 5, 4.2)
-            : fitTextSvg(st.label, st.x, st.y - (enter ? 14 : 0), st.w, st.h,
+            // v206：立入禁止の枠の字は、枠の上の端に、見出しのように置く（真ん中だと、開いた直後に左下の「全体」ボタンの下にもぐる。
+            // ボタンは枠の下 6割ほどを覆うので、上の 36% に収める）
+            : fitTextSvg(st.label, st.x, st.y - (enter ? 14 : 0), st.w, st.type === 'blocked' && st.h >= 30 ? st.h * 0.36 : st.h,
                          st.type === 'blocked' ? 'blocked-t' : 'util', 11, 4.2)) : ''}
       ${enter ? `<text x="${st.x + st.w / 2}" y="${st.y + st.h / 2 + 12}" text-anchor="middle" class="util" font-size="8">タップで中の地図へ</text>` : ''}
     </g>`;
@@ -7665,6 +7669,7 @@ function zoomApply(animate){
   z.el.style.transition = animate ? 'transform var(--t) var(--ease)' : 'none';
   z.el.style.transform = `translate(${z.x}px,${z.y}px) scale(${z.k})`;
   z.ax = z.x; z.ay = z.y; z.ak = z.k;
+  if (z._markFit != null){ z.fitV = { f: z._markFit, k: z.k, x: z.x, y: z.y }; z._markFit = null; }
   // 動いている間だけ合成レイヤーにする。止まったら外して、その倍率で
   // 描き直させる（つけっぱなしだと拡大した絵がぼやけたままになる）
   z.el.classList.add('moving');
@@ -7711,7 +7716,13 @@ function zoomApply(animate){
   // 以前は押せないボタンを消していたが、消えるとその場で列が詰まり、
   // 押そうとしたボタンが指の下から逃げる。場所は常に保ち、押せるかどうかだけ変える。
   if (zr) zr.classList.toggle('dim', atMin);
-  if (zb) zb.classList.toggle('dim', !atBase);
+  // v206：いまの見え方が、もう「ブースに寄せた形」なら「ブースに寄せる」は出さない（押しても何も変わらない）。
+  // 開いた直後がこの形なので、以前は左下に2つのボタンが並び、地図の字（「本館1階（立入禁止）」）に重なっていた。
+  // 動かしたり引いたりして形が変わったら出す。ブースの無い階でも出さない
+  const fv = z.fitV;
+  const atFit = !!fv && fv.f === S.floor && Math.abs(z.k - fv.k) < .011 && Math.abs(z.x - fv.x) < 1.5 && Math.abs(z.y - fv.y) < 1.5;
+  const noBooth = !S.booths.some(b => floorOfBooth(b) === S.floor);
+  if (zb) zb.classList.toggle('dim', !atBase || atFit || noBooth);
   if (zo) zo.classList.toggle('dim', atMin);
   const lb = $('#zoom-lv');
   if (lb){
@@ -8035,7 +8046,9 @@ function zoomToBooths(floorNum){
   if (!plan) return;
   // 部屋が少ない階（屋外など）は、寄せずに全体を見せた方が位置関係が分かる
   const ids = new Set(S.booths.filter(b => floorOfBooth(b) === floorNum).map(b => b.id));
+  ZOOM._markFit = floorNum;                       // v206：このあとの見え方が「ブースに寄せた形」（zoomApply が覚える）
   zoomToRooms(floorNum, plan.rooms.filter(r => ids.has(r.id)));
+  ZOOM._markFit = null;
 }
 
 /**
@@ -15080,6 +15093,7 @@ function fitMapBox(floorNum){
     // ぴったり収まるなら原点。使える高さで足りず縦にはみ出す階だけ、
     // 寄せた位置（ブースの中心）を活かして丸めは zoomApply にまかせる
     if (need <= maxH) ZOOM.y = 0;
+    if (hasBooth) ZOOM._markFit = floorNum;       // v206：箱を詰めたあとの形が、開いた直後の「ブースに寄せた形」
     zoomApply(false);
   }
 }
