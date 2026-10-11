@@ -1875,6 +1875,11 @@ html.lite .hero-gear{animation:none}
 [data-fs="lg"] .hero-title{font-size:33px} [data-fs="lg"] .hero-day-t{font-size:13.5px} [data-fs="lg"] .hero-badge{font-size:13.5px}
 [data-fs="xl"] .hero-title{font-size:36px} [data-fs="xl"] .hero-day-t{font-size:15px} [data-fs="xl"] .hero-badge{font-size:15px} [data-fs="xl"] .hero-en{font-size:11.5px}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
+/* ---- v205：ブースが届いた瞬間。骨組みから本物の地図へ、ぱっと切り替わらずに、すっと現れる ---- */
+#map-view .plan.arrive{animation:plan-arrive .55s var(--ease)}
+@keyframes plan-arrive{from{opacity:.15}to{opacity:1}}
+html.lite #map-view .plan.arrive{animation:none}
+@media (prefers-reduced-motion:reduce){ #map-view .plan.arrive{animation:none} }
 /* ---- v204：ブースがまだ届いていないあいだ・2（地図・本部モニタ）。
    地図は灰色の箱が明滅するだけで、何を待っているのかが書かれていなかった。取れなかったときも箱のままで、部屋の名前が読めなかった ---- */
 .map-wait{position:absolute;left:10px;top:10px;z-index:5;margin:0;max-width:calc(100% - 90px);
@@ -2946,6 +2951,10 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 .pam-spread .pam-list b{flex:none;box-sizing:border-box;min-width:0;width:1.56em;height:1.56em;margin-top:.07em;display:grid;place-items:center;
   border-radius:50%;background:#b91c1c;color:#fff;font-size:.8em;line-height:1;font-weight:900;text-align:center;letter-spacing:-.02em}
 .pam-spread .pam-list li.lm{font-weight:800}
+/* v205：パンフレットの文は、文節で折り返す（「分かりま／す」のように1文字だけ次の行に落とさない。対応しているブラウザだけ）。
+   あいさつ文は両端そろえなので、これまでどおり */
+.pam .pam-panel{word-break:auto-phrase;text-wrap:pretty}
+.pam .pam-gbody{word-break:normal;text-wrap:wrap}
 /* 長い名前が折り返すとき、1文字だけ次の行に落とさない（対応しているブラウザだけ。文節で折り、行の長さをそろえる） */
 .pam-spread .pam-list span{text-wrap:balance;word-break:auto-phrase}
 .pam-h3 small.pam-key{display:flex;align-items:center;gap:3.4mm;font-size:6.8pt;color:#444}
@@ -3762,7 +3771,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-11j',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-11k',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5862,6 +5871,7 @@ function drawFloor(floorNum){
     });
     svg.setAttribute('viewBox', planViewBox(floorNum));
     svg.innerHTML = html;
+    svg.dataset.skel = '1';        // v205：骨組みを出している（本物に変わるとき、すっと現れる動きを付ける）
     drawFloor._fp = null;          // データが来たら必ず描き直す
     return;
   }
@@ -6182,6 +6192,12 @@ function drawFloor(floorNum){
     }
   }
   if (!patched) svg.innerHTML = html;
+  // v205：骨組みから本物へ変わるときは、すっと現れる（ぱっと切り替わると、ちらついて見える）
+  if (svg.dataset.skel){
+    delete svg.dataset.skel;
+    svg.classList.remove('arrive'); void svg.getBoundingClientRect(); svg.classList.add('arrive');
+    setTimeout(() => svg.classList.remove('arrive'), 900);
+  }
   // 画面の上の線の太さ・角の丸みを倍率によらず一定にするため、いまの倍率を CSS に渡す（v140 の地図）
   svg.style.setProperty('--ms', Math.max(.3, mapScale()).toFixed(3));
   drawFloor._frags = drawFloor._frags || {};
@@ -8706,6 +8722,7 @@ function renderList(){
       }</span></div>`).join('');
   // v203：まだ1件も届いていないあいだは、「見つかりませんでした」ではなく、いまの状態を出す
   if (ws){
+    renderList._shape = 'wait';                    // v205：届いたら、はじめて描いたときと同じに（上から順に、ふわっと）出す
     box.classList.remove('stagger');
     if (cnt){ cnt.textContent = ''; cnt.classList.add('hide'); }
     box.innerHTML = helpHtml + (ws === 'load'

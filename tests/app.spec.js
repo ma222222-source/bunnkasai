@@ -25,6 +25,12 @@ async function ready(page) {
     };
     setTimeout(tick, 30);
   })).catch(() => {});
+  // v205：届いた瞬間の動き（一覧が上から順にふわっと出る・地図がすっと現れる）が終わるまで待つ。
+  // 動いている最中に位置を測ると 1px ずれる（終わりのある短い動きだけ。回り続けるものは待たない）
+  await page.evaluate(() => Promise.race([
+    Promise.all(document.getAnimations().filter(a => { try { const t = a.effect.getComputedTiming(); return a.playState === 'running' && isFinite(t.endTime) && t.endTime <= 1500; } catch (e) { return false; } })
+      .map(a => a.finished.catch(() => {}))),
+    new Promise(r => setTimeout(r, 1500))])).catch(() => {});
 }
 
 for (const w of WIDTHS) {
@@ -2998,5 +3004,35 @@ test('ブースが届くまで（本部モニタ）：返事を待たずに時�
   await expect(page.locator('#board-grid .btile').first()).toBeVisible();
   await expect(page.locator('#board-grid .board-empty')).toHaveCount(0);
   await expect(page.locator('#board-sync')).not.toHaveText('…');
+  expect(errors).toEqual([]);
+});
+
+/* ---------------- v205：ブースが届いた瞬間の動き ---------------- */
+test('ブースが届いた瞬間：一覧は上から順にふわっと出る（.stagger）。地図は骨組みからすっと現れる（.arrive は届いたときの1回だけ）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  let open; let hold = new Promise(r => { open = r; });
+  await page.route(/script\.google(usercontent)?\.com\//, async route => { if (hold) await hold; return route.fallback(); });
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=list');
+  await expect(page.locator('#booth-list .skel')).toHaveCount(4);
+  await expect(page.locator('#booth-list')).not.toHaveClass(/stagger/);      // 骨組みは、ふわっと出さない（明滅だけ）
+  // 地図に「すっと現れる」印が付いた回数を数える
+  await page.evaluate(() => { window.__arr = 0; const el = document.getElementById('plan-1'); let was = false;
+    new MutationObserver(() => { const on = el.classList.contains('arrive'); if (on && !was) window.__arr++; was = on; }).observe(el, { attributes: true, attributeFilter: ['class'] }); });
+  expect(await page.evaluate(() => document.getElementById('plan-1').dataset.skel)).toBe('1');
+  open(); hold = null;
+  await ready(page);
+  await expect(page.locator('#booth-list [data-sid]').first()).toBeVisible();
+  await expect(page.locator('#booth-list')).toHaveClass(/stagger/);
+  expect(await page.evaluate(() => window.__arr)).toBe(1);
+  expect(await page.evaluate(() => document.getElementById('plan-1').dataset.skel)).toBeUndefined();
+  await expect(page.locator('#plan-1')).not.toHaveClass(/arrive/, { timeout: 4000 });   // 動きが終わったら印を外す
+  // そのあとの描き直し（階を替えて戻る・更新）では、もう付かない
+  await page.locator('#nav button[data-view="map"]').click();
+  await page.evaluate(() => { setFloor(2); setFloor(1); drawFloor._fp = null; drawFloor(1); });
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => window.__arr)).toBe(1);
   expect(errors).toEqual([]);
 });

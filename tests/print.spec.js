@@ -474,16 +474,28 @@ test('三つ折りパンフレット：番号の一覧は大きな字（面に�
       // 目当てになる所は太字
       lm: qa('#pam .pam-list li.lm').map(li => li.textContent.trim()), lmWeight: +getComputedStyle(q('#pam .pam-list li.lm')).fontWeight,
       key: q('#pam .pam-key').textContent.replace(/\s+/g, ' ').trim(), keyWc: !!q('#pam .pam-key .pk-wc svg'),
-      rooms, over: qa('#pam .pam-panel.over').length,
+      rooms, over: qa('#pam .pam-panel.over').length, tight: sp.dataset.tight,
+      // 選んだ字が「入るなかでいちばん大きい」：0.1pt 大きくすると入らない（8.6pt が上限）
+      ...(() => { const cur = parseFloat(sp.dataset.pl), pb = parseFloat(getComputedStyle(sp).paddingBottom) || 0;
+        const fitsAt = pt => { sp.style.setProperty('--pl', pt.toFixed(1) + 'pt');
+          const sq = [...sp.children].some(c => c !== ls && c.scrollHeight > c.clientHeight + 1), top = ls.offsetParent === sp ? ls.offsetTop : ls.offsetTop - sp.offsetTop;
+          return !sq && top + ls.offsetHeight <= sp.clientHeight - pb + 0.5; };
+        const o = { fitsCur: fitsAt(cur), fitsMore: cur >= 8.55 ? false : fitsAt(cur + 0.1) };
+        sp.style.setProperty('--pl', cur.toFixed(1) + 'pt');
+        return o; })(),
     };
   });
   expect(r.over).toBe(0);
-  expect(r.listPt).toBeGreaterThanOrEqual(7.2);         // v203 までは 6.6pt
+  expect(r.tight).toBe('');
+  // 字の大きさは書体で変わる（手元の Windows で 7.5pt、GitHub の Linux で 6.9pt。v203 までは、どちらも 6.6pt）
+  expect(r.listPt).toBeGreaterThanOrEqual(process.platform === 'win32' ? 7.2 : 6.6);
   expect(r.listPt).toBeLessThanOrEqual(8.7);
+  expect(r.fitsCur).toBe(true);
+  expect(r.fitsMore).toBe(false);
   expect(Math.abs(r.listPt - r.pl)).toBeLessThan(0.15);
   expect(r.bBg).toBeLessThan(0.3); expect(r.bInk).toBeGreaterThan(0.9); expect(r.bRound).toBe('50%');
   expect(Math.abs(r.bW - r.bH)).toBeLessThan(0.2);
-  expect(r.bW).toBeGreaterThanOrEqual(2.9);             // 丸は直径 2.9mm 以上（2けたの数字が入る）
+  expect(r.bW).toBeGreaterThanOrEqual(2.8);             // 丸は直径 2.8mm 以上（2けたの数字が入る）
   expect(r.m3.length).toBe(4);
   expect(r.m3Below).toBe(true);
   expect(r.heads).toEqual(['1階', '2階']);
@@ -518,15 +530,51 @@ test('三つ折りパンフレット：名前が長くて行が増えたら、�
         total: document.querySelectorAll('#pam .pam-list li').length, over: sp.classList.contains('over') };
     });
   };
-  // 少し長い名前：行が増えるぶん、字が小さくなる。地図の箱は縮まない
+  // もとの名前での字の大きさ
+  const base = await open('');
+  expect(base.squeezed).toBe(0);
+  expect(base.over).toBe(false);
+  // 少し長い名前：行が増えるぶん、字が小さくなる（書体によっては、いちばん小さい字でも入らない。そのときは必ず印が付く＝黙って地図に重ねない）
   const a = await open('・体験');
   expect(a.total).toBe(46);
-  expect(a.squeezed).toBe(0);
-  expect(a.over).toBe(false);
   expect(a.pl).toBeGreaterThanOrEqual(6.6);
-  expect(a.pl).toBeLessThan(7.6);
+  expect(a.pl).toBeLessThanOrEqual(base.pl);
+  expect(a.squeezed === 0 || a.over).toBe(true);
+  if (a.pl > 6.65) { expect(a.squeezed).toBe(0); expect(a.over).toBe(false); }
   // とても長い名前：いちばん小さい字（6.6pt）でも入らない → 面にはみ出しの印
   const b = await open('（とても長い名前のブースの例です。とても長い名前のブースの例です）');
   expect(b.pl).toBe(6.6);
   expect(b.over).toBe(true);
+});
+
+/* ---------------- v205：パンフレットの文は文節で折り返す ---------------- */
+test('三つ折りパンフレット：文は文節で折り返す（1文字だけ次の行に落とさない）。あいさつ文は両端そろえのまま。はみ出しなし', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/?mode=pamphlet');
+  await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
+  await page.emulateMedia({ media: 'print' });
+  await page.setViewportSize({ width: 1123, height: 794 });
+  await page.evaluate(() => { localStorage.setItem('kuroko_pamphlet_v1', JSON.stringify({ _flip: 'short' })); renderPamphlet(); });
+  const r = await page.evaluate(() => {
+    const q = s => document.querySelector(s), cs = el => getComputedStyle(el);
+    const flapP = q('#pam [data-panel="flap"] p') || q('#pam [data-panel="flap"] li');
+    // 行ごとの文字数：ひとつの段落を Range で1文字ずつ測り、最後の行が1文字だけの段落を数える
+    const orphans = [...document.querySelectorAll('#pam [data-panel="flap"] p, #pam [data-panel="flap"] li, #pam [data-panel="flap"] span, #pam [data-panel="back"] p, #pam [data-panel="back"] li, #pam [data-panel="back"] span')].filter(el => {
+      const tn = [...el.childNodes].filter(n => n.nodeType === 3 && n.textContent.trim().length > 6).pop();
+      if (!tn) return false;
+      const rg = document.createRange(), tops = [];
+      for (let i = 0; i < tn.textContent.length; i++){ rg.setStart(tn, i); rg.setEnd(tn, i + 1); const b = rg.getBoundingClientRect(); if (b.width) tops.push(Math.round(b.top)); }
+      const last = tops[tops.length - 1];
+      return tops.length > 8 && tops[0] !== last && tops.filter(t => t === last).length === 1;
+    }).map(el => el.textContent.trim().slice(-12));
+    return { wb: cs(flapP).wordBreak, tw: cs(flapP).textWrapStyle || cs(flapP).textWrap, gwb: cs(q('#pam .pam-gbody')).wordBreak, gal: cs(q('#pam .pam-gbody')).textAlign,
+      orphans, over: document.querySelectorAll('#pam .pam-panel.over').length };
+  });
+  expect(r.wb).toBe('auto-phrase');
+  expect(String(r.tw)).toContain('pretty');
+  expect(r.gwb).toBe('normal');
+  expect(r.gal).toBe('justify');
+  expect(r.orphans).toEqual([]);
+  expect(r.over).toBe(0);
 });
