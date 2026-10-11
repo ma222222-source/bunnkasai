@@ -1878,7 +1878,8 @@ html.lite .hero-gear{animation:none}
 /* ---- v201：開く欄（使い方のこつ・地図の見かた・友だちに見せるQR・スタンプ番号 など）は、中身が上からすっと出る。
    押した瞬間に中身がぱっと現れて、下の物が一気に押し下げられるだけだったので、何が増えたのかが目で追いにくかった ---- */
 details[open] > :not(summary){animation:det-in .28s var(--ease) both}
-@keyframes det-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+/* はじまりは「うすく見えている」にする（まったく見えない所から始めると、動きがなかなか始まらない重い端末で、中身が見えない時間ができる） */
+@keyframes det-in{from{opacity:.3;transform:translateY(-6px)}to{opacity:1;transform:none}}
 html.lite details[open] > :not(summary){animation:none}
 @media print{ details[open] > :not(summary){animation:none !important} }
 /* ---- v198：お菓子と交換できたときの表示（スタンプの演出と同じカード） ---- */

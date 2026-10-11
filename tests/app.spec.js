@@ -2778,10 +2778,12 @@ test('開く欄（使い方のこつ・地図の見かた など）：開くと�
   for (const a of r.anim) expect(a).toBe('det-in');
   expect(r.sum).not.toBe('det-in');                    // 見出し（押す所）は動かさない
   // 動き終わると、ずれ・薄さは残らない
-  await page.waitForTimeout(500);
-  const end = await tips.evaluate(d => { const c = [...d.children].find(x => x.tagName !== 'SUMMARY'), s = getComputedStyle(c); return { op: s.opacity, tr: s.transform }; });
-  expect(end.op).toBe('1');
-  expect(['none', 'matrix(1, 0, 0, 1, 0, 0)']).toContain(end.tr);
+  // （重いときは動きの始まりが遅れるので、決まった時間ではなく、終わるまで待つ）
+  const state = () => tips.evaluate(d => { const c = [...d.children].find(x => x.tagName !== 'SUMMARY'), s = getComputedStyle(c); return { op: +s.opacity, tr: s.transform }; });
+  // 動いている途中も、中身はうすく見えている（まったく見えない時間を作らない）
+  expect((await state()).op).toBeGreaterThanOrEqual(0.29);
+  await expect.poll(async () => (await state()).op, { timeout: 8000 }).toBe(1);
+  expect(['none', 'matrix(1, 0, 0, 1, 0, 0)']).toContain((await state()).tr);
   // 閉じて開き直すと、もう一度動く（中身は消えていない）
   await tips.locator('summary').click();
   await expect(tips).not.toHaveAttribute('open', '');
