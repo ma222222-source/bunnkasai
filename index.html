@@ -1875,6 +1875,20 @@ html.lite .hero-gear{animation:none}
 [data-fs="lg"] .hero-title{font-size:33px} [data-fs="lg"] .hero-day-t{font-size:13.5px} [data-fs="lg"] .hero-badge{font-size:13.5px}
 [data-fs="xl"] .hero-title{font-size:36px} [data-fs="xl"] .hero-day-t{font-size:15px} [data-fs="xl"] .hero-badge{font-size:15px} [data-fs="xl"] .hero-en{font-size:11.5px}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
+/* ---- v203：ブースの一覧がまだ届いていないあいだ（はじめて開いた・電波が弱い。本番のサーバーは3秒前後、ときどきもっとかかる）。
+   以前は、一覧に「さがしたブースは見つかりませんでした」、スタンプに「0 / 0 ブース」と空の枠が出ていた ---- */
+.list-wait{margin:2px 4px 0;font-size:12px;font-weight:800;color:var(--text-mute)}
+[data-fs="lg"] .list-wait{font-size:13.5px} [data-fs="xl"] .list-wait{font-size:15px}
+.stamp-count.wait .tot{display:none}
+.stamp-count.wait #stamp-msg{color:var(--text-mute)}
+.stamp-count.load .rg-bg{animation:skel-pulse 1.4s ease-in-out infinite}
+.progress.load{background:linear-gradient(90deg,var(--surface-3) 25%,var(--surface-2) 37%,var(--surface-3) 63%);
+               background-size:400% 100%;animation:sk 1.3s linear infinite}
+.stamp.skel-st{border-style:solid;border-color:transparent;animation:skel-pulse 1.4s ease-in-out infinite}
+.stamp-wait{grid-column:1 / -1;margin:0;font-size:12px;font-weight:800;color:var(--text-mute)}
+[data-fs="lg"] .stamp-wait{font-size:13.5px} [data-fs="xl"] .stamp-wait{font-size:15px}
+html.lite .stamp-count.load .rg-bg,html.lite .progress.load,html.lite .stamp.skel-st{animation:none}
+@media (prefers-reduced-motion:reduce){ .stamp-count.load .rg-bg,.progress.load,.stamp.skel-st{animation:none} }
 /* ---- v202：「重厚」（暗い見た目）のスタンプ帳。判子のインクは紙の上で映える濃い色（紺・紫・濃い緑…）なので、
    暗いマスの上では沈んで見えにくかった。押した判子の下に、小さな紙の地を敷く（判子は紙に押すもの） ---- */
 [data-theme="heavy"] .stamp .mk.art{background:#efe9dd;border-radius:12px;box-shadow:0 0 0 4px #efe9dd,0 2px 6px 4px rgba(0,0,0,.35)}
@@ -3711,7 +3725,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-11h',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-11i',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4759,6 +4773,7 @@ async function sync(manual){
     }
     if (manual) toast(S.errKind === 'net' ? '通信できませんでした' : S.errKind === 'slow' ? '応答が遅れています。少しあとで自動でつなぎ直します' : 'サーバーが応答しません');
     renderSyncState();
+    renderWaiting();                               // v203：まだ1件も届いていないなら、「読み込み中」を「取れていない」に変える
   }finally{
     sync._busy = false;
     clearTimeout(sync._slow);
@@ -5369,6 +5384,20 @@ function markChanges(){
  * DOMを作り直すと、スクロール位置・アニメーション・押下状態が飛ぶため、
  * 変化がないときは再描画そのものを省く。
  */
+/**
+ * v203：ブースの一覧がまだ1件も無いときの状態。
+ * '' = ある／load = 読み込み中（まだ一度も届いていない）／fail = 取れていない／none = サーバーに1件も無い。
+ * 以前は区別せず、一覧に「さがしたブースは見つかりませんでした」と出していた（探してもいないのに）
+ */
+function waitState(){
+  return S.booths.length ? '' : S.fetchedAt ? 'none' : S.failures ? 'fail' : 'load';
+}
+/** v203：一覧がまだ届いていないあいだの表示（一覧・スタンプ）を、いまの状態に合わせる */
+function renderWaiting(){
+  if (S.booths.length) return;
+  if (S.view === 'list') renderList();
+  renderStamps();
+}
 function fingerprint(extra){
   return extra + '|' + S.booths.map(b =>
     [b.id, b.status, b.wait, b.name, b.note, b.category, b.floor, b.time, b.stale].join('~')
@@ -7449,7 +7478,9 @@ function recentItems(){
       return `<button type="button" role="option" id="sg-${i}" data-i="${i}"><span class="sg-ic">${no ? esc(String(no)) : '•'}</span>
         <span class="sg-tx"><b>${esc(b.name)}</b><small>${esc(flLabel(b))}${slotOf(b.id) && slotOf(b.id).nm ? '・' + esc(slotOf(b.id).nm) : ''}</small></span>
         <span class="sg-st" data-lv="${L.lv}">${esc(st)}</span></button>`;
-    }).join('') : '<p class="sg-none">見つかりませんでした。別のことばでさがしてください</p>');
+    }).join('') : '<p class="sg-none">' + (waitState() === 'load' ? 'ブースの一覧を読み込んでいます。少し待ってから、もう一度さがしてください'
+        : waitState() === 'fail' ? 'ブースの一覧をまだ取れていません。少し待ってから、もう一度さがしてください'
+        : '見つかりませんでした。別のことばでさがしてください') + '</p>');
     box.classList.remove('hide');
     inp.setAttribute('aria-expanded', 'true');
     $$('button', box).forEach(el => {
@@ -8531,7 +8562,8 @@ function renderRecentRow(){
 function renderList(){
   // 「◯分前」は tickAgo() がその場で書き換えるので、中身が同じなら作り直さない
   // （以前は1分ごとに150件を作り直していて、安い端末では毎分1秒近く固まっていた）
-  const fp = fingerprint(`list:${S.lf}:${S.todoOnly}:${S.cat}:${S.sort}:${S.sort === 'near' ? hereId() : ''}:${S.q}:${S.wishOnly}:${Array.from(S.wish).sort().join(',')}`);
+  const ws = waitState();
+  const fp = fingerprint(`list:${ws}${ws === 'fail' ? S.errKind : ''}:${S.lf}:${S.todoOnly}:${S.cat}:${S.sort}:${S.sort === 'near' ? hereId() : ''}:${S.q}:${S.wishOnly}:${Array.from(S.wish).sort().join(',')}`);
   if (renderList._fp === fp) return;
   renderList._fp = fp;
 
@@ -8613,6 +8645,21 @@ function renderList(){
       <span class="qhelp-tx"><b>${esc(t)}</b><span>${esc(d)}</span>${
         HELP_ON_MAP.indexOf(i) >= 0 ? `<button class="qhelp-map" type="button" data-fac="1">${ICON.wc || ''} 地図でトイレ・出入口を見る</button>` : ''
       }</span></div>`).join('');
+  // v203：まだ1件も届いていないあいだは、「見つかりませんでした」ではなく、いまの状態を出す
+  if (ws){
+    box.classList.remove('stagger');
+    if (cnt){ cnt.textContent = ''; cnt.classList.add('hide'); }
+    box.innerHTML = helpHtml + (ws === 'load'
+      ? '<p class="list-wait" role="status">ブースの一覧を読み込んでいます…</p>' + '<div class="skel"></div>'.repeat(4)
+      : ws === 'fail'
+      ? `<p class="empty has-ic"><span class="empty-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.2 9.1 4.5 4.5 0 0 0 7 18z"/><path d="M4 3.5l16 17"/></svg></span>ブースの一覧をまだ取れていません。<br>
+          ${S.errKind === 'net' ? '電波の良い場所で、もう一度お試しください。' : '少し待つと、自動でつなぎ直します。'}
+          <button type="button" class="btn ghost empty-reset" data-retry-sync>もう一度読み込む</button></p>`
+      : '<p class="empty">ブースの情報がまだ登録されていません。</p>');
+    wireHelpHits(box);
+    $$('[data-retry-sync]', box).forEach(el => el.addEventListener('click', () => { S.failures = 0; renderWaiting(); sync(true); }));
+    return;
+  }
   if (!items.length){
     box.innerHTML = helpHtml || (S.wishOnly && !S.wish.size
       ? `<p class="empty has-ic"><span class="empty-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.7l5.9-.8z"/></svg></span>★を付けたブースはまだありません。<br>
@@ -9592,10 +9639,10 @@ function tickCode(){
  * 交換できる人には大きく知らせて交換のカードへ案内する。下のタブにも印を付ける。
  * 交換の条件（PRIZE_COST・消費方式）は変えない。表示だけ
  */
-function renderPrize(got, left, need, canGet){
+function renderPrize(got, left, need, canGet, ws){
   const box = $('#stamp-prize');
   if (box){
-    const fp = [got, left, need, canGet].join('|');
+    const fp = [got, left, need, canGet, ws || ''].join('|');
     if (renderPrize._fp !== fp){
       renderPrize._fp = fp;
       box.classList.toggle('ready', canGet > 0);
@@ -9605,6 +9652,9 @@ function renderPrize(got, left, need, canGet){
             <li>スタンプが1つ付く</li>
             <li>スタンプ${need}個で、お菓子1個と交換（係の人に画面を見せる）</li>
           </ol>`;
+      } else if (ws){
+        // v203：一覧が届くまで、いくつ交換できるかは決められない（無くなったブースのスタンプは数えないため）
+        box.innerHTML = '<div class="prize-row"><span class="prize-tx">ブースの情報が届くと、交換できる数が出ます</span></div>';
       } else if (canGet){
         box.innerHTML = `<div class="prize-row"><span class="prize-dots" aria-hidden="true">${
             Array.from({ length: need }, () => '<i class="on">✓</i>').join('')}</span>
@@ -9661,11 +9711,17 @@ function renderStampLog(){
 
 function renderStamps(){
   const total = S.booths.length;
-  const got = S.booths.filter(b => S.stamps.has(b.id)).length;
+  // v203：ブースの一覧がまだ届いていないあいだ（はじめて開いた・電波が弱い）。持っているスタンプの数はこの端末にあるので、それを出す。
+  // 以前は、一覧が届くまで「0 / 0 ブース」と空の枠が出ていた
+  const ws = waitState();
+  const got = ws ? S.stamps.size : S.booths.filter(b => S.stamps.has(b.id)).length;
   const done = total > 0 && got === total;
 
   $('#stamp-n').textContent = got;
   $('#stamp-total').textContent = total;
+  { const sc = $('#v-stamp .stamp-count'), pg = $('#stamp-bar').parentNode;
+    if (sc){ sc.classList.toggle('wait', !!ws); sc.classList.toggle('load', ws === 'load'); }
+    if (pg) pg.classList.toggle('load', ws === 'load'); }
   $('#stamp-bar').style.width = total ? (got / total * 100) + '%' : '0%';
   { // v189：輪（集めた割合）。全部回ったら色を変える
     const rg = $('#stamp-ring'), rb = $('#stamp-ring-box');
@@ -9678,7 +9734,10 @@ function renderStamps(){
   chip.classList.toggle('top', !!done);
   if (rk) chip.innerHTML = mark(rk.mark) + ' ' + esc(rk.name);
 
-  const stMsg = done ? 'ぜんぶ回りました！'
+  const stMsg = ws === 'load' ? 'ブースの数を読み込んでいます…'
+    : ws === 'fail' ? 'ブースの数をまだ取れていません。自動でつなぎ直します'
+    : ws === 'none' ? 'ブースがまだ登録されていません'
+    : done ? 'ぜんぶ回りました！'
     : got === 0 ? 'まずは1つ回ってみよう'
     : got >= total - 1 ? 'あと1か所！'
     : `あと${total - got}か所`;
@@ -9687,14 +9746,15 @@ function renderStamps(){
   // 「使える／交換済み」の内訳。「集めた」は、そのすぐ上の「◯ / ◯ ブース」と
   // 同じ数を二度出していたのでやめた
   const need = Math.max(1, CONFIG.PRIZE_COST | 0);
-  const spentN = S.spent.length, left = stampsLeft();
+  const spentN = S.spent.length;
+  const left = ws ? (() => { const sp = new Set(S.spent); return Array.from(S.stamps).filter(id => !sp.has(id)).length; })() : stampsLeft();
   const tally = $('#stamp-tally');
   if (tally) tally.innerHTML =
     `<div class="${left >= need ? 'ok' : ''}"><b>${left}</b><span>使えるスタンプ</span></div>` +
     `<div class="${spentN ? 'used' : ''}"><b>${spentN}</b><span>交換済み</span></div>`;
 
-  const canGet = Math.floor(left / need);
-  renderPrize(got, left, need, canGet);
+  const canGet = ws ? 0 : Math.floor(left / need);        // 一覧が届くまでは交換に進ませない（どのスタンプを使うかを決められない）
+  renderPrize(got, left, need, canGet, ws);
   // v159：★行きたい のうち何件回ったか
   const wp = $('#stamp-wish');
   if (wp){
@@ -9712,7 +9772,7 @@ function renderStamps(){
   }
   if (open){
     open.disabled = !canGet;
-    open.textContent = canGet ? 'お菓子と交換する' : `あと${need - (left % need)}個で交換できます`;
+    open.textContent = canGet ? 'お菓子と交換する' : ws && left >= need ? 'ブースの情報を待っています…' : `あと${need - (left % need)}個で交換できます`;
   }
   // 交換パッドを開いたまま条件を失うと、係員の前で4桁を打ってから
   // 「足りません」と言われることになる。開く前の状態へ戻す
@@ -9733,9 +9793,11 @@ function renderStamps(){
   // 中身が変わったときだけ作り直す（演出も、変わったときだけ）
   const gridFp = S.booths.map(b => b.id + '~' + b.name).join(';')
                + '|' + Array.from(S.stamps).sort().join(',')
-               + '|' + S.spent.join(',') + '|' + S.justStamp;
+               + '|' + S.spent.join(',') + '|' + S.justStamp + '|' + ws;
   const gridChanged = renderStamps._gridFp !== gridFp;
-  const firstDraw = renderStamps._gridFp === undefined;
+  // 「読み込み中」から本物に変わったときも、はじめて描いたときと同じに出す
+  const firstDraw = renderStamps._gridFp === undefined || (!!renderStamps._ws && !ws);
+  renderStamps._ws = ws;
   renderStamps._gridFp = gridFp;
   $('#stamp-grid').classList.toggle('stagger', firstDraw);
   // v157：階ごとに見出しを付ける（46枚が1つに並ぶと、目当てのスタンプが探しにくい）。階の中は番号順
@@ -9743,7 +9805,10 @@ function renderStamps(){
   const sorted = S.booths.slice().sort((a, b) => flOrder(floorOfBooth(a)) - flOrder(floorOfBooth(b))
     || (S.numbers.get(a.id) || 999) - (S.numbers.get(b.id) || 999));
   let lastFl = null;
-  if (gridChanged) $('#stamp-grid').innerHTML = sorted.map(b => {
+  if (gridChanged) $('#stamp-grid').innerHTML = ws === 'load'
+    ? '<p class="stamp-wait">スタンプ帳を読み込んでいます…</p>' + '<span class="stamp skel-st" aria-hidden="true"></span>'.repeat(6)
+    : ws ? `<p class="stamp-wait">${ws === 'fail' ? 'ブースの一覧が届くと、ここにスタンプ帳が出ます。' : 'ブースがまだ登録されていません。'}</p>`
+    : sorted.map(b => {
     const f = floorOfBooth(b);
     let head = '';
     if (f !== lastFl){
@@ -9794,10 +9859,11 @@ function renderStamps(){
     $('#cert-sub').textContent = `${total}ブースすべてを回りました`;
     $('#cert-date').textContent = new Date(at).toLocaleString('ja-JP',
       { year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
-  } else {
+  } else if (!ws){
+    // v203：一覧が届いていないあいだは消さない（全部回った人が、次に開いたとき達成の時刻を失わない）
     store('kuroko_cert_at', undefined);
   }
-  $('#stamp-share').classList.toggle('hide', got === 0);
+  $('#stamp-share').classList.toggle('hide', got === 0 || !!ws);
   $('#stamp-handoff').classList.toggle('hide', S.stamps.size === 0);
   $('#stamp-reset').classList.toggle('hide', !S.isAdmin);
   renderSyncBadge();
@@ -14255,10 +14321,11 @@ function init(){
   }
   renderInfo();
   drawFloor(1);                       // データを待たずに校舎の枠を出す
+  renderWaiting();                    // v203：控えが無いとき（はじめて開いた）は、スタンプの画面も「読み込み中」の形で出しておく
 
   $$('#nav button').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
   $('#btn-reload').addEventListener('click', () => sync(true));
-  $('#banner-retry').addEventListener('click', () => { S.failures = 0; sync(true); });
+  $('#banner-retry').addEventListener('click', () => { S.failures = 0; renderWaiting(); sync(true); });
   FLOORS.forEach(f => $('#fl-' + f.n).addEventListener('click', () => { setFloor(f.n); flashFloor(f.n); }));
   $$('.chip[data-route]').forEach(el => el.addEventListener('click', () => {
     S.route = S.route === el.dataset.route ? null : el.dataset.route;
