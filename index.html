@@ -1875,6 +1875,20 @@ html.lite .hero-gear{animation:none}
 [data-fs="lg"] .hero-title{font-size:33px} [data-fs="lg"] .hero-day-t{font-size:13.5px} [data-fs="lg"] .hero-badge{font-size:13.5px}
 [data-fs="xl"] .hero-title{font-size:36px} [data-fs="xl"] .hero-day-t{font-size:15px} [data-fs="xl"] .hero-badge{font-size:15px} [data-fs="xl"] .hero-en{font-size:11.5px}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
+/* ---- v204：ブースがまだ届いていないあいだ・2（地図・本部モニタ）。
+   地図は灰色の箱が明滅するだけで、何を待っているのかが書かれていなかった。取れなかったときも箱のままで、部屋の名前が読めなかった ---- */
+.map-wait{position:absolute;left:10px;top:10px;z-index:5;margin:0;max-width:calc(100% - 90px);
+  display:flex;align-items:center;gap:8px;min-height:36px;padding:6px 13px;border-radius:999px;pointer-events:none;
+  background:rgba(32,33,36,.82);color:#fff;font-size:12.5px;font-weight:800;line-height:1.35;
+  box-shadow:0 1px 3px rgba(0,0,0,.25);animation:rise .32s var(--ease) both}
+.map-wait.hide{display:none}
+.map-wait::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:#8ab4f8;animation:skel-pulse 1.2s ease-in-out infinite}
+.map-wait[data-ws="fail"]::before{background:#f28b82;animation:none}
+[data-fs="lg"] .map-wait{font-size:13.5px} [data-fs="xl"] .map-wait{font-size:15px}
+/* 寄せる先（ブース）がまだ無いあいだは「ブースに寄せる」を出さない（場所は残す） */
+.map-fit-ctl button.wait{visibility:hidden}
+html.lite .map-wait,html.lite .map-wait::before{animation:none}
+@media (prefers-reduced-motion:reduce){ .map-wait,.map-wait::before{animation:none} }
 /* ---- v203：ブースの一覧がまだ届いていないあいだ（はじめて開いた・電波が弱い。本番のサーバーは3秒前後、ときどきもっとかかる）。
    以前は、一覧に「さがしたブースは見つかりませんでした」、スタンプに「0 / 0 ブース」と空の枠が出ていた ---- */
 .list-wait{margin:2px 4px 0;font-size:12px;font-weight:800;color:var(--text-mute)}
@@ -2920,6 +2934,27 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 .pam-list{margin:0;padding:0;list-style:none;column-gap:3mm;font-size:6.3pt;line-height:1.42}
 .pam-list li{break-inside:avoid;display:flex;gap:1mm}
 .pam-list b{flex:none;min-width:3.4mm;text-align:right;font-weight:900;color:#b91c1c;font-variant-numeric:tabular-nums}
+/* ---- v204（ユーザーの依頼：パンフレットをもっと見やすく） ----
+   ①番号の一覧の字は、面に収まる範囲でいちばん大きく（--pl。pamCheck が決める。6.6pt〜8.6pt）
+   ②一覧の番号は、地図と同じ赤い丸に白い数字（地図の丸と一覧が、同じ形でつながる）
+   ③3階の一覧は、3階の地図のすぐ下（空いていた所）へ。下の一覧の行が減るぶん、字を大きくできる
+   ④地図の印の説明（ブースの番号・トイレ・会場の札）を見出しの右に
+   ⑤会場・受付など目当てになる所は、一覧で太字 */
+.pam-lists{font-size:var(--pl,6.6pt);line-height:1.36}
+.pam-mini .pam-list{margin-top:1.3mm;font-size:var(--pl,6.6pt);line-height:1.36}
+.pam-spread .pam-list li{gap:1.1mm;align-items:flex-start}
+.pam-spread .pam-list b{flex:none;box-sizing:border-box;min-width:0;width:1.56em;height:1.56em;margin-top:.07em;display:grid;place-items:center;
+  border-radius:50%;background:#b91c1c;color:#fff;font-size:.8em;line-height:1;font-weight:900;text-align:center;letter-spacing:-.02em}
+.pam-spread .pam-list li.lm{font-weight:800}
+/* 長い名前が折り返すとき、1文字だけ次の行に落とさない（対応しているブラウザだけ。文節で折り、行の長さをそろえる） */
+.pam-spread .pam-list span{text-wrap:balance;word-break:auto-phrase}
+.pam-h3 small.pam-key{display:flex;align-items:center;gap:3.4mm;font-size:6.8pt;color:#444}
+.pam-key span{display:inline-flex;align-items:center;gap:1.1mm;white-space:nowrap}
+.pam-key i{font-style:normal;flex:none}
+.pam-key .pk-no{width:3.5mm;height:3.5mm;display:grid;place-items:center;border-radius:50%;background:#b91c1c;color:#fff;font-size:5.6pt;font-weight:900;line-height:1}
+.pam-key .pk-wc{width:3.6mm;height:3.6mm;color:#555;line-height:0}
+.pam-key .pk-wc svg{width:100%;height:100%}
+.pam-key .pk-call{padding:.35mm 1.3mm;border-radius:.6mm;background:#1a1814;color:#fff;font-size:5.8pt;font-weight:800;line-height:1.2}
 /* 画面の上の操作の段 */
 .pam-bar-ui{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .pam-bar-ui .btn{flex:1;min-width:150px;width:auto}
@@ -3039,6 +3074,8 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
             <div class="map-flash" id="map-flash" aria-hidden="true"></div>
             <!-- v169：状態で目立たせている間ずっと見える札（トーストは消えるので、なぜ薄いのか分からなくなる） -->
             <button class="lv-pill hide" id="lv-pill" type="button"></button>
+            <!-- v204：ブースがまだ届いていないあいだの札（何を待っているのかを地図の上に書く） -->
+            <p class="map-wait hide" id="map-wait" role="status"></p>
           <div class="zoom-lv" id="zoom-lv" aria-hidden="true"></div>
 
           <div class="map-view" id="map-view">
@@ -3725,7 +3762,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-11i',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-11j',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4756,6 +4793,7 @@ async function sync(manual){
     if (S.view === 'stamp' && !document.hidden) pullLedger(90000);   // スタンプ画面を開きっぱなしでも追いつく
   }catch(err){
     S.online = false; S.failures++;
+    sync._failed = true;
     // 通信断とサーバー側の異常を区別する（対処が違うため）
     const msg = String(err && err.message || err);
     // HTTP 5xx はサーバー側の不調（電波ではない）。「電波の良い場所へ」と案内しない
@@ -4976,7 +5014,7 @@ function renderSyncState(){
              : S.errKind === 'slow' ? '案内システムの応答が遅れています。最後に取得した情報を表示しています（自動でつなぎ直します）。'
              : '案内システムが一時的に応答していません。最後に取得した情報を表示しています。')
       // 初回で何も受け取れていないときは一覧も空。「下に出ています」とは言わない
-      : '混雑状況を取れませんでした。校内マップは下で見られます。'
+      : '混雑状況を取れませんでした。' + (S.view === 'map' ? '校内マップは下で見られます。' : '校内マップは「マップ」で見られます。')
         + '出し物や待ち時間は、各ブースの入口の掲示か、近くの係の人にきいてください。';
     dot.className = 'dot down';
     txt.textContent = S.booths.length ? `つながっていません・${ago(S.updatedAt)}の情報` : 'つながっていません';
@@ -5395,8 +5433,27 @@ function waitState(){
 /** v203：一覧がまだ届いていないあいだの表示（一覧・スタンプ）を、いまの状態に合わせる */
 function renderWaiting(){
   if (S.booths.length) return;
+  renderMapWait();
+  drawFloor(S.floor);                              // v204：取れなかったら、骨組みをやめて部屋の名前を出す
   if (S.view === 'list') renderList();
+  if (S.view === 'board') renderBoard();
+  renderSyncState();                               // 帯の文（どの画面にいるかで変わる）
   renderStamps();
+}
+/** v204：地図の上の札。ブースがまだ届いていないあいだ、何を待っているのかを書く */
+function renderMapWait(){
+  const el = $('#map-wait');
+  if (!el) return;
+  const ws = waitState();
+  const on = ws === 'load' || ws === 'fail';
+  el.classList.toggle('hide', !on);
+  if (on){
+    el.dataset.ws = ws;
+    const tx = ws === 'load' ? 'ブースを読み込み中…' : 'ブースをまだ取れていません';
+    if (el.textContent !== tx) el.textContent = tx;
+  }
+  const zb = $('#zoom-booth');
+  if (zb) zb.classList.toggle('wait', !S.booths.length);
 }
 function fingerprint(extra){
   return extra + '|' + S.booths.map(b =>
@@ -5797,7 +5854,9 @@ function drawFloor(floorNum){
 
   // まだデータが届いていないときは、校舎の枠だけ先に描いておく。
   // 真っ白のまま待たせるより、待ち時間が短く感じられる
-  if (!S.fetchedAt && !S.booths.length){
+  // v204：取れなかったあとは骨組みにしない。帯は「校内マップは見られます」と言っているのに、
+  // 灰色の箱が明滅するだけで、部屋の名前が読めなかった（一度でも失敗したら、ふつうの図面を出す）
+  if (!S.fetchedAt && !S.booths.length && !sync._failed){
     (plan.rooms || []).forEach(r => {
       html += `<rect class="skel-room" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="7"/>`;
     });
@@ -6076,7 +6135,7 @@ function drawFloor(floorNum){
 
   // 拡大で引き伸ばされないよう、地図の中ではなく上に重ねて出す
   const emp = $('#map-empty');
-  if (emp) emp.classList.toggle('hide', placed.length > 0);
+  if (emp) emp.classList.toggle('hide', placed.length > 0 || !S.booths.length);   // v204：1件も届いていないときは「この階には」と言わない
   html += zoneTags;                       // 棟の名札はいちばん手前
   // 同じ値でも書き込むと図面全体のレイアウトがやり直しになる。変わったときだけ書く
   // v173：図面の範囲（viewBox）は、同じ階・同じ幅の間は広げる一方にする。棟の名札の大きさは倍率で変わるので、
@@ -10798,7 +10857,8 @@ function renderBoard(){
   $('#board-clock').textContent =
     String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
   animateNumber($('#board-visitors'), S.visitors.today || 0);
-  $('#board-sync').textContent = S.online ? ago(S.updatedAt) : '切断';
+  const bws = waitState();
+  $('#board-sync').textContent = bws === 'load' ? '…' : S.online ? ago(S.updatedAt) : '切断';
   $('#board-sync').dataset.bad = String(!S.online);
 
   const alertEl = $('#board-alert');
@@ -10829,7 +10889,7 @@ function renderBoard(){
   const shown = S.booths.slice(pg * PER, pg * PER + PER);
   const sub = $('#board-sub');
   if (sub) sub.textContent = pages > 1 ? `本部モニタ　${pg + 1} / ${pages}ページ（20秒ごとに切替）` : '本部モニタ';
-  const fp = fingerprint('board') + '|' + pg + '|' + S.booths.map(b => elapsedMin(b)).join(',');
+  const fp = fingerprint('board:' + bws) + '|' + pg + '|' + S.booths.map(b => elapsedMin(b)).join(',');
   if (renderBoard._fp !== fp){
     renderBoard._fp = fp;
     const grid = $('#board-grid');
@@ -10837,9 +10897,10 @@ function renderBoard(){
     grid.classList.toggle('d2', n > 12 && n <= 24);
     grid.classList.toggle('d3', n > 24);
     if (!n){
-      grid.innerHTML = `<p class="board-empty">${S.online || S.fetchedAt
-        ? 'ブースがまだ登録されていません'
-        : 'データを取得しています…（つながらない場合は、このPCのネット接続を確認してください）'}</p>`;
+      // v204：読み込み中・取れていない・未登録を言い分ける（以前は、読み込み中は真っ白で、時計も「--:--」のままだった）
+      grid.innerHTML = `<p class="board-empty">${bws === 'load' ? 'データを取得しています…'
+        : bws === 'fail' ? 'データを取得できていません。このPCのネット接続を確認してください（自動でつなぎ直します）'
+        : 'ブースがまだ登録されていません'}</p>`;
     } else
     grid.innerHTML = shown.map(b => {
       const L = lvOf(b);
@@ -11289,6 +11350,7 @@ function renderAll(){
   const hadBooths = renderAll._had;
   renderAll._had = S.booths.length > 0;
   renderSyncState();
+  renderMapWait();
   renderHours();
   renderNotice();
   renderAlert();
@@ -11449,6 +11511,7 @@ function switchView(v, fromHistory){
     if (b >= 0) $('#nav').style.setProperty('--nav-i', String(b));
   }catch(e){}
   S.view = v;
+  if (!S.booths.length && !S.online) renderSyncState();   // v204：帯の文は、どの画面にいるかで変わる
   { const lh = document.querySelector('#v-list .list-head'); if (lh) lh.classList.remove('tuck'); }   // v195：タブを移ったら、段は出しておく
   mapScale._w = 0;                        // 係員の広い画面との行き来で地図の幅が変わる
   if (v === 'stamp'){ pullLedger(5000); renderSyncBadge(); }   // 別のアプリで増えた分を見に行く
@@ -13505,19 +13568,26 @@ function renderPamphlet(){
   const listOf = (f, cols) => {
     const list = S.booths.filter(b => floorOfBooth(b) === f).sort((a, b) => (S.numbers.get(a.id) || 999) - (S.numbers.get(b.id) || 999));
     return list.length ? `<ol class="pam-list">${list.map(b =>
-      `<li><b>${S.numbers.get(b.id) || '-'}</b>${esc(b.name)}</li>`).join('')}</ol>` : '';
+      `<li${isLm(b) ? ' class="lm"' : ''}><b>${S.numbers.get(b.id) || '-'}</b><span>${esc(b.name)}</span></li>`).join('')}</ol>` : '';
   };
+  // v204：会場・受付など、目当てになる所（地図で黒い札が付く所）は、一覧でも太字にする
+  const ttIds = new Set((CONFIG.INFO.timetable || []).map(r => r[2]).filter(Boolean));
+  const isLm = b => { const pl = FLOOR_PLAN[floorOfBooth(b)], r = pl && (pl.rooms || []).find(x => x.id === b.id);
+    return !!r && (PLAN_LANDMARK.test(r.nm || '') || ttIds.has(b.id)); };
+  // v204：3階のブースが少ないとき（6件まで）は、一覧を3階の地図のすぐ下に置く（そこは空いていた）
+  const n3 = S.booths.filter(b => floorOfBooth(b) === 3).length;
+  const list3Under = !!FLOOR_PLAN[3] && n3 > 0 && n3 <= 6;
   // v185：紙の上での幅（mm）を渡して、その大きさで読める字を描かせる。2階・3階は、ブースのある棟だけに絞って大きく
   const mapOf = (f, o) => FLOOR_PLAN[f] && S.booths.some(b => floorOfBooth(b) === f) ? `<div class="pam-map">${printPlanSvg(f, o)}</div>` : '';
   const has = f => S.booths.some(b => floorOfBooth(b) === f);
   const spread = `<section class="pam-panel pam-spread" data-panel="spread">
-      <h3 class="pam-h3">校内マップ<small>数字はブースの番号です。スマホのマップ・入口のQRの番号と同じ</small></h3>
+      <h3 class="pam-h3">校内マップ<small class="pam-key"><span><i class="pk-no">12</i>ブース（番号は下の一覧・スマホのマップと同じ）</span><span><i class="pk-wc">${ICON.wc || ''}</i>トイレ</span><span><i class="pk-call">体育館</i>会場・受付</span></small></h3>
       <div class="pam-spread-top"><span class="pam-fl pam-fl-on">1階</span>${mapOf(1, { mmW: 180 })}</div>
       <div class="pam-spread-mid">
         ${has(2) ? `<div class="pam-mini m2"><span class="pam-fl pam-fl-on">2階</span>${mapOf(2, { crop: true, mmW: 122 })}</div>` : ''}
-        ${has(3) ? `<div class="pam-mini m3"><span class="pam-fl pam-fl-on">3階</span>${mapOf(3, { crop: true, mmW: 47 })}</div>` : ''}
+        ${has(3) ? `<div class="pam-mini m3"><span class="pam-fl pam-fl-on">3階</span>${mapOf(3, { crop: true, mmW: 47 })}${list3Under ? listOf(3) : ''}</div>` : ''}
       </div>
-      <div class="pam-lists">${[1, 0, 2, 3].filter(has).map(f => `<h4 class="pam-h4 pam-fl">${f === 0 ? '屋外・体育館など' : f + '階'}</h4>${listOf(f)}`).join('')}</div>
+      <div class="pam-lists">${[1, 0, 2, 3].filter(f => has(f) && !(f === 3 && list3Under)).map(f => `<h4 class="pam-h4 pam-fl">${f === 0 ? '屋外・体育館など' : f + '階'}</h4>${listOf(f)}`).join('')}</div>
     </section>`;
 
   // v184：とじ方（long＝長辺とじ・ふつう／short＝短辺とじ）。書いた文字と同じ所に覚える（保存のキーを増やさない）
@@ -13600,8 +13670,27 @@ function pamCheck(){
   });
   box.classList.add('as-print');
   fitAll('--kp');
+  // v204：番号の一覧の字は、面に収まる範囲でいちばん大きくする（6.6pt〜8.6pt）。ブースの数や名前の長さが変わっても、空きを使い切る
+  { const sp = $('.pam-spread', box), ls = sp && $('.pam-lists', sp);
+    if (sp && ls){
+      const pb = parseFloat(getComputedStyle(sp).paddingBottom) || 0;
+      const fits = () => {
+        const top = ls.offsetParent === sp ? ls.offsetTop : ls.offsetTop - sp.offsetTop;
+        // 地図の箱は縮められる（min-height:0）ので、一覧が大きすぎると地図の箱が縮んで、下の段が地図に重なる。箱が中身より小さくなっていないかも見る
+        const squeezed = [...sp.children].some(c => c !== ls && c.scrollHeight > c.clientHeight + 1);
+        return !squeezed && top + ls.offsetHeight <= sp.clientHeight - pb + 0.5 && sp.scrollWidth <= sp.clientWidth + 1;
+      };
+      let pt = 8.6;
+      for (; pt > 6.61; pt -= 0.1){ sp.style.setProperty('--pl', pt.toFixed(1) + 'pt'); if (fits()) break; }
+      if (pt <= 6.61) pt = 6.6;
+      sp.style.setProperty('--pl', pt.toFixed(1) + 'pt');
+      sp.dataset.pl = pt.toFixed(1);
+      // いちばん小さい字でも入らないとき（ブースがとても多い・名前がとても長い）は、はみ出しの印を付けて知らせる。
+      // 地図の箱は縮むので、箱の大きさだけを見ていると、下の段が地図に重なっているのに気づけない
+      sp.dataset.tight = fits() ? '' : '1';
+    } }
   $$('.pam-panel', box).forEach(pn => {
-    const over = pn.scrollHeight > pn.clientHeight + 2 || pn.scrollWidth > pn.clientWidth + 2;
+    const over = pn.scrollHeight > pn.clientHeight + 2 || pn.scrollWidth > pn.clientWidth + 2 || pn.dataset.tight === '1';
     pn.classList.toggle('over', over);
   });
   box.classList.remove('as-print');
@@ -13683,6 +13772,11 @@ function printPlanSvg(floorNum, opt){
     const mmPer = opt.mmW ? opt.mmW / vb0[2] : (vb0[2] / vb0[3] < 1.1) ? 92 / vb0[3] : 150 / vb0[2];
     const MIN_MM = 1.4;                       // ≒4pt。これを下回る字は紙で潰れて読めない
     const readable = f => f && f.size * mmPer >= MIN_MM;
+    // v204：三つ折りパンフレットでは、ブースの無い部屋の名前は 5.5pt（1.95mm）に届くものだけ描く。
+    // それより小さい字（3行に折った「電子顕微鏡室」など）は紙でつぶれて読めず、番号の丸のまわりを散らかすだけだった。
+    // 昇降口（歩くときの目印）は、これまでどおり小さくても描く。棟の名札の下に半分かくれる名前（「施工実習室」など）も描かない
+    const MIN_ROOM_MM = opt.mmW ? 1.95 : MIN_MM;
+    const roomMax = opt.mmW ? 5.4 : 5;
     let h = '';
     plan.struct.forEach(st => {
       // 絞った図面で、端で切れる棟の枠・立入禁止の枠は描かない（廊下・道は切れてよい）
@@ -13757,14 +13851,16 @@ function printPlanSvg(floorNum, opt){
     });
     // ブースが無い部屋も薄く出す（紙でも校舎の形が分かるように）
     const used = new Set(here.map(b => b.id));
+    const underTag = r => placedTags.some(t => { const ox = Math.min(r.x + r.w, t.x + t.w) - Math.max(r.x, t.x), oy = Math.min(r.y + r.h, t.y + t.h) - Math.max(r.y, t.y);
+      return ox > 0 && oy > 0 && ox * oy > r.w * r.h * 0.12; });
     plan.rooms.forEach(r => {
       if (used.has(r.id)) return;
       if (crop && !inVb(r.x, r.y, r.w, r.h)) return;
       const d = deptOf(r);
       h += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="4" fill="#fff" stroke="#ccc"/>`
          + (d ? `<rect x="${r.x}" y="${r.y}" width="${Math.min(3, r.w / 6)}" height="${r.h}" rx="1.5" fill="${d.c}"/>` : '')
-         + (readable(fitText(r.nm, r.w, r.h, 5))
-              ? fitTextSvg(r.nm, r.x, r.y, r.w, r.h, 'pl-bg', 5).replace(/class="pl-bg"/g, 'fill="#888" font-weight="600"')
+         + ((f => f && f.size * mmPer >= (/昇降口/.test(r.nm || '') ? MIN_MM : MIN_ROOM_MM) && !(opt.mmW && underTag(r)))(fitText(r.nm, r.w, r.h, roomMax))
+              ? fitTextSvg(r.nm, r.x, r.y, r.w, r.h, 'pl-bg', roomMax).replace(/class="pl-bg"/g, `fill="${opt.mmW ? '#777' : '#888'}" font-weight="600"`)
               : '');
     });
     here.forEach(b => {
@@ -14116,6 +14212,7 @@ function initBoard(){
   if (initBoard._done) return;
   initBoard._done = true;
   document.body.classList.add('board-mode');
+  renderBoard();                      // v204：最初の返事を待たずに、時計と「取得しています」を出す
   setInterval(renderBoard, 5000);     // ページ送り（20秒ごと）と時計を遅れなく反映する
   setInterval(() => {
     const n = new Date();

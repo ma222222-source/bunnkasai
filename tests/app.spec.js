@@ -2929,3 +2929,74 @@ test('ブースの一覧を取れなかったとき（はじめて開いた・�
   await expect(page.locator('#stamp-msg')).toContainText('まずは1つ');
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v204：ブースが届くまでの表示・2（地図・本部モニタ・通信できないときの帯） ---------------- */
+test('ブースが届くまで（地図）：地図の上に「ブースを読み込み中…」。取れなかったら、骨組みをやめて部屋の名前を出し、帯の文は画面に合わせる', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  let fail = false, hold = null, open;
+  hold = new Promise(r => { open = r; });
+  await page.route(/script\.google(usercontent)?\.com\//, async route => {
+    if (hold) await hold;
+    return fail ? route.fulfill({ status: 404, contentType: 'text/html', body: '<html>404</html>' }) : route.fallback();
+  });
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=map');
+  // 読み込み中：札と骨組み。寄せる先が無いので「ブースに寄せる」は出さない
+  const chip = page.locator('#map-wait');
+  await expect(chip).toBeVisible();
+  await expect(chip).toContainText('読み込み中');
+  await expect(chip).toHaveAttribute('data-ws', 'load');
+  await expect(page.locator('#plan-1 .skel-room').first()).toBeVisible();
+  await expect(page.locator('#zoom-booth')).toBeHidden();
+  await expect(page.locator('#map-empty')).toBeHidden();
+  // 札は地図の操作（階のボタン）に重ならない・押すのをじゃましない
+  const g = await page.evaluate(() => { const a = document.getElementById('map-wait').getBoundingClientRect(), b = document.querySelector('.map-floors').getBoundingClientRect();
+    return { hit: a.right > b.left && a.left < b.right && a.bottom > b.top && a.top < b.bottom, pe: getComputedStyle(document.getElementById('map-wait')).pointerEvents }; });
+  expect(g.hit).toBe(false);
+  expect(g.pe).toBe('none');
+  // 取れなかった：骨組みをやめて、部屋の名前が読める図面にする
+  fail = true; open(); hold = null;
+  await expect(chip).toContainText('まだ取れていません');
+  await expect(chip).toHaveAttribute('data-ws', 'fail');
+  await expect(page.locator('#plan-1 .skel-room')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll('#plan-1 text').length)).toBeGreaterThan(10);
+  await expect(page.locator('#map-empty')).toBeHidden();           // 「この階にはブースがありません」とは言わない（届いていないだけ）
+  await expect(page.locator('#banner-offline-text')).toContainText('校内マップは下で見られます');
+  await page.locator('#nav button[data-view="list"]').click();
+  await expect(page.locator('#banner-offline-text')).toContainText('校内マップは「マップ」で見られます');   // 一覧の画面では、地図は「下」に無い
+  await page.locator('#nav button[data-view="map"]').click();
+  await expect(page.locator('#banner-offline-text')).toContainText('校内マップは下で見られます');
+  // 取り直している間も、骨組みには戻さない（読めていた部屋の名前を消さない）
+  hold = new Promise(r => { open = r; });
+  await page.locator('#banner-retry').click();
+  await expect(chip).toContainText('読み込み中');
+  await expect(page.locator('#plan-1 .skel-room')).toHaveCount(0);
+  // 届いたら、札が消えてブースが出る
+  fail = false; open(); hold = null;
+  await ready(page);
+  await expect(chip).toBeHidden();
+  await expect(page.locator('#plan-1 [data-id]').first()).toBeVisible();
+  await expect(page.locator('#zoom-booth')).not.toHaveClass(/wait/);
+  expect(errors).toEqual([]);
+});
+
+test('ブースが届くまで（本部モニタ）：返事を待たずに時計を出し、「データを取得しています…」と言う。届いたらタイルが並ぶ', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  let open; let hold = new Promise(r => { open = r; });
+  await page.route(/script\.google(usercontent)?\.com\//, async route => { if (hold) await hold; return route.fallback(); });
+  await page.goto('/?mode=board');
+  await expect(page.locator('#board-clock')).toHaveText(/^\d\d:\d\d$/);          // 以前は、届くまで「--:--」のまま
+  await expect(page.locator('#board-grid .board-empty')).toContainText('取得しています');
+  await expect(page.locator('#board-grid .board-empty')).not.toContainText('登録されていません');
+  await expect(page.locator('#board-sync')).toHaveText('…');
+  open(); hold = null;
+  await ready(page);
+  await expect(page.locator('#board-grid .btile').first()).toBeVisible();
+  await expect(page.locator('#board-grid .board-empty')).toHaveCount(0);
+  await expect(page.locator('#board-sync')).not.toHaveText('…');
+  expect(errors).toEqual([]);
+});
