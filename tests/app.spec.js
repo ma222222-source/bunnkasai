@@ -2717,3 +2717,43 @@ test('おすすめの回りかた：順番の丸は部屋の上の辺に置き�
   await expect.poll(() => page.evaluate(() => document.querySelectorAll('#plan-' + S.floor + ' .route-badge').length)).toBe(0);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v200：当てはまらなくなった知らせは消す ---------------- */
+test('絞り込み・コースをやめたら、「目立たせています」「階をまたぎます」の知らせも消える（ほかの知らせは消さない）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => localStorage.setItem('kuroko_intro_v1', '1'));
+  await page.goto('/?tab=map');
+  await ready(page);
+  const toast = page.locator('#toast');
+  const tile = page.locator('#summary .sum[data-lv="2"]');
+  // 状態で絞る → 知らせが出る → すぐやめる → 知らせも消える
+  await tile.click();
+  await expect(toast).toHaveClass(/on/);
+  await expect(toast).toContainText('だけを目立たせています');
+  await tile.click();
+  await expect(toast).not.toHaveClass(/on/);
+  // 地図の上の「◯◯だけ表示中 ×」でやめたときも消える
+  await tile.click();
+  await expect(toast).toHaveClass(/on/);
+  await page.locator('#lv-pill').click();
+  await expect(toast).not.toHaveClass(/on/);
+  // コース：階をまたぐコースを選ぶ → 知らせ → やめる → 消える
+  const multi = await page.evaluate(() => { renderRouteChips(); return Object.keys(CONFIG.ROUTES).find(k => {
+    const fl = new Set((CONFIG.ROUTES[k] || []).map(id => (S.booths.find(b => b.id === id) || {}).floor).filter(Boolean));
+    const el = document.querySelector(`.chip[data-route="${k}"]`); return fl.size > 1 && el && !el.classList.contains('hide'); }); });
+  if (multi) {
+    const chip = page.locator(`.chip[data-route="${multi}"]`);
+    await chip.scrollIntoViewIfNeeded();
+    await chip.click();
+    await expect(toast).toContainText('このコースは階をまたぎます');
+    await chip.click();
+    await expect(toast).not.toHaveClass(/on/);
+  }
+  // 関係のない知らせは消さない
+  await page.evaluate(() => { toast('別のお知らせです'); toastDrop(/だけを目立たせています/); });
+  await expect(toast).toHaveClass(/on/);
+  await expect(toast).toHaveText('別のお知らせです');
+  expect(errors).toEqual([]);
+});

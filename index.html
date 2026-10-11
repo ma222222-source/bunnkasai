@@ -3700,7 +3700,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-11e',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-11f',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4377,6 +4377,17 @@ async function copyText(t){
   if (!ok) throw new Error('copy failed');
 }
 
+/**
+ * v200：出ている知らせが、もう当てはまらなくなったら消す。
+ * 「◯◯だけを目立たせています」「このコースは階をまたぎます」は数秒出る。その間に絞り込み・コースをやめると、
+ * やめたのに「目立たせています」と出たままになっていた。いま出ている文が re に合うときだけ消す（ほかの知らせは消さない）
+ */
+function toastDrop(re){
+  const t = $('#toast');
+  if (!t || !t.classList.contains('on') || !re.test(t.textContent || '')) return;
+  clearTimeout(toast._t);
+  t.classList.remove('on');
+}
 function toast(msg, action, dur){
   const t = $('#toast');
   // v175：ボタン付き（元に戻す など）が出たばかりなら、ボタン無しの次の知らせは少し待たせる
@@ -10395,6 +10406,7 @@ function renderLvPill(){
     S.lvFilter = null;
     $$('#summary .sum').forEach(x => x.setAttribute('aria-pressed', 'false'));
     drawFloor(S.floor); renderLvPill();
+    toastDrop(/だけを目立たせています/);
   }); }
 
 function renderSummary(){
@@ -10425,6 +10437,7 @@ function renderSummary(){
         $$('.sum', box).forEach(x => x.setAttribute('aria-pressed', String(x.dataset.lv === S.lvFilter)));
         drawFloor(S.floor);
         renderLvPill();
+        if (!S.lvFilter) toastDrop(/だけを目立たせています/);
         if (S.lvFilter){
           const t = el.querySelector('span').textContent;
           toast(`「${t}」のブースだけを目立たせています。もう一度押すと元に戻ります`);
@@ -14245,7 +14258,8 @@ function init(){
       const fl = new Set((CONFIG.ROUTES[S.route] || [])
         .map(id => (S.booths.find(b => b.id === id) || {}).floor).filter(Boolean));
       if (fl.size > 1) toast('このコースは階をまたぎます。行き先は地図の下に並んでいます');
-    }
+      else toastDrop(/このコースは階をまたぎます/);
+    } else toastDrop(/このコースは階をまたぎます/);
   }));
   $('#q').addEventListener('input', e => {
     // 1文字ごとに150件を作り直すと低性能の端末で入力がもたつく。打ち終わりを待って描く
