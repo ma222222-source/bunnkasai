@@ -48,13 +48,16 @@ for (const seed of SEEDS) {
     await page.goto('/?tab=map');
     // 最初の表示：でたらめな通信でも、いつかはブースが出る（時計を進めてやり直させる）
     let first = -1;
-    for (let i = 0; i < 40; i++) {
+    // v207：待つ長さを 40コマ（約10分）→ 60コマ（16分）に。やり直しの間隔には、ほかの人と重ならないよう ±15% の乱数のずれを入れてある（schedule()）。
+    // 種4は、はじめの12回が続けて失敗する並びで、13回目（成功）が 610〜620秒あたりに来る。ずれが重なると 640秒を少し越え、
+    // 20回に1回ほど「ブースが出ない」と判定されていた（アプリの動きは同じ。v206 の main のテストで1回、手元で1回）
+    for (let i = 0; i < 60; i++) {
       await tick(16);
       const n = await page.evaluate(() => typeof S !== 'undefined' ? S.booths.length : -1).catch(() => -1);
       if (process.env.TRACE) console.log('  t', i, await page.evaluate(() => `n=${S.booths.length} fail=${S.failures} busy=${!!sync._busy} err=${S.errKind} timer=${!!S.timer}`).catch(() => '?'));
       if (n > 0) { first = i; break; }
     }
-    if (first < 0) errs.push('でたらめな通信のままだと、10分たってもブースが出ない');
+    if (first < 0) errs.push('でたらめな通信のままだと、16分たってもブースが出ない');
     // スタンプを2つ押す（送信も、でたらめな通信の中で）
     const k1 = await page.evaluate(() => { stampNow('1F-05'); if (showStampFx.close) showStampFx.close(); return 1; }).catch(e => { errs.push('stamp: ' + e); });
     let minBooths = 999, emptied = false;

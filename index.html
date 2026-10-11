@@ -1877,6 +1877,13 @@ html.lite .hero-gear{animation:none}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
 /* ---- v206：地図の左下のボタン。開いた直後は「全体」だけ（左の角）。動かしたら、その右に「ブースに寄せる」が出る ---- */
 #map-card.gmap .map-fit-ctl #zoom-reset{order:-1}
+/* ---- v207：左下のボタン（全体・ブースに寄せる）は、ぱっと出たり消えたりせず、すっと出る・引っ込む。
+   引っ込むときは、消え終わってから見えなくする（visibility を 0.14秒おくらせる）。場所は残したまま ---- */
+#map-card.gmap .map-fit-ctl button{transition:opacity .18s ease,transform .22s var(--ease-out-back),visibility 0s}
+#map-card.gmap .map-fit-ctl button:disabled,#map-card.gmap .map-fit-ctl button.dim,#map-card.gmap .map-fit-ctl button.wait{
+  opacity:0;transform:scale(.86);transition:opacity .14s ease,transform .14s ease,visibility 0s linear .14s}
+html.lite #map-card.gmap .map-fit-ctl button{transition:none !important}
+@media (prefers-reduced-motion:reduce){ #map-card.gmap .map-fit-ctl button{transition:none !important} }
 /* ---- v205：ブースが届いた瞬間。骨組みから本物の地図へ、ぱっと切り替わらずに、すっと現れる ---- */
 #map-view .plan.arrive{animation:plan-arrive .55s var(--ease)}
 @keyframes plan-arrive{from{opacity:.15}to{opacity:1}}
@@ -3773,7 +3780,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-11l',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-12a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -6199,7 +6206,9 @@ function drawFloor(floorNum){
   // v205：骨組みから本物へ変わるときは、すっと現れる（ぱっと切り替わると、ちらついて見える）
   if (svg.dataset.skel){
     delete svg.dataset.skel;
-    svg.classList.remove('arrive'); void svg.getBoundingClientRect(); svg.classList.add('arrive');
+    // v207：ここで位置を測って動きをやり直させない。測ると、描いたばかりの図面（約700個の部品）の配置の計算がその場で走り、
+    // 力の弱い端末で地図が出るのが遅れる（v205 で入れてしまっていた）。この印は届いたときの1回しか付かないので、付けるだけで動く
+    svg.classList.add('arrive');
     setTimeout(() => svg.classList.remove('arrive'), 900);
   }
   // 画面の上の線の太さ・角の丸みを倍率によらず一定にするため、いまの倍率を CSS に渡す（v140 の地図）

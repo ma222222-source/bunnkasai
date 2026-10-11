@@ -3093,3 +3093,54 @@ for (const w of [390, 320]) {
     expect(errors).toEqual([]);
   });
 }
+
+/* ---------------- v207：地図の左下のボタンの出入り・届いた瞬間に余計な配置計算をしない ---------------- */
+test('地図の左下のボタン：すっと出て、すっと引っ込む（消え終わってから見えなくする）。動きを減らす設定では動かさない', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const zb = page.locator('#zoom-booth');
+  const cs = () => zb.evaluate(el => { const c = getComputedStyle(el); return { op: +c.opacity, vis: c.visibility, prop: c.transitionProperty, tf: c.transform }; });
+  // 引っ込んでいるとき：透明・見えない（場所は残す）
+  let c = await cs();
+  expect(c.vis).toBe('hidden'); expect(c.op).toBe(0);
+  expect(c.prop).toContain('opacity'); expect(c.prop).toContain('visibility');
+  expect(await zb.evaluate(el => el.offsetWidth)).toBeGreaterThan(40);
+  // 出るとき：すぐ見える状態になり、濃さが 1 まで上がる
+  await page.evaluate(() => { ZOOM.touched = true; ZOOM.x -= 70; zoomApply(false); });
+  await expect(zb).toBeVisible();
+  await expect.poll(async () => (await cs()).op).toBe(1);
+  expect((await cs()).tf === 'none' || (await cs()).tf === 'matrix(1, 0, 0, 1, 0, 0)').toBe(true);
+  // 引っ込むとき：消え終わってから見えなくなる
+  await zb.click();
+  await expect(zb).toBeHidden();
+  await expect.poll(async () => (await cs()).op).toBe(0);
+  // 動きを減らす設定：動かさない
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  expect(await zb.evaluate(el => getComputedStyle(el).transitionDuration.split(',').every(d => parseFloat(d) === 0))).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('ブースが届いた瞬間：地図を描いた直後に、位置を測り直さない（配置の計算をその場で走らせない）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  let open; let hold = new Promise(r => { open = r; });
+  await page.route(/script\.google(usercontent)?\.com\//, async route => { if (hold) await hold; return route.fallback(); });
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=map');
+  await expect(page.locator('#plan-1 .skel-room').first()).toBeVisible();
+  // 図面（svg）の位置を測る呼び出しを数える。drawFloor の中から呼ばれたものだけ
+  await page.evaluate(() => { window.__gbcr = 0; const orig = SVGElement.prototype.getBoundingClientRect;
+    const df = drawFloor; let inDraw = 0;
+    window.drawFloor = new Proxy(df, { apply(t, th, a){ inDraw++; try { return t.apply(th, a); } finally { inDraw--; } } });
+    SVGElement.prototype.getBoundingClientRect = function(){ if (inDraw && this.classList && this.classList.contains('plan')) window.__gbcr++; return orig.apply(this, arguments); }; });
+  open(); hold = null;
+  await ready(page);
+  await expect(page.locator('#plan-1 [data-id]').first()).toBeVisible();
+  expect(await page.evaluate(() => window.__gbcr)).toBe(0);
+  expect(errors).toEqual([]);
+});
