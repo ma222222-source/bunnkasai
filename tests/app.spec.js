@@ -2794,3 +2794,36 @@ test('開く欄（使い方のこつ・地図の見かた など）：開くと�
   expect(await tips.evaluate(d => getComputedStyle([...d.children].find(x => x.tagName !== 'SUMMARY')).animationName)).toBe('none');
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v202：「重厚」のスタンプ帳は、判子の下に紙の地 ---------------- */
+test('「重厚」（暗い見た目）では、押した判子の下に紙の地を敷く（濃いインクが暗い地に沈まない）。「落ち着き」では敷かない', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => { if (!sessionStorage.getItem('x')){ sessionStorage.setItem('x', 1);
+    localStorage.setItem('kuroko_theme', JSON.stringify('heavy')); localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03'])); } });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  const lum = c => { const m = c.match(/[\d.]+/g).map(Number); return m.length >= 4 && m[3] === 0 ? -1 : (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255; };
+  const bg = () => page.evaluate(() => ({ theme: document.documentElement.getAttribute('data-theme'),
+    art: getComputedStyle(document.querySelector('#stamp-grid .stamp.got .mk.art')).backgroundColor,
+    cell: getComputedStyle(document.querySelector('#stamp-grid .stamp.got')).backgroundColor,
+    ghost: getComputedStyle(document.querySelector('#stamp-grid .stamp:not(.got) .mk.ghost')).backgroundColor }));
+  let r = await bg();
+  expect(r.theme).toBe('heavy');
+  expect(lum(r.art)).toBeGreaterThan(0.8);             // 紙の色（明るい）
+  expect(lum(r.cell)).toBeLessThan(0.3);               // マスは暗い
+  expect(lum(r.ghost)).toBe(-1);                       // まだ押していないマスの下絵には敷かない
+  // 演出の大きな判子も同じ
+  await page.evaluate(() => stampNow('1F-05'));
+  await expect(page.locator('#sfx')).toBeVisible();
+  expect(lum(await page.locator('#sfx .sfx-stamp .stamp-art').evaluate(el => getComputedStyle(el).backgroundColor))).toBeGreaterThan(0.8);
+  await page.evaluate(() => showStampFx.close());
+  await expect(page.locator('#sfx')).toBeHidden({ timeout: 3000 });
+  // 「落ち着き」（明るい見た目）では敷かない
+  await page.locator('#btn-theme').click();
+  r = await bg();
+  expect(r.theme).toBe('paper');
+  expect(lum(r.art)).toBe(-1);
+  expect(errors).toEqual([]);
+});
