@@ -3036,3 +3036,60 @@ test('ブースが届いた瞬間：一覧は上から順にふわっと出る�
   expect(await page.evaluate(() => window.__arr)).toBe(1);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v206：地図の左下のボタン（開いた直後は「全体」だけ。地図の字に重ねない） ---------------- */
+for (const w of [390, 320]) {
+  test(`地図を開いた直後（幅${w}px）：左下は「全体」だけ（もう寄せてあるので「ブースに寄せる」は出さない）。立入禁止の字に重ならない。動かしたら「ブースに寄せる」が出て、押すと戻って消える`, async ({ page }) => {
+    await page.setViewportSize({ width: w, height: w < 360 ? 640 : 800 });
+    const errors = watchErrors(page);
+    await mockGas(page);
+    await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+    await page.goto('/?tab=map');
+    await ready(page);
+    const zb = page.locator('#zoom-booth'), zr = page.locator('#zoom-reset');
+    const state = () => page.evaluate(() => {
+      const vis = el => getComputedStyle(el).visibility !== 'hidden' && !!el.offsetParent;
+      const btns = [...document.querySelectorAll('.map-fit-ctl button')].filter(vis).map(x => { const r = x.getBoundingClientRect(); return { id: x.id, x: r.left, y: r.top, w: r.width, h: r.height }; });
+      const lab = [...document.querySelectorAll('#plan-' + S.floor + ' .blocked-t')].map(x => { const r = x.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
+      return { ids: btns.map(b => b.id), btns, labs: lab.length,
+        hit: lab.filter(l => btns.some(q => l.x < q.x + q.w && q.x < l.x + l.w && l.y < q.y + q.h && q.y < l.y + l.h)).length,
+        k: ZOOM.k, x: ZOOM.x, y: ZOOM.y, min: ZOOM.min };
+    });
+    // 開いた直後：「全体」だけ。立入禁止の字（本館1階）に重ならない
+    let s = await state();
+    expect(s.ids).toEqual(['zoom-reset']);
+    expect(s.labs).toBeGreaterThan(0);
+    expect(s.hit).toBe(0);
+    // ほかの階でも同じ
+    for (const f of [2, 3, 0, 1]) {
+      await page.evaluate(n => setFloor(n), f);
+      // 階を替えた直後は、寄せる動きの途中。落ち着いたときに「全体」だけ・字に重ならない
+      await expect.poll(async () => { const t = await state(); return t.ids.join(',') + '|' + t.hit; }, { message: 'floor ' + f, timeout: 4000 }).toBe('zoom-reset|0');
+    }
+    // 地図を動かす → 形が変わったので「ブースに寄せる」が出る（「全体」の右）
+    await page.evaluate(() => { ZOOM.touched = true; ZOOM.x -= 70; zoomApply(false); });
+    await expect(zb).toBeVisible();
+    s = await state();
+    expect(s.ids.sort()).toEqual(['zoom-booth', 'zoom-reset']);
+    const pos = Object.fromEntries(s.btns.map(b => [b.id, b]));
+    expect(pos['zoom-reset'].x).toBeLessThan(pos['zoom-booth'].x);
+    // 押す → 寄せた形に戻り、ボタンは消える
+    await zb.click();
+    await expect(zb).toBeHidden();
+    s = await state();
+    expect(s.k).toBeGreaterThan(s.min + 0.05);            // 寄せた形（全体より大きい）。開いた直後とぴったり同じとは限らない（開いた直後は箱の高さも詰めるため）
+    expect(s.hit).toBe(0);
+    // 「全体」で引く → 「全体」は消え、「ブースに寄せる」が出る。押すと戻る
+    await zr.click();
+    await expect(zr).toBeHidden();
+    await expect(zb).toBeVisible();
+    await zb.click();
+    await expect(zb).toBeHidden();
+    await expect(zr).toBeVisible();
+    // 拡大しているあいだは、これまでどおり「全体」だけ
+    await page.locator('#zoom-in').click();
+    await expect(zr).toBeVisible();
+    await expect(zb).toBeHidden();
+    expect(errors).toEqual([]);
+  });
+}
