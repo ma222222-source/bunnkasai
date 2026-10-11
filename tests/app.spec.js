@@ -2827,3 +2827,105 @@ test('「重厚」（暗い見た目）では、押した判子の下に紙の�
   expect(lum(r.art)).toBe(-1);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v203：ブースの一覧が届くまでの表示（読み込み中・取れていない） ---------------- */
+test('ブースの一覧が届くまで（はじめて開いた・サーバーが遅い）：一覧は「読み込んでいます」と骨組み、スタンプは持っている数を出す。「見つかりませんでした」「0 / 0 ブース」は出さない', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  // サーバーの返事を、こちらが合図するまで止めておく
+  let release; const gate = new Promise(r => { release = r; });
+  await page.route(/script\.google(usercontent)?\.com\//, async route => { await gate; await route.fallback(); });
+  const IDS = ['1F-01', '1F-14', '1F-24', '1F-17', '1F-02', '1F-03'];
+  await page.addInitScript(ids => { if (!sessionStorage.getItem('x')){ sessionStorage.setItem('x', 1);
+    localStorage.setItem('kuroko_intro_v1', '1'); localStorage.setItem('kuroko_stamps_v2', JSON.stringify(ids));
+    localStorage.setItem('kuroko_cert_at', JSON.stringify('2026-10-24T03:00:00.000Z')); } }, IDS);
+  await page.goto('/?tab=list');
+  // 一覧：探してもいないのに「見つかりませんでした」と言わない
+  await expect(page.locator('#booth-list .list-wait')).toContainText('読み込んでいます');
+  await expect(page.locator('#booth-list .skel')).toHaveCount(4);
+  await expect(page.locator('#booth-list')).not.toContainText('見つかりませんでした');
+  await expect(page.locator('#booth-list [data-reset-filters]')).toHaveCount(0);
+  await page.fill('#q', 'カジノ');
+  await expect(page.locator('#q-clear')).toBeVisible();
+  await page.waitForTimeout(400);
+  await expect(page.locator('#booth-list .list-wait')).toBeVisible();
+  await expect(page.locator('#booth-list')).not.toContainText('見つかりませんでした');
+  await expect(page.locator('#list-count')).toBeHidden();
+  await page.fill('#q', '');
+  // スタンプ：持っている数はこの端末にある。ブースの数（分母）は届くまで出さない
+  await page.locator('#nav button[data-view="stamp"]').click();
+  await expect(page.locator('#v-stamp .stamp-count')).toHaveClass(/wait/);
+  await expect(page.locator('#v-stamp .stamp-count')).toHaveClass(/load/);
+  await expect(page.locator('#stamp-n')).toHaveText('6');
+  await expect(page.locator('#v-stamp .stamp-count .tot')).toBeHidden();
+  await expect(page.locator('#stamp-msg')).toContainText('読み込んでいます');
+  await expect(page.locator('#stamp-prize')).toContainText('ブースの情報が届くと');
+  await expect(page.locator('#redeem-open')).toBeDisabled();
+  await expect(page.locator('#redeem-open')).toContainText('待っています');
+  await expect(page.locator('#stamp-grid .skel-st')).toHaveCount(6);
+  await expect(page.locator('#stamp-share')).toBeHidden();
+  // 全部回った人の達成の時刻を、届く前に消さない
+  expect(await page.evaluate(() => localStorage.getItem('kuroko_cert_at'))).toContain('2026-10-24');
+  // 地図の検索も「見つかりませんでした」と言わない
+  await page.locator('#nav button[data-view="map"]').click();
+  await page.fill('#map-q', 'ぷろぐらみんぐ');
+  await expect(page.locator('#map-sug')).toContainText('読み込んでいます');
+  await expect(page.locator('#map-sug')).not.toContainText('見つかりませんでした');
+  await page.fill('#map-q', '');
+  // 届いたら、ふつうの表示に変わる
+  release();
+  await ready(page);
+  await page.locator('#nav button[data-view="stamp"]').click();
+  await expect(page.locator('#v-stamp .stamp-count')).not.toHaveClass(/wait/);
+  await expect(page.locator('#stamp-total')).toHaveText('46');
+  await expect(page.locator('#v-stamp .stamp-count .tot')).toBeVisible();
+  await expect(page.locator('#stamp-n')).toHaveText('6');
+  await expect(page.locator('#redeem-open')).toBeEnabled();
+  await expect(page.locator('#redeem-open')).toContainText('お菓子と交換する');
+  await expect(page.locator('#stamp-grid .skel-st')).toHaveCount(0);
+  await expect(page.locator('#stamp-grid .stamp.got')).toHaveCount(6);
+  await expect(page.locator('#v-stamp .progress')).not.toHaveClass(/load/);
+  await page.locator('#nav button[data-view="list"]').click();
+  await expect(page.locator('#booth-list .skel')).toHaveCount(0);
+  await expect(page.locator('#booth-list [data-sid]').first()).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('ブースの一覧を取れなかったとき（はじめて開いた・サーバーが返事をしない）：一覧とスタンプに理由を出し、「もう一度読み込む」で取り直せる', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  let fail = true, hold = null;
+  await page.route(/script\.google(usercontent)?\.com\//, async route => {
+    if (hold) await hold;
+    return fail ? route.fulfill({ status: 404, contentType: 'text/html', body: '<html>404</html>' }) : route.fallback();
+  });
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=stamp');
+  await expect(page.locator('#stamp-msg')).toContainText('まだ取れていません');
+  await expect(page.locator('#v-stamp .stamp-count')).toHaveClass(/wait/);
+  await expect(page.locator('#v-stamp .stamp-count')).not.toHaveClass(/load/);
+  await expect(page.locator('#stamp-n')).toHaveText('0');
+  await expect(page.locator('#stamp-prize .prize-steps li')).toHaveCount(3);      // スタンプの集め方は、届く前でも読める
+  await expect(page.locator('#stamp-grid .stamp-wait')).toContainText('届くと');
+  await expect(page.locator('#stamp-grid .skel-st')).toHaveCount(0);
+  await page.locator('#nav button[data-view="list"]').click();
+  const box = page.locator('#booth-list');
+  await expect(box).toContainText('まだ取れていません');
+  await expect(box).not.toContainText('見つかりませんでした');
+  await expect(box.locator('.skel')).toHaveCount(0);
+  // 「もう一度読み込む」を押してから、サーバーが戻る。
+  // （先に戻すと、自動のつなぎ直しが先に成功してボタンが消え、押せないことがある。押すまで返事を止めておく）
+  let open; hold = new Promise(r => { open = r; });
+  await box.locator('[data-retry-sync]').click();
+  fail = false; open(); hold = null;
+  await ready(page);
+  await expect(box.locator('[data-sid]').first()).toBeVisible();
+  await expect(box).not.toContainText('まだ取れていません');
+  await page.locator('#nav button[data-view="stamp"]').click();
+  await expect(page.locator('#v-stamp .stamp-count')).not.toHaveClass(/wait/);
+  await expect(page.locator('#stamp-total')).toHaveText('46');
+  await expect(page.locator('#stamp-msg')).toContainText('まずは1つ');
+  expect(errors).toEqual([]);
+});
