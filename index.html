@@ -1875,6 +1875,12 @@ html.lite .hero-gear{animation:none}
 [data-fs="lg"] .hero-title{font-size:33px} [data-fs="lg"] .hero-day-t{font-size:13.5px} [data-fs="lg"] .hero-badge{font-size:13.5px}
 [data-fs="xl"] .hero-title{font-size:36px} [data-fs="xl"] .hero-day-t{font-size:15px} [data-fs="xl"] .hero-badge{font-size:15px} [data-fs="xl"] .hero-en{font-size:11.5px}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
+/* ---- v201：開く欄（使い方のこつ・地図の見かた・友だちに見せるQR・スタンプ番号 など）は、中身が上からすっと出る。
+   押した瞬間に中身がぱっと現れて、下の物が一気に押し下げられるだけだったので、何が増えたのかが目で追いにくかった ---- */
+details[open] > :not(summary){animation:det-in .28s var(--ease) both}
+@keyframes det-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+html.lite details[open] > :not(summary){animation:none}
+@media print{ details[open] > :not(summary){animation:none !important} }
 /* ---- v198：お菓子と交換できたときの表示（スタンプの演出と同じカード） ---- */
 .pfx-gift{position:relative;width:112px;height:112px;margin:10px auto 6px;display:grid;place-items:center;color:var(--accent-ink)}
 .pfx-gift svg{position:relative;width:84px;height:84px;animation:pfx-pop .55s .12s var(--ease-out-back) both}
@@ -3700,7 +3706,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-11f',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-11g',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない

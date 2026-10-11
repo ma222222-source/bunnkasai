@@ -1975,12 +1975,15 @@ test('地図の高さは、実際のボタンの高さから決める（端末�
   const bad = [];
   for (const fl of [0, 1, 2, 3]) {
     await page.evaluate(f => { fitMapBox._key = null; setFloor(f); }, fl);
-    await page.waitForTimeout(300);
-    const r = await page.evaluate(() => {
+    // 地図の高さ合わせは、次の描画のときに走る。決まった時間（0.3秒）だけ待つと、重いとき（テストを並べて動かしているとき）に
+    // まだ合わせ終わっていなくて落ちていた。合うまで（最長4秒）待つ（v201）
+    const look = () => page.evaluate(() => {
       const f = document.querySelector('#map-card .map-floors').getBoundingClientRect(), z = document.querySelector('#map-card .map-zoom-ctl').getBoundingClientRect();
       const v = document.getElementById('map-view').getBoundingClientRect();
       return { gap: Math.round(z.top - f.bottom), inside: f.top >= v.top - 1 && z.bottom <= v.bottom + 1 };
     });
+    await expect.poll(async () => { const o = await look(); return o.gap >= 4 && o.inside; }, { timeout: 4000 }).toBe(true).catch(() => {});
+    const r = await look();
     if (r.gap < 4 || !r.inside) bad.push(`${fl}階 すき間=${r.gap} 箱の中=${r.inside}`);
   }
   expect(bad).toEqual([]);
@@ -2755,5 +2758,37 @@ test('絞り込み・コースをやめたら、「目立たせています」�
   await page.evaluate(() => { toast('別のお知らせです'); toastDrop(/だけを目立たせています/); });
   await expect(toast).toHaveClass(/on/);
   await expect(toast).toHaveText('別のお知らせです');
+  expect(errors).toEqual([]);
+});
+
+/* ---------------- v201：開く欄の中身がすっと出る ---------------- */
+test('開く欄（使い方のこつ・地図の見かた など）：開くと中身が上からすっと出る。紙に刷るときは動かさない', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.goto('/?tab=info');
+  await ready(page);
+  const tips = page.locator('#tips');
+  await tips.locator('summary').scrollIntoViewIfNeeded();
+  await tips.locator('summary').click();
+  await expect(tips).toHaveAttribute('open', '');
+  const r = await tips.evaluate(d => { const kids = [...d.children].filter(c => c.tagName !== 'SUMMARY');
+    return { n: kids.length, anim: kids.map(c => getComputedStyle(c).animationName), sum: getComputedStyle(d.querySelector('summary')).animationName }; });
+  expect(r.n).toBeGreaterThan(3);
+  for (const a of r.anim) expect(a).toBe('det-in');
+  expect(r.sum).not.toBe('det-in');                    // 見出し（押す所）は動かさない
+  // 動き終わると、ずれ・薄さは残らない
+  await page.waitForTimeout(500);
+  const end = await tips.evaluate(d => { const c = [...d.children].find(x => x.tagName !== 'SUMMARY'), s = getComputedStyle(c); return { op: s.opacity, tr: s.transform }; });
+  expect(end.op).toBe('1');
+  expect(['none', 'matrix(1, 0, 0, 1, 0, 0)']).toContain(end.tr);
+  // 閉じて開き直すと、もう一度動く（中身は消えていない）
+  await tips.locator('summary').click();
+  await expect(tips).not.toHaveAttribute('open', '');
+  await tips.locator('summary').click();
+  await expect(tips.locator('p').first()).toBeVisible();
+  // 紙に刷るときは動かさない
+  await page.emulateMedia({ media: 'print' });
+  expect(await tips.evaluate(d => getComputedStyle([...d.children].find(x => x.tagName !== 'SUMMARY')).animationName)).toBe('none');
   expect(errors).toEqual([]);
 });
