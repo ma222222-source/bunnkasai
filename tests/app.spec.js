@@ -3144,3 +3144,65 @@ test('ブースが届いた瞬間：地図を描いた直後に、位置を測�
   expect(await page.evaluate(() => window.__gbcr)).toBe(0);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v208：はじめて開いた人：届いた瞬間に地図を押し下げない／せまい画面の見出し ---------------- */
+test('はじめて開いた人：「はじめての方へ」と科のチップは、ブースを待たずに出す（届いた瞬間に地図が下へずれない）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  let open; let hold = new Promise(r => { open = r; });
+  await page.route(/script\.google(usercontent)?\.com\//, async route => { if (hold) await hold; return route.fallback(); });
+  await page.goto('/?tab=map');                               // 案内を見たことのない端末（kuroko_intro_v1 なし）
+  // 読み込み中から出ている
+  await expect(page.locator('#intro-card')).toBeVisible();
+  await expect(page.locator('#dept-legend')).toBeVisible();
+  await expect(page.locator('#dept-legend button').first()).toBeVisible();
+  await expect(page.locator('#map-wait')).toBeVisible();
+  await page.waitForTimeout(400);
+  const top = () => page.evaluate(() => Math.round(document.getElementById('map-view').getBoundingClientRect().top + window.scrollY));
+  const y0 = await top();
+  open(); hold = null;
+  await ready(page);
+  await expect(page.locator('#plan-1 [data-id]').first()).toBeVisible();
+  // 届いても、地図の位置は変わらない（以前は、カードと科のチップが割り込んで 400px 以上ずれていた）
+  expect(Math.abs((await top()) - y0)).toBeLessThanOrEqual(3);
+  await expect(page.locator('#intro-card')).toBeVisible();
+  // 「わかった」で消え、次からは出ない
+  await page.locator('#intro-ok').click();
+  await expect(page.locator('#intro-card')).toBeHidden();
+  await page.reload();
+  await ready(page);
+  await expect(page.locator('#intro-card')).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test('幅320px：見出しは語の切れ目で折り返す（「校内マッ／プ」と1文字だけ落とさない）。学校名は1行。検索欄の薄い字が切れない', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const r = await page.evaluate(() => {
+    const lines = el => { const tn = [...el.childNodes].find(n => n.nodeType === 3), rg = document.createRange(), m = new Map();
+      for (let i = 0; i < tn.textContent.length; i++){ rg.setStart(tn, i); rg.setEnd(tn, i + 1); const b = rg.getBoundingClientRect(); if (!b.width) continue; const k = Math.round(b.top); m.set(k, (m.get(k) || '') + tn.textContent[i]); }
+      return [...m.values()]; };
+    const ph = id => { const el = document.getElementById(id), cs = getComputedStyle(el, '::placeholder'), c = document.createElement('canvas').getContext('2d');
+      c.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`; const w = c.measureText(el.placeholder).width + (parseFloat(cs.letterSpacing) || 0) * el.placeholder.length;
+      const st = getComputedStyle(el); return { need: Math.round(w), have: Math.round(el.clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight)) }; };
+    return { h1: lines(document.querySelector('.head h1')), sub: lines(document.getElementById('head-sub')), mapQ: ph('map-q'),
+      over: document.documentElement.scrollWidth - innerWidth };
+  });
+  expect(r.h1.every(l => l.trim().length >= 3), JSON.stringify(r.h1)).toBe(true);   // 1〜2文字だけの行が無い
+  expect(r.h1.length).toBeLessThanOrEqual(2);
+  expect(r.sub.length).toBe(1);
+  expect(r.mapQ.need).toBeLessThanOrEqual(r.mapQ.have + 1);
+  expect(r.over).toBeLessThanOrEqual(0);
+  // 一覧の検索欄も
+  await page.locator('#nav button[data-view="list"]').click();
+  const q = await page.evaluate(() => { const el = document.getElementById('q'), cs = getComputedStyle(el, '::placeholder'), c = document.createElement('canvas').getContext('2d');
+    c.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`; const st = getComputedStyle(el);
+    return { need: Math.round(c.measureText(el.placeholder).width + (parseFloat(cs.letterSpacing) || 0) * el.placeholder.length), have: Math.round(el.clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight)) }; });
+  expect(q.need).toBeLessThanOrEqual(q.have + 1);
+  expect(errors).toEqual([]);
+});
