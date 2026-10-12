@@ -377,3 +377,181 @@ test('スタンプの控え・交換・番号をつなぐ（乱数で3000回×2�
     assert.ok(r.merged > 0, '番号をつなぐ操作も入っている');
   }
 });
+
+/* ---------------- v213（GAS 2026-10-13a）：サーバーの7つの改善 ---------------- */
+/** シートの読み書きを数える（どの範囲を、何行ぶん触ったか） */
+function spy(g, name) {
+  const sh = g.__ss.getSheetByName(name);
+  const log = { reads: [], writes: [] };
+  if (!sh) return log;
+  const orig = sh.getRange.bind(sh);
+  sh.getRange = (a, b, c, d) => {
+    const rg = orig(a, b, c, d);
+    if (typeof a === 'string') return rg;
+    const gv = rg.getValues.bind(rg), sv = rg.setValues.bind(rg), s1 = rg.setValue.bind(rg);
+    rg.getValues = () => { log.reads.push([a, b, c || 1, d || 1]); return gv(); };
+    rg.setValues = v => { log.writes.push([a, b, c || 1, d || 1]); return sv(v); };
+    rg.setValue = v => { log.writes.push([a, b, 1, 1]); return s1(v); };
+    return rg;
+  };
+  return log;
+}
+
+test('①推移（履歴）は90秒おぼえておく：係員の更新のたびに履歴シートを読み直さない。手で直したら（onEdit）読み直す', () => {
+  const g = fresh();
+  g.__post({ action: 'update', pass: PASS, cid: 'c1', id: '1F-03', wait: 3 });
+  const log = spy(g, '履歴');
+  const r1 = g.__get();
+  assert.strictEqual(log.reads.length, 1, '1回目は履歴シートを読む');
+  assert.strictEqual(r1.booths.find(b => b.id === '1F-03').history.length, 1);
+  assert.ok(g.__cache.get(g.CACHE_HIST), '推移を覚えた');
+  // 係員の更新 → 配信データは作り直すが、履歴シートは読まない（推移は覚えたものを使う）
+  for (let i = 0; i < 5; i++) {
+    g.__post({ action: 'update', pass: PASS, cid: 'c1', id: '1F-05', wait: 10 + i });
+    const r = g.__get();
+    assert.strictEqual(r.booths.find(b => b.id === '1F-05').wait, 10 + i, '待ち人数そのものは、更新の直後に出る');
+  }
+  assert.strictEqual(log.reads.length, 1, '5回作り直しても、履歴シートは読み直していない');
+  // シートを手で直した（onEdit）→ 覚えたものを捨てて、読み直す
+  g.onEdit({});
+  assert.strictEqual(g.__cache.get(g.CACHE_HIST) || null, null);
+  const r2 = g.__get();
+  assert.strictEqual(log.reads.length, 2);
+  assert.strictEqual(r2.booths.find(b => b.id === '1F-05').history.length, 5);
+  // キャッシュが壊れていても、落ちずに読み直す
+  g.__cache.set(g.CACHE_HIST, '{壊れた');
+  g.__cache.delete(g.CACHE_KEY);
+  assert.strictEqual(g.__get().ok, true);
+});
+
+test('②来場者数は2分おぼえておく：配信データを作り直すたびに全行を読まない。受付が押したら・手で直したら数え直す', () => {
+  const g = fresh();
+  g.__post({ action: 'visitor', pass: PASS, cid: 'c1', n: 3, uid: 'u1' });
+  const log = spy(g, '来場者');
+  const reads2 = () => log.reads.filter(r => r[3] === 2).length;      // 集計の読み（2列ぶん）
+  assert.strictEqual(g.__get().visitors.today, 3);
+  const n0 = reads2();
+  for (let i = 0; i < 4; i++) { g.__post({ action: 'update', pass: PASS, cid: 'c1', id: '1F-05', wait: i }); assert.strictEqual(g.__get().visitors.today, 3); }
+  assert.strictEqual(reads2(), n0, '係員の更新で作り直しても、来場者シートは数え直さない');
+  // 受付が押した → すぐ数え直した値が返り、次の GET にも出る
+  const r = g.__post({ action: 'visitor', pass: PASS, cid: 'c1', n: 2, uid: 'u2' });
+  assert.strictEqual(r.visitors.today, 5);
+  assert.strictEqual(g.__get().visitors.today, 5);
+  // シートを手で直した（打ち間違いを消した）→ onEdit で数え直す
+  const sh = g.__ss.getSheetByName('来場者');
+  sh.data[sh.getLastRow() - 1][1] = 20;
+  g.onEdit({});
+  assert.strictEqual(g.__get().visitors.today, 23);
+});
+
+test('③1つのブースの更新は、その行だけを書く（ほかの行を書き戻さない）。列の並びが違っても・一括のときも正しい', () => {
+  const g = fresh();
+  const sh = g.__ss.getSheetByName('ブース');
+  const head = sh.data[0].map(h => String(h).toLowerCase());
+  const rowIdx = sh.data.findIndex((r, i) => i > 0 && String(r[head.indexOf('id')]) === '1F-03') + 1;
+  const log = spy(g, 'ブース');
+  const r = g.__post({ action: 'update', pass: PASS, cid: 'c1', id: '1F-03', wait: 7 });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  // 書いたのは、その行だけ（status と time はとなりの列なので1回・wait で1回）
+  assert.ok(log.writes.length >= 1 && log.writes.length <= 3, JSON.stringify(log.writes));
+  for (const w of log.writes) { assert.strictEqual(w[0], rowIdx, '書いた行'); assert.strictEqual(w[2], 1, '1行ぶんだけ'); }
+  const row = rowOf(g, '1F-03');
+  assert.strictEqual(row.status, 'やや混雑'); assert.strictEqual(row.wait, 7); assert.ok(row.time instanceof Date);
+  // 待ち人数を消す（3段階のボタンだけで更新）
+  g.__post({ action: 'update', pass: PASS, cid: 'c1', id: '1F-03', status: '空いています', wait: null });
+  assert.strictEqual(rowOf(g, '1F-03').wait, '');
+  assert.strictEqual(rowOf(g, '1F-03').status, '空いています');
+  // ほかの行は触っていない
+  assert.strictEqual(rowOf(g, '1F-05').status, '');
+  // 一括（全部のブース）は、これまでどおり列でまとめて書く
+  log.writes.length = 0;
+  const b = g.__post({ action: 'bulk', pass: PASS, cid: 'c1', status: '準備中' });
+  assert.strictEqual(b.updated, 46);
+  assert.ok(log.writes.some(w => w[2] === 46), '一括は列ごとに1回');
+  assert.strictEqual(rowOf(g, '1F-05').status, '準備中');
+  // 列の並びが違う（time が status のとなりでない）シートでも、正しい列に書く
+  const g2 = fresh();
+  const sh2 = g2.__ss.getSheetByName('ブース');
+  const h2 = sh2.data[0].map(h => String(h).toLowerCase()), ti = h2.indexOf('time'), ni = h2.indexOf('note');
+  sh2.data.forEach(rw => { while (rw.length <= Math.max(ti, ni)) rw.push(''); const t = rw[ti]; rw[ti] = rw[ni]; rw[ni] = t; });   // time と note の列を入れ替える
+  const r2 = g2.__post({ action: 'update', pass: PASS, cid: 'c1', id: '1F-03', wait: 20 });
+  assert.strictEqual(r2.ok, true, JSON.stringify(r2));
+  const row2 = rowOf(g2, '1F-03');
+  assert.strictEqual(row2.status, '混雑しています'); assert.ok(row2.time instanceof Date); assert.strictEqual(row2.wait, 20);
+  assert.ok(!(row2.note instanceof Date), 'note の列に時刻を書いていない');
+  assert.strictEqual(booth(g2, '1F-03').wait, 20);
+});
+
+test('④lastUpdate：係の人がいちばん最近に更新した時刻を返す（だれも更新していなければ null。updatedAt とは別）', () => {
+  const g = fresh();
+  const r0 = g.__get();
+  assert.strictEqual(r0.lastUpdate, null);
+  assert.ok(r0.updatedAt);
+  g.__post({ action: 'update', pass: PASS, cid: 'c1', id: '1F-03', wait: 3 });
+  const r1 = g.__get();
+  assert.ok(r1.lastUpdate, 'ある');
+  assert.strictEqual(r1.lastUpdate, r1.booths.find(b => b.id === '1F-03').time);
+  // 40分前の更新だけのとき：updatedAt は今、lastUpdate は40分前
+  const sh = g.__ss.getSheetByName('ブース');
+  const head = sh.data[0].map(h => String(h).toLowerCase());
+  const row = sh.data.find((rw, i) => i > 0 && String(rw[head.indexOf('id')]) === '1F-03');
+  row[head.indexOf('time')] = new Date(Date.now() - 40 * 60000);
+  g.onEdit({});
+  const r2 = g.__get();
+  assert.ok(Math.abs(Date.now() - Date.parse(r2.updatedAt)) < 5000);
+  assert.ok(Math.abs(Date.now() - 40 * 60000 - Date.parse(r2.lastUpdate)) < 5000);
+  // 打ち間違いの未来の時刻（5分以上先）は数えない
+  row[head.indexOf('time')] = new Date(Date.now() + 3 * 3600000);
+  g.onEdit({});
+  assert.strictEqual(g.__get().lastUpdate, null);
+});
+
+test('⑤エラーの文：先頭の合図（英語）はそのまま、うしろに何を直せばよいかを日本語で付ける', () => {
+  const g = fresh();
+  const err = b => g.__post(b).error;
+  assert.match(err({ action: 'update', pass: PASS, cid: 'c1', id: '1F-03', wait: 5000 }), /^bad wait: .*0〜999/);
+  assert.match(err({ action: 'update', pass: PASS, cid: 'c1', wait: 3 }), /^bad request: .*id/);
+  assert.match(err({ action: 'update', pass: PASS, cid: 'c1', id: '1F-03' }), /^bad request: .*空いています/);
+  assert.match(err({ action: 'upsert', pass: PASS, cid: 'c1', id: '=1+1', name: 'x' }), /^bad request: .*1F-02/);
+  assert.match(err({ action: 'visitor', pass: PASS, cid: 'c1', n: 0 }), /^bad count: /);
+  assert.match(err({ action: 'なにか', pass: PASS }), /^unknown action: .*2026-/);
+  assert.match(err({ action: 'ledger', cid: '!!', ev: [] }), /^bad cid: /);
+  assert.match(err({ action: 'redeem', cid: 'abcd1234', ids: [] }), /^bad request: /);
+  // 画面が見分けに使っている合図は変わっていない
+  assert.strictEqual(err({ action: 'update', pass: 'ちがう', cid: 'c9', id: '1F-03', wait: 1 }), 'unauthorized');
+  assert.strictEqual(JSON.parse(g.doPost({ postData: { contents: '{壊れた' } }).getContent()).error, 'invalid json');
+  // 中身が入れ物（{…}）でない送信も、落ちずに断る
+  for (const c of ['null', '7', '"x"', '[1,2]']) assert.strictEqual(JSON.parse(g.doPost({ postData: { contents: c } }).getContent()).ok, false, c);
+});
+
+test('⑥とても大きい送信は、読む前に断る（正しい送信でいちばん大きいスタンプの控え 400件は通る）', () => {
+  const g = fresh();
+  const big = JSON.stringify({ action: 'clientlog', msg: 'x'.repeat(g.POST_MAX_CHARS + 10) });
+  const r = JSON.parse(g.doPost({ postData: { contents: big } }).getContent());
+  assert.strictEqual(r.ok, false);
+  assert.match(r.error, /^too large/);
+  assert.strictEqual(g.__ss.getSheetByName('エラー記録'), null, 'シートには何も書いていない');
+  // スタンプの控え：400件（上限いっぱい）でも通る
+  const ev = Array.from({ length: 400 }, (_, i) => ({ t: 's', id: 'X' + String(i).padStart(3, '0'), at: Date.now() - i * 1000 }));
+  const body = JSON.stringify({ action: 'ledger', cid: 'abcd1234', ev });
+  assert.ok(body.length < g.POST_MAX_CHARS, '400件は上限より小さい（' + body.length + '字）');
+  const ok = JSON.parse(g.doPost({ postData: { contents: body } }).getContent());
+  assert.strictEqual(ok.ok, true, JSON.stringify(ok).slice(0, 200));
+  assert.strictEqual(ok.added, 400);
+});
+
+test('⑦validate：長すぎて画面で切れる名前・メモを知らせる（直さなくても動くので「参考」に出す）', () => {
+  const g = fresh();
+  assert.doesNotMatch(g.validate(), /40字を超えています/);
+  const sh = g.__ss.getSheetByName('ブース');
+  const head = sh.data[0].map(h => String(h).toLowerCase());
+  sh.data[1][head.indexOf('name')] = 'とても長いブースの名前'.repeat(5);       // 55字
+  sh.data[2][head.indexOf('note')] = 'メモ'.repeat(70);                        // 140字
+  const m = g.validate();
+  assert.match(m, /A2: name が40字を超えています/);
+  assert.match(m, /A3: note が120字を超えています/);
+  assert.ok(m.indexOf('【参考】') >= 0 && m.indexOf('【参考】') < m.indexOf('A2: name が40字'), '参考の欄に出る');
+  // 画面に出る名前は、これまでどおり40字で切れる
+  g.onEdit({});
+  assert.strictEqual(g.__get().booths.find(b => b.name.startsWith('とても長い')).name.length, 41);
+});
