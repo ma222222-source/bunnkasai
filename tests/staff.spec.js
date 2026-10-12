@@ -223,3 +223,41 @@ test('係員の画面：パソコンの幅（900px 以上）ではブースを2�
   await expect(card.locator('.adm-wait-n')).toHaveText('1');
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v213：サーバーが「受け取れない」と返した更新は、送り直しの列に残さない ---------------- */
+test('係員の更新：サーバーが「この中身は受け取れない」と返したら、元に戻して理由を出す（「電波が戻ったら送ります」と持ち続けない）。通信の失敗は、これまでどおり持っておく', async ({ page }) => {
+  const errors = watchErrors(page);
+  const log = await login(page);
+  let reject = 'bad wait: 待ち人数は 0〜999 の数にしてください';
+  await page.route(/script\.google(usercontent)?\.com\//, async route => {
+    const req = route.request();
+    if (req.method() !== 'POST' || !reject) return route.fallback();
+    let b = {}; try { b = JSON.parse(req.postData() || '{}'); } catch (e) {}
+    if (b.action === 'verify' || b.action === 'ledger' || b.action === 'clientlog') return route.fallback();
+    return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/json', body: JSON.stringify({ ok: false, error: reject, status: 'error' }) });
+  });
+  const card = page.locator('#admin-list .adm-booth').first();
+  const id = await card.getAttribute('data-id');
+  await card.locator('[data-step="5"]').click();
+  await card.locator('.send').click();
+  // 理由が日本語で出る（先頭の合図「bad wait:」は見せない）
+  await expect(page.locator('#toast')).toContainText('送れませんでした：待ち人数は 0〜999');
+  await expect(page.locator('#toast')).not.toContainText('bad wait');
+  // 送り直しの列に残っていない・「未送信」の印も付かない
+  expect(await page.evaluate(id => ({ unsent: id in S.unsent, saved: JSON.stringify(load('kuroko_unsent', {})).includes(id) }), id)).toEqual({ unsent: false, saved: false });
+  await expect(page.locator(`#admin-list .adm-booth[data-id="${id}"]`)).not.toHaveClass(/unsent/);
+  // そのブースがもう無い、と返ったときも同じ
+  reject = '該当するIDがありません: ' + id;
+  const card2 = page.locator(`#admin-list .adm-booth[data-id="${id}"]`);
+  await card2.locator('[data-step="1"]').click();
+  await card2.locator('.send').click();
+  await expect(page.locator('#toast')).toContainText('送れませんでした：該当するIDがありません');
+  expect(await page.evaluate(id => id in S.unsent, id)).toBe(false);
+  // サーバーが混んでいる（busy）ときは、これまでどおり持っておいて送り直す
+  reject = 'busy: 混み合っています。少し待ってもう一度押してください';
+  await card2.locator('[data-step="1"]').click();
+  await card2.locator('.send').click();
+  await expect(page.locator('#toast')).toContainText('混み合っています');
+  expect(await page.evaluate(id => id in S.unsent, id)).toBe(true);
+  expect(errors).toEqual([]);
+});

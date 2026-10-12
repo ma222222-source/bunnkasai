@@ -3610,3 +3610,39 @@ test('⑦見えていない画面の下ごしらえは、指で触っている�
   await expect.poll(() => page.evaluate(() => (prewarmViews._log || []).join(',')), { timeout: 20000 }).toBe('v-stamp,v-list,v-info');
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v213：「係の人の更新 ◯分前」は、本当の時刻で言う ---------------- */
+test('見出しの「係の人の更新 ◯分前」は、係の人がいちばん最近に更新した時刻（サーバーが返事を作った時刻ではない）。更新が無ければ、そう言う', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  // 開催中の時刻にする（開催時間の外では、この行は「◯時 開場」などの案内になる）
+  await page.clock.install({ time: new Date('2026-10-24T11:20:00+09:00') });
+  const T0 = new Date('2026-10-24T11:20:00+09:00').getTime();
+  let mode = 'old37';
+  await mockGas(page, { mutate: j => {
+    j.updatedAt = new Date(T0).toISOString();            // サーバーが返事を作った時刻＝今
+    if (mode === 'old37') { j.booths.forEach(b => { if (b.time) b.time = new Date(T0 - 37 * 60000).toISOString(); }); }
+    if (mode === 'server') { j.booths.forEach(b => { if (b.time) b.time = new Date(T0 - 37 * 60000).toISOString(); }); j.lastUpdate = new Date(T0 - 12 * 60000).toISOString(); }
+    if (mode === 'none') { j.booths.forEach(b => { b.time = null; b.status = ''; b.wait = null; }); j.lastUpdate = null; }
+    if (mode === 'future') { j.booths.forEach((b, i) => { b.time = i === 0 ? new Date(T0 + 3 * 3600000).toISOString() : new Date(T0 - 8 * 60000).toISOString(); }); }
+  } });
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const txt = page.locator('#sync-text');
+  // 古いサーバー（lastUpdate なし）：ブースの時刻のうち、いちばん新しいもの（37分前）。以前は「たった今」と出ていた
+  await expect(txt).toHaveText('最新の情報です（係の人の更新 37分前）');
+  // 新しいサーバー：lastUpdate（12分前）のほうが新しければ、それを使う
+  mode = 'server';
+  await page.evaluate(() => sync(true));
+  await expect(txt).toHaveText('最新の情報です（係の人の更新 12分前）');
+  // 5分以上先の時刻（シートの打ち間違い）は数えない
+  mode = 'future';
+  await page.evaluate(() => sync(true));
+  await expect(txt).toHaveText('最新の情報です（係の人の更新 8分前）');
+  // まだ1件も更新が無い
+  mode = 'none';
+  await page.evaluate(() => sync(true));
+  await expect(txt).toHaveText('最新の情報です（係の人の更新はまだありません）');
+  expect(errors).toEqual([]);
+});

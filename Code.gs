@@ -47,7 +47,7 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-10-04b';
+var GAS_VERSION = '2026-10-13a';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
@@ -64,6 +64,15 @@ var BACKUP_SEC = 300;
 var CACHE_BUILDING = 'payload_v3_building';   // 再構築中の印（10秒で自然に消える）
 var CACHE_GEN = 'payload_v3_gen';             // 書き込みのたびに変わる番号
 var CACHE_BAK_AT = 'payload_v3_bak_at';       // 控えを作った時刻
+// v213（GAS 2026-10-13a）：推移（履歴シートの直近3時間）と来場者数の集計は、配信データとは別に覚えておく。
+// 係員の更新のたびに配信データは作り直すが、そのたびに履歴 6000 行・来場者の全行を読み直していた（作り直しの時間の大半）。
+// 推移は 90 秒おくれてよい（混み具合・待ち人数そのものは、これまでどおり更新の直後に出る）
+var CACHE_HIST = 'hist_v1';
+var HIST_CACHE_SEC = 90;
+var CACHE_VIS = 'vis_v1_';                    // うしろに日付（日付が変わったら数え直す）
+var VIS_CACHE_SEC = 120;
+// 1回の送信で受ける大きさの上限（文字数）。正しい送信でいちばん大きいのはスタンプの控え（400件で約3万字）
+var POST_MAX_CHARS = 120000;
 
 // 日付の境目は必ず日本時間で決める。
 // シートのロケールが米国のままだと、13時や16時に「今日」が切り替わり
@@ -275,6 +284,9 @@ function validate() {
       if (seen[id]) problems.push(line + 'id「' + id + '」が重複しています');
       seen[id] = true;
       if (!String(r[idx['name']] || '').trim()) problems.push(line + 'name が空です');
+      // v213：長すぎる名前・メモは、画面では途中で切って「…」を付ける。気づかないまま当日を迎えないように知らせる
+      if (String(r[idx['name']] || '').trim().length > 40) advice.push(line + 'name が40字を超えています（画面では40字で切れて「…」が付きます）');
+      if (idx['note'] != null && String(r[idx['note']] || '').trim().length > 120) advice.push(line + 'note が120字を超えています（画面では120字で切れます）');
       var st = String(r[idx['status']] || '').trim();
       if (st && !(st in STATUS_LEVEL)) problems.push(line + 'status「' + st + '」は使えません');
       // 部屋IDは 1F-02 / 0F-01 / 1X-05 の形。違っていても動くが、地図には載らない
@@ -785,16 +797,19 @@ function buildPayload_() {
   var booths = [];
   var staleMs = STALE_MINUTES * 60 * 1000;
   var now = Date.now();
+  var lastTs = 0;
 
   if (last >= 2) {
     var rows = sh.getRange(2, 1, last - 1, sh.getLastColumn()).getValues();
-    var hist = buildHistory_();
+    var hist = historyCached_();
     rows.forEach(function (r) {
       var id = String(r[idx['id']] == null ? '' : r[idx['id']]).trim();
       if (!id) return;
 
       var ts = toDate_(r[idx['time']]);
       var iso = ts ? ts.toISOString() : null;
+      // いちばん新しい更新の時刻（5分以上先の時刻＝打ち間違いは数えない）
+      if (ts && ts.getTime() - now <= 5 * 60000 && ts.getTime() > lastTs) lastTs = ts.getTime();
       var status = String(r[idx['status']] || '').trim();
       if (status && !isStatus_(status)) status = '';   // 「閉鎖中」など想定外の値は「情報なし」扱い
       // 空セルは「人数が分からない」。Number('') は 0 になってしまうので先に弾く
@@ -832,6 +847,9 @@ function buildPayload_() {
     ok: true,
     serverVersion: GAS_VERSION,        // 画面側で「Code.gs を貼り替えたか」を確かめるため
     updatedAt: new Date().toISOString(),
+    // v213：係の人がいちばん最近に更新した時刻。updatedAt は「この返事を作った時刻」なので、
+    // 画面の「係の人の更新 ◯分前」に使うと、だれも更新していなくても、いつも「たった今」と出ていた
+    lastUpdate: lastTs ? new Date(lastTs).toISOString() : null,
     staleMinutes: STALE_MINUTES,
     waitThresholds: { warn: WAIT_WARN, busy: WAIT_BUSY },
     pollSec: pollSec_(),
@@ -845,12 +863,24 @@ function buildPayload_() {
  * 受付でカウントした当日の来場者数。
  * 加算・減算の履歴として持つ（打ち間違いを引き算で戻せるようにするため）。
  */
-function readVisitors_() {
+function readVisitors_(fresh) {
+  var tz = TZ;   // シートのロケールに引きずられない
+  var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  // v213：数えた結果を2分おぼえておく（受付が押したとき・シートを手で直したときは数え直す）。
+  // 以前は、配信データを作り直すたびに来場者シートの全行を読んでいた
+  var vKey = CACHE_VIS + today, vc = null;
+  try { vc = CacheService.getScriptCache(); } catch (eVc) { vc = null; }
+  if (!fresh && vc) {
+    try { var vHit = vc.get(vKey); if (vHit) return JSON.parse(vHit); } catch (eVh) {}
+  }
+  var out = readVisitorsSheet_(today, tz);
+  if (vc) { try { vc.put(vKey, JSON.stringify(out), VIS_CACHE_SEC); } catch (eVp) {} }
+  return out;
+}
+function readVisitorsSheet_(today, tz) {
   var ss = ss_();
   var sh = ss.getSheetByName(SHEET_VISITORS);
   if (!sh || sh.getLastRow() < 2) return { today: 0, updatedAt: null };
-  var tz = TZ;   // シートのロケールに引きずられない
-  var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
   var rows = sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues();
   var total = 0, last = null;
   rows.forEach(function (r) {
@@ -877,6 +907,18 @@ function readNotice_() {
   return { text: msg, level: level === 'alert' ? 'alert' : 'info' };
 }
 
+/**
+ * v213：推移は 90 秒おぼえておく。履歴シートの 6000 行を読むのは、配信データを作り直す時間の大半。
+ * 混み合う時間は係員の更新が数秒おきに来て、そのたびに作り直しになるので、ここを読まずに済むと作り直しが速く終わる。
+ * 置けない（大きすぎる・キャッシュの障害）ときは、これまでどおり毎回読む
+ */
+function historyCached_() {
+  var c = null;
+  try { c = CacheService.getScriptCache(); var hit = c.get(CACHE_HIST); if (hit) return JSON.parse(hit); } catch (e) {}
+  var h = buildHistory_();
+  try { var t = JSON.stringify(h); if (c && bytes_(t) < 95000) c.put(CACHE_HIST, t, HIST_CACHE_SEC); } catch (e2) {}
+  return h;
+}
 /**
  * 履歴シートの末尾から直近3時間分を読み、ブースごとに最大12点へ間引く。
  */
@@ -1116,9 +1158,17 @@ function buildReport_(dateStr) {
 /* ============================== POST ============================== */
 function doPost(e) {
   var body;
+  var rawBody = (e && e.postData && e.postData.contents) || '{}';
+  // v213：とても大きい送信は、読む前に断る（いたずらで実行時間を使わせない）
+  if (String(rawBody).length > POST_MAX_CHARS) {
+    return json_({ ok: false, error: 'too large: 送る中身が大きすぎます', status: 'error' });
+  }
   try {
-    body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    body = JSON.parse(rawBody);
   } catch (err) {
+    return json_({ ok: false, error: 'invalid json' });
+  }
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
     return json_({ ok: false, error: 'invalid json' });
   }
 
@@ -1146,7 +1196,7 @@ function doPost(e) {
 
     if (action === 'update') {
       checkPass_(body.pass, body.cid);
-      if (!body.id) throw new Error('bad request');
+      if (!body.id) throw new Error('bad request: ブースの id がありません');
 
       // wait の3状態を区別する：
       //   キーが無い        … 人数列を触らない
@@ -1159,7 +1209,7 @@ function doPost(e) {
         } else {
           var wn = Number(body.wait);
           // 1e999 は Infinity になり isNaN を通り抜けてしまう。上限も決めておく
-          if (!isFinite(wn) || wn < 0 || wn > 999) throw new Error('bad wait');
+          if (!isFinite(wn) || wn < 0 || wn > 999) throw new Error('bad wait: 待ち人数は 0〜999 の数にしてください');
           wait = Math.round(wn);
         }
       }
@@ -1167,7 +1217,7 @@ function doPost(e) {
       // 人数が来ていてステータス指定が無ければ、人数から自動判定する
       var status = isStatus_(body.status) ? String(body.status) : null;
       if (!status && wait !== null && wait !== undefined) status = statusFromWait_(wait);
-      if (!status) throw new Error('bad request');
+      if (!status) throw new Error('bad request: 状態（' + STATUS_LIST.join('／') + '）か待ち人数を送ってください');
 
       var n = writeBooth_([String(body.id).trim()], status, wait);
       if (!n) throw new Error('該当するIDがありません: ' + body.id);
@@ -1183,14 +1233,14 @@ function doPost(e) {
     if (action === 'upsert') {
       checkPass_(body.pass, body.cid);
       var uid = cleanBoothId_(body.id);            // 部屋ID（例 1F-02）の形だけ受ける（数式や巨大な文字列を入れさせない）
-      if (!uid) throw new Error('bad request');
+      if (!uid) throw new Error('bad request: 部屋ID（例 1F-02）の形が違います');
       return json_(upsertBooth_(uid, body));
     }
 
     if (action === 'remove') {
       checkPass_(body.pass, body.cid);
       var rid = String(body.id || '').trim();
-      if (!rid) throw new Error('bad request');
+      if (!rid) throw new Error('bad request: ブースの id がありません');
       return json_({ ok: true, removed: removeBooth_(rid) });
     }
 
@@ -1222,7 +1272,7 @@ function doPost(e) {
     if (action === 'visitor') {
       checkPass_(body.pass, body.cid);
       var n = Math.round(Number(body.n));
-      if (isNaN(n) || n === 0 || Math.abs(n) > 1000) throw new Error('bad count');
+      if (isNaN(n) || n === 0 || Math.abs(n) > 1000) throw new Error('bad count: 人数は 1〜1000（引くときは −1〜−1000）にしてください');
       // uid … 押した1回ごとの番号。電波が悪くて送り直しても、同じ番号は2回数えない
       var vuid = String(body.uid || '').replace(/[^0-9a-z_-]/gi, '').slice(0, 40);
       var dup = false;
@@ -1242,7 +1292,7 @@ function doPost(e) {
         SpreadsheetApp.flush();
         clearCache_();
       });
-      return json_({ ok: true, status: 'success', duplicate: dup, visitors: readVisitors_() });
+      return json_({ ok: true, status: 'success', duplicate: dup, visitors: readVisitors_(true) });
     }
 
     if (action === 'bulk') {
@@ -1252,7 +1302,7 @@ function doPost(e) {
       return json_({ ok: true, status: 'success', updated: cnt });
     }
 
-    throw new Error('unknown action');
+    throw new Error('unknown action: この操作（' + cut_(action, 20) + '）は、このサーバーの版（' + GAS_VERSION + '）にはありません');
   } catch (err) {
     return json_({ ok: false, error: String(err.message || err), status: 'error' });
   }
@@ -1369,6 +1419,7 @@ function writeBooth_(ids, status, wait) {
     var now = new Date();
     var logs = [];
     var updated = 0;
+    var hitRows = [];
 
     for (var i = 0; i < rows; i++) {
       var id = String(idVals[i][0] == null ? '' : idVals[i][0]).trim();
@@ -1378,13 +1429,24 @@ function writeBooth_(ids, status, wait) {
       tmVals[i][0] = now;
       if (wtVals && wait !== undefined) wtVals[i][0] = (wait === null ? '' : wait);
       logs.push([now, id, status, (wait === null || wait === undefined) ? '' : wait]);
+      hitRows.push(i);
       updated++;
     }
     if (!updated) return 0;
 
-    sh.getRange(2, stCol, rows, 1).setValues(stVals);
-    sh.getRange(2, tmCol, rows, 1).setValues(tmVals);
-    if (wtVals && wait !== undefined) sh.getRange(2, wtCol, rows, 1).setValues(wtVals);
+    if (hitRows.length === 1) {
+      // v213：1つのブースの更新（ほとんどがこれ）は、その行のセルだけを書く。
+      // 以前は status・time・wait の列を、全部の行ぶん書き戻していた。読んでから書くまでのあいだに、
+      // 先生がほかのブースの状態を手で直していると、その直しを「読んだ時点の値」で消していた
+      var rr = hitRows[0] + 2;
+      if (tmCol === stCol + 1) sh.getRange(rr, stCol, 1, 2).setValues([[status, now]]);   // 列がとなりなら1回で
+      else { sh.getRange(rr, stCol).setValue(status); sh.getRange(rr, tmCol).setValue(now); }
+      if (wtVals && wait !== undefined) sh.getRange(rr, wtCol).setValue(wait === null ? '' : wait);
+    } else {
+      sh.getRange(2, stCol, rows, 1).setValues(stVals);
+      sh.getRange(2, tmCol, rows, 1).setValues(tmVals);
+      if (wtVals && wait !== undefined) sh.getRange(2, wtCol, rows, 1).setValues(wtVals);
+    }
     appendLogs_(logs);
     SpreadsheetApp.flush();      // 確定してからキャッシュを捨てる
     clearCache_();
@@ -1402,13 +1464,18 @@ function writeBooth_(ids, status, wait) {
  * スプレッドシートに付いたスクリプト（拡張機能 → Apps Script）なら自動で動く（設定は要らない）。
  */
 function onEdit(e) {
-  try { clearCache_(); } catch (err) {}
+  try { clearCache_(true); } catch (err) {}
 }
-function clearCache_() {
+/** @param {boolean} [all] 推移・来場者数の覚え書きも捨てる（シートを手で直したとき。どのシートを直したか分からないので全部） */
+function clearCache_(all) {
   try {
     var c = CacheService.getScriptCache();
     c.put(CACHE_GEN, String(Date.now()) + Math.random().toString(36).slice(2, 6), 3600);
     c.remove(CACHE_KEY);
+    if (all) {
+      c.remove(CACHE_HIST);
+      c.remove(CACHE_VIS + Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd'));
+    }
   } catch (e) {}
 }
 
@@ -1499,7 +1566,7 @@ var LEDGER_PER_CID_MAX = 800;    // 1つの番号が持てる記録の上限
 function cleanCid_(v) {
   var c = String(v == null ? '' : v).trim();
   // 8文字の「スタンプ番号」（v123〜）と、旧版の端末番号（12〜40文字）の両方を受ける
-  if (!/^[a-z0-9]{6,40}$/i.test(c)) throw new Error('bad cid');
+  if (!/^[a-z0-9]{6,40}$/i.test(c)) throw new Error('bad cid: スタンプ番号の形が違います');
   return c;
 }
 function cleanBoothId_(v) {
@@ -1698,7 +1765,7 @@ function appendEvents_(cid, ev, fresh) {
 function redeemLedger_(body) {
   var cid = resolveCid_(cleanCid_(body.cid));
   var ids = (Array.isArray(body.ids) ? body.ids : []).map(cleanBoothId_).filter(function (x, i, a) { return x && a.indexOf(x) === i; }).slice(0, 20);
-  if (!ids.length) throw new Error('bad request');
+  if (!ids.length) throw new Error('bad request: 交換するスタンプがありません');
   return withLock_(function () {
     var have = ledgerOf_(cid, true);                 // 二重交換の判定はキャッシュを使わない
     var used = ids.filter(function (id) { return have.spent.indexOf(id) >= 0; });

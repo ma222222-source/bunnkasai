@@ -3917,7 +3917,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-12f',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-13a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4895,6 +4895,7 @@ async function sync(manual){
     const ps = raw ? Number(raw.pollSec) : 0;
     S.pollMin = (ps >= 10 && ps <= 120) ? ps * 1000 : 0;
     S.updatedAt = (raw && raw.updatedAt) || new Date().toISOString();
+    S.lastUpdate = (raw && typeof raw.lastUpdate === 'string') ? raw.lastUpdate : null;   // v213
     if (raw && isFinite(+raw.staleMinutes) && +raw.staleMinutes > 0) S.staleMin = +raw.staleMinutes;
     const sv = (raw && typeof raw.serverVersion === 'string') ? raw.serverVersion : '';
     if (S.serverVersion !== sv){ S.serverVersion = sv; if (S.isAdmin){ checkServer._done = false; checkServer(); } }
@@ -5143,6 +5144,19 @@ function agoMin(m){
   return d < 2 ? '昨日' : d + '日前';
 }
 
+/**
+ * v213：係の人がいちばん最近に更新した時刻（ISO）。まだ1件も更新が無ければ null。
+ * サーバーの lastUpdate（GAS 2026-10-13a から）と、手元のブースの時刻のうち、新しいほう（古いサーバーでも出せる）。
+ * 5分以上先の時刻（シートの打ち間違い）は数えない
+ */
+function lastStaffAt(){
+  const lim = nowMs() + 5 * 60000;
+  let mx = 0;
+  const take = v => { const t = v ? Date.parse(v) : NaN; if (isFinite(t) && t <= lim && t > mx) mx = t; };
+  take(S.lastUpdate);
+  for (const b of S.booths) take(b.time);
+  return mx ? new Date(mx).toISOString() : null;
+}
 function renderSyncState(){
   const dot = $('#sync-dot'), txt = $('#sync-text');
   const age = Date.now() - S.fetchedAt;
@@ -5181,7 +5195,12 @@ function renderSyncState(){
     const hm = hoursMessage();
     // 開催時間の外なら、更新状況より「いまは開いていない」ことの方が大事
     if (hm){ dot.className = 'dot stale'; txt.textContent = hm.short; }
-    else txt.textContent = `最新の情報です（係の人の更新 ${ago(S.updatedAt)}）`;
+    else {
+      // v213：「係の人の更新」は、係の人がいちばん最近に更新した時刻で言う。
+      // 以前は、サーバーがこの返事を作った時刻（S.updatedAt）を出していたので、だれも更新していなくても、いつも「たった今」だった
+      const ls = lastStaffAt();
+      txt.textContent = ls ? `最新の情報です（係の人の更新 ${ago(ls)}）` : '最新の情報です（係の人の更新はまだありません）';
+    }
   }
 }
 setInterval(() => {
@@ -6676,6 +6695,12 @@ const DEPLOY_STEPS =
  * 保存できないときの案内。
  * 原因ごとに次の一手が違うので、まとめて「失敗しました」で終わらせない。
  */
+/** v213：サーバーのエラーの文から、先頭の合図（bad wait: など。画面が見分けに使う英語）を外して、日本語の理由だけにする */
+function srvMsg(m){
+  const t = String(m == null ? '' : m);
+  const r = t.replace(/^(bad [a-z]+|unknown action|too large|busy|weak|locked)\s*[:：]\s*/i, '');
+  return r || t;
+}
 function editError(e){
   const m = String((e && e.message) || e);
   if (/unknown action/i.test(m))  return 'サーバーがこの操作をまだ知りません。' + DEPLOY_STEPS;
@@ -6683,7 +6708,7 @@ function editError(e){
   if (/unauthorized/i.test(m))    return 'パスワードが違います。いったんログアウトして入り直してください。';
   if (/timeout|abort|failed to fetch|networkerror/i.test(m))
                                   return '通信できませんでした。電波の届く場所でもう一度おしてください。';
-  return '保存できませんでした：' + m;
+  return '保存できませんでした：' + srvMsg(m);
 }
 
 /** 部屋IDから階を取り出す（1F-02 → 1）。取れなければ今見ている階 */
@@ -12627,6 +12652,17 @@ async function update(id, status, wait, retry){
       renderAdmin();
       return;
     }
+    // v213：サーバーが「この中身は受け取れない」と返したとき（人数が範囲の外・そのブースがもう無い）。
+    // 送り直しても同じ返事なので、「電波が戻ったら自動で送ります」と言って持ち続けない。元に戻して、理由を出す
+    { const m0 = String(e && e.message || e);
+      if (/^bad (wait|request)\b|該当するID/.test(m0)){
+        Object.assign(S.booths.find(x => x.id === id) || b, prev);
+        delete S.unsent[id]; delete S.draftWait[id]; delete S.draftAt[id];
+        saveUnsent();
+        renderAdmin();
+        toast('送れませんでした：' + srvMsg(m0), null, 6000);
+        return;
+      } }
     // 通信断・時間切れ・混雑：押した内容は捨てずに持っておき、つながったら自動で送る。
     // 同じ値をもう一度送っても結果は同じなので、届いたか分からない時間切れでも再送してよい
     // （二重計上にならない）。以前は元に戻して短いトーストを出すだけで、
