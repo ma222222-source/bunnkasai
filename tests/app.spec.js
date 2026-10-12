@@ -3206,3 +3206,155 @@ test('幅320px：見出しは語の切れ目で折り返す（「校内マッ／
   expect(q.need).toBeLessThanOrEqual(q.have + 1);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v209：7つの仕上げ ---------------- */
+test('①地図の端の影：左右に地図が続いているほうの端にだけ出る（全体が入っているときは出ない）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const st = () => page.evaluate(() => { const v = document.getElementById('map-view');
+    return { l: v.classList.contains('more-l'), r: v.classList.contains('more-r'), ol: +getComputedStyle(v, '::before').opacity, or: +getComputedStyle(v, '::after').opacity,
+      pe: getComputedStyle(v, '::before').pointerEvents, x: ZOOM.x, min: ZOOM.mW - ZOOM.mW * ZOOM.k }; });
+  // 開いた直後（スマホ）：階の真ん中あたりが見えていて、左右どちらにも続きがある
+  let s = await st();
+  expect(s.l).toBe(true); expect(s.r).toBe(true);
+  await expect.poll(async () => (await st()).ol).toBe(1);
+  expect(s.pe).toBe('none');                                  // 影は地図の操作をじゃましない
+  // 左の端まで動かす → 左の影は消え、右だけ残る
+  await page.evaluate(() => { ZOOM.touched = true; ZOOM.x = 0; zoomApply(false); });
+  s = await st();
+  expect(s.l).toBe(false); expect(s.r).toBe(true);
+  await expect.poll(async () => (await st()).ol).toBe(0);
+  // 右の端まで動かす → 右の影は消え、左だけ
+  await page.evaluate(() => { ZOOM.x = -99999; zoomApply(false); });
+  s = await st();
+  expect(s.l).toBe(true); expect(s.r).toBe(false);
+  // 「全体」で階ぜんぶが入る → どちらも出ない
+  await page.locator('#zoom-reset').click();
+  await expect.poll(async () => { const t = await st(); return t.l || t.r; }).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('②③「はじめての方へ」：「わかった」で、すっと畳まれてから消える（地図が一気に跳ね上がらない）。小さい画面では詰めて、下の地図が見える', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  const card = page.locator('#intro-card');
+  await expect(card).toBeVisible();
+  const g = await page.evaluate(() => { const c = document.getElementById('intro-card').getBoundingClientRect(), m = document.getElementById('map-view').getBoundingClientRect(), n = document.getElementById('nav').getBoundingClientRect();
+    return { card: c.height, mapVisible: n.top - m.top, steps: document.querySelectorAll('#intro-card ol li').length, btn: document.getElementById('intro-ok').getBoundingClientRect().height }; });
+  expect(g.steps).toBe(3);
+  expect(g.card).toBeLessThanOrEqual(215);                    // v208 までは 252px（幅 320px）
+  expect(g.mapVisible).toBeGreaterThanOrEqual(110);           // カードの下に、地図が最初から見えている（v208 までは 71px）
+  expect(g.btn).toBeGreaterThanOrEqual(38);                   // 押す大きさは保つ
+  // 畳む動き：押した直後は、まだ場所を取っている（高さが少しずつ縮む）
+  await page.evaluate(() => { window.__h = []; const el = document.getElementById('intro-card'); const t0 = performance.now();
+    const tick = () => { window.__h.push(el.classList.contains('hide') ? -1 : Math.round(el.getBoundingClientRect().height)); if (performance.now() - t0 < 900) requestAnimationFrame(tick); }; document.getElementById('intro-ok').click(); requestAnimationFrame(tick); });
+  await expect(card).toBeHidden();
+  const hs = await page.evaluate(() => window.__h);
+  const mid = hs.filter(v => v > 8 && v < g.card - 8);
+  expect(mid.length, JSON.stringify(hs.slice(0, 30))).toBeGreaterThanOrEqual(2);   // 途中の高さを通っている（ぱっと消えていない）
+  expect(await page.evaluate(() => localStorage.getItem('kuroko_intro_v1'))).not.toBeNull();
+  expect(await card.evaluate(el => el.className + '|' + el.style.height)).toBe('intro-card hide|');   // 後始末（印・高さを残さない）
+  // 動きを減らす設定：すぐ消える
+  await page.evaluate(() => { localStorage.removeItem('kuroko_intro_v1'); });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.reload();
+  await ready(page);
+  await expect(card).toBeVisible();
+  await page.locator('#intro-ok').click();
+  expect(await card.evaluate(el => el.classList.contains('hide'))).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('④⑤ブースが届いたら「読み込み中」の札はすっと消える。「再試行」は、取りに行っているあいだ回る印が出て押せない', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  let fail = true, n = 0, open; let hold = null;
+  await page.route(/script\.google(usercontent)?\.com\//, async route => {
+    if (route.request().method() === 'GET' && !/ledger|report/.test(route.request().url())) n++;
+    if (hold) await hold;
+    return fail ? route.fulfill({ status: 404, contentType: 'text/html', body: '<html>404</html>' }) : route.fallback();
+  });
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=map');
+  const chip = page.locator('#map-wait'), rb = page.locator('#banner-retry');
+  await expect(chip).toContainText('まだ取れていません');
+  await expect(rb).toBeVisible();
+  // 「再試行」：押すと回る印。もう一度押しても、通信を重ねない
+  hold = new Promise(r => { open = r; });
+  await page.waitForTimeout(300);
+  const n0 = n;
+  await rb.click();
+  await expect(rb).toHaveClass(/busy/);
+  await expect(rb).toHaveAttribute('aria-busy', 'true');
+  expect(await rb.evaluate(el => getComputedStyle(el).pointerEvents)).toBe('none');
+  expect(await rb.evaluate(el => getComputedStyle(el, '::before').animationName)).toBe('spin-r');
+  await rb.evaluate(el => el.click());                          // 指では押せないが、念のためプログラムからも
+  await page.waitForTimeout(200);
+  expect(n - n0).toBe(1);
+  // 札が消える動きを数える
+  await page.evaluate(() => { window.__bye = 0; const el = document.getElementById('map-wait');
+    new MutationObserver(() => { if (el.classList.contains('bye')) window.__bye++; }).observe(el, { attributes: true, attributeFilter: ['class'] }); });
+  fail = false; open(); hold = null;
+  await ready(page);
+  await expect(chip).toBeHidden();
+  expect(await page.evaluate(() => window.__bye)).toBeGreaterThanOrEqual(1);
+  expect(await chip.evaluate(el => el.classList.contains('bye'))).toBe(false);
+  await expect(rb).not.toHaveClass(/busy/);
+  expect(errors).toEqual([]);
+});
+
+test('⑥読み込み中の骨組みは、本物の形（一覧＝帯・番号の丸・名前の線・札／スタンプ帳＝丸・名前の線）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  let open; let hold = new Promise(r => { open = r; });
+  await page.route(/script\.google(usercontent)?\.com\//, async route => { if (hold) await hold; return route.fallback(); });
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=list');
+  await expect(page.locator('#booth-list .skel')).toHaveCount(4);
+  const sk = await page.evaluate(() => { const el = document.querySelector('#booth-list .skel'), a = getComputedStyle(el, '::after'), b = getComputedStyle(el, '::before'), c = getComputedStyle(el);
+    const real = getComputedStyle(document.documentElement).getPropertyValue('--r');
+    return { layers: (a.backgroundImage.match(/gradient/g) || []).length, bar: parseFloat(b.width), border: parseFloat(c.borderTopWidth), h: el.getBoundingClientRect().height, pulse: a.animationName }; });
+  expect(sk.layers).toBeGreaterThanOrEqual(5);                 // 番号の丸・名前の線・札2つ・混み具合の札
+  expect(sk.bar).toBeGreaterThanOrEqual(4);                    // 左の帯
+  expect(sk.border).toBeGreaterThanOrEqual(1);
+  expect(sk.h).toBeGreaterThanOrEqual(70);
+  expect(sk.pulse).toBe('skel-pulse');
+  await page.locator('#nav button[data-view="stamp"]').click();
+  await expect(page.locator('#stamp-grid .skel-st')).toHaveCount(6);
+  expect(await page.evaluate(() => (getComputedStyle(document.querySelector('#stamp-grid .skel-st'), '::after').backgroundImage.match(/gradient/g) || []).length)).toBeGreaterThanOrEqual(2);
+  open(); hold = null;
+  await ready(page);
+  await expect(page.locator('#stamp-grid .skel-st')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('⑦本部モニタ：「データを取得しています…」は画面の中央に、回る印つきで出る。届いたら地図とタイルが並ぶ', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  let open; let hold = new Promise(r => { open = r; });
+  await page.route(/script\.google(usercontent)?\.com\//, async route => { if (hold) await hold; return route.fallback(); });
+  await page.goto('/?mode=board');
+  const em = page.locator('#board-grid .board-empty');
+  await expect(em).toContainText('取得しています');
+  const g = await em.evaluate(el => { const r = el.getBoundingClientRect(), rg = document.createRange(); rg.selectNodeContents(el); const t = rg.getBoundingClientRect();
+    return { cx: (t.left + t.right) / 2, vw: innerWidth, spin: getComputedStyle(el, '::before').animationName, maps: getComputedStyle(document.getElementById('board-maps')).display }; });
+  expect(Math.abs(g.cx - g.vw / 2)).toBeLessThan(40);          // 以前は左半分の真ん中（中央から 400px ずれていた）
+  expect(g.spin).toBe('spin-r');
+  expect(g.maps).toBe('none');                                 // まだ描くものが無い地図の列は取らない
+  open(); hold = null;
+  await ready(page);
+  await expect(page.locator('#board-grid .btile').first()).toBeVisible();
+  await expect(page.locator('#board-maps')).toBeVisible();
+  expect(await page.evaluate(() => document.querySelectorAll('#board-maps svg').length)).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});

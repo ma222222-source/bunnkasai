@@ -1877,6 +1877,64 @@ html.lite .hero-gear{animation:none}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
 /* ---- v206：地図の左下のボタン。開いた直後は「全体」だけ（左の角）。動かしたら、その右に「ブースに寄せる」が出る ---- */
 #map-card.gmap .map-fit-ctl #zoom-reset{order:-1}
+/* ==== v209：7つの仕上げ ==== */
+/* ①地図の左右の端の影：その先に地図が続いていることを示す。
+   スマホでは、開いた直後に階の半分ほどしか見えず、横に動かせる手がかりが、端で切れた部屋しか無かった */
+#map-card.gmap .map-view::before,#map-card.gmap .map-view::after{content:"";position:absolute;top:0;bottom:0;width:22px;z-index:2;
+  pointer-events:none;opacity:0;transition:opacity .25s ease}
+#map-card.gmap .map-view::before{left:0;background:linear-gradient(90deg,rgba(32,33,36,.2),rgba(32,33,36,.07) 45%,transparent)}
+#map-card.gmap .map-view::after{right:0;background:linear-gradient(270deg,rgba(32,33,36,.2),rgba(32,33,36,.07) 45%,transparent)}
+#map-card.gmap .map-view.more-l::before,#map-card.gmap .map-view.more-r::after{opacity:1}
+[data-theme="heavy"] #map-card.gmap .map-view::before{background:linear-gradient(90deg,rgba(0,0,0,.6),rgba(0,0,0,.2) 45%,transparent)}
+[data-theme="heavy"] #map-card.gmap .map-view::after{background:linear-gradient(270deg,rgba(0,0,0,.6),rgba(0,0,0,.2) 45%,transparent)}
+html.lite #map-card.gmap .map-view::before,html.lite #map-card.gmap .map-view::after{transition:none}
+/* ②「はじめての方へ」を閉じるとき：ぱっと消えると、下の地図が一気に跳ね上がる。すっと畳む */
+.intro-card.closing{overflow:hidden;pointer-events:none;
+  transition:height .32s var(--ease),opacity .22s ease,margin .32s var(--ease),padding .32s var(--ease),border-width .32s var(--ease)}
+.intro-card.closing.go{height:0 !important;opacity:0;margin-bottom:0;padding-top:0;padding-bottom:0;border-top-width:0;border-bottom-width:0}
+/* ③小さい画面では「はじめての方へ」を詰める（幅 320px では、カードだけで最初の画面が埋まり、地図が見えなかった） */
+#intro-card ol li{word-break:auto-phrase;text-wrap:pretty}      /* 「…交換できま／す」と1文字だけ落とさない（対応しているブラウザだけ） */
+@media (max-width:350px),(max-height:700px){
+  #intro-card{padding:8px 12px 10px}
+  #intro-card ol{margin:4px 0 7px;gap:3px}
+  #intro-card ol li{font-size:12.5px;line-height:1.4;padding-left:26px;min-height:20px}
+  #intro-card ol li::before{width:20px;height:20px;font-size:11px}
+  #intro-card .btn{min-height:38px;padding-top:6px;padding-bottom:6px}
+}
+/* ④「ブースを読み込み中…」の札は、届いたら、すっと消える（ぱっと消えると、ちらついて見える） */
+.map-wait.bye{animation:map-wait-bye .28s ease both}
+@keyframes map-wait-bye{to{opacity:0;transform:translateY(-6px)}}
+/* ⑤通信できないときの「再試行」：取りに行っているあいだは回る印を出し、押せなくする（押せたのか分からず、何度も押されていた） */
+#banner-retry.busy{pointer-events:none;opacity:.75}
+#banner-retry.busy::before{content:"";display:inline-block;width:11px;height:11px;margin-right:6px;vertical-align:-1px;border-radius:50%;
+  border:2px solid currentColor;border-right-color:transparent;animation:spin-r .7s linear infinite}
+/* ⑥読み込み中の骨組みを、本物の形に近づける（一覧＝左の帯・番号の丸・名前の線・札。スタンプ帳＝番号・丸・名前） */
+#booth-list .skel{position:relative;animation:none;background:var(--surface);border:1px solid var(--border);overflow:hidden}
+#booth-list .skel::before{content:"";position:absolute;left:12px;top:12px;bottom:12px;width:5px;border-radius:3px;background:var(--surface-3)}
+#booth-list .skel::after{content:"";position:absolute;left:30px;right:16px;top:14px;height:50px;border-radius:6px;
+  background:
+    radial-gradient(circle at 12px 12px,var(--surface-3) 11px,transparent 12px) 0 0/24px 24px no-repeat,
+    linear-gradient(var(--surface-3),var(--surface-3)) 34px 5px/46% 13px no-repeat,
+    linear-gradient(var(--surface-3),var(--surface-3)) 0 34px/52px 16px no-repeat,
+    linear-gradient(var(--surface-3),var(--surface-3)) 60px 34px/40px 16px no-repeat,
+    linear-gradient(var(--surface-3),var(--surface-3)) 100% 0/64px 26px no-repeat;
+  animation:skel-pulse 1.4s ease-in-out infinite}
+.stamp.skel-st{position:relative}
+.stamp.skel-st::after{content:"";position:absolute;inset:0;
+  background:
+    radial-gradient(circle at 50% 50%,var(--surface-3) 15px,transparent 16px) 50% 34%/34px 34px no-repeat,
+    linear-gradient(var(--surface-3),var(--surface-3)) 50% 82%/58% 9px no-repeat}
+html.lite #booth-list .skel::after{animation:none}
+/* ⑦本部モニタ：「データを取得しています…」は画面の中央に、動く印つきで（遠くから見て、止まっているのか待っているのかが分かる） */
+.board-grid:has(> .board-empty){grid-template-columns:1fr;grid-column:1 / -1}
+.board-body:has(.board-empty){grid-template-columns:1fr}
+.board-body:has(.board-empty) .board-maps{display:none}
+.board-empty{display:flex;align-items:center;justify-content:center;gap:.6em}
+.board-empty.load::before{content:"";flex:none;width:.9em;height:.9em;border-radius:50%;border:.14em solid currentColor;border-right-color:transparent;animation:spin-r .9s linear infinite}
+@media (prefers-reduced-motion:reduce){
+  #map-card.gmap .map-view::before,#map-card.gmap .map-view::after,.intro-card.closing{transition:none}
+  .map-wait.bye,#banner-retry.busy::before,.board-empty.load::before,#booth-list .skel::after{animation:none}
+}
 /* ---- v208：幅のせまい画面（320px など）の見出し・検索欄。
    見出しが「校内マッ／プ」、学校名が「…高等学／校」と1文字だけ次の行に落ちていた。見出しは語の切れ目（空白）でだけ折り返す ---- */
 .head h1{word-break:keep-all}
@@ -3788,7 +3846,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-12b',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-12c',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5472,7 +5530,14 @@ function renderMapWait(){
   if (!el) return;
   const ws = waitState();
   const on = ws === 'load' || ws === 'fail';
-  el.classList.toggle('hide', !on);
+  // v209：出ていた札は、すっと消してから隠す
+  if (!on && !el.classList.contains('hide') && !el.classList.contains('bye') && !document.documentElement.classList.contains('lite')){
+    el.classList.add('bye');
+    setTimeout(() => { el.classList.remove('bye'); if (!(waitState() === 'load' || waitState() === 'fail')) el.classList.add('hide'); }, 300);
+  } else if (on || !el.classList.contains('bye')){
+    el.classList.remove('bye');
+    el.classList.toggle('hide', !on);
+  }
   if (on){
     el.dataset.ws = ws;
     const tx = ws === 'load' ? 'ブースを読み込み中…' : 'ブースをまだ取れていません';
@@ -6687,7 +6752,21 @@ function renderIntro(){
   el.classList.toggle('hide', !show);
 }
 { const ok = document.getElementById('intro-ok');
-  if (ok) ok.addEventListener('click', () => { store('kuroko_intro_v1', 1); renderIntro(); }); }
+  if (ok) ok.addEventListener('click', () => {
+    store('kuroko_intro_v1', 1);
+    // v209：ぱっと消すと、下の地図が一気に跳ね上がる。高さを 0 まで縮めて、すっと畳む
+    const el = document.getElementById('intro-card');
+    const still = document.documentElement.classList.contains('lite') || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if (!el || still || el.classList.contains('closing')){ renderIntro(); return; }
+    el.style.height = el.offsetHeight + 'px';
+    el.classList.add('closing');
+    void el.offsetHeight;
+    el.classList.add('go');
+    let done = false;
+    const end = () => { if (done) return; done = true; el.classList.remove('closing', 'go'); el.style.height = ''; renderIntro(); };
+    el.addEventListener('transitionend', e => { if (e.propertyName === 'height') end(); });
+    setTimeout(end, 500);
+  }); }
 
 function renderHere(){
   renderLocateBtn();
@@ -7690,6 +7769,11 @@ function zoomApply(animate){
   z.el.style.transform = `translate(${z.x}px,${z.y}px) scale(${z.k})`;
   z.ax = z.x; z.ay = z.y; z.ak = z.k;
   if (z._markFit != null){ z.fitV = { f: z._markFit, k: z.k, x: z.x, y: z.y }; z._markFit = null; }
+  // v209：左右のどちらに地図が続いているか（端の影で示す）
+  if (z.wrap){
+    z.wrap.classList.toggle('more-l', z.x < -3);
+    z.wrap.classList.toggle('more-r', z.x > (w - w * z.k) + 3);
+  }
   // 動いている間だけ合成レイヤーにする。止まったら外して、その倍率で
   // 描き直させる（つけっぱなしだと拡大した絵がぼやけたままになる）
   z.el.classList.add('moving');
@@ -10948,7 +11032,7 @@ function renderBoard(){
     grid.classList.toggle('d3', n > 24);
     if (!n){
       // v204：読み込み中・取れていない・未登録を言い分ける（以前は、読み込み中は真っ白で、時計も「--:--」のままだった）
-      grid.innerHTML = `<p class="board-empty">${bws === 'load' ? 'データを取得しています…'
+      grid.innerHTML = `<p class="board-empty${bws === 'load' ? ' load' : ''}">${bws === 'load' ? 'データを取得しています…'
         : bws === 'fail' ? 'データを取得できていません。このPCのネット接続を確認してください（自動でつなぎ直します）'
         : 'ブースがまだ登録されていません'}</p>`;
     } else
@@ -14473,7 +14557,15 @@ function init(){
 
   $$('#nav button').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
   $('#btn-reload').addEventListener('click', () => sync(true));
-  $('#banner-retry').addEventListener('click', () => { S.failures = 0; renderWaiting(); sync(true); });
+  $('#banner-retry').addEventListener('click', () => {
+    // v209：取りに行っているあいだは回る印を出して、押せなくする（終わったら戻す。結果は帯の文と更新ボタンの ✓ で分かる）
+    const rb = $('#banner-retry');
+    if (rb.classList.contains('busy')) return;
+    rb.classList.add('busy'); rb.setAttribute('aria-busy', 'true');
+    const t0 = Date.now();
+    S.failures = 0; renderWaiting();
+    Promise.resolve(sync(true)).catch(() => {}).then(() => setTimeout(() => { rb.classList.remove('busy'); rb.removeAttribute('aria-busy'); }, Math.max(0, 600 - (Date.now() - t0))));
+  });
   FLOORS.forEach(f => $('#fl-' + f.n).addEventListener('click', () => { setFloor(f.n); flashFloor(f.n); }));
   $$('.chip[data-route]').forEach(el => el.addEventListener('click', () => {
     S.route = S.route === el.dataset.route ? null : el.dataset.route;
