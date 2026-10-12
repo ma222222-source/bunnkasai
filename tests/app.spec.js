@@ -3252,13 +3252,17 @@ test('②③「はじめての方へ」：「わかった」で、すっと畳�
   expect(g.card).toBeLessThanOrEqual(215);                    // v208 までは 252px（幅 320px）
   expect(g.mapVisible).toBeGreaterThanOrEqual(110);           // カードの下に、地図が最初から見えている（v208 までは 71px）
   expect(g.btn).toBeGreaterThanOrEqual(38);                   // 押す大きさは保つ
-  // 畳む動き：押した直後は、まだ場所を取っている（高さが少しずつ縮む）
-  await page.evaluate(() => { window.__h = []; const el = document.getElementById('intro-card'); const t0 = performance.now();
-    const tick = () => { window.__h.push(el.classList.contains('hide') ? -1 : Math.round(el.getBoundingClientRect().height)); if (performance.now() - t0 < 900) requestAnimationFrame(tick); }; document.getElementById('intro-ok').click(); requestAnimationFrame(tick); });
+  // 畳む動き：押した直後は、まだ場所を取っていて、高さを縮める動きに入っている（ぱっと消えていない）。
+  // こま送りで高さを記録する形は、重いとき（こまが3つしか来ない）に外れたので、押した直後のようすで確かめる（v210）
+  const f = await page.evaluate(() => { const el = document.getElementById('intro-card'); const h0 = el.getBoundingClientRect().height;
+    document.getElementById('intro-ok').click(); const c = getComputedStyle(el);
+    return { h0, folding: el.classList.contains('fold-out') && el.classList.contains('go'), hidden: el.classList.contains('hide'), prop: c.transitionProperty,
+      dur: Math.max(...c.transitionDuration.split(',').map(parseFloat)), hNow: el.getBoundingClientRect().height }; });
+  expect(f.hidden, JSON.stringify(f)).toBe(false);
+  expect(f.folding).toBe(true);
+  expect(f.prop).toContain('height'); expect(f.dur).toBeGreaterThan(0.2);
+  expect(f.hNow).toBeGreaterThan(f.h0 * 0.5);
   await expect(card).toBeHidden();
-  const hs = await page.evaluate(() => window.__h);
-  const mid = hs.filter(v => v > 8 && v < g.card - 8);
-  expect(mid.length, JSON.stringify(hs.slice(0, 30))).toBeGreaterThanOrEqual(2);   // 途中の高さを通っている（ぱっと消えていない）
   expect(await page.evaluate(() => localStorage.getItem('kuroko_intro_v1'))).not.toBeNull();
   expect(await card.evaluate(el => el.className + '|' + el.style.height)).toBe('intro-card hide|');   // 後始末（印・高さを残さない）
   // 動きを減らす設定：すぐ消える
@@ -3356,5 +3360,146 @@ test('⑦本部モニタ：「データを取得しています…」は画面�
   await expect(page.locator('#board-grid .btile').first()).toBeVisible();
   await expect(page.locator('#board-maps')).toBeVisible();
   expect(await page.evaluate(() => document.querySelectorAll('#board-maps svg').length)).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});
+
+/* ---------------- v210：7つの仕上げ・2 ---------------- */
+// 要素の文字を1字ずつ測って、行ごとの文字にまとめる
+const LINES_FN = `(el => { const out = []; const walk = n => { if (n.nodeType === 3) out.push(n); else n.childNodes.forEach(walk); }; walk(el);
+  const m = new Map(), rg = document.createRange();
+  for (const tn of out) for (let i = 0; i < tn.textContent.length; i++){ rg.setStart(tn, i); rg.setEnd(tn, i + 1); const b = rg.getBoundingClientRect(); if (!b.width) continue; const k = Math.round(b.top / 3); m.set(k, (m.get(k) || '') + tn.textContent[i]); }
+  return [...m.values()].map(s => s.trim()).filter(Boolean); })`;
+// 押した直後のようす（まだ場所を取っていて、畳む動きに入っている）を返す
+const FOLD_FN = `((sel, btnSel) => { const el = document.querySelector(sel); const h0 = el.getBoundingClientRect().height;
+  document.querySelector(btnSel).click();
+  const c = getComputedStyle(el);
+  return { h0, folding: el.classList.contains('fold-out') && el.classList.contains('go'), hidden: el.classList.contains('hide') || c.display === 'none',
+    prop: c.transitionProperty, dur: Math.max(...c.transitionDuration.split(',').map(parseFloat)), hNow: el.getBoundingClientRect().height }; })`;
+
+test('①②ブースの名前は文節で折り返す（行の頭に「ー」「）」を置かない・1文字だけの行を作らない）。文も、最後の行に1文字だけ残さない', async ({ page, browserName }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  const bad = lines => lines.filter(l => /^[ー）」、。・]/.test(l) || (lines.length > 1 && l.length === 1));
+  // スタンプ帳の名前（46枚）
+  const st = await page.evaluate(fn => [...document.querySelectorAll('#stamp-grid .stamp .lb')].map(el => eval(fn)(el)), LINES_FN);
+  expect(st.length).toBe(46);
+  expect(st.filter(l => bad(l).length).map(l => l.join('／'))).toEqual([]);
+  // 一覧の名前
+  await page.locator('#nav button[data-view="list"]').click();
+  await expect(page.locator('#booth-list .booth').first()).toBeVisible();
+  const ls = await page.evaluate(fn => [...document.querySelectorAll('#booth-list .booth-nm .nm')].map(el => eval(fn)(el)), LINES_FN);
+  expect(ls.length).toBe(46);
+  expect(ls.filter(l => bad(l).length).map(l => l.join('／'))).toEqual([]);
+  const cs = await page.evaluate(() => { const g = s => getComputedStyle(document.querySelector(s));
+    return { nmLb: g('#booth-list .booth-nm .nm').lineBreak, bodyLb: g('body').lineBreak, nmWb: g('#booth-list .booth-nm .nm').wordBreak, bodyTw: g('body').textWrapStyle || g('body').textWrap || '',
+      btnWb: g('#booth-list .booth-open').wordBreak }; });
+  expect(cs.nmLb).toBe('strict'); expect(cs.bodyLb).toBe('strict');
+  if (browserName === 'chromium') {
+    // 文節で折る（Chromium）。語の途中で切れていた例が、切れ目で折れている
+    expect(cs.nmWb).toBe('auto-phrase'); expect(cs.btnWb).toBe('auto-phrase');
+    expect(String(cs.bodyTw)).toContain('pretty');
+    const all = st.concat(ls).map(l => l.join('／'));
+    for (const ng of ['レーザ／ー', '体育／館', 'ライ／ントレーサー', 'キーホルダ／ー', 'ラリ／ー']) expect(all.filter(x => x.includes(ng)), ng).toEqual([]);
+    // 詳細の題
+    await page.evaluate(() => openSheet(S.booths.find(b => /バーベキュー/.test(b.name)).id));
+    await expect(page.locator('#bsh-nm')).toBeVisible();
+    const tl = await page.evaluate(fn => eval(fn)(document.getElementById('bsh-nm')), LINES_FN);
+    expect(bad(tl)).toEqual([]);
+    expect(tl.join('／')).not.toContain('コン／ロ');
+    await page.evaluate(() => closeSheet());
+    // 文：最後の行が1文字だけにならない（インフォの長い見出し・説明）
+    await page.locator('#nav button[data-view="info"]').click();
+    const sm = await page.evaluate(fn => [...document.querySelectorAll('#v-info summary, #v-info p')].filter(el => el.offsetParent && el.textContent.trim().length > 18).map(el => eval(fn)(el)), LINES_FN);
+    expect(sm.length).toBeGreaterThan(5);
+    expect(sm.filter(l => l.length > 1 && l[l.length - 1].replace(/[）」。]/g, '').length <= 1).map(l => l.join('／'))).toEqual([]);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('③案内の答えだけが出る検索（「トイレ」）では、「0件 / 全46件」と言わない。ふつうの検索では件数を出す', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.fill('#q', 'トイレ');
+  await expect(page.locator('#booth-list .qhelp')).toBeVisible();
+  await expect(page.locator('#booth-list .booth')).toHaveCount(0);
+  await expect(page.locator('#list-count')).toBeHidden();
+  await page.fill('#q', 'カジノ');
+  await expect(page.locator('#list-count')).toBeVisible();
+  await expect(page.locator('#list-count')).toContainText('全46件');
+  await page.fill('#q', 'ぜったいにないなまえ');
+  await expect(page.locator('#list-count')).toContainText('0件');       // 本当に見つからないときは、これまでどおり 0件
+  expect(errors).toEqual([]);
+});
+
+test('④⑤⑦⑧閉じた帯・案内は、すっと畳まれてから消える（お知らせの×・「あとで」・最近見たの×）。記録はすぐ残す。地図で見たブースが、一覧の「最近見た」に出る', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page, { notice: { text: '14時から第一体育館でステージ発表があります', level: 'info' } });
+  await page.addInitScript(() => { if (!sessionStorage.getItem('x')){ sessionStorage.setItem('x', 1); localStorage.setItem('kuroko_intro_v1', '1'); } });
+  await page.goto('/?tab=map');
+  await ready(page);
+  // 押した直後：まだ隠れていない・畳む動き（高さ）に入っている・高さはまだ残っている
+  const folding = r => { expect(r.hidden, JSON.stringify(r)).toBe(false); expect(r.folding).toBe(true); expect(r.prop).toContain('height'); expect(r.dur).toBeGreaterThan(0.2); expect(r.hNow).toBeGreaterThan(r.h0 * 0.5); };
+  // ④お知らせの帯
+  await expect(page.locator('#banner-notice')).toBeVisible();
+  folding(await page.evaluate(([fn, a, b]) => eval(fn)(a, b), [FOLD_FN, '#banner-notice', '#notice-x']));
+  await expect(page.locator('#banner-notice')).toBeHidden();
+  expect(await page.evaluate(() => localStorage.getItem('kuroko_notice_x'))).not.toBeNull();
+  expect(await page.locator('#banner-notice').evaluate(el => el.className.includes('fold-out') || !!el.style.height)).toBe(false);
+  // ⑤「いまどこにいますか？」の「あとで」
+  const bar = page.locator('#here-bar');
+  await expect(bar).toBeVisible();
+  await expect(bar).toContainText('いまどこにいますか');
+  folding(await page.evaluate(([fn, a, b]) => eval(fn)(a, b), [FOLD_FN, '#here-bar', '#here-bar [data-here-no]']));
+  await expect(bar).toBeHidden();
+  expect(await page.evaluate(() => localStorage.getItem('kuroko_here_ask'))).toBe('false');
+  // ⑧⑦地図で詳細を見てから一覧に移ると、「最近見た」に出ている（一覧の中身が同じでも見直す）。× で、すっと畳む
+  await page.evaluate(() => { openSheet(S.booths[3].id); });
+  await expect(page.locator('#bsh-nm')).toBeVisible();
+  await page.evaluate(() => closeSheet());
+  await page.locator('#nav button[data-view="list"]').click();
+  const row = page.locator('#recent-row');
+  await expect(row).toBeVisible();
+  folding(await page.evaluate(([fn, a, b]) => eval(fn)(a, b), [FOLD_FN, '#recent-row', '#recent-x']));
+  await expect(row).toBeHidden();
+  // 動きを減らす設定：すぐ消える
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.evaluate(() => { localStorage.removeItem('kuroko_notice_x'); });
+  await page.reload();
+  await ready(page);
+  await expect(page.locator('#banner-notice')).toBeVisible();
+  await page.locator('#notice-x').click();
+  expect(await page.locator('#banner-notice').evaluate(el => el.classList.contains('hide'))).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('⑥「上へ戻る」は、すっと出て、すっと引っ込む（消え終わってから見えなくする）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=list');
+  await ready(page);
+  const tt = page.locator('#to-top');
+  const cs = () => tt.evaluate(el => { const c = getComputedStyle(el); return { op: +c.opacity, vis: c.visibility, disp: c.display, prop: c.transitionProperty, pe: c.pointerEvents }; });
+  let c = await cs();
+  expect(c.vis).toBe('hidden'); expect(c.op).toBe(0); expect(c.disp).not.toBe('none'); expect(c.pe).toBe('none');
+  expect(c.prop).toContain('opacity');
+  await expect(tt).toBeHidden();
+  await page.evaluate(() => { window.dispatchEvent(new Event('touchmove')); window.scrollTo(0, 1600); });
+  await expect(tt).toBeVisible();
+  await expect.poll(async () => (await cs()).op).toBe(1);
+  await tt.click();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(50);
+  await expect(tt).toBeHidden();
+  await expect.poll(async () => (await cs()).op).toBe(0);
   expect(errors).toEqual([]);
 });
