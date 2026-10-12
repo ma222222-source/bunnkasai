@@ -3113,7 +3113,8 @@ test('地図の左下のボタン：すっと出て、すっと引っ込む（�
   await page.evaluate(() => { ZOOM.touched = true; ZOOM.x -= 70; zoomApply(false); });
   await expect(zb).toBeVisible();
   await expect.poll(async () => (await cs()).op).toBe(1);
-  expect((await cs()).tf === 'none' || (await cs()).tf === 'matrix(1, 0, 0, 1, 0, 0)').toBe(true);
+  // 大きさの動き（0.22秒・少し行きすぎて戻る）は、濃さ（0.18秒）より少し長い。落ち着くまで待つ（v212：すぐ測ると、動きの途中の値を拾って外れることがあった）
+  await expect.poll(async () => (await cs()).tf, { timeout: 3000 }).toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
   // 引っ込むとき：消え終わってから見えなくなる
   await zb.click();
   await expect(zb).toBeHidden();

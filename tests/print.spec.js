@@ -159,7 +159,7 @@ test('三つ折りパンフレット（?mode=pamphlet）：A4横・両面2ペー
   });
   expect(r.paper).toEqual([297, 210]);
   expect([r.flap, r.back, r.cover]).toEqual([97, 100, 100]);
-  expect([r.in1, r.spread]).toEqual([100, 197]);
+  expect([r.in1, r.spread]).toEqual([47, 250]);        // v212：内側は［ごあいさつの細い列 47mm｜地図と一覧 250mm］（折り目は 100・200mm のまま）
   expect(r.order).toBe('flap,back,cover');             // 外側：左から 折り込む面・裏表紙・表紙
   expect(r.over).toBe(0);
   expect(r.maps).toBe(3);
@@ -298,9 +298,9 @@ test('三つ折りパンフレット：ふつうの両面印刷（長辺とじ�
   expect(r.tr).toBe('matrix(-1, 0, 0, -1, 0, 0)');
   expect(r.tr1).toBe('none');
   expect(r.cover).toEqual([197, 297]);
-  expect(r.in1).toEqual([197, 297]);
+  expect(r.in1).toEqual([250, 297]);                   // v212：ごあいさつは 47mm の細い列（逆さなので右の端）
   expect(r.flap).toEqual([0, 97]);
-  expect(r.spread).toEqual([0, 197]);
+  expect(r.spread).toEqual([0, 250]);
   expect(r.folds).toEqual([97, 197]);                  // 裏の折り目の印が、表の折り目と同じ位置
   expect(r.h3top).toBeGreaterThan(150);                // 見出しが紙の下のほう＝上下逆
   expect(r.href).toBe('docs/pamphlet.pdf');
@@ -315,8 +315,8 @@ test('三つ折りパンフレット：ふつうの両面印刷（長辺とじ�
   r = await lay();
   expect(r.flip).toBe('short');
   expect(r.tr).toBe('none');
-  expect(r.in1).toEqual([0, 100]);
-  expect(r.spread).toEqual([100, 297]);
+  expect(r.in1).toEqual([0, 47]);
+  expect(r.spread).toEqual([47, 297]);
   expect(r.h3top).toBeLessThan(20);
   expect(r.href).toBe('docs/pamphlet-tanpen.pdf');
   await page.emulateMedia({ media: 'screen' });
@@ -367,21 +367,27 @@ test('三つ折りパンフレット：地図は紙で読める大きさ（1階�
     return { maps, over: document.querySelectorAll('#pam .pam-panel.over').length,
       // 番号の一覧の字
       listPt: parseFloat(getComputedStyle(pn('#pam .pam-list')).fontSize) * 0.75,
-      // 折り目（紙の左から 200mm）をまたぐ一覧の段が無い
-      fold: (() => { const p = pn('.pam-s2 .pam-paper').getBoundingClientRect(), fx = p.left + 200 * mm * (p.width / (297 * mm));
-        return [...document.querySelectorAll('#pam .pam-list li')].filter(li => { const b = li.getBoundingClientRect(); return b.left < fx - 1 && b.right > fx + 1; }).length; })() };
+      // 折り目（短辺とじの向きで、紙の左から 100mm・200mm）をまたぐ一覧の行が無い。長辺とじ用は紙の上で 180度回るので、右から測る
+      fold: (() => { const p = pn('.pam-s2 .pam-paper').getBoundingClientRect(), sc = p.width / (297 * mm), rot = getComputedStyle(pn('.pam-s2 .pam-paper')).transform.includes('-1');
+        return [100, 200].map(f => { const fx = rot ? p.right - f * mm * sc : p.left + f * mm * sc;
+          return [...document.querySelectorAll('#pam .pam-list li')].filter(li => { const b = li.getBoundingClientRect(); return b.left < fx - 2 && b.right > fx + 2; }).length; }); })(),
+      // 番号の丸どうしが重ならない
+      clash: [...document.querySelectorAll('#pam .sheet-plan')].map(svg => { const cs = [...svg.querySelectorAll('circle[fill="#b91c1c"]')].filter(c => !c.closest('.pl-call')).map(c => [+c.getAttribute('cx'), +c.getAttribute('cy'), +c.getAttribute('r')]);
+        let n = 0; for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++) if (Math.hypot(cs[i][0] - cs[j][0], cs[i][1] - cs[j][1]) < cs[i][2] + cs[j][2] - 0.2) n++; return n; }) };
   });
   expect(r.over).toBe(0);
   expect(r.maps.length).toBe(3);
-  const [f1, f2, f3] = r.maps;
-  expect(f1.w).toBeGreaterThanOrEqual(178);            // 1階は、2面の幅いっぱい（180mm）
-  expect(f1.k).toBeGreaterThanOrEqual(0.4);            // v184 までは 0.30mm/単位（部屋の名前が 4pt でつぶれていた）
-  expect(f2.k).toBeGreaterThanOrEqual(0.36);           // 2階は 0.20 → 倍近く
+  const [f1, f3, f2] = r.maps;                         // v212：並びは 1階・3階・2階（3階のまとまりを折り目の左に置く）
+  expect(f1.w).toBeGreaterThanOrEqual(188);            // v212：1階は 180 → 189.5mm（ごあいさつを細くしたぶん）
+  expect(f1.k).toBeGreaterThanOrEqual(0.42);
+  expect(f2.w).toBeGreaterThanOrEqual(136);            // 2階は 122 → 137.5mm
+  expect(f2.k).toBeGreaterThanOrEqual(0.4);
   expect(f3.k).toBeGreaterThanOrEqual(0.4);
   expect(f1.n + f2.n + f3.n).toBe(46);
-  for (const m of r.maps) expect(m.minNum).toBeGreaterThanOrEqual(1.76);   // 番号の字は 5pt（1.76mm）以上
-  expect(r.listPt).toBeGreaterThanOrEqual(6.5);
-  expect(r.fold).toBe(0);
+  for (const m of r.maps) expect(m.minNum).toBeGreaterThanOrEqual(1.9);    // v212：番号の字は 5.4pt（1.9mm）以上（小さい教室の丸を大きくした。以前は 5pt）
+  expect(r.clash).toEqual([0, 0, 0]);
+  expect(r.listPt).toBeGreaterThanOrEqual(process.platform === 'win32' ? 8.4 : 6.6);   // v212：一覧の字（手元の Windows で 9pt 台。v211 までは 7.5pt）
+  expect(r.fold).toEqual([0, 0]);
   // 引き出し線つきの札：体育館（ステージ・飲食）・受付（タイムテーブルに出てくる場所）
   const byId = Object.fromEntries(f1.calls.map(c => [c.id, c]));
   expect(byId['1F-42'].text).toContain('第一体育館');
@@ -441,7 +447,7 @@ test('紙マップ（?mode=print）にも、体育館などの引き出し線つ
 });
 
 /* ---------------- v204：パンフレットをもっと見やすく（ユーザーの依頼） ---------------- */
-test('三つ折りパンフレット：番号の一覧は大きな字（面に収まる範囲でいちばん大きく）・地図と同じ赤い丸の番号・3階の一覧は3階の地図の下・印の説明・つぶれる部屋名は描かない', async ({ page }) => {
+test('三つ折りパンフレット：ごあいさつは細い列、一覧は大きな字で地図のとなり・下（1階＝右の列、2階＝地図の下に3段、3階＝地図の下）。印の説明・赤い丸の番号・つぶれる部屋名は描かない', async ({ page }) => {
   await mockGas(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/?mode=pamphlet');
@@ -452,68 +458,79 @@ test('三つ折りパンフレット：番号の一覧は大きな字（面に�
   await page.evaluate(() => { localStorage.setItem('kuroko_pamphlet_v1', JSON.stringify({ _flip: 'short' })); renderPamphlet(); });
   const r = await page.evaluate(() => {
     const mm = 96 / 25.4, q = s => document.querySelector(s), qa = s => [...document.querySelectorAll(s)];
-    const sp = q('#pam .pam-spread'), ls = q('#pam .pam-lists'), b = q('#pam .pam-lists .pam-list b'), cs = getComputedStyle(b);
+    const paper = q('.pam-s2 .pam-paper').getBoundingClientRect();
+    const X = el => { const b = el.getBoundingClientRect(); return [+((b.left - paper.left) / mm).toFixed(1), +((b.right - paper.left) / mm).toFixed(1)]; };
+    const sp = q('#pam .pam-spread'), body = q('#pam .pam-sp-body'), b = q('#pam .pam-list1 .pam-list b'), cs = getComputedStyle(b);
     const lum = c => { const m = c.match(/[\d.]+/g).map(Number); return (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255; };
-    const rooms = qa('#pam .sheet-plan').map(svg => {
-      const k = svg.getBoundingClientRect().width / mm / svg.viewBox.baseVal.width;
-      // ブースの無い部屋の名前（灰色の字）。昇降口は目印なので小さくても描く
-      return [...svg.querySelectorAll('text[fill="#777"][font-weight="600"]')].filter(t => !/昇|降|口/.test(t.textContent)).map(t => +(parseFloat(t.getAttribute('font-size')) * k).toFixed(2));
-    });
+    const rooms = qa('#pam .sheet-plan').map(svg => { const k = svg.getBoundingClientRect().width / mm / svg.viewBox.baseVal.width;
+      return [...svg.querySelectorAll('text[fill="#777"][font-weight="600"]')].filter(t => !/昇|降|口/.test(t.textContent)).map(t => +(parseFloat(t.getAttribute('font-size')) * k).toFixed(2)); });
+    const pb = parseFloat(getComputedStyle(sp).paddingBottom) || 0;
+    const fitsAt = pt => { sp.style.setProperty('--pl', pt.toFixed(1) + 'pt');
+      const top = body.offsetParent === sp ? body.offsetTop : body.offsetTop - sp.offsetTop, h = Math.max(...[...body.children].map(c => c.offsetHeight));
+      return top + h <= sp.clientHeight - pb + 0.5 && !qa('#pam .pam-spread .pam-list').some(l => l.scrollWidth > l.clientWidth + 1); };
+    const cur = parseFloat(sp.dataset.pl);
+    const fit = { fitsCur: fitsAt(cur), fitsMore: cur >= 9.55 ? false : fitsAt(cur + 0.1) };
+    sp.style.setProperty('--pl', cur.toFixed(1) + 'pt');
     return {
-      pl: parseFloat(sp.dataset.pl), listPt: parseFloat(getComputedStyle(q('#pam .pam-lists .pam-list')).fontSize) * 0.75,
-      // 一覧の番号：赤い丸に白い字
-      bBg: lum(cs.backgroundColor), bInk: lum(cs.color), bRound: cs.borderRadius, bW: b.getBoundingClientRect().width / mm, bH: b.getBoundingClientRect().height / mm,
-      // 3階の一覧は、3階の地図の箱の中（下の一覧には3階の見出しが無い）
-      m3: qa('#pam .pam-mini.m3 .pam-list li').map(li => li.textContent.trim()), heads: qa('#pam .pam-lists .pam-h4').map(h => h.textContent.trim()),
-      total: qa('#pam .pam-list li').length,
-      m3Below: (() => { const m = q('#pam .pam-mini.m3'), svg = m.querySelector('svg'), ol = m.querySelector('.pam-list'); return ol.getBoundingClientRect().top >= svg.getBoundingClientRect().bottom - 1; })(),
-      // 地図の箱が縮められていない（一覧を大きくしすぎると、下の段が1階の地図に重なる）
-      squeezed: [...sp.children].filter(c => c !== ls && c.scrollHeight > c.clientHeight + 1).length,
-      gap: (() => { const a = q('#pam .pam-spread-top').getBoundingClientRect(), m = q('#pam .pam-spread-mid').getBoundingClientRect(), l = ls.getBoundingClientRect(); return [m.top - a.bottom, l.top - m.bottom]; })(),
-      bottom: (sp.getBoundingClientRect().bottom - ls.getBoundingClientRect().bottom) / mm,
-      // 目当てになる所は太字
+      greet: X(q('#pam .pam-in1')), greetBody: +(q('#pam .pam-in1 .pam-gbody').getBoundingClientRect().width / mm).toFixed(1),
+      map1: X(q('#pam .pam-spread-top svg')), m3: X(q('#pam .pam-mini.m3')), m2: X(q('#pam .pam-mini.m2')), list1: X(q('#pam .pam-list1')),
+      l2: qa('#pam .pam-l2 .pam-list').map(X), l2n: qa('#pam .pam-l2 .pam-list').map(o => o.children.length),
+      pl: cur, listPt: parseFloat(getComputedStyle(q('#pam .pam-list1 .pam-list')).fontSize) * 0.75, ...fit, tight: sp.dataset.tight,
+      bBg: lum(cs.backgroundColor), bInk: lum(cs.color), bRound: cs.borderRadius, bW: b.getBoundingClientRect().width / mm,
+      l1: qa('#pam .pam-list1 .pam-list li').length, l1head: qa('#pam .pam-list1 .pam-h4').map(h => h.textContent.trim()),
+      l3: qa('#pam .pam-mini.m3 .pam-list li').map(li => li.textContent.trim()), total: qa('#pam .pam-list li').length,
+      // 一覧は、その階の地図のすぐ下
+      m3Below: q('#pam .pam-mini.m3 .pam-list').getBoundingClientRect().top >= q('#pam .pam-mini.m3 svg').getBoundingClientRect().bottom - 1,
+      m2Below: q('#pam .pam-l2').getBoundingClientRect().top >= q('#pam .pam-mini.m2 svg').getBoundingClientRect().bottom - 1,
+      bottom: (sp.getBoundingClientRect().bottom - Math.max(...[...body.children].map(c => c.getBoundingClientRect().bottom))) / mm,
       lm: qa('#pam .pam-list li.lm').map(li => li.textContent.trim()), lmWeight: +getComputedStyle(q('#pam .pam-list li.lm')).fontWeight,
       key: q('#pam .pam-key').textContent.replace(/\s+/g, ' ').trim(), keyWc: !!q('#pam .pam-key .pk-wc svg'),
-      rooms, over: qa('#pam .pam-panel.over').length, tight: sp.dataset.tight,
-      // 選んだ字が「入るなかでいちばん大きい」：0.1pt 大きくすると入らない（8.6pt が上限）
-      ...(() => { const cur = parseFloat(sp.dataset.pl), pb = parseFloat(getComputedStyle(sp).paddingBottom) || 0;
-        const fitsAt = pt => { sp.style.setProperty('--pl', pt.toFixed(1) + 'pt');
-          const sq = [...sp.children].some(c => c !== ls && c.scrollHeight > c.clientHeight + 1), top = ls.offsetParent === sp ? ls.offsetTop : ls.offsetTop - sp.offsetTop;
-          return !sq && top + ls.offsetHeight <= sp.clientHeight - pb + 0.5; };
-        const o = { fitsCur: fitsAt(cur), fitsMore: cur >= 8.55 ? false : fitsAt(cur + 0.1) };
-        sp.style.setProperty('--pl', cur.toFixed(1) + 'pt');
-        return o; })(),
+      rooms, over: qa('#pam .pam-panel.over').length,
     };
   });
   expect(r.over).toBe(0);
   expect(r.tight).toBe('');
-  // 字の大きさは書体で変わる（手元の Windows で 7.5pt、GitHub の Linux で 6.9pt。v203 までは、どちらも 6.6pt）
-  expect(r.listPt).toBeGreaterThanOrEqual(process.platform === 'win32' ? 7.2 : 6.6);
-  expect(r.listPt).toBeLessThanOrEqual(8.7);
+  // ごあいさつ：紙の左の 47mm（v211 までは 100mm）。文を書く幅は 36mm
+  expect(r.greet).toEqual([0, 47]);
+  expect(r.greetBody).toBeGreaterThanOrEqual(35);
+  // 地図：1階 189.5mm。3階のまとまりは折り目（100mm）の左、2階は右。1階の一覧は折り目（200mm）より右の列
+  expect(r.map1[1] - r.map1[0]).toBeGreaterThanOrEqual(188);
+  expect(r.m3[1]).toBeLessThanOrEqual(98.5);
+  expect(r.m2[0]).toBeGreaterThanOrEqual(101.5);
+  expect(r.list1[0]).toBeGreaterThanOrEqual(240);
+  expect(r.list1[1]).toBeLessThanOrEqual(289);            // 紙の右の端 8mm には置かない
+  // 2階の一覧は3段。2段目と3段目の切れ目が、折り目（200mm）
+  expect(r.l2.length).toBe(3);
+  expect(r.l2[1][1]).toBeLessThanOrEqual(198.5);
+  expect(r.l2[2][0]).toBeGreaterThanOrEqual(201.5);
+  expect(r.l2n.reduce((a, c) => a + c, 0)).toBe(13);
+  // どの階の一覧も、その階の地図のとなり・下。1件も落としていない
+  expect(r.l1).toBe(29); expect(r.l1head).toEqual(['1階']);
+  expect(r.l3.length).toBe(4);
+  expect(r.m3Below).toBe(true); expect(r.m2Below).toBe(true);
+  expect(r.total).toBe(46);
+  // 字の大きさ：入るなかでいちばん大きい（書体で変わる。手元の Windows で 9pt 台。v211 までは 7.5pt、v203 までは 6.6pt）
+  expect(r.listPt).toBeGreaterThanOrEqual(process.platform === 'win32' ? 8.4 : 6.6);
+  expect(r.listPt).toBeLessThanOrEqual(9.7);
+  expect(Math.abs(r.listPt - r.pl)).toBeLessThan(0.15);
   expect(r.fitsCur).toBe(true);
   expect(r.fitsMore).toBe(false);
-  expect(Math.abs(r.listPt - r.pl)).toBeLessThan(0.15);
+  expect(r.bottom).toBeGreaterThanOrEqual(5.5);           // 下の余白（6mm）に食い込まない
+  // 一覧の番号：赤い丸に白い字
   expect(r.bBg).toBeLessThan(0.3); expect(r.bInk).toBeGreaterThan(0.9); expect(r.bRound).toBe('50%');
-  expect(Math.abs(r.bW - r.bH)).toBeLessThan(0.2);
-  expect(r.bW).toBeGreaterThanOrEqual(2.8);             // 丸は直径 2.8mm 以上（2けたの数字が入る）
-  expect(r.m3.length).toBe(4);
-  expect(r.m3Below).toBe(true);
-  expect(r.heads).toEqual(['1階', '2階']);
-  expect(r.total).toBe(46);                             // 1件も落としていない
-  expect(r.squeezed).toBe(0);
-  expect(r.gap[0]).toBeGreaterThanOrEqual(0); expect(r.gap[1]).toBeGreaterThanOrEqual(0);
-  expect(r.bottom).toBeGreaterThanOrEqual(5.5);         // 下の余白（6mm）に食い込まない
+  expect(r.bW).toBeGreaterThanOrEqual(2.8);
+  // 目当てになる所は太字。印の説明
   expect(r.lm.join(' ')).toContain('ステージ'); expect(r.lm.join(' ')).toContain('受付'); expect(r.lm.join(' ')).toContain('飲食ブース');
-  expect(r.lm.length).toBeLessThanOrEqual(8);           // 太字ばかりにしない
+  expect(r.lm.length).toBeLessThanOrEqual(8);
   expect(r.lmWeight).toBeGreaterThanOrEqual(700);
   expect(r.key).toContain('ブース'); expect(r.key).toContain('トイレ'); expect(r.key).toContain('会場');
   expect(r.keyWc).toBe(true);
   // ブースの無い部屋の名前は、紙で 5.5pt（1.95mm）以上のものだけ
   for (const fs of r.rooms.flat()) expect(fs).toBeGreaterThanOrEqual(1.94);
-  expect(r.rooms[0].length).toBeGreaterThanOrEqual(6);   // 大きな部屋の名前は残す（消しすぎない）
+  expect(r.rooms[0].length).toBeGreaterThanOrEqual(6);
 });
 
-test('三つ折りパンフレット：名前が長くて行が増えたら、字のほうを小さくする（地図の箱を縮めて下の段を重ねない）。いちばん小さい字でも入らなければ、はみ出しの印で知らせる', async ({ page }) => {
+test('三つ折りパンフレット：名前が長くて行が増えたら、字のほうを小さくする。いちばん小さい字でも入らなければ、はみ出しの印で知らせる（黙って重ねない）', async ({ page }) => {
   const open = async suffix => {
     await page.unroute(/script\.google(usercontent)?\.com\//).catch(() => {});
     await mockGas(page, { mutate: j => { j.booths.forEach(b => { b.name = b.name + suffix; }); } });
@@ -525,30 +542,29 @@ test('三つ折りパンフレット：名前が長くて行が増えたら、�
     await page.setViewportSize({ width: 1123, height: 794 });
     await page.evaluate(() => renderPamphlet());
     return page.evaluate(() => {
-      const sp = document.querySelector('#pam .pam-spread'), ls = document.querySelector('#pam .pam-lists');
-      return { pl: parseFloat(sp.dataset.pl), squeezed: [...sp.children].filter(c => c !== ls && c.scrollHeight > c.clientHeight + 1).length,
-        total: document.querySelectorAll('#pam .pam-list li').length, over: sp.classList.contains('over') };
+      const sp = document.querySelector('#pam .pam-spread'), body = document.querySelector('#pam .pam-sp-body'), pb = parseFloat(getComputedStyle(sp).paddingBottom) || 0;
+      const top = body.offsetParent === sp ? body.offsetTop : body.offsetTop - sp.offsetTop, h = Math.max(...[...body.children].map(c => c.offsetHeight));
+      return { pl: parseFloat(sp.dataset.pl), inside: top + h <= sp.clientHeight - pb + 0.5, total: document.querySelectorAll('#pam .pam-list li').length, over: sp.classList.contains('over') };
     });
   };
-  // もとの名前での字の大きさ
   const base = await open('');
-  expect(base.squeezed).toBe(0);
+  expect(base.inside).toBe(true);
   expect(base.over).toBe(false);
-  // 少し長い名前：行が増えるぶん、字が小さくなる（書体によっては、いちばん小さい字でも入らない。そのときは必ず印が付く＝黙って地図に重ねない）
-  const a = await open('・体験');
+  // 少し長い名前：行が増えるぶん、字が小さくなる（入らないときは必ず印が付く）
+  const a = await open('・体験コーナー');
   expect(a.total).toBe(46);
   expect(a.pl).toBeGreaterThanOrEqual(6.6);
   expect(a.pl).toBeLessThanOrEqual(base.pl);
-  expect(a.squeezed === 0 || a.over).toBe(true);
-  if (a.pl > 6.65) { expect(a.squeezed).toBe(0); expect(a.over).toBe(false); }
+  expect(a.inside || a.over).toBe(true);
+  if (a.pl > 6.65) { expect(a.inside).toBe(true); expect(a.over).toBe(false); }
   // とても長い名前：いちばん小さい字（6.6pt）でも入らない → 面にはみ出しの印
-  const b = await open('（とても長い名前のブースの例です。とても長い名前のブースの例です）');
+  const b = await open('（とても長い名前のブースの例です。とても長い名前のブースの例です。とても長い名前のブースの例です）');
   expect(b.pl).toBe(6.6);
   expect(b.over).toBe(true);
 });
 
 /* ---------------- v205：パンフレットの文は文節で折り返す ---------------- */
-test('三つ折りパンフレット：文は文節で折り返す（1文字だけ次の行に落とさない）。あいさつ文は両端そろえのまま。はみ出しなし', async ({ page }) => {
+test('三つ折りパンフレット：文は文節で折り返す（1文字だけ次の行に落とさない）。あいさつ文も文節で折る。はみ出しなし', async ({ page }) => {
   await mockGas(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/?mode=pamphlet');
@@ -573,8 +589,8 @@ test('三つ折りパンフレット：文は文節で折り返す（1文字だ�
   });
   expect(r.wb).toBe('auto-phrase');
   expect(String(r.tw)).toContain('pretty');
-  expect(r.gwb).toBe('normal');
-  expect(r.gal).toBe('justify');
+  expect(r.gwb).toBe('auto-phrase');                  // v212：あいさつ文は細い列になったので、両端そろえをやめて文節で折る
+  expect(r.gal).toBe('left');
   expect(r.orphans).toEqual([]);
   expect(r.over).toBe(0);
 });

@@ -3085,6 +3085,31 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 .pam-key .pk-wc{width:3.6mm;height:3.6mm;color:#555;line-height:0}
 .pam-key .pk-wc svg{width:100%;height:100%}
 .pam-key .pk-call{padding:.35mm 1.3mm;border-radius:.6mm;background:#1a1814;color:#fff;font-size:5.8pt;font-weight:800;line-height:1.2}
+/* ---- v212（ユーザーの依頼：ごあいさつの幅を小さく、地図とブース名を大きく） ----
+   内側の面の組み方：［ごあいさつ 47mm の細い列｜地図の列 189.5mm｜1階の一覧 45mm］。
+   1階の地図は 180 → 189.5mm、2階は 122 → 137.5mm。一覧の字は、収まる範囲でいちばん大きく（--pl。6.6〜9.6pt。R8 の46件で約9pt）。
+   一覧は、その階の地図のとなり・すぐ下に置く（1階＝右の列、2階＝2階の地図の下に3段、3階＝3階の地図の下）。
+   折り目（紙の左から 100mm・200mm）は地図の上だけを通る。一覧の文字にはかからない（3階のまとまりは 97.5mm まで、2階の一覧の段の切れ目が 200mm、1階の一覧は 243.5mm から） */
+.pam-s2 .pam-paper{grid-template-columns:47mm 250mm}
+.pam-in1{padding-left:8.5mm;padding-right:2.5mm}
+.pam-in1::after{content:"";position:absolute;right:0;top:10mm;bottom:9mm;border-right:.25mm solid #c9c2b6}
+.pam-in1 .pam-gh{font-size:9pt;letter-spacing:.04em}
+.pam .pam-in1 .pam-gbody{font-size:7.9pt;line-height:1.8;text-align:left;word-break:auto-phrase;text-wrap:pretty}
+.pam-in1 .pam-gsign{min-width:0;font-size:8.2pt;letter-spacing:.06em}
+.pam-spread{grid-column:2;padding-left:3.5mm;padding-right:8.5mm}
+.pam-sp-body{flex:1;min-height:0;display:flex;align-items:flex-start;gap:3.5mm}
+.pam-sp-maps{flex:none;width:189.5mm;display:flex;flex-direction:column;gap:1.6mm}
+.pam-sp-row2{display:flex;align-items:flex-start;gap:5mm}
+.pam-sp-row2 .pam-mini{position:relative;flex:none}
+.pam-sp-row2 .m3{width:47mm} .pam-sp-row2 .m2{width:137.5mm}
+.pam-list1{flex:none;width:45mm;font-size:var(--pl,6.6pt);line-height:1.36}
+.pam-list1 .pam-h4{margin:0 0 .9mm;display:inline-block}
+.pam-list1 .pam-list{margin:0 0 1.4mm;font-size:inherit;line-height:inherit}
+.pam-spread .pam-list li{padding:.22mm 0}
+.pam-spread .pam-list li span{min-width:0;overflow-wrap:anywhere}
+.pam-l2{display:flex;align-items:flex-start;margin-top:1.4mm;font-size:var(--pl,6.6pt);line-height:1.36}
+.pam-l2 .pam-list{flex:none;margin:0;font-size:inherit;line-height:inherit}
+.pam-l2 .c1{width:46mm;margin-right:3mm} .pam-l2 .c2{width:45.5mm;margin-right:6mm} .pam-l2 .c3{width:37mm}
 /* 画面の上の操作の段 */
 .pam-bar-ui{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .pam-bar-ui .btn{flex:1;min-width:150px;width:auto}
@@ -3892,7 +3917,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-12e',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-12f',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -13800,14 +13825,24 @@ function renderPamphlet(){
   // v185：紙の上での幅（mm）を渡して、その大きさで読める字を描かせる。2階・3階は、ブースのある棟だけに絞って大きく
   const mapOf = (f, o) => FLOOR_PLAN[f] && S.booths.some(b => floorOfBooth(b) === f) ? `<div class="pam-map">${printPlanSvg(f, o)}</div>` : '';
   const has = f => S.booths.some(b => floorOfBooth(b) === f);
+  // v212：1階の一覧は右の列。2階の一覧は、2階の地図の下に3段（段の切れ目を折り目に合わせる）。3階の一覧は、3階の地図の下
+  const sortedOf = f => S.booths.filter(b => floorOfBooth(b) === f).sort((a, b) => (S.numbers.get(a.id) || 999) - (S.numbers.get(b.id) || 999));
+  const olOf = (items, cls) => `<ol class="pam-list${cls ? ' ' + cls : ''}">${items.map(b =>
+      `<li${isLm(b) ? ' class="lm"' : ''}><b>${S.numbers.get(b.id) || '-'}</b><span>${esc(b.name)}</span></li>`).join('')}</ol>`;
+  const cols2 = (() => { const l = sortedOf(2), per = Math.max(1, Math.ceil(l.length / 3));
+    return [0, 1, 2].map(i => olOf(l.slice(i * per, (i + 1) * per), 'c' + (i + 1))).join(''); })();
   const spread = `<section class="pam-panel pam-spread" data-panel="spread">
-      <h3 class="pam-h3">校内マップ<small class="pam-key"><span><i class="pk-no">12</i>ブース（番号は下の一覧・スマホのマップと同じ）</span><span><i class="pk-wc">${ICON.wc || ''}</i>トイレ</span><span><i class="pk-call">体育館</i>会場・受付</span></small></h3>
-      <div class="pam-spread-top"><span class="pam-fl pam-fl-on">1階</span>${mapOf(1, { mmW: 180 })}</div>
-      <div class="pam-spread-mid">
-        ${has(2) ? `<div class="pam-mini m2"><span class="pam-fl pam-fl-on">2階</span>${mapOf(2, { crop: true, mmW: 122 })}</div>` : ''}
-        ${has(3) ? `<div class="pam-mini m3"><span class="pam-fl pam-fl-on">3階</span>${mapOf(3, { crop: true, mmW: 47 })}${list3Under ? listOf(3) : ''}</div>` : ''}
+      <h3 class="pam-h3">校内マップ<small class="pam-key"><span><i class="pk-no">12</i>ブース（番号は一覧・スマホのマップと同じ）</span><span><i class="pk-wc">${ICON.wc || ''}</i>トイレ</span><span><i class="pk-call">体育館</i>会場・受付</span></small></h3>
+      <div class="pam-sp-body">
+        <div class="pam-sp-maps">
+          <div class="pam-spread-top"><span class="pam-fl pam-fl-on">1階</span>${mapOf(1, { mmW: 189.5 })}</div>
+          <div class="pam-sp-row2">
+            <div class="pam-mini m3">${has(3) ? `<span class="pam-fl pam-fl-on">3階</span>${mapOf(3, { crop: true, mmW: 47 })}${listOf(3)}` : ''}</div>
+            ${has(2) ? `<div class="pam-mini m2"><span class="pam-fl pam-fl-on">2階</span>${mapOf(2, { crop: true, mmW: 137.5 })}<div class="pam-l2">${cols2}</div></div>` : ''}
+          </div>
+        </div>
+        <div class="pam-list1">${[1, 0].filter(has).map(f => `<h4 class="pam-h4 pam-fl">${f === 0 ? '屋外・体育館など' : f + '階'}</h4>${listOf(f)}`).join('')}</div>
       </div>
-      <div class="pam-lists">${[1, 0, 2, 3].filter(f => has(f) && !(f === 3 && list3Under)).map(f => `<h4 class="pam-h4 pam-fl">${f === 0 ? '屋外・体育館など' : f + '階'}</h4>${listOf(f)}`).join('')}</div>
     </section>`;
 
   // v184：とじ方（long＝長辺とじ・ふつう／short＝短辺とじ）。書いた文字と同じ所に覚える（保存のキーを増やさない）
@@ -13891,22 +13926,22 @@ function pamCheck(){
   box.classList.add('as-print');
   fitAll('--kp');
   // v204：番号の一覧の字は、面に収まる範囲でいちばん大きくする（6.6pt〜8.6pt）。ブースの数や名前の長さが変わっても、空きを使い切る
-  { const sp = $('.pam-spread', box), ls = sp && $('.pam-lists', sp);
-    if (sp && ls){
+  { const sp = $('.pam-spread', box), body = sp && $('.pam-sp-body', sp);
+    if (sp && body){
       const pb = parseFloat(getComputedStyle(sp).paddingBottom) || 0;
+      // 地図の列・1階の一覧の列のうち、高いほうが面の下の余白に食い込まないこと。一覧の段が横にはみ出さないこと
       const fits = () => {
-        const top = ls.offsetParent === sp ? ls.offsetTop : ls.offsetTop - sp.offsetTop;
-        // 地図の箱は縮められる（min-height:0）ので、一覧が大きすぎると地図の箱が縮んで、下の段が地図に重なる。箱が中身より小さくなっていないかも見る
-        const squeezed = [...sp.children].some(c => c !== ls && c.scrollHeight > c.clientHeight + 1);
-        return !squeezed && top + ls.offsetHeight <= sp.clientHeight - pb + 0.5 && sp.scrollWidth <= sp.clientWidth + 1;
+        const top = body.offsetParent === sp ? body.offsetTop : body.offsetTop - sp.offsetTop;
+        const h = Math.max(0, ...[...body.children].map(c => c.offsetHeight));
+        const wide = $$('.pam-list', sp).some(l => l.scrollWidth > l.clientWidth + 1);
+        return !wide && top + h <= sp.clientHeight - pb + 0.5 && sp.scrollWidth <= sp.clientWidth + 1;
       };
-      let pt = 8.6;
+      let pt = 9.6;
       for (; pt > 6.61; pt -= 0.1){ sp.style.setProperty('--pl', pt.toFixed(1) + 'pt'); if (fits()) break; }
       if (pt <= 6.61) pt = 6.6;
       sp.style.setProperty('--pl', pt.toFixed(1) + 'pt');
       sp.dataset.pl = pt.toFixed(1);
-      // いちばん小さい字でも入らないとき（ブースがとても多い・名前がとても長い）は、はみ出しの印を付けて知らせる。
-      // 地図の箱は縮むので、箱の大きさだけを見ていると、下の段が地図に重なっているのに気づけない
+      // いちばん小さい字でも入らないとき（ブースがとても多い・名前がとても長い）は、はみ出しの印を付けて知らせる
       sp.dataset.tight = fits() ? '' : '1';
     } }
   $$('.pam-panel', box).forEach(pn => {
@@ -14093,7 +14128,9 @@ function printPlanSvg(floorNum, opt){
       // 番号を大きく打てるぶん、遠目でも探しやすくなる。
       const d2 = deptOf(s);
       const cx2 = s.x + s.w / 2, cy2 = s.y + s.h / 2;
-      const br = Math.max(4, Math.min(8.5, Math.min(s.w, s.h) * 0.46));    // v185：小さい教室の番号が紙でつぶれていた（0.4 → 0.46）
+      // v185：小さい教室の番号が紙でつぶれていた（0.4 → 0.46）。
+      // v212：三つ折りパンフレットでは、小さい部屋でも丸の半径を 4.8 までとる（部屋から少しはみ出してよい。番号が読めることを優先する）
+      const br = Math.max(opt.mmW ? 4.8 : 4, Math.min(8.5, Math.min(s.w, s.h) * 0.46));
       h += `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="6" fill="#fff" stroke="#333" stroke-width="1.4"/>`
          + (d2 ? `<rect x="${s.x}" y="${s.y}" width="${Math.min(3, s.w / 6)}" height="${s.h}" rx="1.5" fill="${d2.c}"/>` : '');
       h += `<circle cx="${cx2.toFixed(1)}" cy="${cy2.toFixed(1)}" r="${br.toFixed(1)}" fill="#b91c1c"/>
