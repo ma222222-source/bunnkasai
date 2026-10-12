@@ -196,3 +196,30 @@ test('横向き（高さの低い画面）でも、ログインの画面・係�
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), `${w}x${h} ログイン`).toBeLessThanOrEqual(1);
   }
 });
+
+/* ---------------- v211：パソコンの幅では2列（待ち人数の −＋ が画面の両端に離れない） ---------------- */
+test('係員の画面：パソコンの幅（900px 以上）ではブースを2列に並べる。スマホの幅では1列のまま', async ({ page }) => {
+  const errors = watchErrors(page);
+  await login(page);
+  const geo = () => page.evaluate(() => { const cs = [...document.querySelectorAll('#admin-list .adm-booth')].slice(0, 3).map(c => c.getBoundingClientRect());
+    const st = document.querySelector('#admin-list .adm-booth').querySelectorAll('.adm-wait .step'), a = st[0].getBoundingClientRect(), z = st[st.length - 1].getBoundingClientRect();
+    return { tops: cs.map(r => Math.round(r.top)), lefts: cs.map(r => Math.round(r.left)), w: Math.round(cs[0].width), span: Math.round(z.right - a.left), over: document.documentElement.scrollWidth - innerWidth }; });
+  // スマホ：1列
+  let g = await geo();
+  expect(g.lefts[0]).toBe(g.lefts[1]);
+  expect(g.tops[1]).toBeGreaterThan(g.tops[0]);
+  // パソコン：2列。−5 から ＋5 までの幅が、画面の半分ほどに収まる
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await page.waitForTimeout(200);
+  g = await geo();
+  expect(g.tops[0]).toBe(g.tops[1]);
+  expect(g.lefts[1]).toBeGreaterThan(g.lefts[0] + 300);
+  expect(g.tops[2]).toBeGreaterThan(g.tops[0]);
+  expect(g.span).toBeLessThan(560);                         // 1列のときは 1000px 以上に広がっていた
+  expect(g.over).toBeLessThanOrEqual(0);
+  // 2列でも、押して送れる
+  const card = page.locator('#admin-list .adm-booth').nth(1);
+  await card.locator('[data-step="1"]').click();
+  await expect(card.locator('.adm-wait-n')).toHaveText('1');
+  expect(errors).toEqual([]);
+});
