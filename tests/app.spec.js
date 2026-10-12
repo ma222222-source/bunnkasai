@@ -3503,3 +3503,109 @@ test('⑥「上へ戻る」は、すっと出て、すっと引っ込む（消�
   await expect.poll(async () => (await cs()).op).toBe(0);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v211：7つの仕上げ・3 ---------------- */
+test('①②文節での折り返しを画面ぜんたいに（詳細の説明・おすすめ）。混み具合の札は、文字「特大」で2段に組み、行の終わりに「・」を残さない', async ({ page, browserName }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => { if (!sessionStorage.getItem('x')){ sessionStorage.setItem('x', 1); localStorage.setItem('kuroko_intro_v1', '1'); localStorage.setItem('kuroko_fs', JSON.stringify('xl')); } });
+  await page.goto('/?tab=list');
+  await ready(page);
+  expect(await page.evaluate(() => document.documentElement.getAttribute('data-fs'))).toBe('xl');
+  // ②札：2段（「空き」／「5人待ち」）。「・」は見せない（読み上げ・文字としては残す）
+  const pill = page.locator('#booth-list .booth-side .pill:has(.pl-b)').first();
+  await expect(pill).toBeVisible();
+  const p = await pill.evaluate((el, fn) => ({ lines: eval(fn)(el), sep: getComputedStyle(el.querySelector('.pl-sep')).display, b: getComputedStyle(el.querySelector('.pl-b')).display, text: el.textContent.replace(/\s+/g, '') }), LINES_FN);
+  expect(p.sep).toBe('none'); expect(p.b).toBe('block');
+  expect(p.lines.length).toBe(2);
+  expect(p.lines.join('|')).not.toContain('・');
+  expect(p.lines[1]).toMatch(/^\d+人待ち$/);
+  expect(p.text).toMatch(/・\d+人待ち$/);
+  if (browserName === 'chromium') {
+    // ①詳細の説明・「いま空いているのは…」が、語の途中で切れない
+    expect(await page.evaluate(() => getComputedStyle(document.body).wordBreak)).toBe('auto-phrase');
+    await page.evaluate(() => openSheet(S.booths.find(b => /バーベキュー/.test(b.name)).id));
+    await expect(page.locator('#bsh-nm')).toBeVisible();
+    const t = await page.evaluate(fn => ({ note: eval(fn)(document.querySelector('#bsh-body .bsh-note')).join('／'), alt: document.querySelector('#bsh-body .bsh-alt') ? eval(fn)(document.querySelector('#bsh-body .bsh-alt')).join('／') : '' }), LINES_FN);
+    expect(t.note).toContain('溶接実習室');
+    expect(t.alt).not.toMatch(/電／子科|メイド／喫茶|カ／ジノ/);
+    await page.evaluate(() => closeSheet());
+  }
+  // 文字「標準」では1行（「・」を出す）
+  await page.evaluate(() => { localStorage.setItem('kuroko_fs', JSON.stringify('n')); });
+  await page.reload();
+  await ready(page);
+  const q = await page.locator('#booth-list .booth-side .pill:has(.pl-b)').first().evaluate((el, fn) => ({ lines: eval(fn)(el), sep: getComputedStyle(el.querySelector('.pl-sep')).display }), LINES_FN);
+  expect(q.sep).not.toBe('none');
+  expect(q.lines.length).toBe(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  expect(errors).toEqual([]);
+});
+
+test('③④マウスの人には、マウスでの拡大のしかたを書く。ボタンにマウスを乗せると反応する（指の端末では、これまでどおり）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const mouse = await page.evaluate(() => matchMedia('(hover:hover) and (pointer:fine)').matches);
+  const h = await page.evaluate(() => { const g = s => getComputedStyle(document.querySelector(s)).display; return { touch: g('#name-hint .nh-touch'), mouse: g('#name-hint .nh-mouse'), text: document.getElementById('name-hint').textContent }; });
+  expect(h.text).toContain('2本指'); expect(h.text).toContain('ホイール');     // どちらも入っていて、片方だけ見せる
+  expect(h.touch === 'none').toBe(mouse);
+  expect(h.mouse === 'none').toBe(!mouse);
+  await page.locator('#nav button[data-view="stamp"]').click();
+  const btn = page.locator('#stamp-todo');
+  await btn.scrollIntoViewIfNeeded();
+  const before = await btn.evaluate(el => getComputedStyle(el).filter);
+  await btn.hover();
+  const after = await btn.evaluate(el => getComputedStyle(el).filter);
+  if (mouse) { expect(before).toBe('none'); expect(after).toContain('brightness'); }
+  else expect(after).toBe(before);
+  expect(errors).toEqual([]);
+});
+
+test('⑤詳細を開いたまま待ち人数が変わると、数字が動いて変わり、枠が一度光る（別のブースに替えたときは光らせない）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const id = await page.evaluate(() => { const b = S.booths.find(x => x.wait > 3 && lvOf(x).lv >= 0 && lvOf(x).lv < 3); openSheet(b.id); return b.id; });
+  const n = page.locator('#bsh-body .bsh-st .wt b');
+  await expect(n).toBeVisible();
+  const w0 = +(await n.textContent());
+  expect(await page.locator('#bsh-body .bsh-st').evaluate(el => el.classList.contains('chg'))).toBe(false);   // 開いただけでは光らせない
+  // 係の人の更新が届いた（待ち人数 +7）
+  await page.evaluate(id => { const b = S.booths.find(x => x.id === id); b.wait += 7; b.time = new Date().toISOString(); renderSheet(); }, id);
+  await expect(page.locator('#bsh-body .bsh-st')).toHaveClass(/chg/);
+  await expect(n).toHaveText(String(w0 + 7));
+  // 別のブースへ（次）→ 光らせない
+  await page.evaluate(() => { const o = S.booths.find(x => x.id !== S.sheetId && x.wait > 0 && lvOf(x).lv >= 0 && lvOf(x).lv < 3); openSheet(o.id); });
+  await page.waitForTimeout(150);
+  expect(await page.locator('#bsh-body .bsh-st').evaluate(el => el.classList.contains('chg'))).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('⑦見えていない画面の下ごしらえは、指で触っている最中には走らせない（手が止まってから進める）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  let open; let hold = new Promise(r => { open = r; });
+  await page.route(/script\.google(usercontent)?\.com\//, async route => { if (hold) await hold; return route.fallback(); });
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=map');
+  await expect(page.locator('#map-wait')).toBeVisible();
+  // 届く前から、0.12秒おきに「なぞっている」合図を出しつづける
+  await page.evaluate(() => { window.__touching = setInterval(() => window.dispatchEvent(new Event('touchmove')), 120); });
+  open(); hold = null;
+  await ready(page);
+  await page.waitForTimeout(2500);
+  expect(await page.evaluate(() => (prewarmViews._log || []).length)).toBe(0);      // 触っているあいだは、1画面も下ごしらえしていない
+  // 手を止める → 進む
+  await page.evaluate(() => clearInterval(window.__touching));
+  await expect.poll(() => page.evaluate(() => (prewarmViews._log || []).join(',')), { timeout: 20000 }).toBe('v-stamp,v-list,v-info');
+  expect(errors).toEqual([]);
+});

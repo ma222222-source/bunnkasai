@@ -1877,6 +1877,37 @@ html.lite .hero-gear{animation:none}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
 /* ---- v206：地図の左下のボタン。開いた直後は「全体」だけ（左の角）。動かしたら、その右に「ブースに寄せる」が出る ---- */
 #map-card.gmap .map-fit-ctl #zoom-reset{order:-1}
+/* ==== v211：7つの仕上げ・3 ==== */
+/* ①文節で折り返すのを、画面ぜんたいの文に広げる（v210 はブースの名前だけ）。
+   詳細の説明「…（溶接実／習室）」、おすすめ「…（電／子科3年）」、見出し「…地図に出／ます）」と、語の途中で切れていた。対応しているブラウザだけ */
+body{word-break:auto-phrase}
+/* ②一覧の混み具合の札：文字を大きくして2行になるとき、行の終わりに「・」が残っていた（「空き・／5 人待ち」）。2段に組んで「・」は出さない */
+[data-fs="xl"] .booth-side .pill .pl-sep,[data-fs="lg"] .booth-side .pill.two .pl-sep{display:none}
+[data-fs="xl"] .booth-side .pill .pl-b{display:block}
+/* ③地図の案内文：マウスの人には、マウスでの拡大のしかたを書く（「2本指・2回タップ」はできない） */
+.nh-mouse{display:none}
+@media (hover:hover) and (pointer:fine){ .nh-touch{display:none} .nh-mouse{display:inline} }
+/* ④マウスを乗せたときの反応（パソコン。本部・係員はパソコンで使う）。押せる所が、乗せただけで分かる */
+@media (hover:hover) and (pointer:fine){
+  .btn:not(:disabled):hover,.scan-cta:hover,.bsh-acts button:hover,.bsh-nav button:not(:disabled):hover,.adm-wait .step:hover,.prize-go:hover{filter:brightness(.96)}
+  .btn.ghost:not(:disabled):hover,.chip:hover,.seg button:hover,.bsh-acts button:hover,.adm-wait .step:hover{border-color:var(--text-mute)}
+  .stamp:hover{border-color:var(--text-mute);background:var(--surface)}
+  .booth:hover{box-shadow:var(--shadow-lg)}
+  #nav button:hover{background:color-mix(in srgb,var(--accent) 7%,transparent)}
+  .wish-btn:hover{transform:scale(1.12)}
+  .adm-grp > summary:hover{background:color-mix(in srgb,var(--text) 4%,transparent)}
+  [data-theme="heavy"] .btn:not(:disabled):hover,[data-theme="heavy"] .scan-cta:hover,[data-theme="heavy"] .bsh-acts button:hover{filter:brightness(1.15)}
+}
+/* ⑤詳細を開いたまま待ち人数が変わったとき、数字が動いて変わり、枠が一度光る（開いていても、変わったことに気づける） */
+.bsh-st.chg{animation:bsh-chg 1.1s ease-out}
+@keyframes bsh-chg{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 55%,transparent)}100%{box-shadow:0 0 0 12px transparent}}
+html.lite .bsh-st.chg{animation:none}
+@media (prefers-reduced-motion:reduce){ .bsh-st.chg{animation:none} }
+/* ⑥係員の画面（パソコンの幅）：1列だと、待ち人数の −5 −1 と ＋1 ＋5 が画面の両端に離れ、マウスを行ったり来たりさせていた。2列に並べる */
+@media (min-width:900px){
+  #admin-list:not(:has(> .adm-grp)){display:grid !important;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+  .adm-grp-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+}
 /* ==== v210：7つの仕上げ・2 ==== */
 /* ①ブースの名前は文節で折り返し、行の長さをそろえる。行の頭に「ー」「）」や小さい字を置かない。
    「レーザ／ー加工」「第二体育／館）」「アームロボット・ライ／ントレーサー」のように、語の途中で切れていた（一覧・詳細・スタンプ帳・本部モニタ・地図の検索） */
@@ -3206,7 +3237,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
           </div>
           <div class="unplaced hide" id="map-unplaced"></div>
           <!-- 見かたは「読みたいときに開く」。常に出していると地図の下を占めて地図が小さくなる -->
-          <p class="name-hint hide" id="name-hint">数字はブースの番号です。地図を拡大（＋・2本指・2回タップ）すると名前が出ます</p>
+          <p class="name-hint hide" id="name-hint">数字はブースの番号です。地図を拡大（<span class="nh-touch">＋・2本指・2回タップ</span><span class="nh-mouse">＋・マウスのホイール・ダブルクリック</span>）すると名前が出ます</p>
           <details class="legend-box">
           <summary>地図の見かた</summary>
           <div class="legend" aria-label="地図の見かた">
@@ -3861,7 +3892,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-12d',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-12e',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -7154,6 +7185,9 @@ function renderSheet(){
               (b.history || []).length, Math.floor(Date.now() / 60000)].join('|');
   if (renderSheet._fp === fp) return;
   renderSheet._fp = fp;
+  // v211：開いたまま、同じブースの待ち人数が変わったか（変わったら、数字を動かして枠を光らせる）
+  const prevW = renderSheet._w;
+  renderSheet._w = { id: b.id, wait: b.wait };
   const L = lvOf(b);
   const got = S.stamps.has(b.id);
   const showWait = b.wait !== null && b.wait !== undefined && L.lv >= 0 && L.lv < 3;
@@ -7161,6 +7195,12 @@ function renderSheet(){
   const fromList = S.view === 'list';
   const jumpLabel = fromList ? '地図で見る' : '一覧で見る';
 
+  setTimeout(() => {
+    if (!prevW || prevW.id !== b.id || prevW.wait === b.wait || prevW.wait == null || b.wait == null) return;
+    const st = $('#bsh-body .bsh-st'), n = $('#bsh-body .bsh-st .wt b');
+    if (st){ st.classList.remove('chg'); void st.offsetWidth; st.classList.add('chg'); }
+    if (n){ n.dataset.v = String(prevW.wait); n.textContent = String(prevW.wait); animateNumber(n, Number(b.wait)); }
+  }, 0);
   $('#bsh-body').innerHTML = `
     <div class="bsh-head">
       <span class="bsh-no">${esc(S.numbers.get(b.id) || '-')}</span>
@@ -8932,8 +8972,8 @@ function renderList(){
               ? `<span class="ev-badge" data-kind="${eventState(b).kind}">${esc(eventLabel(b))}</span>` : ICON.note} ${esc(b.note)}</p>` : ''}
         </div>
         <div class="booth-side">
-          <span class="pill" data-lv="${L.lv}"><span aria-hidden="true">${L.icon}</span> ${esc(L.short)}${
-            b.wait > 0 && L.lv >= 0 && L.lv < 3 ? `・<b>${b.wait}</b>人待ち` : ''}</span>
+          <span class="pill" data-lv="${L.lv}"><span class="pl-a"><span aria-hidden="true">${L.icon}</span> ${esc(L.short)}</span>${
+            b.wait > 0 && L.lv >= 0 && L.lv < 3 ? `<span class="pl-sep">・</span><span class="pl-b"><b>${b.wait}</b>人待ち</span>` : ''}</span>
           ${got ? '<span class="mini-tag">✓ スタンプ済</span>' : ''}
           <button type="button" class="wish-btn" data-wishbtn="${esc(b.id)}" aria-pressed="${S.wish.has(b.id)}"
             aria-label="${esc(b.name)}を「行きたい」${S.wish.has(b.id) ? 'から外す' : 'に入れる'}">${S.wish.has(b.id) ? '★' : '☆'}</button>
@@ -11425,14 +11465,32 @@ function renderAlert(){
  * （日本語の字の形の準備など。2回目からは数十ms）。地図を見ている間の空き時間に、
  * 見えないまま一度だけ配置しておく。1回に1画面ずつ、空き時間にだけ行う
  */
+// v211：いつ触ったかは、はじめから覚えておく（下ごしらえを始める時点で、もう触っている最中かもしれない）
+['pointerdown', 'pointermove', 'touchstart', 'touchmove', 'wheel', 'keydown'].forEach(t =>
+  addEventListener(t, () => { prewarmViews._inputAt = performance.now(); }, { passive:true, capture:true }));
 function prewarmViews(){
   if (prewarmViews._done) return;
   prewarmViews._done = true;
   const ric = window.requestIdleCallback || ((f) => setTimeout(() => f({ timeRemaining: () => 50 }), 400));
   const queue = ['v-stamp', 'v-list', 'v-info'];
+  // v211：指やマウスで触っている最中（直前の 1.2秒）は走らせない。1画面ぶんの配置の計算は、力の弱い端末で 0.3秒ほど止まるので、
+  // 地図を動かしている最中に当たると引っかかる。手が止まるまで待つ（待つのは合わせて 20秒まで。そのあとは空き時間に進める）
+  prewarmViews._log = [];
+  const t0 = performance.now();
+  let armed = false;
+  const touching = () => performance.now() - (prewarmViews._inputAt || -1e9) < 1200 && performance.now() - t0 < 20000;
   const step = () => {
+    if (queue.length && touching()){
+      armed = false;
+      setTimeout(() => ric(step, { timeout: 5000 }), 350);
+      return;
+    }
+    // 長い処理の直後は、たまっていた「触った」合図がまだ届いていないことがある。少し待って、もう一度確かめてから進める
+    if (queue.length && !armed){ armed = true; setTimeout(step, 160); return; }
+    armed = false;
     const id = queue.shift();
     if (!id) return;
+    prewarmViews._log.push(id);
     const el = document.getElementById(id);
     if (el && !el.classList.contains('on') && !S.sheetId && NAV_VIEWS.indexOf(S.view) >= 0){
       try{
