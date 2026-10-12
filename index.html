@@ -1877,6 +1877,14 @@ html.lite .hero-gear{animation:none}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
 /* ---- v206：地図の左下のボタン。開いた直後は「全体」だけ（左の角）。動かしたら、その右に「ブースに寄せる」が出る ---- */
 #map-card.gmap .map-fit-ctl #zoom-reset{order:-1}
+/* ---- v208：幅のせまい画面（320px など）の見出し・検索欄。
+   見出しが「校内マッ／プ」、学校名が「…高等学／校」と1文字だけ次の行に落ちていた。見出しは語の切れ目（空白）でだけ折り返す ---- */
+.head h1{word-break:keep-all}
+@media (max-width:350px){
+  .head .sub{letter-spacing:0;font-size:9.5px;white-space:nowrap}
+  /* 検索欄の薄い字（何でさがせるか）が途中で切れていた */
+  #q::placeholder,#map-q::placeholder{font-size:12.5px;letter-spacing:-.02em}
+}
 /* ---- v207：左下のボタン（全体・ブースに寄せる）は、ぱっと出たり消えたりせず、すっと出る・引っ込む。
    引っ込むときは、消え終わってから見えなくする（visibility を 0.14秒おくらせる）。場所は残したまま ---- */
 #map-card.gmap .map-fit-ctl button{transition:opacity .18s ease,transform .22s var(--ease-out-back),visibility 0s}
@@ -3780,7 +3788,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-12a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-12b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5883,6 +5891,7 @@ function drawFloor(floorNum){
     svg.setAttribute('viewBox', planViewBox(floorNum));
     svg.innerHTML = html;
     svg.dataset.skel = '1';        // v205：骨組みを出している（本物に変わるとき、すっと現れる動きを付ける）
+    renderDeptLegend(floorNum);    // v208：科のチップの段は、読み込み中も出しておく（届いた瞬間に段が増えて、地図が下へずれていた）
     drawFloor._fp = null;          // データが来たら必ず描き直す
     return;
   }
@@ -6672,7 +6681,9 @@ function renderIntro(){
   const el = $('#intro-card');
   if (!el) return;
   // スタンプを1つでも持っている人は、もう使い方を知っている
-  const show = S.view === 'map' && S.booths.length > 0 && !S.stamps.size && load('kuroko_intro_v1', null) == null;
+  // v208：ブースが届くのを待たずに出す（中身は決まった文なので待つ理由が無い）。
+  // 待っていたときは、届いた瞬間にこのカードが地図の上に割り込み、見はじめた地図が画面の外まで押し下げられていた
+  const show = S.view === 'map' && !S.stamps.size && load('kuroko_intro_v1', null) == null;
   el.classList.toggle('hide', !show);
 }
 { const ok = document.getElementById('intro-ok');
@@ -14458,6 +14469,7 @@ function init(){
   renderInfo();
   drawFloor(1);                       // データを待たずに校舎の枠を出す
   renderWaiting();                    // v203：控えが無いとき（はじめて開いた）は、スタンプの画面も「読み込み中」の形で出しておく
+  renderIntro();                      // v208：「はじめての方へ」は、ブースを待たずに出す（届いた瞬間に地図を押し下げない）
 
   $$('#nav button').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
   $('#btn-reload').addEventListener('click', () => sync(true));
