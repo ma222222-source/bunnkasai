@@ -1877,6 +1877,113 @@ html.lite .hero-gear{animation:none}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
 /* ---- v206：地図の左下のボタン。開いた直後は「全体」だけ（左の角）。動かしたら、その右に「ブースに寄せる」が出る ---- */
 #map-card.gmap .map-fit-ctl #zoom-reset{order:-1}
+/* ==== v219：司令塔の作り直し（5枚に分ける・本部と準備を移す）と、司令塔だけのイベント ==== */
+/* ---- 司令塔：見出しとタブ ---- */
+.own-head{display:flex;align-items:center;gap:10px;padding:2px 2px 0}
+.own-head-t{flex:1;min-width:0;display:flex;align-items:center;gap:7px;font-size:17px;font-weight:900;letter-spacing:.06em}
+.own-head-t .ic{width:22px;height:22px;color:var(--accent);flex:none}
+.own-head-t span{font-size:11px;font-weight:800;letter-spacing:0;color:var(--text-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.own-out{flex:none;min-height:44px;padding:0 14px;border-radius:999px;border:1.5px solid var(--border-strong);background:var(--surface);color:var(--text-dim);
+  font:inherit;font-size:12px;font-weight:900;cursor:pointer}
+.own-tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;position:sticky;top:var(--head-h,0px);z-index:6;padding:8px 0;margin:-8px 0;background:var(--bg)}
+.own-tabs button{position:relative;min-height:54px;padding:6px 2px;border-radius:var(--r);border:1.5px solid var(--border);background:var(--surface);color:var(--text-dim);
+  font:inherit;font-size:12px;font-weight:900;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  transition:background var(--t) var(--ease),color var(--t) var(--ease),border-color var(--t) var(--ease),transform .12s var(--ease)}
+.own-tabs button .ic{width:19px;height:19px}
+.own-tabs button svg.ic,.own-tabs button .ic svg{width:19px;height:19px}
+.own-tabs button[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.own-tabs button:active{transform:scale(.97)}
+.own-tabs button b{position:absolute;top:4px;right:6px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--warn);color:#1a1814;
+  font-size:10.5px;font-weight:900;line-height:18px;text-align:center}
+.own-tabs button b:empty{display:none}
+.own-pane{display:none;flex-direction:column;gap:16px}
+.own-pane.on{display:flex;animation:own-in .28s var(--ease) both}
+/* ---- ようす ---- */
+.own-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media (min-width:720px){ .own-tiles{grid-template-columns:repeat(4,minmax(0,1fr))} }
+.own-tile{display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;min-height:74px;padding:11px 12px;border-radius:var(--r);
+  border:1px solid var(--border);background:var(--surface);color:var(--text);font:inherit;box-shadow:var(--shadow)}
+button.own-tile{cursor:pointer;transition:transform .12s var(--ease),border-color var(--t) var(--ease)}
+button.own-tile:active{transform:scale(.98)}
+.own-tile b{font-size:24px;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
+.own-tile b small{font-size:12px;font-weight:800;margin-left:2px;color:var(--text-dim)}
+.own-tile span{font-size:11px;font-weight:800;color:var(--text-mute);line-height:1.4}
+.own-tile[data-tone="warn"]{border-color:var(--warn);background:var(--warn-soft)}
+.own-tile[data-tone="warn"] b{color:var(--warn)}
+.own-tile[data-tone="ok"] b{color:var(--free)}
+.own-tile.wide{grid-column:1 / -1}
+.own-mix{display:flex;width:100%;height:12px;border-radius:999px;overflow:hidden;background:var(--surface-3);margin:6px 0 4px}
+.own-mix i{display:block;height:100%;transition:flex-grow .5s var(--ease)}
+.own-mix .m0{background:var(--free-fill)} .own-mix .m1{background:var(--warn-fill)} .own-mix .m2{background:var(--busy-fill)} .own-mix .m3{background:var(--closed-fill)} .own-mix .mx{background:var(--unknown)}
+.own-mix-lg{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:11.5px;font-weight:800;color:var(--text-dim)}
+.own-mix-lg b{font-size:13px;font-weight:900;color:var(--text);margin-left:3px}
+.own-now{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.own-now li{display:flex;align-items:baseline;gap:8px;padding:8px 10px;border-radius:var(--r-sm);background:var(--surface-2);border:1px solid var(--border);font-size:12.5px;font-weight:800;line-height:1.5}
+.own-now li em{flex:none;font-style:normal;font-size:10.5px;font-weight:900;padding:2px 8px;border-radius:999px;background:var(--accent);color:var(--on-accent)}
+.own-now li span{flex:1;min-width:0;overflow-wrap:anywhere}
+.own-now li small{flex:none;font-size:11px;font-weight:800;color:var(--text-mute);font-variant-numeric:tabular-nums}
+.own-now .none{background:none;border:none;padding:2px;color:var(--text-mute)}
+.own-quick,.own-row{display:flex;gap:8px;flex-wrap:wrap}
+.own-quick .btn,.own-row .btn{flex:1 1 140px}
+/* ---- イベント ---- */
+.own-ev-lead{margin:0}
+.own-ev[data-live="1"]{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 22%,transparent),var(--shadow)}
+.own-tpl{margin:0}
+.own-seg2{display:flex;width:100%}
+.own-seg2 button{flex:1;padding:6px 4px;white-space:nowrap}
+.own-opt{display:flex;align-items:center;gap:8px}
+.own-opt > span{flex:none;width:5.2em;font-size:12px;font-weight:800;color:var(--text-dim)}
+.own-opt .seg{flex:1}
+.own-check{display:flex;align-items:center;gap:8px;min-height:44px;font-size:12.5px;font-weight:800;color:var(--text-dim);cursor:pointer}
+.own-check input{width:20px;height:20px;accent-color:var(--accent)}
+.own-state{margin:0;min-height:1.6em;font-size:12.5px;font-weight:900;color:var(--text-dim);line-height:1.6}
+.own-state[data-on="1"]{color:var(--accent)}
+.own-win{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.own-win li{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r-sm);background:var(--warn-soft);border:1.5px solid var(--warn)}
+.own-win li b{font-size:19px;font-weight:900;letter-spacing:.12em;font-family:ui-monospace,Menlo,Consolas,monospace}
+.own-win li span{font-size:11.5px;font-weight:800;color:var(--text-dim)}
+.own-win li i{flex:none;width:24px;height:24px;border-radius:50%;background:var(--warn);color:#1a1814;font-style:normal;font-size:12px;font-weight:900;display:grid;place-items:center}
+.own-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media (min-width:720px){ .own-links{grid-template-columns:repeat(3,minmax(0,1fr))} }
+.own-links .btn{display:flex !important;align-items:center;justify-content:center;gap:6px;min-height:52px;padding:8px 10px;font-size:12.5px;line-height:1.3;text-align:center}
+#own-main .bulk-row{display:flex;gap:8px;flex-wrap:wrap}
+#own-main .bulk-row .btn{flex:1 1 180px}
+/* ---- 係員の画面：2枚（更新・受付）になった ---- */
+.adm-tabs{grid-template-columns:repeat(2,1fr)}
+.adm-foot{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.adm-foot .btn{flex:1 1 150px}
+.adm-foot .adm-hint{flex-basis:100%;margin:0}
+/* ---- 来場者：ラッキーブースの帯 ---- */
+.banner.lucky{background:linear-gradient(100deg,#fff4c9,#ffe08a);color:#3d2a00;border-color:#d9a514;align-items:center}
+.banner.lucky .lk-ic{flex:none;width:26px;height:26px;border-radius:50%;background:#d9a514;color:#fff;display:grid;place-items:center;animation:lk-spin 6s linear infinite}
+.banner.lucky .lk-ic svg{width:16px;height:16px}
+.banner.lucky .lk-tx{flex:1;min-width:0;font-weight:900;line-height:1.4}
+.banner.lucky .lk-tx small{display:block;font-size:11px;font-weight:800;opacity:.8}
+.banner.lucky button{flex:none;min-height:40px;padding:0 14px;border-radius:999px;border:none;background:#3d2a00;color:#fff;font:inherit;font-size:12.5px;font-weight:900;cursor:pointer}
+@keyframes lk-spin{to{transform:rotate(360deg)}}
+@keyframes lk-pulse{0%,100%{stroke-opacity:1;stroke-width:3.5}50%{stroke-opacity:.35;stroke-width:6}}
+@keyframes lk-glow{0%,100%{box-shadow:0 0 0 2px #d9a514,var(--shadow)}50%{box-shadow:0 0 0 5px rgba(217,165,20,.35),var(--shadow)}}
+/* ---- 来場者：一斉お知らせ・当たりの演出（スタンプの演出 .sfx の札を使う） ---- */
+.lfx .sfx-card{text-align:center}
+.lfx-title{font-size:26px;font-weight:900;line-height:1.3;letter-spacing:.02em;overflow-wrap:anywhere;word-break:auto-phrase;text-wrap:balance;margin-top:8px}
+.lfx-text{margin-top:10px;font-size:14.500px;font-weight:800;line-height:1.7;color:var(--text-dim);overflow-wrap:anywhere;word-break:auto-phrase}
+.lfx-burst{width:84px;height:84px;margin:4px auto 0;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--on-accent);
+  animation:lfx-pop .6s cubic-bezier(.2,1.5,.4,1) both}
+.lfx-burst svg{width:44px;height:44px}
+.lfx.win .lfx-burst{background:#d9a514;color:#fff}
+.lfx-sid{margin-top:12px;padding:10px 12px;border-radius:14px;background:var(--surface-2);border:1.5px dashed var(--border-strong)}
+.lfx-sid small{display:block;font-size:11px;font-weight:800;color:var(--text-mute)}
+.lfx-sid b{font-size:24px;font-weight:900;letter-spacing:.14em;font-family:ui-monospace,Menlo,Consolas,monospace}
+@keyframes lfx-pop{0%{transform:scale(.2);opacity:0}100%{transform:scale(1);opacity:1}}
+/* スタンプの画面：当たりの札（時間まで出しておく） */
+.win-card{border:2px solid #d9a514;background:linear-gradient(135deg,#fff8dc,#ffe9a3);color:#3d2a00;text-align:center}
+.win-card h3{font-size:19px;font-weight:900;letter-spacing:.06em}
+.win-card p{margin-top:4px;font-size:12.5px;font-weight:800;line-height:1.6}
+.win-card b.sid{display:block;margin-top:6px;font-size:26px;font-weight:900;letter-spacing:.14em;font-family:ui-monospace,Menlo,Consolas,monospace}
+[data-fs="lg"] .lfx-text,[data-fs="lg"] .win-card p{font-size:15.5px} [data-fs="xl"] .lfx-text,[data-fs="xl"] .win-card p{font-size:17px}
+[data-fs="xl"] .own-note,[data-fs="xl"] .own-state{font-size:15px}
+@media (prefers-reduced-motion:reduce){ .banner.lucky .lk-ic,.lfx-burst,.own-pane.on{animation:none} }
+@media print{ .banner.lucky,.win-card{display:none !important} }
 /* ==== v218：文字「特大」・司令塔の手ごたえ・振り返りの動き の13の仕上げ ==== */
 /* ①文字を「特大」にすると、「大きく」より小さくなっていた文字（「大きく」の決まりだけがあって、「特大」の決まりが抜けていた） */
 [data-fs="xl"] .chip{font-size:14px;min-height:46px}
@@ -3368,6 +3475,8 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
       <nav class="staff-jump" id="staff-jump" aria-label="係員の画面"></nav>
     </div>
     <div class="banner notice hide" id="banner-notice" role="status" aria-live="polite"><span id="banner-notice-icon"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l4.5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 8.5a5 5 0 0 1 0 7"/></svg></span><span id="banner-notice-text"></span><button class="notice-x hide" id="notice-x" type="button" aria-label="このお知らせを閉じる">×</button></div>
+    <!-- v219：ラッキーブース（司令塔が起こす。時間になったら消える） -->
+    <div class="banner lucky hide no-print" id="banner-lucky" role="status" aria-live="polite"><span class="lk-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.500l2.700 6 6.500.7-4.900 4.400 1.400 6.400L12 16.700 6.300 20l1.400-6.400L2.800 9.200l6.500-.7z"/></svg></span><span class="lk-tx"><small id="banner-lucky-left">ラッキーブース</small><span id="banner-lucky-nm"></span></span><button type="button" id="banner-lucky-go">見る</button></div>
     <div class="banner alert hide" id="banner-alert" role="status" aria-live="polite"><span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20.5h19z"/><path d="M12 9.5v5M12 17.5h.01"/></svg></span><span id="banner-alert-text"></span></div>
     <div class="banner info hide" id="banner-offline" role="status" aria-live="assertive"><span id="banner-offline-icon" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8.5a16 16 0 0 1 20 0M5 12.5a11 11 0 0 1 14 0M8.5 16.3a6 6 0 0 1 7 0"/><path d="M12 20h.01"/></svg></span><span id="banner-offline-text">通信できません。最後に取得した情報を表示しています。</span><button id="banner-retry" class="retry">再試行</button></div>
     <div class="banner hours hide" id="banner-hours" role="status" aria-live="polite"><span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span id="banner-hours-text"></span></div>
@@ -3761,10 +3870,6 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
           data-tab="update"><i class="ic" data-ic="pin"></i>更新<b id="admtab-n"></b></button>
         <button role="tab" id="admtab-recept" aria-selected="false" aria-controls="admpane-recept"
           data-tab="recept"><i class="ic" data-ic="bag"></i>受付</button>
-        <button role="tab" id="admtab-hq"     aria-selected="false" aria-controls="admpane-hq"
-          data-tab="hq"><i class="ic" data-ic="call"></i>本部</button>
-        <button role="tab" id="admtab-setup"  aria-selected="false" aria-controls="admpane-setup"
-          data-tab="setup"><i class="ic" data-ic="tool"></i>準備</button>
       </div>
 
       <!-- 更新：当日、係員がくり返す唯一の操作 -->
@@ -3824,76 +3929,11 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
       </div>
 
       <!-- 本部：全体に向けた操作。ふつうの係員はさわらない -->
-      <div class="adm-pane" id="admpane-hq" role="tabpanel" aria-labelledby="admtab-hq" hidden>
-        <details class="card chk-card" id="chk-card">
-          <summary class="chk-sum">当日の流れ（本部用チェックリスト）<span id="chk-count"></span></summary>
-          <div id="chk-body"></div>
-          <p class="adm-hint">チェックは日付ごとに保存され、日が変われば自動でリセットされます。</p>
-        </details>
-
-        <!-- v158：更新が止まっているブース（長い順に5件）。押すとそのブースの更新カードへ -->
-        <div class="card" id="stale-card">
-          <div class="card-t">更新が止まっているブース</div>
-          <p class="stale-sum" id="stale-sum"></p>
-          <ul class="stale-list" id="stale-list"></ul>
-        </div>
-        <div class="bulk-row">
-          <button class="btn ghost" id="btn-bulk" data-st="空いています">開場：全ブースを「空いています」に</button>
-          <button class="btn ghost" id="btn-bulk-close" data-st="準備中">閉場：全ブースを「準備中」に</button>
-        </div>
-        <details class="card notice-card" id="notice-card">
-          <summary class="chk-sum"><i data-ic="call"></i> お知らせを出す
-            <span class="card-note" id="notice-now" style="margin-left:2px">いまは出ていません</span></summary>
-          <div style="padding-top:10px">
-            <p style="font-size:11px;color:var(--text-mute);font-weight:700;margin-bottom:8px">
-              来場者全員の画面の上に出ます。落とし物・ステージ開始・雨天の案内などに。</p>
-            <textarea class="field" id="notice-text" rows="2" maxlength="200"
-              placeholder="例）12:00 から体育館でステージ発表があります。"></textarea>
-            <p class="notice-len" id="notice-len">あと200文字</p>
-            <!-- v157：当日よく出すお知らせのひな形。押すと上の欄に入る（そのまま出さない。直してから出す） -->
-            <div class="chips notice-tpl" id="notice-tpl" style="margin-top:8px">
-              <button type="button" class="chip" data-tpl="落とし物が届いています。お心当たりの方は受付（南棟昇降口）へお越しください。">落とし物</button>
-              <button type="button" class="chip" data-tpl="お子さまをお預かりしています。お心当たりの方は受付（南棟昇降口）へお越しください。">迷子</button>
-              <button type="button" class="chip" data-tpl="雨のため、屋外の出し物は中止・変更になります。各ブースの表示をご確認ください。">雨天</button>
-              <button type="button" class="chip" data-tpl="まもなく終了の時刻です。お帰りの際はお忘れ物のないようご注意ください。">終了30分前</button>
-              <button type="button" class="chip" data-tpl="ただいまステージ発表を行っています（第一体育館）。">ステージ</button>
-            </div>
-            <div class="seg" role="group" aria-label="お知らせの種類" style="width:fit-content;margin-top:8px">
-              <button id="notice-info" aria-pressed="true">お知らせ</button>
-              <button id="notice-alert" aria-pressed="false">注意（赤）</button>
-            </div>
-            <div class="bulk-row" style="margin-top:9px">
-              <button class="btn" id="notice-send">この内容で出す</button>
-              <button class="btn ghost" id="notice-clear">お知らせを消す</button>
-            </div>
-          </div>
-        </details>
-
-      </div>
-
-      <!-- 準備：前日までの作業と、紙もの -->
-      <div class="adm-pane" id="admpane-setup" role="tabpanel" aria-labelledby="admtab-setup" hidden>
-        <details class="card setup-card">
-          <summary class="chk-sum">準備：地図でブースを割り当てる</summary>
-          <div style="padding:0 12px 12px">
-            <button class="btn btn-sub" id="btn-edit-map">地図でブースを割り当てる</button>
-            <p class="srv-state hide" id="srv-state"></p>
-            <!-- 設定のし忘れは、画面上は「何も起きない」だけで表に出ない。
-                 前日までに気づけるよう、ここで名指しにする -->
-            <div class="cfg-state hide" id="cfg-state"></div>
-            <p class="card-note" style="margin-top:6px">
-              地図の部屋をおして、名前・分類を決めます。教室とブースを先に分けておく必要はありません。
-            </p>
-          </div>
-        </details>
-
-        <a class="btn ghost" href="?mode=qr" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg> QRコード印刷シートを開く</a>
-        <a class="btn ghost" href="?mode=pamphlet" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M9 4v16M15 4v16"/></svg> 三つ折りパンフレットを開く</a>
-        <a class="btn ghost" href="?mode=print" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg> 配布用の紙マップを開く</a>
-        <a class="btn ghost" href="?mode=report" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M8 17V10M13 17V6M18 17v-4"/></svg> 混雑の振り返りを見る</a>
-        <a class="btn ghost" href="?mode=board" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5h20v12H2z"/><path d="M8.5 20.5h7M12 16.5v4"/></svg> 本部用の大画面ボードを開く</a>
-        <button class="btn ghost" type="button" id="btn-open-owner" data-open-owner><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.800-7-5.500-7-10V6z"/><path d="M9.500 12l2 2 3.500-4"/></svg> 司令塔（持ち主だけ）を開く</button>
+      <!-- v219：本部・準備は、司令塔（持ち主だけ）へ移した。ここには、出ることと、司令塔への入口だけ -->
+      <div class="adm-foot">
         <button class="btn ghost" id="btn-logout">ログアウト</button>
+        <button class="btn ghost" type="button" id="btn-open-owner" data-open-owner><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.500-7-10V6z"/><path d="M9.500 12l2 2 3.500-4"/></svg> 司令塔（持ち主だけ）</button>
+        <p class="adm-hint">お知らせ・開場と閉場・ブースの割り当て・印刷物は、司令塔（持ち主だけ）に移りました。</p>
       </div>
     </section>
 
@@ -3966,7 +4006,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
     <section class="view" id="v-owner">
       <div class="card" id="own-gate">
         <h2 class="own-h">司令塔（持ち主だけ）</h2>
-        <p class="own-lead">係員のパスワードを変えたり、入れる端末を決めたりする画面です。</p>
+        <p class="own-lead">イベント・お知らせ・開場と閉場・係員のパスワード・印刷物など、持ち主だけの操作をまとめた画面です。</p>
         <p class="stale-warn hide" id="own-setup"></p>
         <button class="btn" id="own-passkey" type="button">顔認証・指紋で入る</button>
         <p class="own-note" id="own-passkey-note"></p>
@@ -3979,38 +4019,203 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
         <p class="stale-warn hide" id="own-err" role="alert"></p>
       </div>
       <div class="hide" id="own-main">
-        <div class="card">
-          <div class="card-t">係員のパスワード</div>
-          <p class="own-note" id="own-pass-now"></p>
-          <div class="pw-row">
-            <input class="field" type="password" id="own-np" placeholder="新しいパスワード" aria-describedby="own-np-hint" autocomplete="new-password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false">
-            <button type="button" class="pw-show" id="own-np-show" aria-pressed="false" aria-controls="own-np">表示する</button>
+        <!-- v219：司令塔を、役目ごとの5枚に分ける（ようす・イベント・本部・係員・準備）。
+             本部と準備は、係員の画面から ここへ移した（サーバーも、司令塔に入っている人からだけ受け付ける） -->
+        <div class="own-head">
+          <div class="own-head-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"/><path d="M9.5 12l2 2 3.5-4"/></svg><b>司令塔</b><span id="own-head-sub"></span></div>
+          <button type="button" class="own-out" id="own-logout">司令塔から出る</button>
+        </div>
+        <div class="own-tabs" role="tablist" aria-label="司令塔の画面">
+          <button role="tab" id="owntab-home" data-otab="home" aria-selected="true" aria-controls="ownpane-home"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>ようす</button>
+          <button role="tab" id="owntab-event" data-otab="event" aria-selected="false" aria-controls="ownpane-event"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.3 6-5.4-3.1-5.4 3.100 1.300-6L3.400 9.300l6-.7z"/></svg>イベント<b id="owntab-event-n"></b></button>
+          <button role="tab" id="owntab-hq" data-otab="hq" aria-selected="false" aria-controls="ownpane-hq"><i class="ic" data-ic="call"></i>本部<b id="owntab-hq-n"></b></button>
+          <button role="tab" id="owntab-staff" data-otab="staff" aria-selected="false" aria-controls="ownpane-staff"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.500 20c.6-3.600 3.200-5.500 6.500-5.500s5.900 1.900 6.500 5.500"/><path d="M16 4.800a3.500 3.500 0 0 1 0 6.400M18 14.800c2 .7 3.200 2.500 3.500 5.200"/></svg>係員<b id="owntab-staff-n"></b></button>
+          <button role="tab" id="owntab-setup" data-otab="setup" aria-selected="false" aria-controls="ownpane-setup"><i class="ic" data-ic="tool"></i>準備</button>
+        </div>
+
+        <!-- ようす：いま全体がどうなっているかを、1枚で -->
+        <div class="own-pane on" id="ownpane-home" role="tabpanel" aria-labelledby="owntab-home">
+          <div class="own-tiles" id="own-tiles"></div>
+          <div class="card">
+            <div class="card-t">いま、来場者の画面に出しているもの</div>
+            <ul class="own-now" id="own-now"></ul>
           </div>
-          <input class="field" type="password" id="own-np2" placeholder="もう一度（同じものを）" autocomplete="new-password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false">
-          <!-- v217：打っている途中に、あと何文字か・2つの欄が同じかを出す（押してから「違います」と言われていた） -->
-          <p class="own-note own-hint" id="own-np-hint" aria-live="polite"></p>
-          <button class="btn" id="own-setpass" type="button">係員のパスワードを変える</button>
-          <p class="own-note">変えた瞬間から、古いパスワードでは入れなくなります（入っている係員も、次に送るときに入り直しになります）。新しいパスワードは、あなたから係員に伝えてください。</p>
-        </div>
-        <div class="card">
-          <div class="card-t">入れる端末</div>
-          <div class="seg own-seg" role="group" aria-label="だれが入れるか">
-            <button type="button" id="own-mode-off" aria-pressed="true">パスワードを知っている人</button>
-            <button type="button" id="own-mode-on" aria-pressed="false">許可した端末だけ</button>
+          <div class="own-quick">
+            <button type="button" class="btn" data-ogo="event">イベントを起こす</button>
+            <button type="button" class="btn ghost" data-ogo="hq">お知らせ・開場と閉場</button>
           </div>
-          <p class="own-note" id="own-mode-note"></p>
-          <p class="own-note own-sum" id="own-dev-sum"></p>
-          <ul class="own-devs" id="own-devs"></ul>
         </div>
-        <div class="card">
-          <div class="card-t">顔認証・指紋（パスキー）</div>
-          <p class="own-note">この端末の顔認証・指紋・画面ロックで、司令塔に入れるようにします。顔や指紋のデータは端末から出ません。</p>
-          <ul class="own-keys" id="own-keys"></ul>
-          <input class="field" id="own-key-label" maxlength="20" placeholder="名前（例：わたしのスマホ）" autocomplete="off">
-          <button class="btn ghost" id="own-reg" type="button">この端末を登録する</button>
+
+        <!-- イベント：司令塔だけが起こせる。来場者の画面には 20秒以内に届く -->
+        <div class="own-pane" id="ownpane-event" role="tabpanel" aria-labelledby="owntab-event" hidden>
+          <p class="own-note own-ev-lead">ここで起こしたことは、開いている来場者の画面に <b>20秒以内</b>に届きます（係員の画面・本部モニタ・印刷の画面には出ません）。</p>
+          <div class="card own-ev" id="own-ev-show">
+            <div class="card-t">演出つきの一斉お知らせ</div>
+            <p class="own-note">全員の画面に、大きな見出しと紙ふぶきが出ます（1人に1回。出してから3分のあいだに開いた人にも出ます）。</p>
+            <input class="field" id="own-show-title" maxlength="30" placeholder="見出し（30文字まで）" aria-label="見出し（30文字まで）" autocomplete="off">
+            <input class="field" id="own-show-text" maxlength="80" placeholder="ひとこと（80文字まで。無くてもよい）" aria-label="ひとこと（80文字まで。無くてもよい）" autocomplete="off">
+            <div class="chips own-tpl" id="own-show-tpl">
+              <button type="button" class="chip" data-t="まもなくステージ発表！" data-x="第一体育館へどうぞ">ステージ</button>
+              <button type="button" class="chip" data-t="ただいま開場しました！" data-x="ゆっくり楽しんでいってください">開場</button>
+              <button type="button" class="chip" data-t="スタンプの抽選をします" data-x="スタンプの画面を開いて、お待ちください">抽選の前</button>
+              <button type="button" class="chip" data-t="まもなく終了です" data-x="本日はご来場ありがとうございました">フィナーレ</button>
+            </div>
+            <div class="own-row">
+              <button type="button" class="btn ghost" id="own-show-try">この端末で試す</button>
+              <button type="button" class="btn" id="own-show-send">全員に出す</button>
+            </div>
+            <p class="own-state" id="own-show-now"></p>
+          </div>
+          <div class="card own-ev" id="own-ev-lucky">
+            <div class="card-t">ラッキーブース</div>
+            <p class="own-note">えらんだブースが、決めた時間だけ、地図と一覧で光ります。空いているブースへ、人を流したいときに。</p>
+            <select class="field" id="own-lucky-booth" aria-label="ラッキーブースにするブース"></select>
+            <div class="seg own-seg2" id="own-lucky-min" role="group" aria-label="光らせる時間">
+              <button type="button" data-v="5" aria-pressed="false">5分</button>
+              <button type="button" data-v="10" aria-pressed="true">10分</button>
+              <button type="button" data-v="15" aria-pressed="false">15分</button>
+              <button type="button" data-v="30" aria-pressed="false">30分</button>
+            </div>
+            <div class="own-row">
+              <button type="button" class="btn" id="own-lucky-start">はじめる</button>
+              <button type="button" class="btn ghost hide" id="own-lucky-end">終わらせる</button>
+            </div>
+            <p class="own-state" id="own-lucky-now"></p>
+          </div>
+          <div class="card own-ev" id="own-ev-draw">
+            <div class="card-t">スタンプの抽選</div>
+            <p class="own-note">きょうスタンプをあつめた人の中から、当たりを引きます。当たった人の画面にだけ「当たり」が出ます（30分）。本部で、その画面のスタンプ番号と、下の番号を見くらべてください。</p>
+            <div class="own-opt"><span>スタンプが</span>
+              <div class="seg own-seg2" id="own-draw-min" role="group" aria-label="何個以上あつめた人から">
+                <button type="button" data-v="1" aria-pressed="false">1個〜</button>
+                <button type="button" data-v="3" aria-pressed="true">3個〜</button>
+                <button type="button" data-v="5" aria-pressed="false">5個〜</button>
+                <button type="button" data-v="10" aria-pressed="false">10個〜</button>
+              </div></div>
+            <div class="own-opt"><span>当たりは</span>
+              <div class="seg own-seg2" id="own-draw-n" role="group" aria-label="当たりの人数">
+                <button type="button" data-v="1" aria-pressed="true">1人</button>
+                <button type="button" data-v="3" aria-pressed="false">3人</button>
+                <button type="button" data-v="5" aria-pressed="false">5人</button>
+              </div></div>
+            <label class="own-check"><input type="checkbox" id="own-draw-again"> 前に当たった人も、もう一度 入れる</label>
+            <div class="own-row">
+              <button type="button" class="btn" id="own-draw-go">抽選する</button>
+              <button type="button" class="btn ghost hide" id="own-draw-clear">当たりの表示を消す</button>
+            </div>
+            <p class="own-state" id="own-draw-now"></p>
+            <ul class="own-win" id="own-draw-res"></ul>
+          </div>
         </div>
-        <button class="btn ghost" id="own-logout" type="button">司令塔から出る</button>
-        <p class="own-note own-foot">このタブを閉じると、自動で出ます（開いたままでも、30分 通信がないと出ます）。ほかの人も使う端末では、終わったら「司令塔から出る」を押してください。</p>
+
+        <!-- 本部：係員の画面から移した -->
+        <div class="own-pane" id="ownpane-hq" role="tabpanel" aria-labelledby="owntab-hq" hidden>
+        <details class="card chk-card" id="chk-card">
+          <summary class="chk-sum">当日の流れ（本部用チェックリスト）<span id="chk-count"></span></summary>
+          <div id="chk-body"></div>
+          <p class="adm-hint">チェックは日付ごとに保存され、日が変われば自動でリセットされます。</p>
+        </details>
+
+        <!-- v158：更新が止まっているブース（長い順に5件）。押すとそのブースの更新カードへ -->
+        <div class="card" id="stale-card">
+          <div class="card-t">更新が止まっているブース</div>
+          <p class="stale-sum" id="stale-sum"></p>
+          <ul class="stale-list" id="stale-list"></ul>
+        </div>
+        <div class="bulk-row">
+          <button class="btn ghost" id="btn-bulk" data-st="空いています">開場：全ブースを「空いています」に</button>
+          <button class="btn ghost" id="btn-bulk-close" data-st="準備中">閉場：全ブースを「準備中」に</button>
+        </div>
+        <details class="card notice-card" id="notice-card">
+          <summary class="chk-sum"><i data-ic="call"></i> お知らせを出す
+            <span class="card-note" id="notice-now" style="margin-left:2px">いまは出ていません</span></summary>
+          <div style="padding-top:10px">
+            <p style="font-size:11px;color:var(--text-mute);font-weight:700;margin-bottom:8px">
+              来場者全員の画面の上に出ます。落とし物・ステージ開始・雨天の案内などに。</p>
+            <textarea class="field" id="notice-text" rows="2" maxlength="200"
+              placeholder="例）12:00 から体育館でステージ発表があります。"></textarea>
+            <p class="notice-len" id="notice-len">あと200文字</p>
+            <!-- v157：当日よく出すお知らせのひな形。押すと上の欄に入る（そのまま出さない。直してから出す） -->
+            <div class="chips notice-tpl" id="notice-tpl" style="margin-top:8px">
+              <button type="button" class="chip" data-tpl="落とし物が届いています。お心当たりの方は受付（南棟昇降口）へお越しください。">落とし物</button>
+              <button type="button" class="chip" data-tpl="お子さまをお預かりしています。お心当たりの方は受付（南棟昇降口）へお越しください。">迷子</button>
+              <button type="button" class="chip" data-tpl="雨のため、屋外の出し物は中止・変更になります。各ブースの表示をご確認ください。">雨天</button>
+              <button type="button" class="chip" data-tpl="まもなく終了の時刻です。お帰りの際はお忘れ物のないようご注意ください。">終了30分前</button>
+              <button type="button" class="chip" data-tpl="ただいまステージ発表を行っています（第一体育館）。">ステージ</button>
+            </div>
+            <div class="seg" role="group" aria-label="お知らせの種類" style="width:fit-content;margin-top:8px">
+              <button id="notice-info" aria-pressed="true">お知らせ</button>
+              <button id="notice-alert" aria-pressed="false">注意（赤）</button>
+            </div>
+            <div class="bulk-row" style="margin-top:9px">
+              <button class="btn" id="notice-send">この内容で出す</button>
+              <button class="btn ghost" id="notice-clear">お知らせを消す</button>
+            </div>
+          </div>
+        </details>
+        </div>
+
+        <!-- 係員：パスワードと、入れる端末 -->
+        <div class="own-pane" id="ownpane-staff" role="tabpanel" aria-labelledby="owntab-staff" hidden>
+          <div class="card">
+            <div class="card-t">係員のパスワード</div>
+            <p class="own-note" id="own-pass-now"></p>
+            <div class="pw-row">
+              <input class="field" type="password" id="own-np" placeholder="新しいパスワード" aria-describedby="own-np-hint" autocomplete="new-password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false">
+              <button type="button" class="pw-show" id="own-np-show" aria-pressed="false" aria-controls="own-np">表示する</button>
+            </div>
+            <input class="field" type="password" id="own-np2" placeholder="もう一度（同じものを）" autocomplete="new-password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <!-- v217：打っている途中に、あと何文字か・2つの欄が同じかを出す（押してから「違います」と言われていた） -->
+            <p class="own-note own-hint" id="own-np-hint" aria-live="polite"></p>
+            <button class="btn" id="own-setpass" type="button">係員のパスワードを変える</button>
+            <p class="own-note">変えた瞬間から、古いパスワードでは入れなくなります（入っている係員も、次に送るときに入り直しになります）。新しいパスワードは、あなたから係員に伝えてください。</p>
+          </div>
+          <div class="card">
+            <div class="card-t">入れる端末</div>
+            <div class="seg own-seg" role="group" aria-label="だれが入れるか">
+              <button type="button" id="own-mode-off" aria-pressed="true">パスワードを知っている人</button>
+              <button type="button" id="own-mode-on" aria-pressed="false">許可した端末だけ</button>
+            </div>
+            <p class="own-note" id="own-mode-note"></p>
+            <p class="own-note own-sum" id="own-dev-sum"></p>
+            <ul class="own-devs" id="own-devs"></ul>
+          </div>
+        </div>
+
+        <!-- 準備：前日までの作業と、紙もの（係員の画面から移した）・パスキー -->
+        <div class="own-pane" id="ownpane-setup" role="tabpanel" aria-labelledby="owntab-setup" hidden>
+          <details class="card setup-card">
+            <summary class="chk-sum">準備：地図でブースを割り当てる</summary>
+            <div style="padding:0 12px 12px">
+              <button class="btn btn-sub" id="btn-edit-map">地図でブースを割り当てる</button>
+              <p class="srv-state hide" id="srv-state"></p>
+              <!-- 設定のし忘れは、画面上は「何も起きない」だけで表に出ない。
+                   前日までに気づけるよう、ここで名指しにする -->
+              <div class="cfg-state hide" id="cfg-state"></div>
+              <p class="card-note" style="margin-top:6px">
+                地図の部屋をおして、名前・分類を決めます。教室とブースを先に分けておく必要はありません。
+              </p>
+            </div>
+          </details>
+          <div class="card">
+            <div class="card-t">印刷するもの・見るもの</div>
+            <div class="own-links">
+      <a class="btn ghost" href="?mode=qr" style="text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg> QRコード印刷シートを開く</a>
+      <a class="btn ghost" href="?mode=pamphlet" style="text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M9 4v16M15 4v16"/></svg> 三つ折りパンフレットを開く</a>
+      <a class="btn ghost" href="?mode=print" style="text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg> 配布用の紙マップを開く</a>
+      <a class="btn ghost" href="?mode=report" style="text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M8 17V10M13 17V6M18 17v-4"/></svg> 混雑の振り返りを見る</a>
+      <a class="btn ghost" href="?mode=board" style="text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5h20v12H2z"/><path d="M8.5 20.5h7M12 16.5v4"/></svg> 本部用の大画面ボードを開く</a>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-t">顔認証・指紋（パスキー）</div>
+            <p class="own-note">この端末の顔認証・指紋・画面ロックで、司令塔に入れるようにします。顔や指紋のデータは端末から出ません。</p>
+            <ul class="own-keys" id="own-keys"></ul>
+            <input class="field" id="own-key-label" maxlength="20" placeholder="名前（例：わたしのスマホ）" autocomplete="off">
+            <button class="btn ghost" id="own-reg" type="button">この端末を登録する</button>
+          </div>
+          <p class="own-note own-foot">このタブを閉じると、自動で出ます（開いたままでも、30分 通信がないと出ます）。ほかの人も使う端末では、終わったら上の「司令塔から出る」を押してください。</p>
+        </div>
       </div>
     </section>
 
@@ -5147,6 +5352,7 @@ async function sync(manual){
     restoreHiddenRooms();
     pickStartFloor();
     S.notice = (raw && raw.notice) || null;
+    S.live = (raw && raw.live && typeof raw.live === 'object' && !Array.isArray(raw.live)) ? raw.live : {};   // v219：司令塔が起こしたイベント
     if (raw && raw.visitors) S.visitors = raw.visitors;
     const th = raw && raw.waitThresholds;
     // {} や null が来ると閾値が NaN になり、印刷物にまで NaN が刷られる
@@ -5197,7 +5403,7 @@ async function sync(manual){
       renderPrintSheet._n = S.booths.length; renderPrintSheet();
     } else if (S.view === 'pamphlet' && renderPamphlet._n !== S.booths.length){
       renderPamphlet._n = S.booths.length; renderPamphlet();
-    } else if (S.view === 'qr' && pw() && renderQrSheet._n !== S.booths.length){
+    } else if (S.view === 'qr' && (pw() || ownToken()) && renderQrSheet._n !== S.booths.length){
       renderQrSheet._n = S.booths.length; renderQrSheet();
     }
     // QRで来たが最初の同期に失敗していた場合、ここで拾い直す
@@ -6895,7 +7101,7 @@ async function saveEditor(){
     S.lastCat = S.editCat;
     await api({ body:{ action:'upsert', id, name, category:S.editCat,
                        note: $('#ed-note').value.trim(),
-                       floor: floorFromId(id), pass: pw() } });
+                       floor: floorFromId(id), token: ownToken() } });
     toast(`「${name}」を割り当てました`);
     closeEditor(true);
     renderEditProgress();
@@ -6915,7 +7121,7 @@ async function removeEditor(){
   if (!confirm(`${placeName(id)} をブースから外して教室に戻します。よろしいですか？`)) return;
   const btn = $('#ed-del'); btn.disabled = true;
   try{
-    await api({ body:{ action:'remove', id, pass: pw() } });
+    await api({ body:{ action:'remove', id, token: ownToken() } });
     toast('教室に戻しました');
     closeEditor(true);
     renderEditProgress();
@@ -6966,6 +7172,7 @@ function srvMsg(m){
 function editError(e){
   const m = String((e && e.message) || e);
   if (/unknown action/i.test(m))  return 'サーバーがこの操作をまだ知りません。' + DEPLOY_STEPS;
+  if (/^owner (session|only)/i.test(m)) return '司令塔に入り直してください（ブースの割り当ては、持ち主だけができます）。';
   if (/locked/i.test(m))          return 'パスワードを何度も間違えたため、少しの間ロックされています。時間をおいてください。';
   if (/unauthorized/i.test(m))    return 'パスワードが違います。いったんログアウトして入り直してください。';
   if (/timeout|abort|failed to fetch|networkerror/i.test(m))
@@ -11511,7 +11718,7 @@ function animateNumber(el, to){
 const CHECKLIST = [
   ['開場前', [
     'GASの migrate と validate を実行して問題が出ないことを確認した',
-    'ブースの割り当てが全部終わっている（係員画面の「準備」タブ →「地図でブースを割り当てる」）',
+    'ブースの割り当てが全部終わっている（司令塔の「準備」→「地図でブースを割り当てる」）',
     '割り当てを終えてから QR を刷った（QRには部屋IDが入っているので、'
       + 'あとから別の部屋に移すと刷り直しになる）',
     'ブース入口のQRを貼り終えた',
@@ -11929,6 +12136,8 @@ function renderAll(){
   renderMapWait();
   renderHours();
   renderNotice();
+  renderLive();                                 // v219：一斉お知らせ・ラッキーブース・抽選
+  if (S.view === 'owner') renderOwnLive();
   renderAlert();
   renderSummary();
   renderHere();
@@ -12115,12 +12324,14 @@ function switchView(v, fromHistory){
     document.body.classList.toggle('board-mode', v === 'board');
     if (show){
       const toAdmin = S.isAdmin && v !== 'auth';
-      $('#staff-back-btn').textContent = toAdmin ? '← 係員画面' : '← マップ';
-      $('#staff-back-btn').dataset.to = toAdmin ? 'admin' : 'map';
+      // v219：印刷・振り返り・本部モニタは、司令塔の「準備」から開く。司令塔に入っている人は、司令塔へ戻す
+      const toOwner = !!ownToken() && v !== 'auth' && v !== 'owner';
+      $('#staff-back-btn').textContent = toOwner ? '← 司令塔' : toAdmin ? '← 係員画面' : '← マップ';
+      $('#staff-back-btn').dataset.to = toOwner ? 'owner' : toAdmin ? 'admin' : 'map';
       // 係員なら、ほかの係員画面へも1タップで移れるようにする。
       // 毎回コンソールへ戻ってから開き直すのは、当日の忙しさでは踏めない手順
       const jump = $('#staff-jump');
-      jump.innerHTML = (toAdmin && v !== 'auth')
+      jump.innerHTML = toOwner
         ? STAFF_JUMP.map(x =>
             `<button data-jump="${x.v}"${x.v === v ? ' aria-current="page"' : ''}>${x.t}</button>`).join('')
         : '';
@@ -12152,7 +12363,7 @@ function switchView(v, fromHistory){
   // 「戻る」で係員の画面に戻ったときも中身を組み立てる（以前は係員メニューから移ったときだけで、
   // 読み込み直したあとの「戻る」ではレポートが空・ボードが止まったままだった）
   if (fromHistory){
-    if (v === 'qr' && pw()) renderQrSheet();
+    if (v === 'qr' && (pw() || ownToken())) renderQrSheet();
     else if (v === 'print') renderPrintSheet();
     else if (v === 'pamphlet') renderPamphlet();
     else if (v === 'report' && !S.report) renderReport();
@@ -12162,6 +12373,7 @@ function switchView(v, fromHistory){
   // 一覧は「空いている順」に並んでいて先頭がその答えなので、同じ内容のバナーは出さない
   $('#banner-alert').classList.toggle('hide', v !== 'map' || !$('#banner-alert-text').textContent);
   if (v === 'qr' || v === 'board') $('#banner-notice').classList.add('hide'); else renderNotice();
+  try{ renderLive(); }catch(e){ console.warn('[renderLive]', e); }
   renderHours();
   renderHere();                  // 現在地の問いかけはマップのときだけ出す
   renderFloorCounts();
@@ -12200,7 +12412,7 @@ window.addEventListener('popstate', e => {
     v = STAFF_VIEWS.indexOf(S.view) >= 0 ? (S.isAdmin ? 'admin' : S.view) : 'map';
   }
   // ログインが切れている端末を、パスワードの要る画面へ戻さない
-  if ((v === 'admin' || v === 'qr') && !pw()) v = 'auth';
+  if ((v === 'admin' && !pw()) || (v === 'qr' && !pw() && !ownToken())) v = 'auth';
   // v180：逆に、ログインしている端末にパスワードの画面は出さない（係員の画面へ）
   if (v === 'auth' && pw()) v = 'admin';
   if (HIST_VIEWS.indexOf(v) >= 0 && v !== S.view) switchView(v, true);
@@ -12240,6 +12452,7 @@ function ownErrText(e){
   if (/^locked/.test(m)) return '何度も違っています。5分ほど待ってから、もう一度お試しください';
   if (/unauthorized/.test(m)) return '入れませんでした。持ち主パスワード（または登録した端末）を確かめてください';
   if (/^owner session/.test(m)) return '時間がたったので、司令塔に入り直してください';
+  if (/^owner only/.test(m)) return 'この操作は、司令塔（持ち主）からだけ行えます';
   if (/unknown action/.test(m)) return 'サーバーが古い版で、司令塔に対応していません。' + DEPLOY_STEPS;
   if (/timeout|abort|failed to fetch|networkerror|offline/i.test(m)) return '通信できませんでした。電波の届く場所で、もう一度お試しください';
   return srvMsg(m);
@@ -12267,8 +12480,10 @@ function renderOwner(){
   gate.classList.toggle('hide', inside);
   main.classList.toggle('hide', !inside);
   clearTimeout(OWN.timer);
-  if (!inside){ OWN._wait = null; OWN._st = null; OWN._devHtml = OWN._keyHtml = null; renderOwnerGate(); return; }
+  if (!inside){ OWN._wait = null; OWN._st = null; OWN._devHtml = OWN._keyHtml = null; OWN.tab = null; renderOwnerGate(); return; }
   const st = OWN.state;
+  // v219：5枚のタブ。前に開いていた所から（このタブの中だけ覚える）
+  if (!OWN.tab){ let t0 = 'home'; try{ t0 = sessionStorage.getItem('kuroko_own_tab') || 'home'; }catch(e){} setOwnTab(t0, true); }
   // 係員のパスワード（中身は出さない。長さと、いつ変えたかだけ）
   $('#own-pass-now').textContent = `いまのパスワード：${st.passLen}文字` + (st.passAt ? `（${ago(st.passAt)}に変更）` : '（司令塔からは、まだ変えていません）');
   // だれが入れるか
@@ -12331,6 +12546,7 @@ function renderOwner(){
   const reg = $('#own-reg');
   reg.disabled = !ownCanPasskey();
   if (!ownCanPasskey()) reg.textContent = 'この端末・ブラウザは、顔認証・指紋の登録に対応していません';
+  renderOwnLive();
   // 許可を待っている端末がすぐ分かるよう、開いているあいだは 8秒ごとに取り直す
   OWN.timer = setTimeout(() => { if (S.view === 'owner' && ownToken() && !document.hidden) ownRefresh(true); else renderOwner(); }, 8000);
 }
@@ -12542,9 +12758,368 @@ function initOwner(){
   $('#own-reg').addEventListener('click', ownRegister);
   $('#own-logout').addEventListener('click', ownLogout);
   $$('[data-open-owner]').forEach(el => el.addEventListener('click', () => openOwner()));
+  initOwnerLive();
   // v218：一覧のボタンは、親でまとめて受け取る（一覧を描き直さなくても効く）
   $('#own-devs').addEventListener('click', e => { const b = e.target.closest('[data-dev]'); if (b && !b.disabled) ownDevAct(b.closest('.own-dev').dataset.cid, b.dataset.dev); });
   $('#own-keys').addEventListener('click', e => { const b = e.target.closest('[data-key-del]'); if (b) ownKeyDel(b.closest('.own-key').dataset.kid); });
+}
+
+/* =====================================================================
+   v219：司令塔が起こしたイベントを、来場者の画面に出す
+   サーバーの返事の live に、いま出ているものが入っている（無ければ {}）。
+     show  … 演出つきの一斉お知らせ（1人に1回。番号 id が変わったら、もう一度出す）
+     lucky … ラッキーブース（帯・地図・一覧で光らせる。時間になったら自分で消える）
+     draw  … スタンプの抽選（当たったかは、自分のスタンプ番号でサーバーに聞く。当たった番号は配られない）
+   係員の画面・印刷の画面・本部モニタには出さない
+   ===================================================================== */
+function liveSeen(){ const m = load('kuroko_live_seen', null); return (m && typeof m === 'object' && !Array.isArray(m)) ? m : {}; }
+function liveMark(k, id){ const m = liveSeen(); m[k] = String(id); store('kuroko_live_seen', m); }
+function liveNow(){
+  const l = (S.live && typeof S.live === 'object' && !Array.isArray(S.live)) ? S.live : {}, t = nowMs();
+  const ok = x => (x && typeof x === 'object' && typeof x.id === 'string' && x.id && Number(x.until) > t) ? x : null;
+  return { show: ok(l.show), lucky: ok(l.lucky), draw: ok(l.draw) };
+}
+function liveQuiet(){ return NAV_VIEWS.indexOf(S.view) < 0 || !!S.edit; }
+function liveLeft(until){
+  const s = Math.max(0, Math.round((Number(until) - nowMs()) / 1000));
+  return s >= 90 ? `あと${Math.round(s / 60)}分` : s >= 60 ? 'あと1分' : `あと${s}秒`;
+}
+const LIVE_IC = {
+  show: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4h3l6 4V6L6 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.500a8 8 0 0 1 0 11"/></svg>',
+  win: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v1.500A3.500 3.500 0 0 0 7.500 11M17 6h3v1.500a3.500 3.500 0 0 1-3.500 3.500M12 14v4M8.500 20h7"/></svg>',
+  star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.500l2.700 6 6.500.7-4.900 4.400 1.400 6.400L12 16.700 6.300 20l1.400-6.400L2.800 9.200l6.500-.7z"/></svg>'
+};
+function renderLive(){
+  const L = liveNow();
+  renderLucky(L.lucky);
+  // 当たりの札：抽選が消された・新しい抽選に替わったら、前の当たりは片付ける
+  { const w = load('kuroko_live_win', null);
+    if (w && typeof w === 'object' && S.live && (!L.draw || L.draw.id !== w.id)) store('kuroko_live_win', null); }
+  renderWin();
+  if (liveQuiet()) return;
+  const seen = liveSeen();
+  if (L.show && seen.show !== L.show.id){
+    liveMark('show', L.show.id);
+    showLiveFx('show', String(L.show.title || ''), String(L.show.text || ''));
+  }
+  if (L.lucky && seen.lucky !== L.lucky.id){
+    liveMark('lucky', L.lucky.id);
+    const b = S.booths.find(x => x.id === L.lucky.booth);
+    if (b){
+      buzz([30, 50, 30]);
+      toast(`ラッキーブース：${b.name}（${liveLeft(L.lucky.until)}）`, { label:'見る', fn: () => openSheet(b.id) }, 8000);
+    }
+  }
+  // 抽選：「聞いた」の印は、答えが返ってから付ける（聞いている途中で画面を開き直しても、もう一度聞く）
+  if (L.draw && seen.draw !== L.draw.id && liveDrawCheck._busy !== L.draw.id) liveDrawCheck(L.draw);
+}
+/** ラッキーブース：帯と、地図・一覧の光。部屋や札を描き直しても消えないよう、決まり（CSS）で当てる */
+function renderLucky(lk){
+  const el = $('#banner-lucky');
+  if (!el) return;
+  const b = (lk && /^[0-9A-Za-z_-]{1,24}$/.test(String(lk.booth))) ? S.booths.find(x => x.id === lk.booth) : null;
+  let st = document.getElementById('lucky-style');
+  if (!st){ st = document.createElement('style'); st.id = 'lucky-style'; document.head.appendChild(st); }
+  const css = b ? `.room[data-id="${b.id}"] .fill{stroke:#d9a514 !important;animation:lk-pulse 1.6s ease-in-out infinite}
+[id="booth-${b.id}"]{animation:lk-glow 1.8s ease-in-out infinite}
+[id="booth-${b.id}"] .booth-nm .nm::after{content:"ラッキー";display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:#d9a514;color:#fff;font-size:10.5px;font-weight:900;vertical-align:2px}
+@media (prefers-reduced-motion:reduce){ .room[data-id="${b.id}"] .fill{animation:none;stroke-width:5} [id="booth-${b.id}"]{animation:none;box-shadow:0 0 0 3px #d9a514} }` : '';
+  if (st.textContent !== css) st.textContent = css;
+  const show = !!(b && !liveQuiet());
+  const was = !el.classList.contains('hide');
+  el.classList.toggle('hide', !show);
+  if (show){
+    el.dataset.id = b.id;
+    const nm = $('#banner-lucky-nm'), lf = $('#banner-lucky-left');
+    if (nm.textContent !== b.name) nm.textContent = b.name;
+    const t = `ラッキーブース・${liveLeft(lk.until)}`;
+    if (lf.textContent !== t) lf.textContent = t;
+  }
+  if (was !== show){ try{ measureHead(); fitMapBox._key = null; fitMapBox(S.floor); }catch(e){} }
+  clearTimeout(renderLucky._t);
+  // 残り時間の表示を進める。時間になったら、次の同期を待たずに自分で消す
+  if (lk) renderLucky._t = setTimeout(renderLive, Math.min(15000, Math.max(1000, Number(lk.until) - nowMs() + 300)));
+}
+/** スタンプの画面のいちばん上に、当たりの札（時間まで） */
+function renderWin(){
+  const w = load('kuroko_live_win', null);
+  const on = !!(w && typeof w === 'object' && Number(w.until) > nowMs());
+  let el = document.getElementById('win-card');
+  if (!on){ if (el) el.remove(); return; }
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'win-card'; el.className = 'card win-card'; el.setAttribute('role', 'status');
+    const v = $('#v-stamp'); v.insertBefore(el, v.firstChild);
+  }
+  const html = `<h3>抽選に当たりました！</h3><p>本部で、この画面を見せてください（${esc(liveLeft(w.until))}）</p><b class="sid">${esc(sidLabel())}</b><p>あなたのスタンプ番号</p>`;
+  if (el.innerHTML !== html) el.innerHTML = html;
+}
+/** 抽選があった：自分のスタンプ番号で、当たったかをサーバーに聞く（全員が同じ瞬間に聞きに行かないよう、少しずらす） */
+async function liveDrawCheck(d){
+  const sid = loadStr('kuroko_sid');
+  if (!sid || !S.stamps || !S.stamps.size){
+    liveMark('draw', d.id);
+    toast('スタンプの抽選がありました。スタンプをあつめると、次の抽選に入れます', null, 6000);
+    return;
+  }
+  liveDrawCheck._busy = d.id;
+  await new Promise(r => setTimeout(r, liveDrawCheck.wait != null ? liveDrawCheck.wait : Math.random() * 8000));
+  let win = false;
+  try{
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 12000);
+    let res;
+    try{
+      res = await fetch(CONFIG.GAS_URL + (CONFIG.GAS_URL.includes('?') ? '&' : '?') + 'win=' + encodeURIComponent(d.id)
+        + '&cid=' + encodeURIComponent(sid) + '&_=' + Date.now(), { mode:'cors', signal: ctl.signal });
+    } finally { clearTimeout(to); }
+    const r = await res.json();
+    win = !!(r && r.ok && r.win === true && r.id === d.id);
+  }catch(e){
+    liveDrawCheck._busy = null;      // 聞けなかった。次の同期で、もう一度聞く
+    return;
+  }
+  liveDrawCheck._busy = null;
+  liveMark('draw', d.id);
+  if (win){
+    store('kuroko_live_win', { id: d.id, until: Number(d.until) });
+    renderWin();
+    if (!liveQuiet()) showLiveFx('win', '当たり！', '本部で、この画面を見せてください');
+  } else {
+    toast('スタンプの抽選がありました。今回は はずれ でした（次の抽選を お楽しみに）', null, 6000);
+  }
+}
+/**
+ * 一斉お知らせ・当たりの演出。スタンプの演出（.sfx）と同じ形の札を使う。
+ * @param {'show'|'win'} kind
+ * @param {boolean=} preview 司令塔の「この端末で試す」（だれにも送らない）
+ */
+function showLiveFx(kind, title, text, preview){
+  // 出ている最中に次が来たら、とじたあとで出す（一斉お知らせと「当たり」が重なったとき、片方が消えていた）
+  const old = document.getElementById('lfx');
+  if (old && !preview && !old.classList.contains('out')){ (showLiveFx._q = showLiveFx._q || []).push([kind, title, text]); return; }
+  if (old) old.remove();
+  const el = document.createElement('div');
+  el.id = 'lfx'; el.className = 'sfx lfx first fresh' + (kind === 'win' ? ' win' : '');
+  el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', title || 'お知らせ');
+  el.innerHTML = `
+    <div class="sfx-card lfx-card">
+      <p class="sfx-kicker">${kind === 'win' ? 'スタンプの抽選' : preview ? 'ためし（この端末だけ）' : '本部から'}</p>
+      <div class="lfx-burst" aria-hidden="true">${kind === 'win' ? LIVE_IC.win : LIVE_IC.show}</div>
+      <h2 class="lfx-title"></h2>
+      <p class="lfx-text"></p>
+      ${kind === 'win' ? `<div class="lfx-sid"><small>あなたのスタンプ番号</small><b>${esc(sidLabel())}</b></div>` : ''}
+      <div class="sfx-acts"><button class="btn" data-fx="close">とじる</button></div>
+    </div>`;
+  // 本部が打った文字は、文字として入れる（タグにしない）
+  el.querySelector('.lfx-title').textContent = title;
+  { const p = el.querySelector('.lfx-text'); if (text) p.textContent = text; else p.remove(); }
+  document.body.appendChild(el);
+  document.documentElement.classList.add('sfx-open');
+  const prev = document.activeElement;
+  const close = () => {
+    if (!document.body.contains(el)) return;
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 260);
+    document.documentElement.classList.remove('sfx-open');
+    document.removeEventListener('keydown', onKey);
+    try{ if (prev && prev.focus && document.body.contains(prev)) prev.focus({ preventScroll:true }); }catch(e){}
+    const q = showLiveFx._q && showLiveFx._q.shift();
+    if (q) setTimeout(() => showLiveFx(q[0], q[1], q[2]), 320);
+  };
+  const onKey = e => {
+    if (e.key === 'Escape'){ close(); return; }
+    if (e.key === 'Tab'){ e.preventDefault(); const b = el.querySelector('[data-fx="close"]'); if (b) b.focus(); }
+  };
+  showLiveFx.close = close;
+  el.querySelector('[data-fx="close"]').addEventListener('click', close);
+  el.addEventListener('click', e => { if (e.target === el) close(); });
+  document.addEventListener('keydown', onKey);
+  setTimeout(() => { const b = el.querySelector('[data-fx="close"]'); if (b) b.focus({ preventScroll:true }); }, 60);
+  buzz(kind === 'win' ? [30, 60, 30, 60, 120] : [18, 40, 70]);
+  try{ if (S.sound) ding(); }catch(e){}
+  setTimeout(() => confetti(), 250);
+}
+
+/* =====================================================================
+   v219：司令塔の中（5枚のタブ・ようす・イベントの操作）
+   ===================================================================== */
+function setOwnTab(name, keepScroll){
+  const tabs = $$('.own-tabs button');
+  if (!tabs.length) return;
+  if (!tabs.some(t => t.dataset.otab === name)) name = 'home';
+  tabs.forEach(t => {
+    const on = t.dataset.otab === name;
+    t.setAttribute('aria-selected', on ? 'true' : 'false');
+    const pane = $('#ownpane-' + t.dataset.otab);
+    if (pane){ pane.classList.toggle('on', on); pane.hidden = !on; }
+  });
+  OWN.tab = name;
+  try{ sessionStorage.setItem('kuroko_own_tab', name); }catch(e){}
+  // 移した部品は、開いたときに組み立てる（係員の画面を通らずに ここへ来ても、空にならないように）
+  try{
+    if (name === 'hq'){ renderChecklist(); renderStaleList(); renderNoticeState(); }
+    if (name === 'setup'){ checkConfig(); checkServer(); }
+  }catch(e){ console.warn('[setOwnTab]', e); }
+  renderOwnLive();
+  if (!keepScroll && S.view === 'owner') window.scrollTo({ top: 0, behavior: 'auto' });
+}
+/** 司令塔に入っていないとできない操作で断られたとき。処理したら true */
+function ownerFail(e){
+  const m = String((e && e.message) || e);
+  if (/^owner session/.test(m)){
+    ownTokenSet(''); OWN.state = null;
+    if (S.edit) setEditMode(false);
+    openOwner();
+    ownShowErr(e);
+    return true;
+  }
+  if (/^owner only/.test(m)){ toast('この操作は、司令塔（持ち主）からだけ行えます', null, 6000); return true; }
+  return false;
+}
+function setHtml(el, html){ if (el && el.innerHTML !== html) el.innerHTML = html; }
+/** ようす・イベントの いまの状態・タブの数字 を描く（8秒ごとの取り直しと、来場者むけの同期のたびに呼ばれる） */
+function renderOwnLive(){
+  const main = $('#own-main');
+  if (!main || main.classList.contains('hide') || !OWN.state) return;
+  const st = OWN.state, lv = st.live || {}, t = nowMs();
+  const act = k => (lv[k] && Number(lv[k].until) > t) ? lv[k] : null;
+  const show = act('show'), lucky = act('lucky'), draw = act('draw');
+  const bs = S.booths, cnt = { 0: 0, 1: 0, 2: 0, 3: 0, x: 0 };
+  bs.forEach(b => { const l = lvOf(b).lv; cnt[(l >= 0 && l <= 3) ? l : 'x']++; });
+  const stale = bs.filter(b => isVenue(b) && lvOf(b).lv !== 3 && elapsedMin(b) >= CONFIG.ADMIN_WARN_MIN).length;
+  const devs = st.devices || [], nWait = devs.filter(d => d.st === 'wait' || (d.st === 'seen' && st.approval)).length;
+  const vis = (S.visitors && Number(S.visitors.today)) || 0;
+  const nEv = [show, lucky, draw].filter(Boolean).length;
+  const notice = (S.notice && S.notice.text) ? S.notice : null;
+  const nameOf = id => { const b = bs.find(x => x.id === id); return b ? b.name : String(id); };
+  // ---- ようす
+  setHtml($('#own-tiles'), `
+    <div class="own-tile"><b>${vis}<small>人</small></b><span>きょうの来場者（受付のカウント）</span></div>
+    <button type="button" class="own-tile" data-ogo="hq" data-tone="${stale ? 'warn' : 'ok'}"><b>${stale}<small>件</small></b><span>更新が止まっているブース（${CONFIG.ADMIN_WARN_MIN}分以上）</span></button>
+    <button type="button" class="own-tile" data-ogo="staff"${nWait ? ' data-tone="warn"' : ''}><b>${nWait}<small>台</small></b><span>${st.approval ? '許可を待っている端末' : '許可を待っている端末（いまは、パスワードだけで入れます）'}</span></button>
+    <button type="button" class="own-tile" data-ogo="event"${nEv ? ' data-tone="ok"' : ''}><b>${nEv}<small>つ</small></b><span>起こしているイベント</span></button>
+    <div class="own-tile wide"><span>ブースの混み具合（${bs.length}件）</span>
+      <div class="own-mix" aria-hidden="true">${[[0, 'm0'], [1, 'm1'], [2, 'm2'], [3, 'm3'], ['x', 'mx']].map(([k, c]) => cnt[k] ? `<i class="${c}" style="flex:${cnt[k]} 0 0"></i>` : '').join('')}</div>
+      <div class="own-mix-lg"><span>空き<b>${cnt[0]}</b></span><span>やや混雑<b>${cnt[1]}</b></span><span>混雑<b>${cnt[2]}</b></span><span>準備中<b>${cnt[3]}</b></span><span>情報なし<b>${cnt.x}</b></span></div>
+    </div>`);
+  const now = [];
+  if (notice) now.push(`<li><em>${notice.level === 'alert' ? '注意' : 'お知らせ'}</em><span>${esc(notice.text)}</span></li>`);
+  if (show) now.push(`<li><em>一斉お知らせ</em><span>${esc(show.title)}</span><small>${esc(liveLeft(show.until))}</small></li>`);
+  if (lucky) now.push(`<li><em>ラッキーブース</em><span>${esc(nameOf(lucky.booth))}</span><small>${esc(liveLeft(lucky.until))}</small></li>`);
+  if (draw) now.push(`<li><em>抽選</em><span>${(draw.winners || []).length}人が当たり</span><small>${esc(liveLeft(draw.until))}</small></li>`);
+  setHtml($('#own-now'), now.length ? now.join('') : '<li class="none">いまは、何も出していません</li>');
+  { const sub = $('#own-head-sub'); if (sub) sub.textContent = st.sv ? `GAS-${st.sv}` : ''; }
+  // ---- タブの数字
+  const setN = (id, n) => { const b = $(id); if (b) b.textContent = n ? String(n) : ''; };
+  setN('#owntab-event-n', nEv); setN('#owntab-hq-n', stale); setN('#owntab-staff-n', nWait);
+  // ---- イベント：いまの状態
+  const stateOf = (id, on, text) => { const el = $(id); if (!el) return; if (el.textContent !== text) el.textContent = text; if (on) el.dataset.on = '1'; else delete el.dataset.on; };
+  const liveCard = (id, on) => { const c = $(id); if (c){ if (on) c.dataset.live = '1'; else delete c.dataset.live; } };
+  stateOf('#own-show-now', !!show, show ? `出しています：「${show.title}」（${liveLeft(show.until)}は、新しく開いた人にも出ます）` : '');
+  liveCard('#own-ev-show', !!show);
+  stateOf('#own-lucky-now', !!lucky, lucky ? `光らせています：${nameOf(lucky.booth)}（${liveLeft(lucky.until)}）` : '');
+  liveCard('#own-ev-lucky', !!lucky);
+  { const e = $('#own-lucky-end'); if (e) e.classList.toggle('hide', !lucky); }
+  { const s = $('#own-lucky-start'); if (s && !s.disabled) s.textContent = lucky ? 'このブースに替える' : 'はじめる'; }
+  stateOf('#own-draw-now', !!draw, draw ? `${(draw.winners || []).length}人が当たり（スタンプ ${draw.min}個以上の ${draw.elig}人から）。${liveLeft(draw.until)}は、当たった人の画面に出ます` : '');
+  liveCard('#own-ev-draw', !!draw);
+  { const e = $('#own-draw-clear'); if (e) e.classList.toggle('hide', !draw); }
+  setHtml($('#own-draw-res'), draw ? (draw.winners || []).map((w, i) =>
+    `<li><i>${i + 1}</i><b>${esc(sidLabel(w.cid))}</b><span>スタンプ ${Number(w.stamps) || 0}個</span></li>`).join('') : '');
+  // ---- ラッキーブースの選び先（ブースの一覧が変わったときだけ作り直す。選んでいたものは保つ）
+  const sel = $('#own-lucky-booth');
+  if (sel){
+    const fp = bs.map(b => b.id + ':' + b.name + ':' + lvOf(b).lv).join('|');
+    if (sel.dataset.fp !== fp && document.activeElement !== sel){
+      sel.dataset.fp = fp;
+      const cur = sel.value;
+      const floors = [[1, '1階'], [2, '2階'], [3, '3階'], [0, '屋外']];
+      sel.innerHTML = '<option value="">ブースをえらぶ</option>' + floors.map(([f, label]) => {
+        const items = bs.filter(b => isVenue(b) && floorOfBooth(b) === f);
+        return items.length ? `<optgroup label="${label}">` + items.map(b =>
+          `<option value="${esc(b.id)}">${S.numbers.get(b.id) || ''}　${esc(b.name)}（${esc(lvOf(b).short)}）</option>`).join('') + '</optgroup>' : '';
+      }).join('');
+      if (cur && bs.some(b => b.id === cur)) sel.value = cur;
+    }
+  }
+}
+/** イベントの操作を送る。返事（司令塔の状態）で描き直し、来場者むけのデータも取り直す */
+async function ownLive(action, body, btn, okMsg){
+  if (OWN.liveBusy) return false;
+  if (navigator.onLine === false){ toast('圏外です。電波の届く場所で操作してください'); return false; }
+  OWN.liveBusy = true;
+  const lb = btn ? btn.textContent : '';
+  if (btn){ btn.disabled = true; btn.textContent = '送っています…'; }
+  try{
+    OWN.state = await ownCall(action, Object.assign({ token: ownToken() }, body || {}));
+    if (btn){ btn.disabled = false; btn.textContent = lb; }
+    renderOwner();
+    if (okMsg) toast(okMsg, null, 6000);
+    try{ sync(false); }catch(e){}
+    return true;
+  }catch(e){
+    if (!ownDropIfExpired(e)) toast(ownErrText(e), null, 7000);
+    return false;
+  }finally{
+    OWN.liveBusy = false;
+    if (btn && btn.disabled){ btn.disabled = false; btn.textContent = lb; }
+  }
+}
+function segValue(sel){ const b = $(sel + ' button[aria-pressed="true"]'); return b ? Number(b.dataset.v) : NaN; }
+function initOwnerLive(){
+  if (!$('#own-main')) return;
+  $$('.own-tabs button').forEach(t => t.addEventListener('click', () => setOwnTab(t.dataset.otab)));
+  // ようすの札・「すぐ使う」から、その画面へ
+  $('#own-main').addEventListener('click', e => { const b = e.target.closest('[data-ogo]'); if (b) setOwnTab(b.dataset.ogo); });
+  // えらぶボタン（時間・個数・人数）
+  $$('#own-lucky-min, #own-draw-min, #own-draw-n').forEach(seg => seg.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    $$('button', seg).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+  // 一斉お知らせ
+  $('#own-show-tpl').addEventListener('click', e => {
+    const c = e.target.closest('[data-t]'); if (!c) return;
+    $('#own-show-title').value = c.dataset.t; $('#own-show-text').value = c.dataset.x || '';
+    $('#own-show-title').focus({ preventScroll: true });
+  });
+  const showIn = () => ({ title: $('#own-show-title').value.trim().slice(0, 30), text: $('#own-show-text').value.trim().slice(0, 80) });
+  $('#own-show-try').addEventListener('click', () => {
+    const v = showIn();
+    if (!v.title){ toast('見出しを入れてください'); return; }
+    showLiveFx('show', v.title, v.text, true);
+  });
+  $('#own-show-send').addEventListener('click', async () => {
+    const v = showIn();
+    if (!v.title){ toast('見出しを入れてください'); return; }
+    if (!confirm(`開いている全員の画面に出します。\n\n「${v.title}」${v.text ? '\n' + v.text : ''}\n\nよろしいですか？`)) return;
+    if (await ownLive('owner_show', v, $('#own-show-send'), '全員に出しました（20秒以内に届きます）')){
+      $('#own-show-title').value = ''; $('#own-show-text').value = '';
+    }
+  });
+  // ラッキーブース
+  $('#own-lucky-start').addEventListener('click', () => {
+    const booth = $('#own-lucky-booth').value, minutes = segValue('#own-lucky-min');
+    if (!booth){ toast('ブースをえらんでください'); return; }
+    const b = S.booths.find(x => x.id === booth);
+    if (!confirm(`「${b ? b.name : booth}」を、${minutes}分のあいだ ラッキーブースにします。よろしいですか？`)) return;
+    ownLive('owner_lucky', { booth, minutes }, $('#own-lucky-start'), 'ラッキーブースを はじめました');
+  });
+  $('#own-lucky-end').addEventListener('click', () => {
+    if (!confirm('ラッキーブースを、いま終わらせます。よろしいですか？')) return;
+    ownLive('owner_lucky', { booth: '' }, $('#own-lucky-end'), 'ラッキーブースを終わらせました');
+  });
+  // 抽選
+  $('#own-draw-go').addEventListener('click', () => {
+    const min = segValue('#own-draw-min'), n = segValue('#own-draw-n'), again = $('#own-draw-again').checked;
+    if (!confirm(`きょうスタンプを ${min}個以上あつめた人から、${n}人に当たりを出します。\n（当たった人の画面に、すぐ出ます。やり直すと、別の人が当たります）\n\nよろしいですか？`)) return;
+    ownLive('owner_draw', { min, n, again }, $('#own-draw-go'), '抽選しました。下に、当たった人のスタンプ番号が出ています');
+  });
+  $('#own-draw-clear').addEventListener('click', () => {
+    if (!confirm('当たりの表示を消します（当たった人の画面からも消えます）。よろしいですか？')) return;
+    ownLive('owner_live_clear', { what: 'draw' }, $('#own-draw-clear'), '当たりの表示を消しました');
+  });
+  // ラッキーブースの帯：「見る」
+  { const go = $('#banner-lucky-go'); if (go) go.addEventListener('click', () => { const id = $('#banner-lucky').dataset.id; if (id) openSheet(id); }); }
 }
 
 /* ---- 係員のログイン：端末の許可を待つ（司令塔で「許可した端末だけ」にしているとき） ---- */
@@ -12937,12 +13512,12 @@ function initNotice(){
     const btns = $$('#notice-send, #notice-clear');
     btns.forEach(b => b.disabled = true);
     try{
-      await api({ body:{ action:'notice', text, level, pass: pw() } });
+      await api({ body:{ action:'notice', text, level, token: ownToken() } });       // v219：司令塔に入っている印で送る
       await sync(false);
       toast(text ? 'お知らせを出しました' : 'お知らせを消しました');
       if (!text) $('#notice-text').value = '';
       renderNoticeState();
-    }catch(e){ if (!authFailed(e)) toast('お知らせの送信に失敗しました'); }
+    }catch(e){ if (!ownerFail(e) && !authFailed(e)) toast('お知らせの送信に失敗しました'); }
     finally{ btns.forEach(b => b.disabled = false); }
   };
   $('#notice-send').addEventListener('click', () => {
@@ -13240,6 +13815,9 @@ function renderStaleList(){
 }
 /** 更新タブのそのブースのカードへ移る（まとめが閉じていれば開く） */
 function gotoAdminCard(id){
+  // v219：この一覧は司令塔に移った。係員として入っていなければ、そのブースの詳細を地図で開く
+  if (!S.isAdmin || !pw()){ switchView('map'); openSheet(id); return; }
+  switchView('admin');
   setAdmTab('update');
   renderAdmin();
   const card = document.querySelector(`#admin-list .adm-booth[data-id="${CSS.escape(id)}"]`);
@@ -13518,9 +14096,9 @@ async function bulkReset(btn){
   const label = btn.textContent;
   btn.disabled = true; btn.textContent = '送信中…';
   try{
-    await api({ body:{ action:'bulk', status, pass: pw() } });
+    await api({ body:{ action:'bulk', status, token: ownToken() } });
     await sync(false); toast(`全ブースを「${status}」にしました`);
-  }catch(e){ if (!authFailed(e)) toast('まとめての変更に失敗しました'); }
+  }catch(e){ if (!ownerFail(e) && !authFailed(e)) toast('まとめての変更に失敗しました'); }
   finally{ btn.disabled = false; btn.textContent = label; }
 }
 
@@ -15689,13 +16267,14 @@ function init(){
   $('#btn-report-png').addEventListener('click', exportReportPng);
   $('#btn-hardreload').addEventListener('click', hardReload);
   $('#btn-login').addEventListener('click', login);
-  $('#staff-back-btn').addEventListener('click', () => switchView($('#staff-back-btn').dataset.to || 'map'));
+  $('#staff-back-btn').addEventListener('click', () => { const to = $('#staff-back-btn').dataset.to || 'map'; if (to === 'owner') openOwner(); else switchView(to); });
   $('#btn-edit-map').addEventListener('click', () => { switchView('map'); setEditMode(true); });
   $('#edit-off').addEventListener('click', () => {
     // パネルを開いたまま抜けると、打ちかけの内容が黙って消える
     if (!$('#edit-sheet').classList.contains('hide')){ if (!closeEditor()) return; }
     setEditMode(false);
-    if (S.isAdmin) switchView('admin');   // 割り当てが終わったら作業の場所へ戻す
+    if (ownToken()){ openOwner(); setOwnTab('setup'); }   // v219：割り当ては司令塔の「準備」から。終わったら そこへ戻す
+    else if (S.isAdmin) switchView('admin');
   });
   $('#ed-close').addEventListener('click', () => closeEditor());
   $('#ed-save').addEventListener('click', saveEditor);
@@ -15759,7 +16338,7 @@ function init(){
   } else if (mode === 'qr'){
     // 全ブースのQRが1枚に並ぶページ。誰でも開けると、画面のQRを片端から
     // 読むだけでスタンプラリーが成立してしまう。係員コンソールと同じ扱いにする
-    if (pw()) switchView('qr');
+    if (pw() || ownToken()) switchView('qr');
     else { S.afterLogin = 'qr'; switchView('auth'); }
   } else if (mode === 'pamphlet'){
     switchView('pamphlet');
@@ -15869,7 +16448,7 @@ function init(){
   }
 
   sync(false).then(() => {
-    if (mode === 'qr'){ if (pw()) renderQrSheet(); return; }
+    if (mode === 'qr'){ if (pw() || ownToken()) renderQrSheet(); return; }
     if (mode === 'print'){ renderPrintSheet(); return; }
     if (mode === 'pamphlet'){ renderPamphlet(); return; }
     if (mode === 'report') return;
