@@ -555,3 +555,278 @@ test('⑦validate：長すぎて画面で切れる名前・メモを知らせる
   g.onEdit({});
   assert.strictEqual(g.__get().booths.find(b => b.name.startsWith('とても長い')).name.length, 41);
 });
+
+/* ---------------- v216（GAS 2026-10-14a）：司令塔（持ち主だけ）— 持ち主パスワード・パスキー・端末の承認・係員のパスワードの変更 ---------------- */
+const nodeCrypto = require('crypto');
+const OWNER = 'owner-himitsu-123456';                          // テスト用の持ち主パスワード（本物ではない）
+const ORIGIN_T = 'http://localhost:4173';
+const DEV_A = 'devaaaaaaaaaaaa01', DEV_B = 'devbbbbbbbbbbbb02', DEV_C = 'devcccccccccccc03';
+const freshOwner = props => fresh(Object.assign({ OWNER_PASS: OWNER, OWNER_ORIGINS: ORIGIN_T }, props || {}));
+const ownerIn = g => { const r = g.__post({ action: 'owner_login', opass: OWNER, cid: DEV_A }); assert.strictEqual(r.ok, true, JSON.stringify(r)); return r.token; };
+const b64uT = buf => Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+/** パスキーを持った端末のまね（Node の暗号で、本物の認証器と同じ形の返事を作る） */
+function fakeAuthenticator(rp, origin) {
+  const sha = b => nodeCrypto.createHash('sha256').update(b).digest();
+  const cborEnc = v => {
+    const head = (major, len) => len < 24 ? Buffer.from([(major << 5) | len]) : len < 256 ? Buffer.from([(major << 5) | 24, len]) : Buffer.from([(major << 5) | 25, len >> 8, len & 255]);
+    if (typeof v === 'number') return v >= 0 ? head(0, v) : head(1, -1 - v);
+    if (Buffer.isBuffer(v)) return Buffer.concat([head(2, v.length), v]);
+    if (typeof v === 'string') { const b = Buffer.from(v, 'utf8'); return Buffer.concat([head(3, b.length), b]); }
+    return Buffer.concat([head(5, v.size), ...[...v].flatMap(([k, x]) => [cborEnc(k), cborEnc(x)])]);
+  };
+  const { publicKey, privateKey } = nodeCrypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
+  const jwk = publicKey.export({ format: 'jwk' });
+  const credId = nodeCrypto.randomBytes(20);
+  let count = 0;
+  const authData = (flags, withKey) => {
+    const cnt = Buffer.alloc(4); cnt.writeUInt32BE(++count);
+    const base = Buffer.concat([sha(Buffer.from(rp)), Buffer.from([flags]), cnt]);
+    if (!withKey) return base;
+    const cose = cborEnc(new Map([[1, 2], [3, -7], [-1, 1], [-2, Buffer.from(jwk.x, 'base64url')], [-3, Buffer.from(jwk.y, 'base64url')]]));
+    const len = Buffer.alloc(2); len.writeUInt16BE(credId.length);
+    return Buffer.concat([base, nodeCrypto.randomBytes(16), len, credId, cose]);
+  };
+  return {
+    id: b64uT(credId),
+    create(ch, o = {}) {
+      const cd = Buffer.from(JSON.stringify({ type: 'webauthn.create', challenge: ch, origin: o.origin || origin, crossOrigin: false }));
+      const att = cborEnc(new Map([['fmt', 'none'], ['attStmt', new Map()], ['authData', authData(o.flags == null ? 0x45 : o.flags, true)]]));
+      return { clientDataJSON: b64uT(cd), attestationObject: b64uT(att) };
+    },
+    get(ch, o = {}) {
+      const cd = Buffer.from(JSON.stringify({ type: 'webauthn.get', challenge: ch, origin: o.origin || origin, crossOrigin: false }));
+      const ad = authData(o.flags == null ? 0x05 : o.flags, false);
+      const sig = nodeCrypto.sign('sha256', Buffer.concat([ad, sha(cd)]), o.key || privateKey);
+      return { id: b64uT(credId), clientDataJSON: b64uT(cd), authenticatorData: b64uT(ad), signature: b64uT(sig) };
+    },
+  };
+}
+
+test('司令塔：持ち主パスワード（OWNER_PASS）が無い・短い・係員のパスワードと同じ、のあいだは、だれも入れない', () => {
+  for (const [props, why] of [[{}, 'unset'], [{ OWNER_PASS: 'mijikai' }, 'weak'], [{ OWNER_PASS: PASS }, 'same']]) {
+    const g = fresh(props);
+    const info = g.__post({ action: 'owner_info' });
+    assert.deepStrictEqual([info.ok, info.ready, info.why, info.hasKeys], [true, false, why, false]);
+    const r = g.__post({ action: 'owner_login', opass: props.OWNER_PASS || '', cid: DEV_A });
+    assert.strictEqual(r.ok, false);
+    assert.match(r.error, /^owner (unset|weak): /);
+    assert.strictEqual(g.__post({ action: 'owner_ch' }).ok, false);
+    for (const a of ['owner_state', 'owner_set_pass', 'owner_mode', 'owner_dev', 'owner_reg_ch', 'owner_reg', 'owner_key_del'])
+      assert.match(g.__post({ action: a, token: 'a'.repeat(64), pass: 'atarashii-pass-1', on: true }).error, /^owner session/, a);
+    // 係員の入り方は、今までどおり
+    assert.strictEqual(g.__post({ action: 'verify', pass: PASS, cid: DEV_B }).ok, true);
+  }
+});
+
+test('司令塔：持ち主パスワードで入る。違えば入れず、5回つづくと止まる。入った印が無い・違う操作は受けない。返事にパスワードは入れない', () => {
+  const g = freshOwner();
+  assert.strictEqual(g.__post({ action: 'owner_info' }).ready, true);
+  assert.strictEqual(g.__post({ action: 'owner_login', opass: PASS, cid: DEV_A }).error, 'unauthorized');       // 係員のパスワードでは入れない
+  const token = ownerIn(g);
+  assert.match(token, /^[a-f0-9]{64}$/);
+  const st = g.__post({ action: 'owner_state', token });
+  assert.strictEqual(st.ok, true);
+  assert.deepStrictEqual([st.approval, st.devices.length, st.keys.length, st.passLen], [false, 0, 0, PASS.length]);
+  const all = JSON.stringify(st) + JSON.stringify(g.__post({ action: 'owner_login', opass: OWNER, cid: DEV_A }));
+  assert.ok(!all.includes(PASS) && !all.includes(OWNER), '返事にパスワードそのものが入っていない');
+  // 印が無い・でたらめ・出たあと
+  assert.match(g.__post({ action: 'owner_state' }).error, /^owner session/);
+  assert.match(g.__post({ action: 'owner_state', token: 'b'.repeat(64) }).error, /^owner session/);
+  assert.match(g.__post({ action: 'owner_state', token: { $ne: 1 } }).error, /^owner session/);
+  assert.strictEqual(g.__post({ action: 'owner_logout', token }).ok, true);
+  assert.match(g.__post({ action: 'owner_state', token }).error, /^owner session/);
+  // 5回つづけて違う → その端末は止まる（正しくても入れない）。ほかの端末は入れる
+  for (let i = 0; i < 5; i++) assert.strictEqual(g.__post({ action: 'owner_login', opass: 'chigau-' + i, cid: DEV_B }).error, 'unauthorized');
+  assert.match(g.__post({ action: 'owner_login', opass: OWNER, cid: DEV_B }).error, /^locked/);
+  assert.strictEqual(g.__post({ action: 'owner_login', opass: OWNER, cid: DEV_C }).ok, true);
+  // 知らない操作
+  assert.match(g.__post({ action: 'owner_nanika', token: ownerIn(g) }).error, /^unknown action/);
+});
+
+test('司令塔：係員のパスワードを変える。変えた瞬間から古いものは通らない。短い・全角・持ち主と同じものは断る。記録にパスワードは残さない', () => {
+  const g = freshOwner();
+  const token = ownerIn(g);
+  const NEW = 'atarashii-pass-2026';
+  for (const [bad, re] of [['short', /bad pass/], ['ｚｅｎｋａｋｕ－ｐａｓｓ', /bad pass/], [' mae-ni-kuuhaku-12', /bad pass/], [OWNER, /bad pass/], ['x'.repeat(65), /bad pass/]])
+    assert.match(g.__post({ action: 'owner_set_pass', token, pass: bad }).error, re, bad);
+  assert.strictEqual(g.__post({ action: 'update', pass: PASS, cid: DEV_B, id: '1F-03', wait: 1 }).ok, true);
+  const r = g.__post({ action: 'owner_set_pass', token, pass: NEW });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.strictEqual(r.passLen, NEW.length);
+  assert.ok(r.passAt);
+  assert.ok(!JSON.stringify(r).includes(NEW));
+  assert.strictEqual(g.__post({ action: 'update', pass: PASS, cid: DEV_B, id: '1F-03', wait: 2 }).error, 'unauthorized');   // 古いパスワード
+  assert.strictEqual(g.__post({ action: 'update', pass: NEW, cid: DEV_B, id: '1F-03', wait: 2 }).ok, true);
+  assert.strictEqual(g.__post({ action: 'verify', pass: NEW, cid: DEV_C }).ok, true);
+  // 係員のパスワードでは、司令塔の操作はできない
+  assert.match(g.__post({ action: 'owner_set_pass', pass: 'nottori-pass-9999', token: NEW }).error, /^owner session/);
+  const log = JSON.stringify(g.__ss.getSheetByName('司令塔の記録').data);
+  assert.ok(log.includes('係員のパスワードを変えた') && !log.includes(NEW) && !log.includes(PASS));
+});
+
+test('司令塔：端末（承認制が切＝はじめの状態）。入った端末が一覧に出る。止めた端末だけ入れない。とても古い画面（端末の番号なし）は今までどおり', () => {
+  const g = freshOwner();
+  assert.strictEqual(g.__post({ action: 'verify', pass: PASS, cid: DEV_A, who: '受付のiPad' }).ok, true);
+  assert.strictEqual(g.__post({ action: 'verify', pass: PASS, cid: DEV_B }).ok, true);
+  assert.strictEqual(g.__post({ action: 'update', pass: PASS, cid: 'c1', id: '1F-03', wait: 1 }).ok, true);           // 短い番号（古い画面）
+  assert.strictEqual(g.__post({ action: 'update', pass: PASS, id: '1F-03', wait: 1 }).ok, true);                      // 番号なし
+  assert.strictEqual(g.__post({ action: 'verify', pass: 'chigau', cid: DEV_C }).error, 'unauthorized');              // パスワードが違う端末は、一覧に入れない
+  const token = ownerIn(g);
+  let st = g.__post({ action: 'owner_state', token });
+  assert.deepStrictEqual(st.devices.map(d => [d.cid, d.st, d.label]), [[DEV_A, 'seen', '受付のiPad'], [DEV_B, 'seen', '']]);
+  assert.match(st.devices[0].code, /^[0-9A-F]{4}$/);
+  assert.ok(st.devices[0].last);
+  // 止める → その端末だけ入れない（ログインも、更新も）
+  st = g.__post({ action: 'owner_dev', token, cid: DEV_B, st: 'no' });
+  assert.strictEqual(st.devices[1].st, 'no');
+  assert.match(g.__post({ action: 'verify', pass: PASS, cid: DEV_B }).error, /^denied: /);
+  assert.match(g.__post({ action: 'update', pass: PASS, cid: DEV_B, id: '1F-03', wait: 5 }).error, /^denied: /);
+  assert.strictEqual(rowOf(g, '1F-03').wait, 1, '止めた端末の更新は、シートに入っていない');
+  assert.strictEqual(g.__post({ action: 'update', pass: PASS, cid: DEV_A, id: '1F-03', wait: 6 }).ok, true);
+  // 戻す・名前を付ける・消す
+  g.__post({ action: 'owner_dev', token, cid: DEV_B, st: 'ok' });
+  assert.strictEqual(g.__post({ action: 'update', pass: PASS, cid: DEV_B, id: '1F-03', wait: 7 }).ok, true);
+  st = g.__post({ action: 'owner_dev', token, cid: DEV_B, st: 'label', label: '=電子科A' });
+  assert.strictEqual(st.devices[1].label.replace(/^'/, ''), '=電子科A');      // 本物のシートは、読むとき先頭の ' を外す（模擬は付いたまま）
+  assert.ok(String(g.__ss.getSheetByName('係員の端末').cell(3, 3)).startsWith("'="), 'シートでは数式にならない');
+  st = g.__post({ action: 'owner_dev', token, cid: DEV_A, st: 'del' });
+  assert.deepStrictEqual(st.devices.map(d => d.cid), [DEV_B]);
+  assert.match(g.__post({ action: 'owner_dev', token, cid: DEV_C, st: 'ok' }).error, /^bad request/);
+  assert.match(g.__post({ action: 'owner_dev', token, cid: DEV_B, st: 'admin' }).error, /^bad request/);
+});
+
+test('司令塔：端末の承認制を入れる。入ったことがある端末はそのまま（締め出さない）、新しい端末は許可を待つ。許可・切に戻す', () => {
+  const g = freshOwner();
+  g.__post({ action: 'verify', pass: PASS, cid: DEV_A });
+  const token = ownerIn(g);
+  let st = g.__post({ action: 'owner_mode', token, on: true, keep: true });
+  assert.strictEqual(st.approval, true);
+  assert.deepStrictEqual(st.devices.map(d => [d.cid, d.st]), [[DEV_A, 'ok']]);
+  // 当番の端末：そのまま使える
+  assert.strictEqual(g.__post({ action: 'update', pass: PASS, cid: DEV_A, id: '1F-03', wait: 3 }).ok, true);
+  // 新しい端末：パスワードが合っていても、許可を待つ。番号（4文字）が返る
+  const p = g.__post({ action: 'verify', pass: PASS, cid: DEV_B, who: 'でんしか たろう' });
+  assert.strictEqual(p.ok, false);
+  const m = /^pending:([0-9A-F]{4}): /.exec(p.error);
+  assert.ok(m, p.error);
+  assert.match(g.__post({ action: 'update', pass: PASS, cid: DEV_B, id: '1F-03', wait: 9 }).error, /^pending:/);
+  assert.strictEqual(rowOf(g, '1F-03').wait, 3);
+  // パスワードが違えば、待ちの一覧にも入らない
+  assert.strictEqual(g.__post({ action: 'verify', pass: 'chigau', cid: DEV_C }).error, 'unauthorized');
+  st = g.__post({ action: 'owner_state', token });
+  assert.deepStrictEqual(st.devices.map(d => [d.cid, d.st]), [[DEV_A, 'ok'], [DEV_B, 'wait']]);
+  assert.strictEqual(st.devices[1].code, m[1]);                 // 待っている画面に出る番号と、一覧の番号が同じ
+  assert.strictEqual(st.devices[1].label, 'でんしか たろう');
+  // 端末の番号が無い送信は、承認制のあいだは受けない
+  assert.match(g.__post({ action: 'update', pass: PASS, cid: 'c1', id: '1F-03', wait: 9 }).error, /^denied: /);
+  // 許可する → 入れる
+  g.__post({ action: 'owner_dev', token, cid: DEV_B, st: 'ok' });
+  assert.strictEqual(g.__post({ action: 'verify', pass: PASS, cid: DEV_B }).ok, true);
+  assert.strictEqual(g.__post({ action: 'update', pass: PASS, cid: DEV_B, id: '1F-03', wait: 4 }).ok, true);
+  // 止める → 入れない。承認制を切に戻しても、止めた端末は入れない。ほかは、また共通のパスワードだけで入れる
+  g.__post({ action: 'owner_dev', token, cid: DEV_B, st: 'no' });
+  assert.match(g.__post({ action: 'update', pass: PASS, cid: DEV_B, id: '1F-03', wait: 5 }).error, /^denied: /);
+  st = g.__post({ action: 'owner_mode', token, on: false });
+  assert.strictEqual(st.approval, false);
+  assert.match(g.__post({ action: 'verify', pass: PASS, cid: DEV_B }).error, /^denied: /);
+  assert.strictEqual(g.__post({ action: 'verify', pass: PASS, cid: DEV_C }).ok, true);
+  assert.strictEqual(g.__post({ action: 'update', pass: PASS, cid: 'c1', id: '1F-03', wait: 8 }).ok, true);
+  // keep なしで入れる：入ったことがある端末（seen）も、許可を待つ
+  st = g.__post({ action: 'owner_mode', token, on: true });
+  assert.match(g.__post({ action: 'verify', pass: PASS, cid: DEV_C }).error, /^pending:/);
+  assert.strictEqual(g.__post({ action: 'update', pass: PASS, cid: DEV_A, id: '1F-03', wait: 2 }).ok, true);   // 前に許可した端末は、そのまま
+});
+
+test('司令塔：パスキー（顔認証・指紋）の登録とログイン。登録は入っている人だけ。署名が違う・使い回し・別のサイト・別の鍵は通らない', () => {
+  const g = freshOwner();
+  const A = fakeAuthenticator('localhost', ORIGIN_T);
+  // まだ登録が無い
+  assert.match(g.__post({ action: 'owner_ch' }).error, /^owner nokeys/);
+  // 登録は、司令塔に入っている人だけ
+  assert.match(g.__post({ action: 'owner_reg_ch' }).error, /^owner session/);
+  const token = ownerIn(g);
+  const rc = g.__post({ action: 'owner_reg_ch', token });
+  assert.strictEqual(rc.rpId, 'localhost');
+  // 別のサイトで作った返事・本人の確かめなし は登録できない
+  assert.strictEqual(g.__post(Object.assign({ action: 'owner_reg', token, chId: rc.chId, label: 'x' }, A.create(rc.ch, { origin: 'https://evil.example' }))).ok, false);
+  const rc2 = g.__post({ action: 'owner_reg_ch', token });
+  assert.strictEqual(g.__post(Object.assign({ action: 'owner_reg', token, chId: rc2.chId }, A.create(rc2.ch, { flags: 0x41 }))).ok, false);
+  const rc3 = g.__post({ action: 'owner_reg_ch', token });
+  const reg = g.__post(Object.assign({ action: 'owner_reg', token, chId: rc3.chId, label: 'わたしの iPhone' }, A.create(rc3.ch)));
+  assert.strictEqual(reg.ok, true, JSON.stringify(reg));
+  assert.deepStrictEqual(reg.keys.map(k => [k.id, k.label]), [[A.id, 'わたしの iPhone']]);
+  assert.ok(!JSON.stringify(reg).includes('"x"'), '返事に鍵の中身を入れない');
+  // 同じ合言葉は2回使えない
+  assert.match(g.__post(Object.assign({ action: 'owner_reg', token, chId: rc3.chId }, A.create(rc3.ch))).error, /^bad challenge/);
+  assert.strictEqual(g.__post({ action: 'owner_info' }).hasKeys, true);
+  // ログイン
+  const ch = g.__post({ action: 'owner_ch' });
+  assert.deepStrictEqual(ch.ids, [A.id]);
+  const resp = A.get(ch.ch);
+  const ok = g.__post(Object.assign({ action: 'owner_assert', chId: ch.chId }, resp));
+  assert.strictEqual(ok.ok, true, JSON.stringify(ok));
+  assert.strictEqual(g.__post({ action: 'owner_state', token: ok.token }).ok, true);
+  // 同じ返事の使い回し（合言葉は1回だけ）
+  assert.strictEqual(g.__post(Object.assign({ action: 'owner_assert', chId: ch.chId }, resp)).ok, false);
+  // 通らないもの：別の鍵での署名・別のサイト・本人の確かめなし・知らない鍵のID・こわれた中身
+  const B = fakeAuthenticator('localhost', ORIGIN_T);
+  const tries = [
+    c => Object.assign(B.get(c.ch), { id: A.id }),
+    c => A.get(c.ch, { origin: 'https://evil.example' }),
+    c => A.get(c.ch, { flags: 0x01 }),
+    c => Object.assign(A.get(c.ch), { id: B.id }),
+    c => Object.assign(A.get(c.ch), { signature: 'AAAA' }),
+    c => Object.assign(A.get(c.ch), { authenticatorData: '' }),
+    c => ({ id: A.id }),
+  ];
+  for (const [i, mk] of tries.entries()) {
+    const c = g.__post({ action: 'owner_ch' });
+    const r = g.__post(Object.assign({ action: 'owner_assert', chId: c.chId }, mk(c)));
+    assert.strictEqual(r.ok, false, '通ってはいけない ' + i);
+    assert.strictEqual(r.error, 'unauthorized', '何が合わなかったかは教えない ' + i);
+    assert.ok(!r.token);
+  }
+  // そのあとも、正しい端末は入れる（回数が進んでいる）
+  const c9 = g.__post({ action: 'owner_ch' });
+  assert.strictEqual(g.__post(Object.assign({ action: 'owner_assert', chId: c9.chId }, A.get(c9.ch))).ok, true);
+  // 消すと、入れない
+  const left = g.__post({ action: 'owner_key_del', token, id: A.id });
+  assert.strictEqual(left.keys.length, 0);
+  assert.match(g.__post({ action: 'owner_ch' }).error, /^owner nokeys/);
+  // 持ち主パスワードを消す（プロパティから外す）と、入っていた印も使えなくなる
+  g.__props.OWNER_PASS = '';
+  assert.match(g.__post({ action: 'owner_state', token }).error, /^owner session/);
+});
+
+test('司令塔：でたらめな送信（2000回）で落ちない・入れない・係員のパスワードや承認の設定が変わらない', () => {
+  const g = freshOwner();
+  let s = 12345; const rnd = n => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s % n; };
+  const acts = ['owner_info', 'owner_login', 'owner_ch', 'owner_assert', 'owner_state', 'owner_set_pass', 'owner_mode', 'owner_dev', 'owner_reg_ch', 'owner_reg', 'owner_key_del', 'owner_logout', 'owner_x'];
+  const junk = () => [null, 0, 1, true, '', 'a', 'a'.repeat(64), '{}', [], {}, { a: 1 }, 'ｚ', -1, 1e9, nodeCrypto.randomBytes(rnd(40)).toString('base64url')][rnd(15)];
+  for (let i = 0; i < 2000; i++) {
+    const body = { action: acts[rnd(acts.length)] };
+    for (const k of ['token', 'opass', 'cid', 'pass', 'on', 'keep', 'st', 'id', 'chId', 'clientDataJSON', 'authenticatorData', 'attestationObject', 'signature', 'label']) if (rnd(3)) body[k] = junk();
+    const out = g.doPost({ postData: { contents: JSON.stringify(body) } }).getContent();
+    const r = JSON.parse(out);
+    assert.ok(r && typeof r === 'object', out.slice(0, 80));
+    assert.ok(!r.token, '入れてはいけない：' + JSON.stringify(body).slice(0, 120));
+    if (body.action !== 'owner_info') assert.strictEqual(r.ok, false, JSON.stringify(body).slice(0, 120) + ' → ' + out.slice(0, 120));
+  }
+  assert.strictEqual(g.__props.ADMIN_PASS, PASS);
+  assert.ok(!g.__props.APPROVAL && !g.__props.OWNER_KEYS);
+  assert.strictEqual(g.__post({ action: 'verify', pass: PASS, cid: DEV_A }).ok, true);
+});
+
+test('司令塔：端末の一覧がいっぱいでも、承認制が切のあいだは係員が入れる（記録しないだけ）。承認制のときは、消すまで新しい端末を受けない', () => {
+  const g = freshOwner();
+  const sh0 = (g.__post({ action: 'verify', pass: PASS, cid: DEV_A }), g.__ss.getSheetByName('係員の端末'));
+  for (let i = 0; i < g.DEVICE_MAX; i++) sh0.appendRow(['fill' + String(i).padStart(12, '0'), 'seen', '', new Date(), new Date(), 'FFFF']);
+  const n0 = sh0.getLastRow();
+  assert.strictEqual(g.__post({ action: 'verify', pass: PASS, cid: DEV_B }).ok, true);
+  assert.strictEqual(g.__post({ action: 'update', pass: PASS, cid: DEV_B, id: '1F-03', wait: 2 }).ok, true);
+  assert.strictEqual(sh0.getLastRow(), n0, '一覧は増えていない');
+  const token = ownerIn(g);
+  g.__post({ action: 'owner_mode', token, on: true, keep: true });
+  assert.match(g.__post({ action: 'verify', pass: PASS, cid: DEV_C }).error, /^busy: /);
+  assert.strictEqual(g.__post({ action: 'update', pass: PASS, cid: DEV_A, id: '1F-03', wait: 3 }).ok, true);   // 許可ずみの端末は使える
+});

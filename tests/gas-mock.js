@@ -111,6 +111,9 @@ class Spreadsheet {
   setSpreadsheetTimeZone() {}
 }
 
+/** Node のバイト列を、Apps Script と同じ −128〜127 の配列にする */
+const sbytes = buf => Array.from(buf).map(v => (v > 127 ? v - 256 : v));
+
 function formatDate(d, tz, fmt) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
     timeZone: tz || 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -154,10 +157,18 @@ function loadGas(opt = {}) {
       MimeType: { JSON: 'json', TEXT: 'text' },
       createTextOutput: t => { const o = { content: t, setMimeType() { return o; }, getContent: () => t }; return o; },
     },
-    Utilities: { formatDate, sleep() {} },
+    // v216：司令塔（パスキーの確かめ）で使う部品。本物と同じく、バイトは −128〜127 の配列で受け渡す
+    Utilities: { formatDate, sleep() {},
+      DigestAlgorithm: { SHA_256: 'sha256' },
+      computeDigest: (alg, bytes) => sbytes(require('crypto').createHash('sha256').update(Buffer.from(bytes.map(v => v & 255))).digest()),
+      base64DecodeWebSafe: str => sbytes(Buffer.from(String(str).replace(/-/g, '+').replace(/_/g, '/'), 'base64')),
+      base64EncodeWebSafe: bytes => Buffer.from(bytes.map(v => v & 255)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_'),
+      newBlob: str => ({ getBytes: () => sbytes(Buffer.from(String(str), 'utf8')) }),
+      getUuid: () => require('crypto').randomUUID(),
+    },
     Session: { getScriptTimeZone: () => 'Asia/Tokyo' },
     ScriptApp: { getProjectTriggers: () => [], deleteTrigger() {}, newTrigger: noop },
-    Date, JSON, Math, String, Number, Array, Object, RegExp, Error, isNaN, isFinite, encodeURIComponent, unescape, escape, parseInt, parseFloat,
+    Date, JSON, Math, String, Number, Array, Object, RegExp, Error, isNaN, isFinite, encodeURIComponent, decodeURIComponent, unescape, escape, parseInt, parseFloat, BigInt,
   };
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'Code.gs'), 'utf8'), ctx, { filename: 'Code.gs' });

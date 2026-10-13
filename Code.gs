@@ -47,7 +47,7 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-10-13a';
+var GAS_VERSION = '2026-10-14a';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
@@ -614,7 +614,7 @@ var GLOBAL_FAIL_SLOW_AT    = 20;
  * 数人が古い値で試すだけで合計10回に達し、正しい係員まで90秒締め出されていた。
  * （わざと外し続ければ誰でも全係員を止められる状態でもあった）
  */
-function checkPass_(pass, cid) {
+function checkPass_(pass, cid, login, who) {
   var real = PropertiesService.getScriptProperties().getProperty('ADMIN_PASS');
   if (!real) throw new Error('サーバー側にパスワードが未設定です');
   // 短いパスワードは総当たりで破られる。設定し直すまで受け付けない
@@ -643,6 +643,9 @@ function checkPass_(pass, cid) {
     throw new Error('unauthorized');
   }
   if (fails) cache.remove(key);
+  // v216：パスワードが合ったあとで、この端末が入ってよいかを確かめる（司令塔の「端末ごとの承認」「止める」）。
+  // 承認制が切（はじめの状態）のあいだは、止めた端末のほかは、今までどおり通る
+  deviceGate_(cid, !!login, who);
 }
 
 /* ============================== GET ============================== */
@@ -1175,8 +1178,13 @@ function doPost(e) {
   try {
     var action = body.action || 'update';
 
+    // v216：司令塔（持ち主だけ）。係員のパスワードとは別の入り方なので、先に分ける
+    if (String(action).indexOf('owner_') === 0) {
+      return json_(ownerApi_(String(action), body));
+    }
+
     if (action === 'verify') {
-      checkPass_(body.pass, body.cid);
+      checkPass_(body.pass, body.cid, true, body.who);      // ログイン：端末を記録する（承認制のときは、許可を待つ）
       return json_({ ok: true });
     }
 
@@ -1783,4 +1791,568 @@ function redeemLedger_(body) {
     ledgerCachePut_(cid, have);
     return { ok: true, cid: cid, spent: have.spent };
   });
+}
+
+/* ====================== 司令塔：パスキー（WebAuthn）の確かめ ======================
+   スマホ・PC の顔認証や指紋（パスキー）は、端末の中の秘密の鍵で「署名」を作って送ってくる。
+   サーバーは、登録のときに受け取った「公開の鍵」で、その署名が本物かを確かめる。
+   顔や指紋のデータそのものは端末から出ない（サーバーには届かない）。
+   Apps Script には署名を確かめる部品が無いので、ここに P-256（ES256）の確かめを書く。
+   ================================================================================= */
+var P256_ = (function () {
+  var p = BigInt('0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff');
+  var n = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
+  var b = BigInt('0x5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b');
+  var gx = BigInt('0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296');
+  var gy = BigInt('0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5');
+  var Z = BigInt(0), ONE = BigInt(1), TWO = BigInt(2), THREE = BigInt(3), FOUR = BigInt(4), EIGHT = BigInt(8);
+  function mod(a, m) { var r = a % m; return r < Z ? r + m : r; }
+  /** 逆数（拡張ユークリッド） */
+  function inv(a, m) {
+    var lm = ONE, hm = Z, low = mod(a, m), high = m;
+    if (low === Z) throw new Error('no inverse');
+    while (low > ONE) {
+      var q = high / low;
+      var nm = hm - lm * q, nw = high - low * q;
+      hm = lm; high = low; lm = nm; low = nw;
+    }
+    return mod(lm, m);
+  }
+  /** 曲線の上の点か（y^2 = x^3 - 3x + b） */
+  function onCurve(x, y) {
+    if (x < Z || x >= p || y < Z || y >= p) return false;
+    return mod(y * y - (x * x * x - THREE * x + b), p) === Z;
+  }
+  // ヤコビ座標（X, Y, Z）。無限遠点は Z = 0
+  function dbl(P) {
+    var X = P[0], Y = P[1], Zc = P[2];
+    if (Zc === Z || Y === Z) return [Z, ONE, Z];
+    var YY = mod(Y * Y, p), S = mod(FOUR * X * YY, p);
+    var ZZ = mod(Zc * Zc, p);
+    var M = mod(THREE * (X - ZZ) * (X + ZZ), p);              // a = -3 のときの式
+    var X3 = mod(M * M - TWO * S, p);
+    var Y3 = mod(M * (S - X3) - EIGHT * YY * YY, p);
+    var Z3 = mod(TWO * Y * Zc, p);
+    return [X3, Y3, Z3];
+  }
+  function add(P, Q) {
+    if (P[2] === Z) return Q;
+    if (Q[2] === Z) return P;
+    var Z1Z1 = mod(P[2] * P[2], p), Z2Z2 = mod(Q[2] * Q[2], p);
+    var U1 = mod(P[0] * Z2Z2, p), U2 = mod(Q[0] * Z1Z1, p);
+    var S1 = mod(P[1] * Q[2] * Z2Z2, p), S2 = mod(Q[1] * P[2] * Z1Z1, p);
+    if (U1 === U2) return S1 === S2 ? dbl(P) : [Z, ONE, Z];
+    var H = mod(U2 - U1, p), R = mod(S2 - S1, p);
+    var HH = mod(H * H, p), HHH = mod(H * HH, p), V = mod(U1 * HH, p);
+    var X3 = mod(R * R - HHH - TWO * V, p);
+    var Y3 = mod(R * (V - X3) - S1 * HHH, p);
+    var Z3 = mod(H * P[2] * Q[2], p);
+    return [X3, Y3, Z3];
+  }
+  /** u1·G + u2·Q（2つの掛け算を1回の繰り返しで） */
+  function mul2(u1, u2, Q) {
+    var G = [gx, gy, ONE], GQ = add(G, Q), R = [Z, ONE, Z];
+    for (var i = 255; i >= 0; i--) {
+      R = dbl(R);
+      var b1 = (u1 >> BigInt(i)) & ONE, b2 = (u2 >> BigInt(i)) & ONE;
+      if (b1 === ONE && b2 === ONE) R = add(R, GQ);
+      else if (b1 === ONE) R = add(R, G);
+      else if (b2 === ONE) R = add(R, Q);
+    }
+    return R;
+  }
+  function bytesToBig(bytes) {
+    var h = '';
+    for (var i = 0; i < bytes.length; i++) { var v = bytes[i] & 255; h += (v < 16 ? '0' : '') + v.toString(16); }
+    return h ? BigInt('0x' + h) : Z;
+  }
+  /**
+   * 署名の確かめ。hash は SHA-256 の32バイト、r・s は署名の2つの数、x・y は公開の鍵（どれも BigInt。hash だけバイトの並び）。
+   * 少しでも合わなければ false（例外は投げない）
+   */
+  function verify(hash, r, s, x, y) {
+    try {
+      if (r <= Z || r >= n || s <= Z || s >= n) return false;
+      if (!onCurve(x, y)) return false;
+      var e = bytesToBig(hash);
+      var w = inv(s, n);
+      var u1 = mod(e * w, n), u2 = mod(r * w, n);
+      var R = mul2(u1, u2, [x, y, ONE]);
+      if (R[2] === Z) return false;
+      var zi = inv(R[2], p);
+      var ax = mod(R[0] * zi * zi, p);
+      return mod(ax, n) === r;
+    } catch (err) { return false; }
+  }
+  return { verify: verify, bytesToBig: bytesToBig, onCurve: onCurve };
+})();
+
+/** バイトの並び（符号つき・符号なしのどちらでも）を 0〜255 の配列にそろえる */
+function ubytes_(a) { var o = []; for (var i = 0; i < a.length; i++) o.push(a[i] & 255); return o; }
+function sha256_(bytes) {
+  var signed = bytes.map(function (v) { return v > 127 ? v - 256 : v; });
+  return ubytes_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, signed));
+}
+function b64uToBytes_(s) {
+  s = String(s || '').replace(/[^A-Za-z0-9_-]/g, '');
+  while (s.length % 4) s += '=';
+  return ubytes_(Utilities.base64DecodeWebSafe(s));
+}
+function bytesToB64u_(b) {
+  return Utilities.base64EncodeWebSafe(b.map(function (v) { return v > 127 ? v - 256 : v; })).replace(/=+$/, '');
+}
+function bytesToText_(b) {
+  // clientDataJSON は UTF-8。中身は英数字と記号だけ（JSON）なので、そのまま文字にできる
+  var s = '';
+  for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  try { return decodeURIComponent(escape(s)); } catch (e) { return s; }
+}
+function bytesEq_(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  var d = 0;
+  for (var i = 0; i < a.length; i++) d |= (a[i] ^ b[i]);
+  return d === 0;
+}
+
+/**
+ * CBOR（パスキーの登録の返事の形）を読む。登録の返事に出てくる型だけ：整数・バイトの並び・文字・配列・連想配列・真偽。
+ * @return {{v:*, pos:number}} 読んだ値と、次の位置
+ */
+function cborRead_(b, pos, depth) {
+  depth = depth || 0;
+  if (depth > 8) throw new Error('cbor too deep');
+  if (pos >= b.length) throw new Error('cbor short');
+  var ib = b[pos++], major = ib >> 5, ai = ib & 31, val;
+  if (ai < 24) val = ai;
+  else if (ai === 24) { val = b[pos]; pos += 1; }
+  else if (ai === 25) { val = (b[pos] << 8) | b[pos + 1]; pos += 2; }
+  else if (ai === 26) { val = ((b[pos] * 16777216) + (b[pos + 1] << 16) + (b[pos + 2] << 8) + b[pos + 3]); pos += 4; }
+  else throw new Error('cbor unsupported length');
+  if (pos > b.length) throw new Error('cbor short');
+  if (major === 0) return { v: val, pos: pos };
+  if (major === 1) return { v: -1 - val, pos: pos };
+  if (major === 2 || major === 3) {
+    if (pos + val > b.length || val > 4096) throw new Error('cbor short');
+    var chunk = b.slice(pos, pos + val);
+    return { v: major === 2 ? chunk : bytesToText_(chunk), pos: pos + val };
+  }
+  if (major === 4) {
+    if (val > 64) throw new Error('cbor too long');
+    var arr = [];
+    for (var i = 0; i < val; i++) { var r = cborRead_(b, pos, depth + 1); arr.push(r.v); pos = r.pos; }
+    return { v: arr, pos: pos };
+  }
+  if (major === 5) {
+    if (val > 64) throw new Error('cbor too long');
+    var obj = {};
+    for (var j = 0; j < val; j++) {
+      var k = cborRead_(b, pos, depth + 1); pos = k.pos;
+      var v2 = cborRead_(b, pos, depth + 1); pos = v2.pos;
+      obj[String(k.v)] = v2.v;
+    }
+    return { v: obj, pos: pos };
+  }
+  if (major === 7 && (ai === 20 || ai === 21 || ai === 22)) return { v: ai === 21 ? true : ai === 20 ? false : null, pos: pos };
+  throw new Error('cbor unsupported type');
+}
+
+/**
+ * 認証器のデータ（authenticatorData）を読む。
+ * 先頭32バイト＝サイトの名前のハッシュ、1バイト＝旗（UP=触った・UV=本人を確かめた・AT=鍵つき）、4バイト＝使った回数。
+ * 登録のときは、そのあとに 鍵のID と 公開の鍵（COSE）が続く
+ */
+function parseAuthData_(ad) {
+  if (!ad || ad.length < 37) throw new Error('authData short');
+  var out = { rpIdHash: ad.slice(0, 32), flags: ad[32],
+    signCount: (ad[33] * 16777216) + (ad[34] << 16) + (ad[35] << 8) + ad[36] };
+  out.up = !!(out.flags & 1); out.uv = !!(out.flags & 4); out.at = !!(out.flags & 64);
+  if (out.at) {
+    if (ad.length < 55) throw new Error('authData short');
+    var len = (ad[53] << 8) | ad[54];
+    if (len < 1 || len > 1023 || ad.length < 55 + len) throw new Error('credId length');
+    out.credId = ad.slice(55, 55 + len);
+    var key = cborRead_(ad, 55 + len).v;
+    // ES256（P-256）の鍵だけ受ける：kty=2(EC2)・alg=-7(ES256)・crv=1(P-256)
+    if (!key || key['1'] !== 2 || key['3'] !== -7 || key['-1'] !== 1) throw new Error('unsupported key');
+    var x = key['-2'], y = key['-3'];
+    if (!x || !y || x.length !== 32 || y.length !== 32) throw new Error('bad key');
+    out.x = x; out.y = y;
+    if (!P256_.onCurve(P256_.bytesToBig(x), P256_.bytesToBig(y))) throw new Error('bad key');
+  }
+  return out;
+}
+
+/** 署名（DER 形式：30 len 02 len r 02 len s）から r・s を取り出す */
+function derToRS_(sig) {
+  var i = 0;
+  if (sig[i++] !== 0x30) throw new Error('bad sig');
+  var l = sig[i++];
+  if (l & 0x80) { var nb = l & 0x7f; if (nb > 2) throw new Error('bad sig'); l = 0; while (nb--) l = (l << 8) | sig[i++]; }
+  if (i + l !== sig.length) throw new Error('bad sig');
+  function readInt() {
+    if (sig[i++] !== 0x02) throw new Error('bad sig');
+    var n2 = sig[i++];
+    if (n2 < 1 || n2 > 33 || i + n2 > sig.length) throw new Error('bad sig');
+    var v = sig.slice(i, i + n2); i += n2;
+    return P256_.bytesToBig(v);
+  }
+  var r = readInt(), s = readInt();
+  if (i !== sig.length) throw new Error('bad sig');
+  return { r: r, s: s };
+}
+
+/**
+ * ブラウザが作る clientDataJSON を確かめる：種類（登録／ログイン）・こちらが出した合言葉（challenge）・サイトの場所（origin）
+ * @return {Object} 中身
+ */
+function checkClientData_(cdBytes, type, challengeB64u, origins) {
+  var cd;
+  try { cd = JSON.parse(bytesToText_(cdBytes)); } catch (e) { throw new Error('bad clientData'); }
+  if (!cd || cd.type !== type) throw new Error('bad clientData type');
+  if (String(cd.challenge || '').replace(/=+$/, '') !== challengeB64u) throw new Error('bad challenge');
+  if (origins.indexOf(String(cd.origin)) < 0) throw new Error('bad origin: ' + String(cd.origin).slice(0, 60));
+  if (cd.crossOrigin === true) throw new Error('bad origin');
+  return cd;
+}
+
+/**
+ * パスキーの登録の返事を確かめて、覚えておく鍵を返す。
+ * 鍵の出どころの証明（attestation）は確かめない（登録できるのは、持ち主パスワードで入った人だけ）
+ */
+function webauthnRegister_(resp, challengeB64u, rpId, origins) {
+  checkClientData_(b64uToBytes_(resp.clientDataJSON), 'webauthn.create', challengeB64u, origins);
+  var att = cborRead_(b64uToBytes_(resp.attestationObject), 0).v;
+  if (!att || !att.authData) throw new Error('bad attestation');
+  var ad = parseAuthData_(att.authData);
+  if (!bytesEq_(ad.rpIdHash, sha256_(ubytes_(Utilities.newBlob(rpId).getBytes())))) throw new Error('bad rpId');
+  if (!ad.up || !ad.uv) throw new Error('user not verified');        // 端末で本人を確かめた（顔・指紋・画面ロック）ことを求める
+  if (!ad.at || !ad.credId) throw new Error('no key');
+  return { id: bytesToB64u_(ad.credId), x: bytesToB64u_(ad.x), y: bytesToB64u_(ad.y), n: ad.signCount };
+}
+
+/**
+ * パスキーでのログインの返事を確かめる。key は登録のときに覚えた鍵（{id,x,y,n}）。
+ * @return {number} 新しい「使った回数」
+ */
+function webauthnAssert_(resp, key, challengeB64u, rpId, origins) {
+  var cdBytes = b64uToBytes_(resp.clientDataJSON);
+  checkClientData_(cdBytes, 'webauthn.get', challengeB64u, origins);
+  var adBytes = b64uToBytes_(resp.authenticatorData);
+  var ad = parseAuthData_(adBytes.slice(0, 37));
+  if (!bytesEq_(ad.rpIdHash, sha256_(ubytes_(Utilities.newBlob(rpId).getBytes())))) throw new Error('bad rpId');
+  if (!ad.up || !ad.uv) throw new Error('user not verified');
+  var rs = derToRS_(b64uToBytes_(resp.signature));
+  var signed = adBytes.concat(sha256_(cdBytes));
+  var ok = P256_.verify(sha256_(signed), rs.r, rs.s, P256_.bytesToBig(b64uToBytes_(key.x)), P256_.bytesToBig(b64uToBytes_(key.y)));
+  if (!ok) throw new Error('bad signature');
+  // 使った回数が戻っていたら、鍵が写し取られた疑い（回数を数えない認証器は、いつも 0）
+  if ((ad.signCount || key.n) && ad.signCount <= (key.n || 0)) throw new Error('bad counter');
+  return ad.signCount;
+}
+
+/* ====================== 司令塔（持ち主だけが入れる管理） ======================
+   v216（GAS 2026-10-14a）。ユーザーの依頼：「管理画面の中に司令塔を置いて、だれが入れるかを決めたり、
+   管理画面のパスワードを変えたりしたい。自分しか入れないように、顔認証などで」。
+
+   ・入り方：持ち主パスワード（スクリプトプロパティ OWNER_PASS。12文字以上。係員のパスワードと別のもの）か、
+     登録したパスキー（スマホ・PC の顔認証・指紋）。パスキーの登録は、持ち主パスワードで入ったあとにだけできる。
+   ・できること：係員のパスワード（ADMIN_PASS）を変える／端末ごとの承認制の入・切／端末の許可・停止／パスキーの登録・削除。
+   ・今までの入り方は変えない：承認制は、はじめは「切」。切のあいだは、共通のパスワードだけで入れる（止めた端末だけ入れない）。
+   ・OWNER_PASS が無いあいだは、司令塔はどの操作も受け付けない（だれも入れない）。
+   ================================================================================= */
+var OWNER_MIN_LEN = 12;
+var OWNER_SESSION_SEC = 1800;        // 司令塔に入っていられる時間（使うたびに延びる）
+var OWNER_MAX_FAILS = 5;             // 端末ごと。これだけ続けて違うと、しばらく受け付けない
+var OWNER_LOCK_SEC = 300;
+var OWNER_KEYS_MAX = 6;              // 登録できるパスキーの数
+var OWNER_ORIGIN_DEFAULT = 'https://ma222222-source.github.io';   // 公開しているサイト（パスキーは、ここで作った署名だけ受ける）
+var SHEET_DEVICES = '係員の端末';
+var DEVICE_HEAD = ['cid', 'status', 'label', 'first', 'last', 'code'];
+var DEVICE_MAX = 300;
+var DEVICE_CACHE_SEC = 21600;
+
+function props_() { return PropertiesService.getScriptProperties(); }
+function textBytes_(s) { return ubytes_(Utilities.newBlob(String(s)).getBytes()); }
+function hexOf_(bytes) { var h = ''; for (var i = 0; i < bytes.length; i++) h += (bytes[i] < 16 ? '0' : '') + bytes[i].toString(16); return h; }
+/** 推測できない合言葉（UUID 2つぶん＝約244ビット） */
+function randToken_() { return (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').toLowerCase(); }
+/** 長さが同じなら、どこが違っても同じ時間で比べる */
+function safeEq_(a, b) {
+  a = String(a); b = String(b);
+  var d = a.length ^ b.length;
+  for (var i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i % (b.length || 1));
+  return d === 0;
+}
+/** パスキーの署名を受けるサイト。テスト用に OWNER_ORIGINS（カンマ区切り）で変えられる。ふだんは公開のサイトだけ */
+function ownerOrigins_() {
+  var v = String(props_().getProperty('OWNER_ORIGINS') || '').split(',').map(function (x) { return x.trim(); }).filter(function (x) { return /^https?:\/\/[A-Za-z0-9.:-]+$/.test(x); });
+  return v.length ? v : [OWNER_ORIGIN_DEFAULT];
+}
+function rpIdOf_(origin) { return String(origin).replace(/^https?:\/\//, '').replace(/[:\/].*$/, ''); }
+
+/* ---- 持ち主パスワード ---- */
+function ownerPassState_() {
+  var real = props_().getProperty('OWNER_PASS');
+  if (!real) return 'unset';
+  if (String(real).length < OWNER_MIN_LEN) return 'weak';
+  if (safeEq_(real, props_().getProperty('ADMIN_PASS') || '')) return 'same';
+  return 'ok';
+}
+function ownerPassCheck_(pass, cid) {
+  var st = ownerPassState_();
+  if (st === 'unset') throw new Error('owner unset: 持ち主パスワードが、まだ決まっていません。Apps Script の「プロジェクトの設定 → スクリプト プロパティ」に OWNER_PASS（' + OWNER_MIN_LEN + '文字以上）を足してください');
+  if (st === 'weak') throw new Error('owner weak: 持ち主パスワード（OWNER_PASS）が短すぎます。' + OWNER_MIN_LEN + '文字以上にしてください');
+  if (st === 'same') throw new Error('owner weak: 持ち主パスワード（OWNER_PASS）を、係員のパスワードと同じにしないでください');
+  var cache = CacheService.getScriptCache();
+  var key = 'owf_' + String(cid || 'anon').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+  var fails = Number(cache.get(key) || 0);
+  if (fails >= OWNER_MAX_FAILS) throw new Error('locked: 何度も違っています。5分ほど待ってからお試しください');
+  if (!safeEq_(String(pass == null ? '' : pass), props_().getProperty('OWNER_PASS'))) {
+    cache.put(key, String(fails + 1), OWNER_LOCK_SEC);
+    var all = Number(cache.get('owf__all') || 0) + 1;
+    cache.put('owf__all', String(all), 60);
+    Utilities.sleep(all >= 15 ? 2500 : Math.min(300 * (fails + 1), 1500));
+    throw new Error('unauthorized');
+  }
+  if (fails) cache.remove(key);
+}
+
+/* ---- 司令塔に入っている印（セッション） ---- */
+function ownerSessionKey_(token) { return 'own_' + hexOf_(sha256_(textBytes_(token))); }
+function ownerSessionNew_() {
+  var t = randToken_();
+  CacheService.getScriptCache().put(ownerSessionKey_(t), '1', OWNER_SESSION_SEC);
+  return t;
+}
+function ownerNeed_(token) {
+  var t = String(token || '');
+  if (!/^[a-f0-9]{64}$/.test(t)) throw new Error('owner session: 司令塔に入り直してください');
+  if (ownerPassState_() !== 'ok') throw new Error('owner session: 司令塔に入り直してください');     // 持ち主パスワードを消したら、入っていた人も出す
+  var c = CacheService.getScriptCache(), k = ownerSessionKey_(t);
+  if (!c.get(k)) throw new Error('owner session: 司令塔に入り直してください');
+  c.put(k, '1', OWNER_SESSION_SEC);
+}
+
+/* ---- パスキー ---- */
+function ownerKeys_() {
+  try { var a = JSON.parse(props_().getProperty('OWNER_KEYS') || '[]'); return Array.isArray(a) ? a.filter(function (k) { return k && k.id && k.x && k.y; }) : []; } catch (e) { return []; }
+}
+function ownerKeysSave_(a) { props_().setProperty('OWNER_KEYS', JSON.stringify(a)); }
+function ownerKeysPublic_() {
+  return ownerKeys_().map(function (k) { return { id: k.id, label: k.label || '', at: k.at || '' }; });
+}
+/** 1回だけ使える合言葉（challenge）を出す。2分で消える */
+function ownerChallengeNew_(kind) {
+  var ch = bytesToB64u_(sha256_(textBytes_(randToken_())));
+  var id = randToken_().slice(0, 24);
+  CacheService.getScriptCache().put('och_' + kind + '_' + id, ch, 120);
+  return { ch: ch, chId: id };
+}
+function ownerChallengeTake_(kind, id) {
+  var c = CacheService.getScriptCache(), k = 'och_' + kind + '_' + String(id || '').replace(/[^a-f0-9]/g, '').slice(0, 24);
+  var ch = c.get(k);
+  if (!ch) throw new Error('bad challenge: 時間切れです。もう一度お試しください');
+  c.remove(k);
+  return ch;
+}
+
+/* ---- 端末（だれが入れるか） ---- */
+/** 承認制の入・切と、切り替えの番号（番号が変わると、覚えていた端末の状態を読み直す） */
+function approvalState_() {
+  var v = String(props_().getProperty('APPROVAL') || '').split(':');
+  return { on: v[0] === 'on', gen: Number(v[1]) || 0 };
+}
+function approvalSave_(on, gen) { props_().setProperty('APPROVAL', (on ? 'on' : 'off') + ':' + gen); }
+function devSheet_() { return sheetOrCreate_(SHEET_DEVICES, DEVICE_HEAD, ['A:A', 'F:F']); }
+/** 画面に出す短い番号（4文字）。待っている端末と、司令塔の一覧を見比べるためのもの */
+function devCode_(cid) { return hexOf_(sha256_(textBytes_('dev:' + cid)).slice(0, 2)).toUpperCase(); }
+function devRow_(sh, cid) {
+  var last = sh.getLastRow();
+  if (last < 2) return 0;
+  var f = sh.getRange(2, 1, last - 1, 1).createTextFinder(cid).matchCase(true).matchEntireCell(true).findNext();
+  return f ? f.getRow() : 0;
+}
+/**
+ * 端末を記録して、いまの状態を返す。はじめて見る端末は、承認制が入なら wait（待ち）、切なら seen（入ったことがある）。
+ * @param {boolean} touch 最後に使った時刻も書く（ログインのとき）
+ */
+function devRecord_(cid, on, touch, who) {
+  return withLock_(function () {
+    var sh = devSheet_(), row = devRow_(sh, cid), now = new Date();
+    if (!row) {
+      var st0 = on ? 'wait' : 'seen';
+      if (sh.getLastRow() - 1 >= DEVICE_MAX) {
+        // 一覧がいっぱい。承認制が切のあいだは、記録しないだけで通す（一覧を埋められても、係員が入れなくならないように）
+        if (!on) return st0;
+        throw new Error('busy: 端末の数が上限です。司令塔で使っていない端末を消してください');
+      }
+      sh.appendRow([cid, st0, safeText_(cut_(who, 20)), now, now, devCode_(cid)]);
+      return st0;
+    }
+    var vals = sh.getRange(row, 1, 1, 5).getValues()[0];
+    var st = String(vals[1] || 'seen');
+    if (on && st === 'seen') { st = 'wait'; sh.getRange(row, 2).setValue(st); }      // 承認制にしたあとで来た、まだ許可していない端末
+    if (touch) sh.getRange(row, 5).setValue(now);
+    if (who && !String(vals[2] || '').trim()) sh.getRange(row, 3).setValue(safeText_(cut_(who, 20)));
+    return st;
+  });
+}
+/**
+ * 係員のパスワードが合ったあとに呼ぶ。この端末が入ってよいかを確かめる。
+ * 承認制が切：止めた端末（no）だけ入れない。入：許可した端末（ok）だけ入れる。
+ * @param {boolean} login ログインのとき（端末を記録し、最後に使った時刻を書く）
+ */
+function deviceGate_(cidRaw, login, who) {
+  var cid = String(cidRaw == null ? '' : cidRaw);
+  var ap = approvalState_();
+  if (!/^[A-Za-z0-9_-]{12,40}$/.test(cid)) {
+    // 端末の番号が無い・短い（とても古い版の画面・手で送った通信）。切のあいだは、今までどおり通す
+    if (ap.on) throw new Error('denied: 端末の番号がありません。ページを開き直してください');
+    return;
+  }
+  var cache = CacheService.getScriptCache(), ck = 'dv' + ap.gen + '_' + cid;
+  var st = login ? null : cache.get(ck);
+  if (st == null) {
+    st = devRecord_(cid, ap.on, !!login, who);
+    try { cache.put(ck, st, st === 'wait' ? 5 : DEVICE_CACHE_SEC); } catch (e) {}
+  }
+  if (st === 'no') throw new Error('denied: この端末は、司令塔で止められています');
+  if (ap.on && st !== 'ok') throw new Error('pending:' + devCode_(cid) + ': この端末は、まだ許可されていません');
+}
+function devList_() {
+  var sh = ss_().getSheetByName(SHEET_DEVICES);
+  if (!sh || sh.getLastRow() < 2) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, 6).getValues().map(function (r) {
+    var cid = String(r[0] || '');
+    if (!cid) return null;
+    var f = toDate_(r[3]), l = toDate_(r[4]);
+    return { cid: cid, st: String(r[1] || 'seen'), label: cut_(r[2], 20), first: f ? f.toISOString() : null, last: l ? l.toISOString() : null, code: String(r[5] || devCode_(cid)) };
+  }).filter(function (x) { return x; });
+}
+
+/** 司令塔のいまの様子（画面に出すもの）。パスワードそのものは返さない */
+function ownerStateOut_() {
+  var ap = approvalState_();
+  var ap0 = props_().getProperty('ADMIN_PASS') || '';
+  return { ok: true, approval: ap.on, devices: devList_(), keys: ownerKeysPublic_(),
+    passLen: ap0.length, passAt: props_().getProperty('ADMIN_PASS_AT') || '',
+    rpId: rpIdOf_(ownerOrigins_()[0]), sessionSec: OWNER_SESSION_SEC, sv: GAS_VERSION };
+}
+
+/** 司令塔の操作の入口（doPost から） */
+function ownerApi_(action, body) {
+  // 入る前でも呼べるもの
+  if (action === 'owner_info') {
+    // 司令塔が使えるか（持ち主パスワードが決まっているか）と、パスキーの有無だけ。中身は出さない
+    var stI = ownerPassState_();
+    return { ok: true, ready: stI === 'ok', why: stI === 'ok' ? '' : stI, hasKeys: stI === 'ok' && ownerKeys_().length > 0, sv: GAS_VERSION };
+  }
+  if (action === 'owner_login') {
+    ownerPassCheck_(body.opass, body.cid);
+    return { ok: true, token: ownerSessionNew_(), state: ownerStateOut_() };
+  }
+  if (action === 'owner_ch') {
+    if (ownerPassState_() !== 'ok') throw new Error('owner unset: 司令塔は、まだ使えません');
+    var keys = ownerKeys_();
+    if (!keys.length) throw new Error('owner nokeys: パスキーが、まだ登録されていません。持ち主パスワードで入って、登録してください');
+    var c1 = ownerChallengeNew_('get');
+    return { ok: true, ch: c1.ch, chId: c1.chId, rpId: rpIdOf_(ownerOrigins_()[0]), ids: keys.map(function (k) { return k.id; }) };
+  }
+  if (action === 'owner_assert') {
+    if (ownerPassState_() !== 'ok') throw new Error('owner unset: 司令塔は、まだ使えません');
+    var chA = ownerChallengeTake_('get', body.chId);
+    var all = ownerKeys_(), idA = String(body.id || '').replace(/=+$/, '');
+    var key = null;
+    for (var i = 0; i < all.length; i++) if (all[i].id === idA) key = all[i];
+    if (!key) throw new Error('unauthorized');
+    var origins = ownerOrigins_();
+    try {
+      key.n = webauthnAssert_(body, key, chA, rpIdOf_(origins[0]), origins);
+    } catch (eA) {
+      throw new Error('unauthorized');           // 何が合わなかったかは、外に教えない
+    }
+    key.used = new Date().toISOString();
+    ownerKeysSave_(all);
+    return { ok: true, token: ownerSessionNew_(), state: ownerStateOut_() };
+  }
+
+  // ここから下は、司令塔に入っている人だけ
+  ownerNeed_(body.token);
+  if (action === 'owner_state') return ownerStateOut_();
+  if (action === 'owner_logout') {
+    try { CacheService.getScriptCache().remove(ownerSessionKey_(String(body.token))); } catch (eL) {}
+    return { ok: true };
+  }
+  if (action === 'owner_set_pass') {
+    var np = String(body.pass == null ? '' : body.pass);
+    if (np !== np.trim() || /[　！-～]/.test(np)) throw new Error('bad pass: 前後の空白・全角の文字は使えません');
+    if (np.length < PASS_MIN_LEN || np.length > 64) throw new Error('bad pass: ' + PASS_MIN_LEN + '〜64文字にしてください');
+    if (safeEq_(np, props_().getProperty('OWNER_PASS') || '')) throw new Error('bad pass: 持ち主パスワードと同じものは使えません');
+    props_().setProperty('ADMIN_PASS', np);
+    props_().setProperty('ADMIN_PASS_AT', new Date().toISOString());
+    // 変えた記録（だれが・いつ、は残すが、パスワードそのものは残さない）
+    try { appendTo_('司令塔の記録', ['timestamp', 'what'], [new Date(), '係員のパスワードを変えた（' + np.length + '文字）']); } catch (eW) {}
+    return ownerStateOut_();
+  }
+  if (action === 'owner_mode') {
+    var apM = approvalState_(), want = body.on === true;
+    return withLock_(function () {
+      if (want && body.keep === true) {
+        // いま入ったことがある端末（seen）は、そのまま許可にする（承認制にした瞬間に、当番の係員を締め出さない）
+        var sh = devSheet_(), last = sh.getLastRow();
+        if (last >= 2) {
+          var st = sh.getRange(2, 2, last - 1, 1).getValues();
+          var ch2 = false;
+          st.forEach(function (r) { if (String(r[0] || 'seen') === 'seen') { r[0] = 'ok'; ch2 = true; } });
+          if (ch2) sh.getRange(2, 2, last - 1, 1).setValues(st);
+        }
+      }
+      SpreadsheetApp.flush();
+      approvalSave_(want, apM.gen + 1);
+      try { appendTo_('司令塔の記録', ['timestamp', 'what'], [new Date(), '端末の承認制を' + (want ? '入' : '切') + 'にした']); } catch (eW2) {}
+      return ownerStateOut_();
+    });
+  }
+  if (action === 'owner_dev') {
+    var cid = String(body.cid || ''), to = String(body.st || '');
+    if (!/^[A-Za-z0-9_-]{12,40}$/.test(cid)) throw new Error('bad request: 端末の番号が違います');
+    if (['ok', 'no', 'del', 'label'].indexOf(to) < 0) throw new Error('bad request: 操作が違います');
+    return withLock_(function () {
+      var sh = devSheet_(), row = devRow_(sh, cid);
+      if (!row) throw new Error('bad request: その端末は一覧にありません');
+      var apD = approvalState_(), ck = 'dv' + apD.gen + '_' + cid, c = CacheService.getScriptCache();
+      if (to === 'del') { sh.deleteRow(row); c.remove(ck); }
+      else if (to === 'label') sh.getRange(row, 3).setValue(safeText_(cut_(body.label, 20)));
+      else { sh.getRange(row, 2).setValue(to); try { c.put(ck, to, DEVICE_CACHE_SEC); } catch (eC) {} }
+      SpreadsheetApp.flush();
+      return ownerStateOut_();
+    });
+  }
+  if (action === 'owner_reg_ch') {
+    var keysR = ownerKeys_();
+    if (keysR.length >= OWNER_KEYS_MAX) throw new Error('bad request: パスキーは' + OWNER_KEYS_MAX + '個までです。使っていないものを消してください');
+    var c2 = ownerChallengeNew_('create');
+    return { ok: true, ch: c2.ch, chId: c2.chId, rpId: rpIdOf_(ownerOrigins_()[0]), exclude: keysR.map(function (k) { return k.id; }) };
+  }
+  if (action === 'owner_reg') {
+    var chR = ownerChallengeTake_('create', body.chId);
+    var originsR = ownerOrigins_();
+    var nk = webauthnRegister_(body, chR, rpIdOf_(originsR[0]), originsR);
+    var cur = ownerKeys_();
+    if (cur.length >= OWNER_KEYS_MAX) throw new Error('bad request: パスキーは' + OWNER_KEYS_MAX + '個までです');
+    if (cur.some(function (k) { return k.id === nk.id; })) throw new Error('bad request: この端末は、もう登録されています');
+    nk.label = cut_(body.label, 20) || 'パスキー';
+    nk.at = new Date().toISOString();
+    cur.push(nk);
+    ownerKeysSave_(cur);
+    try { appendTo_('司令塔の記録', ['timestamp', 'what'], [new Date(), safeText_('パスキーを登録した（' + nk.label + '）')]); } catch (eW3) {}
+    return ownerStateOut_();
+  }
+  if (action === 'owner_key_del') {
+    var idD = String(body.id || '');
+    var left = ownerKeys_().filter(function (k) { return k.id !== idD; });
+    ownerKeysSave_(left);
+    return ownerStateOut_();
+  }
+  throw new Error('unknown action: この操作（' + cut_(action, 20) + '）は、このサーバーの版（' + GAS_VERSION + '）にはありません');
 }
