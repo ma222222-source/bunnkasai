@@ -134,12 +134,14 @@ test('司令塔：入れる端末を決める。「許可した端末だけ」�
   await ownerLogin(page, origin);
   await expect(page.locator('#own-devs .own-dev')).toHaveCount(1);
   await expect(page.locator('#own-devs .own-dev .od-st')).toHaveText('入れます');
+  await expect(page.locator('#own-dev-sum')).toHaveText('1台：入れます 1');          // v217：端末の数のまとめ
   await expect(page.locator('#own-mode-off')).toHaveAttribute('aria-pressed', 'true');
   // 「許可した端末だけ」に。いま入っている A は、そのまま入れる
   accept(page);
   await page.locator('#own-mode-on').click();
   await expect(page.locator('#own-mode-on')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#own-devs .own-dev .od-st')).toHaveText('許可しています');
+  await expect(page.locator('#own-dev-sum')).toHaveText('1台：許可しています 1');
   await A.page.evaluate(() => localStorage.setItem('kuroko_adm_mode', JSON.stringify('flat')));
   await A.page.reload();
   await expect(A.page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
@@ -162,6 +164,13 @@ test('司令塔：入れる端末を決める。「許可した端末だけ」�
   const waitRow = page.locator('#own-devs .own-dev[data-st="wait"]');
   await expect(waitRow).toHaveCount(1);
   await expect(waitRow.locator('.od-code')).toHaveText(code);
+  // v217：開いているあいだに来た「許可待ち」は、知らせが出る（一覧を見張っていなくてよい）。まとめの先頭にも出る
+  await expect(page.locator('#toast')).toHaveText(`端末 ${code} が、許可を待っています`);
+  await expect(waitRow.locator('.od-when')).toContainText('許可を求めた');           // まだ入っていないので「最後に入った」とは言わない
+  await expect(page.locator('#own-dev-sum')).toHaveText('2台：許可を待っています 1・許可しています 1');
+  // 同じ端末について、取り直すたびに何度も知らせない
+  await page.evaluate(() => { document.querySelector('#toast').textContent = ''; return ownRefresh(true); });
+  expect(await page.locator('#toast').textContent()).toBe('');
   await expect(page.locator('#own-devs .own-dev').first()).toHaveAttribute('data-st', 'wait');
   await waitRow.locator('[data-dev="ok"]').click();
   await expect(page.locator('#own-devs .own-dev[data-st="wait"]')).toHaveCount(0);
@@ -174,6 +183,7 @@ test('司令塔：入れる端末を決める。「許可した端末だけ」�
   await expect(rowB.locator('.od-label')).toHaveText('でんしか たろう');     // 待っているあいだに書いた名前
   await rowB.locator('[data-dev="no"]').click();
   await expect(rowB.locator('.od-st')).toHaveText('止めています');
+  await expect(page.locator('#own-dev-sum')).toHaveText('2台：許可しています 1・止めています 1');
   await B.page.evaluate(() => localStorage.setItem('kuroko_adm_mode', JSON.stringify('flat')));
   await B.page.locator('.seg button', { hasText: '古い順' }).click();
   const cardB = B.page.locator('#admin-list .adm-booth').first();
@@ -271,4 +281,62 @@ test('司令塔：入っている印が切れたら、入口に戻す（中身�
   // 押す所は 44px 以上
   const small = await page.evaluate(() => [...document.querySelectorAll('#v-owner button, #v-owner input')].filter(el => el.offsetParent && el.getBoundingClientRect().height < 43.5).map(el => el.id || el.textContent.trim()));
   expect(small).toEqual([]);
+});
+
+/* ---------------- v217：司令塔の仕上げ ---------------- */
+test('司令塔（v217）：新しいパスワードを打っている途中に、あと何文字か・2つの欄が同じかが分かる。欄の中の文字は切れない', async ({ page, baseURL }) => {
+  const errors = watchErrors(page);
+  const { g, origin } = server(baseURL);
+  await bridge(page, g);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await ownerLogin(page, origin);
+  const hint = page.locator('#own-np-hint');
+  await expect(hint).toContainText('8〜64文字');
+  // 欄の中の案内（placeholder）が、欄の幅に収まる（「新しいパスワード（8文字以」で切れていた）
+  const fit = await page.evaluate(() => ['#own-np', '#own-np2', '#own-pw', '#own-key-label'].map(sel => {
+    const el = document.querySelector(sel), cs = getComputedStyle(el);
+    const sp = document.createElement('span');
+    sp.textContent = el.placeholder;
+    sp.style.cssText = `position:absolute;visibility:hidden;white-space:nowrap;font:${cs.font};letter-spacing:${cs.letterSpacing}`;
+    document.body.appendChild(sp);
+    const w = sp.getBoundingClientRect().width; sp.remove();
+    return { sel, w: Math.round(w), room: Math.round(el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) };
+  }));
+  // #own-pw は入口の欄（いまは隠れていて幅 0）なので、見えている欄だけを見る
+  fit.filter(f => f.room > 0).forEach(f => expect(f.w, JSON.stringify(f)).toBeLessThanOrEqual(f.room));
+  expect(fit.filter(f => f.room > 0).length).toBeGreaterThanOrEqual(3);
+  // 打っている途中
+  await page.locator('#own-np').fill('abc');
+  await expect(hint).toHaveText('あと 5文字（いま 3文字）');
+  await expect(hint).toHaveAttribute('data-ok', '0');
+  await page.locator('#own-np').fill('ＡＢＣabcde123');
+  await expect(hint).toContainText('全角');
+  await page.locator('#own-np').fill(' abcdefgh12');
+  await expect(hint).toContainText('空白');
+  const NEW = 'atarashii-pass-2026';
+  await page.locator('#own-np').fill(NEW);
+  await expect(hint).toContainText(NEW.length + '文字。下の欄にも');
+  await page.locator('#own-np2').fill(NEW.slice(0, 5));
+  await expect(hint).toContainText('まだ同じではありません');
+  await page.locator('#own-np2').fill(NEW);
+  await expect(hint).toContainText('2つの欄が同じです');
+  await expect(hint).toHaveAttribute('data-ok', '1');
+  // 手がかりの判定は、サーバーの決まりと同じ（全角・前後の空白は、サーバーも断る）
+  const token = await page.evaluate(() => sessionStorage.getItem('kuroko_owner'));
+  const srv = p => g.__post({ action: 'owner_set_pass', token, pass: p });
+  expect(String(srv('ＡＢＣabcde123').error)).toContain('全角');
+  expect(String(srv(' abcdefgh12').error)).toContain('空白');
+  expect(String(srv('abc').error)).toContain('8〜64文字');
+  expect(g.__props.ADMIN_PASS).toBe(PASS);
+  // 変えたあとは、はじめの案内に戻る
+  accept(page);
+  await page.locator('#own-setpass').click();
+  await expect(page.locator('#toast')).toContainText('変えました');
+  await expect(hint).toContainText('8〜64文字');
+  expect(await hint.getAttribute('data-ok')).toBeNull();
+  expect(g.__props.ADMIN_PASS).toBe(NEW);
+  // 出る所の下に、自動で出ることの案内
+  await expect(page.locator('#own-main .own-foot')).toContainText('司令塔から出る');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  expect(errors).toEqual([]);
 });
