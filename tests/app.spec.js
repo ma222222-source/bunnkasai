@@ -3668,3 +3668,137 @@ test('押す所の大きさ：お知らせの「×」とスタンプ帳の階の
   await expect(page.locator('#stamp-grid .stamp-fold').first()).toHaveAttribute('aria-expanded', 'false');
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v215：本部モニタ・全部回ったあと・横向き の7つの仕上げ ---------------- */
+test('①②本部モニタ（1366×768・30枚のページ）：ブースの名前は札の幅いっぱい・2行までで読める（「ア…」と1文字で切れない）。待ち人数は名前の下', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  const errors = watchErrors(page);
+  // ページは時計で決まる（20秒ごとに 1 → 2 → 1…）。1ページ目（30枚）が出る時刻にしておく
+  await page.clock.install({ time: new Date(Math.floor(Date.parse('2026-10-24T11:20:00+09:00') / 40000) * 40000 + 1000) });
+  await mockGas(page);
+  await page.goto('/?mode=board');
+  await ready(page);
+  await expect(page.locator('#board-grid .btile')).toHaveCount(30);
+  const r = await page.evaluate(() => [...document.querySelectorAll('#board-grid .btile')].map(t => { const nm = t.querySelector('.bt-nm'), hd = t.querySelector('.bt-head'), big = t.querySelector('.bt-big'), age = t.querySelector('.bt-age');
+    const tr = t.getBoundingClientRect(), hr = hd.getBoundingClientRect(), br = big.getBoundingClientRect(), ar = age.getBoundingClientRect();
+    return { name: nm.textContent, nmW: nm.clientWidth, tileW: tr.width, cut: nm.scrollHeight > nm.clientHeight + 1, lines: Math.round(nm.clientHeight / parseFloat(getComputedStyle(nm).lineHeight)),
+      bigBelow: br.top >= hr.bottom - 1, inTile: br.right <= tr.right + 0.5 && br.bottom <= tr.bottom + 0.5 && ar.left >= tr.left, ageH: ar.height, ageLh: parseFloat(getComputedStyle(age).fontSize) }; }));
+  for (const t of r) {
+    expect(t.nmW, t.name).toBeGreaterThanOrEqual(t.tileW * 0.7);      // 以前は札の3分の1ほど（1〜3文字ぶん）
+    expect(t.lines, t.name).toBeLessThanOrEqual(2);
+    expect(t.bigBelow, t.name).toBe(true);
+    expect(t.inTile, t.name).toBe(true);
+    expect(t.ageH, t.name).toBeLessThan(t.ageLh * 1.9);                // 「たった今」が2行に折れない
+  }
+  // 8文字までの名前は、切れずに全部出る
+  const short = r.filter(t => t.name.length <= 8);
+  expect(short.length).toBeGreaterThan(5);
+  expect(short.filter(t => t.cut).map(t => t.name)).toEqual([]);
+  // 大きい画面：状態の字が大きい
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.waitForTimeout(200);
+  const big = await page.evaluate(() => { const tx = document.querySelector('#board-grid .bt-big b.tx'), t = tx.closest('.btile').getBoundingClientRect(), b = tx.getBoundingClientRect();
+    return { fs: parseFloat(getComputedStyle(tx).fontSize), fits: b.right <= t.right - 2 }; });
+  expect(big.fs).toBeGreaterThanOrEqual(23);                            // 以前は 22px が上限
+  expect(big.fits).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('③⑦本部モニタ：地図は、階が3つのとき1階を上に大きく（右下の空きを作らない）。ページが2つ以上あるとき、替わるまでの線を出す', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  const errors = watchErrors(page);
+  // ページは時計で決まる。1ページ目が出る時刻にしておく
+  await page.clock.install({ time: new Date(Math.floor(Date.parse('2026-10-24T11:20:00+09:00') / 40000) * 40000 + 1000) });
+  let few = false;
+  await mockGas(page, { mutate: j => { if (few) j.booths = j.booths.filter(b => b.id.startsWith('1F')).slice(0, 20); } });
+  await page.goto('/?mode=board');
+  await ready(page);
+  const m = await page.evaluate(() => { const box = document.getElementById('board-maps').getBoundingClientRect(); return [...document.querySelectorAll('#board-maps .bm')].map(b => { const r = b.getBoundingClientRect();
+    return { t: b.querySelector('h3').textContent, x: Math.round(r.left - box.left), y: Math.round(r.top - box.top), w: Math.round(r.width), h: Math.round(r.height), boxW: Math.round(box.width) }; }); });
+  expect(m.map(x => x.t)).toEqual(['1階', '2階', '3階']);
+  expect(m[0].w).toBeGreaterThanOrEqual(m[0].boxW - 2);                 // 1階は幅いっぱい
+  expect(m[0].h).toBeGreaterThan(m[1].h);                               // 高さも大きい
+  expect(m[1].y).toBe(m[2].y);                                          // 2階・3階は、その下に並ぶ
+  expect(m[1].y).toBeGreaterThanOrEqual(m[0].y + m[0].h);
+  expect(m[2].x).toBeGreaterThan(m[1].x + m[1].w - 2);
+  // 替わるまでの線：2ページあるので出る。20秒で1周・時計に合っている
+  const turn = page.locator('#board-turn');
+  await expect(turn).toBeVisible();
+  const a = await turn.locator('i').evaluate(el => { const c = getComputedStyle(el); return { name: c.animationName, dur: parseFloat(c.animationDuration), delay: parseFloat(c.animationDelay), sec: (Date.now() % 20000) / 1000 }; });
+  expect(a.name).toBe('code-drain'); expect(a.dur).toBe(20);
+  expect(Math.min(Math.abs(-a.delay - a.sec), 20 - Math.abs(-a.delay - a.sec))).toBeLessThan(6);
+  await expect(page.locator('#board-sub')).toContainText('1 / 2ページ');
+  // 1ページに収まるとき（20件・1つの階）：線は出ない。地図は1枚で幅いっぱい
+  few = true;
+  await page.evaluate(() => sync(true));
+  await expect(page.locator('#board-grid .btile')).toHaveCount(20);
+  await expect(turn).toBeHidden();
+  await expect(page.locator('#board-maps .bm')).toHaveCount(1);
+  expect(await page.evaluate(() => document.getElementById('board-maps').className)).toBe('board-maps');
+  expect(errors).toEqual([]);
+});
+
+test('④全部回ったあとは、「まだ行っていないブースを見る」「まだのスタンプだけ」を出さない（1つでも残っていれば出す）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  const { BASE } = require('./mock');
+  const venues = BASE.booths.filter(b => b.category !== '受付').map(b => b.id);
+  await page.addInitScript(ids => { if (!sessionStorage.getItem('x')){ sessionStorage.setItem('x', 1); localStorage.setItem('kuroko_intro_v1', '1');
+    localStorage.setItem('kuroko_stamps_v2', JSON.stringify(ids)); localStorage.setItem('kuroko_cert_at', JSON.stringify('2026-10-24T03:00:00.000Z')); } }, venues.slice(1));
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  // 1つ残っている：出る
+  await expect(page.locator('#stamp-todo')).toBeVisible();
+  await expect(page.locator('#stamp-only-todo')).toBeVisible();
+  await page.locator('#stamp-only-todo').click();
+  await expect(page.locator('#stamp-grid')).toHaveClass(/only-todo/);
+  // 最後の1つを押す → 回る先（受付は回る先ではない）がもう無いので、どちらも消える。「まだのスタンプだけ」の絞り込みも外れる
+  await page.evaluate(id => { stampNow(id); if (showStampFx.close) showStampFx.close(); }, venues[0]);
+  await expect(page.locator('#stamp-todo')).toBeHidden();
+  await expect(page.locator('#stamp-only-todo')).toBeHidden();
+  await expect(page.locator('#stamp-grid')).not.toHaveClass(/only-todo/);
+  expect(await page.locator('#stamp-grid .stamp.got').first().isVisible()).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('⑤タイムテーブル：同じ場所の行が続くとき、「◯◯を地図で見る」は1つだけ（いまのコマがあればその行、なければ最初の行）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await page.clock.install({ time: new Date('2026-10-24T09:00:00+09:00') });
+  await mockGas(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=info');
+  await ready(page);
+  const rows = () => page.evaluate(() => [...document.querySelectorAll('#tt-body tr:not(.tt-day)')].map(tr => ({ t: tr.cells[0].textContent.trim(), now: tr.classList.contains('tt-now'), go: tr.querySelector('.tt-go') ? tr.querySelector('.tt-go').dataset.go : '' })));
+  // 開場前：いまのコマは無い → 最初の行（09:30）にだけ
+  let r = await rows();
+  expect(r.filter(x => x.go).map(x => x.t)).toEqual(['09:30']);
+  // 最終入場のあと（14:10）：いまのコマ（14:00）の行に移る
+  await page.clock.setFixedTime(new Date('2026-10-24T14:10:00+09:00'));
+  await page.evaluate(() => { renderInfo._cur = null; renderInfo(); });
+  r = await rows();
+  expect(r.find(x => x.now).t).toBe('14:00');
+  expect(r.filter(x => x.go).map(x => x.t)).toEqual(['14:00']);
+  // 押すと、これまでどおり地図でその場所が出る
+  await page.locator('#tt-body .tt-go').click();
+  await expect(page.locator('#v-map')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('⑥横向き（844×390）：地図の箱は、見出しと下のタブのあいだをまるごと使う高さ（帯にならない）。操作のボタンは重ならない', async ({ page }) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); localStorage.setItem('kuroko_here_ask', 'false'); });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const g = await page.evaluate(() => { const v = document.getElementById('map-view').getBoundingClientRect(), hd = document.querySelector('.head').getBoundingClientRect(), nv = document.getElementById('nav').getBoundingClientRect();
+    const f = document.querySelector('#map-card .map-floors').getBoundingClientRect(), z = document.querySelector('#map-card .map-zoom-ctl').getBoundingClientRect();
+    return { h: v.height, free: nv.top - hd.bottom, overlap: !(f.bottom <= z.top || f.right <= z.left || z.right <= f.left), over: document.documentElement.scrollWidth - innerWidth }; });
+  expect(g.h).toBeGreaterThanOrEqual(230);                  // v214 までは 150px
+  expect(g.h).toBeLessThanOrEqual(g.free);                  // 少し送れば、画面にまるごと入る
+  expect(g.overlap).toBe(false);
+  expect(g.over).toBeLessThanOrEqual(0);
+  expect(errors).toEqual([]);
+});
