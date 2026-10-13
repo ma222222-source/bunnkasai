@@ -1885,13 +1885,15 @@ html.lite .hero-gear{animation:none}
 [data-fs="xl"] .search input{font-size:17px}
 [data-fs="xl"] .stamp .lb{font-size:12.5px}
 /* スタンプ帳の名前：長いひと続きの言葉（「バーベキューコンロ製作」＝11文字）は、文節で折ると枠に入らず、両はしの字が欠けていた（特大・幅のせまい画面）。
-   枠の内側の余白も 4px ずつ使う。それでも入らない幅の枠では、文節にこだわらず、ふつうの折り返しにする（1文字だけの行を作らない）。
-   「特大」は、スマホの幅（〜479px）では2列にして、1行に入る文字を増やす */
+   ・名前は、枠の内側の余白（6px ずつ）まで使う。
+   ・それでも入らない幅の枠（＝余白まで使っても、11文字が入らない）では、文節にこだわらず、ふつうの折り返しにする。
+     幅を決めて無理に折らせることはしない（「…コンロ製／作」のように、1文字だけの行ができる）。
+   ・「特大」は、スマホの幅（〜479px）では2列にして、1行に入る文字を増やす */
 .stamp{container-type:inline-size}
-.stamp .lb{margin-inline:-4px;max-width:calc(100% + 8px)}
-@container (max-width:96px){ .stamp-grid .stamp .lb{word-break:normal} }
-@container (max-width:112px){ [data-fs="lg"] .stamp-grid .stamp .lb{word-break:normal} }
-@container (max-width:129px){ [data-fs="xl"] .stamp-grid .stamp .lb{word-break:normal} }
+.stamp .lb{margin-inline:-6px}
+@container (max-width:93px){ .stamp-grid .stamp .lb{word-break:normal} }
+@container (max-width:109px){ [data-fs="lg"] .stamp-grid .stamp .lb{word-break:normal} }
+@container (max-width:125px){ [data-fs="xl"] .stamp-grid .stamp .lb{word-break:normal} }
 @media (max-width:479px){ [data-fs="xl"] .stamp-grid{grid-template-columns:repeat(2,1fr)} }
 /* ②地図の ＋・− は、「特大」で小さくなっていた（文字のボタン用の 17px が当たっていた） */
 [data-fs="xl"] #map-card.gmap .map-ctl button.sq{font-size:24px}

@@ -4046,3 +4046,27 @@ test('振り返り（v218）：開いたとき、棒が下から伸びる（動�
   expect(await page.evaluate(() => { const g = document.querySelector('#report-body .rep-chart g.rc'); return g.getBoundingClientRect().height; })).toBeGreaterThan(20);
   expect(errors).toEqual([]);
 });
+
+test('スタンプ帳の名前（v218）：幅 320〜430px・3つの文字の大きさで、枠からはみ出さない・1文字だけの行や「ー」で始まる行を作らない', async ({ page }) => {
+  // GitHub（Linux）の Chromium は画面の右にスクロールバーの幅を取るので、同じ 390px でも枠の幅が手元と違う。
+  // 幅を少しずつ変えて、どの幅でも崩れないことを見る（v218 の途中の作りは、枠が 96px 前後のときだけ「…コンロ製／作」になった）
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  const bad = [];
+  for (const fs of ['n', 'lg', 'xl']) for (let w = 320; w <= 430; w += 5) {
+    await page.setViewportSize({ width: w, height: 800 });
+    const r = await page.evaluate(([fn, fs]) => {
+      document.documentElement.setAttribute('data-fs', fs);
+      return [...document.querySelectorAll('#stamp-grid .stamp .lb')].filter(e => e.offsetParent).map(el => {
+        const l = eval(fn)(el), a = el.closest('.stamp').getBoundingClientRect(), b = el.getBoundingClientRect();
+        return { l, over: b.left < a.left - 0.5 || b.right > a.right + 0.5 || b.bottom > a.bottom + 0.5 };
+      }).filter(x => x.over || x.l.some(t => /^[ー）」、。]/.test(t) || (x.l.length > 1 && t.length === 1))).map(x => x.l.join('／') + (x.over ? '（はみ出し）' : ''));
+    }, [LINES_FN, fs]);
+    if (r.length) bad.push(`${fs} ${w}px: ${r.join(' | ')}`);
+  }
+  expect(bad).toEqual([]);
+  expect(errors).toEqual([]);
+});
