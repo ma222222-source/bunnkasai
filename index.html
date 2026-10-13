@@ -1877,6 +1877,50 @@ html.lite .hero-gear{animation:none}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
 /* ---- v206：地図の左下のボタン。開いた直後は「全体」だけ（左の角）。動かしたら、その右に「ブースに寄せる」が出る ---- */
 #map-card.gmap .map-fit-ctl #zoom-reset{order:-1}
+/* ==== v216：司令塔（持ち主だけ）と、端末の許可を待つ画面 ==== */
+.own-h{font-size:16px;font-weight:900;text-align:center}
+.own-lead{font-size:12.5px;font-weight:700;color:var(--text-dim);line-height:1.7;text-align:center;margin:4px 0 12px}
+.own-note{font-size:12px;font-weight:700;color:var(--text-mute);line-height:1.7;margin:6px 0}
+.own-or{display:flex;align-items:center;gap:10px;margin:14px 0 10px;font-size:11.5px;font-weight:800;color:var(--text-mute)}
+.own-or::before,.own-or::after{content:"";flex:1;height:1px;background:var(--border)}
+#v-owner .card{display:flex;flex-direction:column;gap:8px}
+#v-owner .field{width:100%}
+#own-main{display:flex;flex-direction:column;gap:16px}
+#own-main.hide,#own-gate.hide{display:none}
+.own-seg{display:flex;width:100%}
+.own-seg button{flex:1;white-space:normal;line-height:1.3;padding:6px 8px}
+.own-devs,.own-keys{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.own-dev,.own-key{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:10px 12px;border-radius:var(--r-sm);
+  background:var(--surface-2);border:1px solid var(--border)}
+.own-dev[data-st="wait"]{border-color:var(--warn);background:var(--warn-soft)}
+.own-dev[data-st="no"]{opacity:.75}
+.od-main{flex:1 1 180px;min-width:0;display:flex;flex-direction:column;gap:2px}
+.od-top{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 8px}
+.od-code{font-size:17px;font-weight:900;letter-spacing:.12em;font-variant-numeric:tabular-nums;font-family:ui-monospace,Menlo,Consolas,monospace}
+.od-label{font-size:13px;font-weight:800;overflow-wrap:anywhere}
+.od-me{font-size:10.5px;font-weight:900;padding:2px 7px;border-radius:999px;background:var(--surface-3);color:var(--text-dim)}
+.od-st{font-size:12px;font-weight:900}
+.own-dev[data-st="wait"] .od-st{color:var(--warn)} .own-dev[data-st="ok"] .od-st{color:var(--free)} .own-dev[data-st="no"] .od-st{color:var(--busy-ink)}
+.od-when{font-size:11px;font-weight:700;color:var(--text-mute)}
+.od-acts{display:flex;flex-wrap:wrap;gap:6px}
+.od-acts button,.own-key button{min-height:44px;padding:0 14px;border-radius:10px;border:1.5px solid var(--border-strong);background:var(--surface);
+  color:var(--text);font:inherit;font-size:12.5px;font-weight:900;cursor:pointer}
+.od-acts button.go{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.own-key .ok-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:13px;font-weight:800}
+.own-key small{font-size:11px;font-weight:700;color:var(--text-mute)}
+.own-empty{font-size:12px;font-weight:700;color:var(--text-mute);padding:6px 2px}
+/* 係員のログイン：許可を待つ */
+.auth-wait{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 12px;border-radius:var(--r-sm);background:var(--warn-soft);
+  border:1.5px solid var(--warn);text-align:center}
+.auth-wait.hide{display:none}
+.auth-wait b.code{font-size:34px;font-weight:900;letter-spacing:.2em;font-variant-numeric:tabular-nums;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.1}
+.auth-wait p{font-size:12.5px;font-weight:800;line-height:1.7;color:var(--text)}
+.auth-wait .dots::after{content:"";display:inline-block;width:1.2em;text-align:left;animation:wait-dots 1.4s steps(4,end) infinite}
+@keyframes wait-dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+.auth-owner-link{align-self:center;min-height:44px;padding:0 12px;border:none;background:none;color:var(--text-mute);font:inherit;font-size:12px;font-weight:800;
+  text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+[data-fs="xl"] .own-note,[data-fs="xl"] .own-lead,[data-fs="xl"] .auth-wait p{font-size:15px}
+@media (prefers-reduced-motion:reduce){ .auth-wait .dots::after{animation:none;content:"..."} }
 /* ==== v215：本部モニタ・全部回ったあと・横向き の7つの仕上げ ==== */
 /* ①②本部モニタ：ブースの名前を読めるようにする。
    学校のノートPC（1366×768）では、名前と待ち人数を横に並べていたので、30枚のページで名前が「ア…」「ミ…」と1〜3文字しか出ていなかった。
@@ -3604,6 +3648,15 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
         <p class="pw-zen hide" id="pw-zen" role="status"><span>全角の文字が入っています（パスワードは半角です）</span><button type="button" id="pw-zen-fix">半角に直す</button></p>
         <button class="btn" id="btn-login">ログイン</button>
         <p class="stale-warn hide" id="auth-err">パスワードが違います</p>
+        <!-- v216：司令塔で「許可した端末だけ」にしているとき。パスワードは合っているので、許可されるまで待つ -->
+        <div class="auth-wait hide" id="auth-wait" role="status">
+          <p>この端末は、まだ許可されていません</p>
+          <b class="code" id="auth-wait-code">----</b>
+          <p>この番号を、本部（持ち主）に伝えてください。<br><span class="dots">許可されると、自動で入ります</span></p>
+          <input class="field" id="auth-who" maxlength="20" placeholder="なまえ・係（書かなくてもよい）" aria-label="なまえ・係（書くと、本部の一覧に出ます）" autocomplete="off">
+          <button class="btn ghost" id="auth-wait-stop" type="button">待つのをやめる</button>
+        </div>
+        <button type="button" class="auth-owner-link" data-open-owner>司令塔（持ち主だけ）</button>
       </div>
     </section>
 
@@ -3746,6 +3799,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
         <a class="btn ghost" href="?mode=print" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg> 配布用の紙マップを開く</a>
         <a class="btn ghost" href="?mode=report" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M8 17V10M13 17V6M18 17v-4"/></svg> 混雑の振り返りを見る</a>
         <a class="btn ghost" href="?mode=board" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5h20v12H2z"/><path d="M8.5 20.5h7M12 16.5v4"/></svg> 本部用の大画面ボードを開く</a>
+        <button class="btn ghost" type="button" id="btn-open-owner" data-open-owner><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.800-7-5.500-7-10V6z"/><path d="M9.500 12l2 2 3.500-4"/></svg> 司令塔（持ち主だけ）を開く</button>
         <button class="btn ghost" id="btn-logout">ログアウト</button>
       </div>
     </section>
@@ -3814,6 +3868,55 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
     </section>
 
     <!-- ============ 振り返りレポート ============ -->
+    <!-- ============ 司令塔（持ち主だけ） ============ -->
+    <!-- v216：係員のパスワードを変える・入れる端末を決める。持ち主パスワードか、登録したパスキー（顔認証・指紋）で入る -->
+    <section class="view" id="v-owner">
+      <div class="card" id="own-gate">
+        <h2 class="own-h">司令塔（持ち主だけ）</h2>
+        <p class="own-lead">係員のパスワードを変えたり、入れる端末を決めたりする画面です。</p>
+        <p class="stale-warn hide" id="own-setup"></p>
+        <button class="btn" id="own-passkey" type="button">顔認証・指紋で入る</button>
+        <p class="own-note" id="own-passkey-note"></p>
+        <div class="own-or">または</div>
+        <div class="pw-row">
+          <input class="field" type="password" id="own-pw" placeholder="持ち主パスワード" autocomplete="off" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false">
+          <button type="button" class="pw-show" id="own-pw-show" aria-pressed="false" aria-controls="own-pw">表示する</button>
+        </div>
+        <button class="btn ghost" id="own-login" type="button">持ち主パスワードで入る</button>
+        <p class="stale-warn hide" id="own-err" role="alert"></p>
+      </div>
+      <div class="hide" id="own-main">
+        <div class="card">
+          <div class="card-t">係員のパスワード</div>
+          <p class="own-note" id="own-pass-now"></p>
+          <div class="pw-row">
+            <input class="field" type="password" id="own-np" placeholder="新しいパスワード（8文字以上）" autocomplete="new-password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <button type="button" class="pw-show" id="own-np-show" aria-pressed="false" aria-controls="own-np">表示する</button>
+          </div>
+          <input class="field" type="password" id="own-np2" placeholder="もう一度（同じものを）" autocomplete="new-password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false">
+          <button class="btn" id="own-setpass" type="button">係員のパスワードを変える</button>
+          <p class="own-note">変えた瞬間から、古いパスワードでは入れなくなります（入っている係員も、次に送るときに入り直しになります）。新しいパスワードは、あなたから係員に伝えてください。</p>
+        </div>
+        <div class="card">
+          <div class="card-t">入れる端末</div>
+          <div class="seg own-seg" role="group" aria-label="だれが入れるか">
+            <button type="button" id="own-mode-off" aria-pressed="true">パスワードを知っている人</button>
+            <button type="button" id="own-mode-on" aria-pressed="false">許可した端末だけ</button>
+          </div>
+          <p class="own-note" id="own-mode-note"></p>
+          <ul class="own-devs" id="own-devs"></ul>
+        </div>
+        <div class="card">
+          <div class="card-t">顔認証・指紋（パスキー）</div>
+          <p class="own-note">この端末の顔認証・指紋・画面ロックで、司令塔に入れるようにします。顔や指紋のデータは端末から出ません。</p>
+          <ul class="own-keys" id="own-keys"></ul>
+          <input class="field" id="own-key-label" maxlength="20" placeholder="名前（例：わたしのスマホ）" autocomplete="off">
+          <button class="btn ghost" id="own-reg" type="button">この端末を登録する</button>
+        </div>
+        <button class="btn ghost" id="own-logout" type="button">司令塔から出る</button>
+      </div>
+    </section>
+
     <section class="view" id="v-report">
       <div class="card no-print">
         <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M8 17V10M13 17V6M18 17v-4"/></svg> 混雑の振り返り</div>
@@ -3979,7 +4082,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-13c',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-14a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -6760,7 +6863,7 @@ const DEPLOY_STEPS =
 /** v213：サーバーのエラーの文から、先頭の合図（bad wait: など。画面が見分けに使う英語）を外して、日本語の理由だけにする */
 function srvMsg(m){
   const t = String(m == null ? '' : m);
-  const r = t.replace(/^(bad [a-z]+|unknown action|too large|busy|weak|locked)\s*[:：]\s*/i, '');
+  const r = t.replace(/^(bad [a-z]+|unknown action|too large|busy|weak|locked|denied|owner [a-z]+|pending:[0-9A-F]{4})\s*[:：]\s*/i, '');
   return r || t;
 }
 function editError(e){
@@ -11832,7 +11935,7 @@ addEventListener('resize', () => { refreshScrollEdges(); measureHead(); });
 /** 下のタブに出る来場者向けの画面 */
 const NAV_VIEWS   = ['map','list','stamp','info'];
 /** 係員向けの画面（下のタブを隠す） */
-const STAFF_VIEWS = ['auth','admin','qr','print','pamphlet','report','board'];
+const STAFF_VIEWS = ['auth','admin','qr','print','pamphlet','report','board','owner'];
 /** 履歴に積む画面。係員の画面も積まないと「戻る」で一般の画面へ落ちる */
 const HIST_VIEWS  = NAV_VIEWS.concat(STAFF_VIEWS);
 /** 係員コンソールから開く、行き来する画面 */
@@ -11885,7 +11988,7 @@ function switchView(v, fromHistory){
   { const lh = document.querySelector('#v-list .list-head'); if (lh) lh.classList.remove('tuck'); }   // v195：タブを移ったら、段は出しておく
   mapScale._w = 0;                        // 係員の広い画面との行き来で地図の幅が変わる
   if (v === 'stamp'){ pullLedger(5000); renderSyncBadge(); }   // 別のアプリで増えた分を見に行く
-  ['map','list','stamp','info','auth','admin','qr','print','pamphlet','report','board'].forEach(k =>
+  ['map','list','stamp','info','auth','admin','qr','print','pamphlet','report','board','owner'].forEach(k =>
     $('#v-' + k).classList.toggle('on', k === v));
   $$('#nav button').forEach(b => {
     b.setAttribute('aria-pressed', String(b.dataset.view === v));
@@ -12001,6 +12104,325 @@ window.addEventListener('popstate', e => {
 });
 
 /* =====================================================================
+   司令塔（持ち主だけ）— v216
+   係員のパスワードを変える・入れる端末を決める・パスキー（顔認証・指紋）を登録する。
+   入り方は2つ：登録したパスキー／持ち主パスワード（サーバーのスクリプトプロパティ OWNER_PASS）。
+   入っている印（合言葉）は、このタブの中だけに覚える（sessionStorage。閉じると消える）。パスワードそのものは覚えない
+   ===================================================================== */
+const OWN = { state: null, timer: null, info: null, busy: false };
+function ownToken(){ try{ return sessionStorage.getItem('kuroko_owner') || ''; }catch(e){ return OWN._t || ''; } }
+function ownTokenSet(t){ OWN._t = t || ''; try{ if (t) sessionStorage.setItem('kuroko_owner', t); else sessionStorage.removeItem('kuroko_owner'); }catch(e){} }
+/** バイトの並び ⇄ 文字（base64url）。パスキーの返事はバイトの並びなので、文字にして送る */
+function ownB64u(buf){
+  const a = new Uint8Array(buf); let s = '';
+  for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]);
+  return btoa(s).split('+').join('-').split('/').join('_').split('=').join('');
+}
+function ownUnB64u(str){
+  const t = String(str).split('-').join('+').split('_').join('/');
+  const bin = atob(t + '==='.slice((t.length + 3) % 4));
+  const a = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+  return a;
+}
+function ownCanPasskey(){ return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create && navigator.credentials.get); }
+function ownCall(action, body){
+  return api({ body: Object.assign({ action }, body || {}), timeout: 25000 });
+}
+/** サーバーのエラーを、画面に出す文にする */
+function ownErrText(e){
+  const m = String((e && e.message) || e);
+  if (/^owner (unset|weak)/.test(m)) return srvMsg(m.replace(/^owner (unset|weak):\s*/, ''));
+  if (/^owner nokeys/.test(m)) return 'パスキーが、まだ登録されていません。はじめは持ち主パスワードで入って、「この端末を登録する」を押してください';
+  if (/^locked/.test(m)) return '何度も違っています。5分ほど待ってから、もう一度お試しください';
+  if (/unauthorized/.test(m)) return '入れませんでした。持ち主パスワード（または登録した端末）を確かめてください';
+  if (/^owner session/.test(m)) return '時間がたったので、司令塔に入り直してください';
+  if (/unknown action/.test(m)) return 'サーバーが古い版で、司令塔に対応していません。' + DEPLOY_STEPS;
+  if (/timeout|abort|failed to fetch|networkerror|offline/i.test(m)) return '通信できませんでした。電波の届く場所で、もう一度お試しください';
+  return srvMsg(m);
+}
+function ownShowErr(e){
+  const el = $('#own-err');
+  if (!el) return;
+  el.textContent = ownErrText(e);
+  el.classList.remove('hide');
+}
+/** 入っている印が切れていたら、入口に戻す。戻したら true */
+function ownDropIfExpired(e){
+  if (!/^owner session/.test(String((e && e.message) || e))) return false;
+  ownTokenSet(''); OWN.state = null;
+  renderOwner();
+  ownShowErr(e);
+  return true;
+}
+
+/** 司令塔の画面を描く（入口か、中か） */
+function renderOwner(){
+  const gate = $('#own-gate'), main = $('#own-main');
+  if (!gate || !main) return;
+  const inside = !!(ownToken() && OWN.state);
+  gate.classList.toggle('hide', inside);
+  main.classList.toggle('hide', !inside);
+  clearTimeout(OWN.timer);
+  if (!inside){ renderOwnerGate(); return; }
+  const st = OWN.state;
+  // 係員のパスワード（中身は出さない。長さと、いつ変えたかだけ）
+  $('#own-pass-now').textContent = `いまのパスワード：${st.passLen}文字` + (st.passAt ? `（${ago(st.passAt)}に変更）` : '（司令塔からは、まだ変えていません）');
+  // だれが入れるか
+  $('#own-mode-off').setAttribute('aria-pressed', String(!st.approval));
+  $('#own-mode-on').setAttribute('aria-pressed', String(!!st.approval));
+  $('#own-mode-note').textContent = st.approval
+    ? 'パスワードが合っていても、下の一覧で「許可する」を押した端末だけが入れます。新しい端末は「許可を待っています」と出ます。'
+    : 'パスワードを知っていれば、どの端末でも入れます（今までどおり）。「止める」を押した端末だけは入れません。';
+  const rank = d => d.st === 'wait' ? 0 : d.st === 'no' ? 2 : 1;
+  const devs = (st.devices || []).slice().sort((a, b) => rank(a) - rank(b) || String(b.last || '').localeCompare(String(a.last || '')));
+  const me = deviceId();
+  const stText = d => d.st === 'wait' ? '許可を待っています' : d.st === 'no' ? '止めています' : d.st === 'ok' ? '許可しています' : (st.approval ? '許可を待っています' : '入れます');
+  $('#own-devs').innerHTML = devs.length ? devs.map(d => `
+    <li class="own-dev" data-st="${d.st === 'seen' && st.approval ? 'wait' : esc(d.st)}" data-cid="${esc(d.cid)}">
+      <div class="od-main">
+        <div class="od-top"><b class="od-code">${esc(d.code)}</b>${d.label ? `<span class="od-label">${esc(d.label)}</span>` : ''}${d.cid === me ? '<span class="od-me">この端末</span>' : ''}</div>
+        <span class="od-st">${stText(d)}</span>
+        <span class="od-when">${d.last ? '最後に入った：' + esc(ago(d.last)) : ''}</span>
+      </div>
+      <div class="od-acts">
+        ${d.st !== 'ok' && (st.approval || d.st === 'no') ? `<button type="button" class="go" data-dev="ok">${d.st === 'no' ? '入れるように戻す' : '許可する'}</button>` : ''}
+        ${d.st !== 'no' ? '<button type="button" data-dev="no">止める</button>' : ''}
+        <button type="button" data-dev="label">名前</button>
+        <button type="button" data-dev="del">消す</button>
+      </div>
+    </li>`).join('') : '<li class="own-empty">まだ、係員の画面に入った端末はありません（入ると、ここに出ます）</li>';
+  $$('#own-devs [data-dev]').forEach(el => el.addEventListener('click', () => ownDevAct(el.closest('.own-dev').dataset.cid, el.dataset.dev)));
+  // パスキー
+  const keys = st.keys || [];
+  $('#own-keys').innerHTML = keys.length ? keys.map(k => `
+    <li class="own-key" data-kid="${esc(k.id)}"><div class="ok-main"><span>${esc(k.label || 'パスキー')}</span><small>${k.at ? esc(ago(k.at)) + 'に登録' : ''}</small></div>
+      <button type="button" data-key-del>消す</button></li>`).join('') : '<li class="own-empty">まだ登録がありません</li>';
+  $$('#own-keys [data-key-del]').forEach(el => el.addEventListener('click', () => ownKeyDel(el.closest('.own-key').dataset.kid)));
+  const reg = $('#own-reg');
+  reg.disabled = !ownCanPasskey();
+  if (!ownCanPasskey()) reg.textContent = 'この端末・ブラウザは、顔認証・指紋の登録に対応していません';
+  // 許可を待っている端末がすぐ分かるよう、開いているあいだは 8秒ごとに取り直す
+  OWN.timer = setTimeout(() => { if (S.view === 'owner' && ownToken() && !document.hidden) ownRefresh(true); else renderOwner(); }, 8000);
+}
+function renderOwnerGate(){
+  const info = OWN.info;
+  const setup = $('#own-setup'), pk = $('#own-passkey'), note = $('#own-passkey-note');
+  if (!setup) return;
+  const notReady = info && !info.ready;
+  setup.classList.toggle('hide', !notReady);
+  if (notReady){
+    setup.textContent = info.why === 'unset'
+      ? '司令塔は、まだ使えません。Apps Script の「プロジェクトの設定 → スクリプト プロパティ」に OWNER_PASS（12文字以上。係員のパスワードと別のもの）を足すと、使えるようになります。'
+      : info.why === 'same' ? '持ち主パスワード（OWNER_PASS）が、係員のパスワードと同じです。別のものに変えてください。'
+      : '持ち主パスワード（OWNER_PASS）が短すぎます。12文字以上にしてください。';
+  }
+  const can = ownCanPasskey(), has = !!(info && info.hasKeys);
+  pk.disabled = !can || !has || notReady;
+  note.textContent = !can ? 'この端末・ブラウザは、顔認証・指紋での入り方に対応していません。持ち主パスワードで入ってください。'
+    : !info ? '' : !has ? 'パスキーは、まだ登録されていません。はじめは持ち主パスワードで入って、登録してください。' : '登録した端末の顔認証・指紋・画面ロックで入れます。';
+}
+/** 司令塔を開く */
+async function openOwner(){
+  switchView('owner');
+  $('#own-err').classList.add('hide');
+  renderOwner();
+  if (ownToken()){ await ownRefresh(false); return; }
+  try{ OWN.info = await ownCall('owner_info'); }catch(e){ OWN.info = null; ownShowErr(e); }
+  renderOwner();
+}
+async function ownRefresh(quiet){
+  try{
+    OWN.state = await ownCall('owner_state', { token: ownToken() });
+    renderOwner();
+  }catch(e){
+    if (ownDropIfExpired(e)) return;
+    if (!quiet) ownShowErr(e);
+    renderOwner();
+  }
+}
+function ownEnter(r){
+  ownTokenSet(r.token);
+  OWN.state = r.state || null;
+  $('#own-pw').value = ''; $('#own-pw').type = 'password';
+  { const s = $('#own-pw-show'); s.setAttribute('aria-pressed', 'false'); s.textContent = '表示する'; }
+  $('#own-err').classList.add('hide');
+  renderOwner();
+  if (!OWN.state) ownRefresh(false);
+}
+async function ownLoginPass(){
+  const v = $('#own-pw').value;
+  if (!v || OWN.busy) return;
+  OWN.busy = true;
+  const b = $('#own-login'), lb = b.textContent;
+  b.disabled = true; b.textContent = '確認中…';
+  try{ ownEnter(await ownCall('owner_login', { opass: v })); }
+  catch(e){ ownShowErr(e); }
+  finally{ OWN.busy = false; b.disabled = false; b.textContent = lb; }
+}
+async function ownLoginPasskey(){
+  if (OWN.busy) return;
+  OWN.busy = true;
+  const b = $('#own-passkey'), lb = b.textContent;
+  b.disabled = true; b.textContent = '確認中…';
+  try{
+    const c = await ownCall('owner_ch');
+    const cred = await navigator.credentials.get({ publicKey: {
+      challenge: ownUnB64u(c.ch), rpId: c.rpId, userVerification: 'required', timeout: 60000,
+      allowCredentials: (c.ids || []).map(id => ({ type: 'public-key', id: ownUnB64u(id) })) } });
+    if (!cred) throw new Error('unauthorized');
+    ownEnter(await ownCall('owner_assert', { chId: c.chId, id: ownB64u(cred.rawId),
+      clientDataJSON: ownB64u(cred.response.clientDataJSON), authenticatorData: ownB64u(cred.response.authenticatorData), signature: ownB64u(cred.response.signature) }));
+  }catch(e){
+    // 端末の確かめを取りやめた・時間切れ（NotAllowedError）は、エラーではなく「やめた」
+    if (e && (e.name === 'NotAllowedError' || e.name === 'AbortError')){ const el = $('#own-err'); el.textContent = '取りやめました。もう一度押すと、やり直せます'; el.classList.remove('hide'); }
+    else ownShowErr(e);
+  }finally{ OWN.busy = false; b.textContent = lb; renderOwnerGate(); }
+}
+async function ownRegister(){
+  if (OWN.busy || !ownCanPasskey()) return;
+  OWN.busy = true;
+  const b = $('#own-reg'), lb = b.textContent;
+  b.disabled = true; b.textContent = '端末の確かめを待っています…';
+  try{
+    const c = await ownCall('owner_reg_ch', { token: ownToken() });
+    const uid = new Uint8Array(16); crypto.getRandomValues(uid);
+    const cred = await navigator.credentials.create({ publicKey: {
+      challenge: ownUnB64u(c.ch), rp: { name: '黒工文化祭 司令塔', id: c.rpId },
+      user: { id: uid, name: 'owner', displayName: '持ち主' },
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }],           // ES256（サーバーが確かめられる形）
+      authenticatorSelection: { userVerification: 'required', residentKey: 'preferred' },
+      attestation: 'none', timeout: 60000,
+      excludeCredentials: (c.exclude || []).map(id => ({ type: 'public-key', id: ownUnB64u(id) })) } });
+    if (!cred) throw new Error('bad request: 登録できませんでした');
+    OWN.state = await ownCall('owner_reg', { token: ownToken(), chId: c.chId, label: ($('#own-key-label').value || '').trim().slice(0, 20),
+      clientDataJSON: ownB64u(cred.response.clientDataJSON), attestationObject: ownB64u(cred.response.attestationObject) });
+    $('#own-key-label').value = '';
+    toast('登録しました。次からは「顔認証・指紋で入る」で入れます', null, 6000);
+  }catch(e){
+    if (ownDropIfExpired(e)) return;
+    if (e && e.name === 'InvalidStateError') toast('この端末は、もう登録されています');
+    else if (e && (e.name === 'NotAllowedError' || e.name === 'AbortError')) toast('取りやめました');
+    else if (/unsupported key/.test(String(e && e.message))) toast('この端末の鍵の形には対応していません。持ち主パスワードで入ってください', null, 7000);
+    else toast(ownErrText(e), null, 7000);
+  }finally{ OWN.busy = false; b.textContent = lb; renderOwner(); }
+}
+async function ownKeyDel(id){
+  if (!confirm('このパスキーを消します。この端末の顔認証・指紋では、司令塔に入れなくなります。よろしいですか？')) return;
+  try{ OWN.state = await ownCall('owner_key_del', { token: ownToken(), id }); renderOwner(); }
+  catch(e){ if (!ownDropIfExpired(e)) toast(ownErrText(e)); }
+}
+async function ownSetPass(){
+  const a = $('#own-np').value, b2 = $('#own-np2').value;
+  if (!a){ toast('新しいパスワードを入れてください'); return; }
+  if (a !== b2){ toast('2つの欄が同じではありません。もう一度入れてください'); return; }
+  if (a.length < 8){ toast('8文字以上にしてください'); return; }
+  if (!confirm('係員のパスワードを変えます。\nいま入っている係員も、次に送るときに入り直しになります。\n新しいパスワードを係員に伝える用意はできていますか？')) return;
+  const btn = $('#own-setpass'), lb = btn.textContent;
+  btn.disabled = true; btn.textContent = '変えています…';
+  try{
+    OWN.state = await ownCall('owner_set_pass', { token: ownToken(), pass: a });
+    $('#own-np').value = ''; $('#own-np2').value = ''; $('#own-np').type = 'password';
+    { const s = $('#own-np-show'); s.setAttribute('aria-pressed', 'false'); s.textContent = '表示する'; }
+    // この端末が係員として入っていたら、新しいパスワードに差し替える（自分まで入り直しにしない）
+    if (pw()){ try{ sessionStorage.setItem('kuroko_pw', a); }catch(_){} }
+    toast('係員のパスワードを変えました。新しいパスワードを係員に伝えてください', null, 8000);
+    renderOwner();
+  }catch(e){ if (!ownDropIfExpired(e)) toast(ownErrText(e), null, 7000); }
+  finally{ btn.disabled = false; btn.textContent = lb; }
+}
+async function ownSetMode(on){
+  if (!OWN.state || !!OWN.state.approval === !!on) return;
+  if (on && !confirm('「許可した端末だけ」にします。\n・いま一覧にある端末（止めたもの以外）は、そのまま入れます。\n・これから来る新しい端末は、ここで「許可する」を押すまで入れません。\nあなたが許可しないと、だれも新しく入れなくなります。よろしいですか？')) return;
+  if (!on && !confirm('「パスワードを知っている人」に戻します。パスワードが合えば、どの端末でも入れるようになります（止めた端末を除く）。よろしいですか？')) return;
+  try{ OWN.state = await ownCall('owner_mode', { token: ownToken(), on: !!on, keep: true }); renderOwner(); toast(on ? '許可した端末だけが入れるようにしました' : 'パスワードだけで入れるように戻しました'); }
+  catch(e){ if (!ownDropIfExpired(e)) toast(ownErrText(e), null, 7000); }
+}
+async function ownDevAct(cid, what){
+  const d = ((OWN.state && OWN.state.devices) || []).find(x => x.cid === cid);
+  if (!d) return;
+  const body = { token: ownToken(), cid, st: what };
+  if (what === 'del' && !confirm(`端末 ${d.code} を一覧から消します（その端末がもう一度入ると、また出ます）。よろしいですか？`)) return;
+  if (what === 'no' && cid === deviceId() && !confirm('これは、いま使っているこの端末です。止めると、この端末では係員の画面に入れなくなります。よろしいですか？')) return;
+  if (what === 'label'){
+    const v = prompt('この端末の名前（20文字まで。例：受付のiPad）', d.label || '');
+    if (v === null) return;
+    body.label = v.trim().slice(0, 20);
+  }
+  try{ OWN.state = await ownCall('owner_dev', body); renderOwner(); }
+  catch(e){ if (!ownDropIfExpired(e)) toast(ownErrText(e), null, 7000); }
+}
+async function ownLogout(){
+  const t = ownToken();
+  ownTokenSet(''); OWN.state = null;
+  renderOwner();
+  toast('司令塔から出ました');
+  if (t){ try{ await ownCall('owner_logout', { token: t }); }catch(e){} }
+  try{ OWN.info = await ownCall('owner_info'); }catch(e){}
+  renderOwnerGate();
+}
+/** 「表示する／かくす」の切り替え（パスワードの欄の右のボタン） */
+function wirePwShow(inputSel, btnSel){
+  const inp = $(inputSel), b = $(btnSel);
+  if (!inp || !b) return;
+  b.addEventListener('click', () => {
+    const on = inp.type === 'password';
+    inp.type = on ? 'text' : 'password';
+    b.setAttribute('aria-pressed', String(on));
+    b.textContent = on ? 'かくす' : '表示する';
+    inp.focus({ preventScroll: true });
+  });
+}
+function initOwner(){
+  if (!$('#v-owner')) return;
+  wirePwShow('#own-pw', '#own-pw-show');
+  wirePwShow('#own-np', '#own-np-show');
+  $('#own-login').addEventListener('click', ownLoginPass);
+  $('#own-pw').addEventListener('keydown', e => { if (e.key === 'Enter') ownLoginPass(); });
+  $('#own-passkey').addEventListener('click', ownLoginPasskey);
+  $('#own-setpass').addEventListener('click', ownSetPass);
+  $('#own-mode-on').addEventListener('click', () => ownSetMode(true));
+  $('#own-mode-off').addEventListener('click', () => ownSetMode(false));
+  $('#own-reg').addEventListener('click', ownRegister);
+  $('#own-logout').addEventListener('click', ownLogout);
+  $$('[data-open-owner]').forEach(el => el.addEventListener('click', () => openOwner()));
+}
+
+/* ---- 係員のログイン：端末の許可を待つ（司令塔で「許可した端末だけ」にしているとき） ---- */
+const AUTH_WAIT = { t: null, pass: '', until: 0 };
+function authWaitStop(){
+  clearTimeout(AUTH_WAIT.t); AUTH_WAIT.t = null; AUTH_WAIT.pass = '';
+  const w = $('#auth-wait'); if (w) w.classList.add('hide');
+  const b = $('#btn-login'); if (b) b.classList.remove('hide');
+}
+/** 許可を待つ表示を出して、6秒ごとに「もう入れるか」を確かめる */
+function authWaitStart(pass, code){
+  const w = $('#auth-wait');
+  if (!w) return;
+  AUTH_WAIT.pass = pass; AUTH_WAIT.until = Date.now() + 15 * 60000;
+  $('#auth-wait-code').textContent = code;
+  w.classList.remove('hide');
+  $('#btn-login').classList.add('hide');
+  $('#auth-err').classList.add('hide');
+  const tick = async () => {
+    if (!AUTH_WAIT.pass || S.view !== 'auth') { authWaitStop(); return; }
+    if (Date.now() > AUTH_WAIT.until){ authWaitStop(); $('#auth-err').textContent = '時間がたったので、待つのをやめました。もう一度ログインを押してください'; $('#auth-err').classList.remove('hide'); return; }
+    try{
+      const r = await api({ body: { action: 'verify', pass: AUTH_WAIT.pass, who: ($('#auth-who').value || '').trim().slice(0, 20) } });
+      if (r && r.ok){ const p = AUTH_WAIT.pass; authWaitStop(); loginOk(p); toast('許可されました'); return; }
+    }catch(e){
+      const m = String(e && e.message || e);
+      if (/^denied/.test(m)){ authWaitStop(); $('#auth-err').textContent = srvMsg(m) + '。本部に確かめてください'; $('#auth-err').classList.remove('hide'); return; }
+      if (/unauthorized/.test(m)){ authWaitStop(); $('#auth-err').textContent = 'パスワードが変わっています。もう一度入力してください'; $('#auth-err').classList.remove('hide'); return; }
+      // まだ待ち（pending）・通信の失敗：そのまま待つ
+    }
+    AUTH_WAIT.t = setTimeout(tick, 6000);
+  };
+  clearTimeout(AUTH_WAIT.t);
+  AUTH_WAIT.t = setTimeout(tick, 6000);
+}
+
+/* =====================================================================
    係員モード（パスワードはクライアントに保持しない／毎回GASで照合）
    ===================================================================== */
 function pw(){ try{ return sessionStorage.getItem('kuroko_pw') || ''; }catch(e){ return ''; } }
@@ -12013,9 +12435,30 @@ async function login(){
     // 電波が細いと数秒かかる。黙っていると押せていないと思われて二度押しされる
     const lb = $('#btn-login').textContent;
     $('#btn-login').textContent = '確認中…';
-    const r = await api({ body:{ action:'verify', pass:v } })
+    const r = await api({ body:{ action:'verify', pass:v, who: ($('#auth-who') ? $('#auth-who').value : '').trim().slice(0, 20) } })
       .finally(() => { $('#btn-login').textContent = lb; });
-    if (r && r.ok){
+    if (r && r.ok) loginOk(v);
+    else throw new Error('bad');
+  }catch(e){
+    const m = String(e && e.message || e);
+    // v216：パスワードは合っているが、この端末がまだ許可されていない（司令塔で「許可した端末だけ」）→ 番号を出して待つ
+    { const pm = /^pending:([0-9A-F]{4})/.exec(m);
+      if (pm){ authWaitStart(v, pm[1]); return; } }
+    $('#auth-err').classList.remove('hide');
+    $('#auth-err').textContent =
+      /^denied/.test(m) ? srvMsg(m) + '。本部に確かめてください'
+      : /locked/.test(m) ? '入力の失敗が続いたため、しばらく受け付けできません（90秒ほど待ってください）'
+      // サーバー側の設定の問題（ADMIN_PASS が短い・未設定）。通信の失敗と取り違えさせない
+      : /^weak:|未設定/.test(m) ? m.replace(/^weak:\s*/, '')
+      // v214：何を確かめればよいかも言う（「表示する」で打った字を見られる）
+      : m === 'bad' || /unauthorized/.test(m) ? 'パスワードが違います。「表示する」を押して、大文字・小文字と、全角になっていないかを確かめてください'
+      : '通信に失敗しました';
+  }finally{ $('#btn-login').disabled = false; }
+}
+/** ログインできたあとの処理（v216：許可を待ったあとからも、ここへ来る） */
+function loginOk(v){
+  try{
+    {
       // LINE内ブラウザやプライベートモードでは例外が出る。
       // 保存できなくてもログイン自体は成立させる（画面を閉じたら再入力になるだけ）
       let saved = true;
@@ -12034,18 +12477,8 @@ async function login(){
       if (S.afterLogin === 'qr'){ S.afterLogin = ''; switchView('qr'); renderQrSheet(); }
       else switchView('admin');
       if (!saved) toast('この端末では設定を保存できません。画面を閉じると入れ直しが必要です');
-    } else throw new Error('bad');
-  }catch(e){
-    const m = String(e && e.message || e);
-    $('#auth-err').classList.remove('hide');
-    $('#auth-err').textContent =
-      /locked/.test(m) ? '入力の失敗が続いたため、しばらく受け付けできません（90秒ほど待ってください）'
-      // サーバー側の設定の問題（ADMIN_PASS が短い・未設定）。通信の失敗と取り違えさせない
-      : /^weak:|未設定/.test(m) ? m.replace(/^weak:\s*/, '')
-      // v214：何を確かめればよいかも言う（「表示する」で打った字を見られる）
-      : m === 'bad' || /unauthorized/.test(m) ? 'パスワードが違います。「表示する」を押して、大文字・小文字と、全角になっていないかを確かめてください'
-      : '通信に失敗しました';
-  }finally{ $('#btn-login').disabled = false; }
+    }
+  }catch(e){ console.warn('[loginOk]', e); }
 }
 
 /**
@@ -12947,6 +13380,17 @@ function authFailed(e){
   // サーバー側の ADMIN_PASS が短い（8文字未満）。何度送っても通らないので本部に直してもらう
   if (/^weak:/i.test(m)){
     toast(m.replace(/^weak:\s*/, '') + '（本部に連絡してください）', null, 8000);
+    return true;
+  }
+  // v216：司令塔で止められた・「許可した端末だけ」になって、この端末がまだ許可されていない → ログインの画面へ戻して、理由を出す
+  if (/^(denied|pending)/i.test(m)){
+    try{ sessionStorage.removeItem('kuroko_pw'); }catch(_){}
+    S.isAdmin = false;
+    switchView('auth');
+    $('#auth-err').classList.remove('hide');
+    $('#auth-err').textContent = /^denied/i.test(m) ? srvMsg(m) + '。本部に確かめてください'
+      : 'この端末は、まだ許可されていません。もう一度ログインして、出てきた番号を本部に伝えてください';
+    toast('この端末では、いま係員の画面を使えません');
     return true;
   }
   if (!/unauthorized/i.test(m)) return false;
@@ -15132,6 +15576,8 @@ function init(){
   } else if (mode === 'report'){
     switchView('report');                       // 振り返りはPCで見る画面（switchViewが幅を広げる）
     renderReport();
+  } else if (mode === 'owner'){
+    openOwner();                                // v216：司令塔（持ち主だけ）
   } else if (mode === 'board'){
     switchView('board');
     initBoard();
@@ -15239,6 +15685,8 @@ function init(){
     if (!applyDeepLink()) S.pendingLink = applyDeepLink;
   });
 
+  initOwner();
+  { const st = $('#auth-wait-stop'); if (st) st.addEventListener('click', () => authWaitStop()); }
   initLiff();
 
   initSW();
