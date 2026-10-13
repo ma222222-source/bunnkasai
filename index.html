@@ -1877,6 +1877,33 @@ html.lite .hero-gear{animation:none}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
 /* ---- v206：地図の左下のボタン。開いた直後は「全体」だけ（左の角）。動かしたら、その右に「ブースに寄せる」が出る ---- */
 #map-card.gmap .map-fit-ctl #zoom-reset{order:-1}
+/* ==== v215：本部モニタ・全部回ったあと・横向き の7つの仕上げ ==== */
+/* ①②本部モニタ：ブースの名前を読めるようにする。
+   学校のノートPC（1366×768）では、名前と待ち人数を横に並べていたので、30枚のページで名前が「ア…」「ミ…」と1〜3文字しか出ていなかった。
+   名前は上の段に（札の幅いっぱい・2行まで）、待ち人数と「◯分前」は下の段に */
+.board-grid .bt-nm{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;
+  padding-right:15px;word-break:auto-phrase;overflow-wrap:anywhere}
+@media (max-height:820px){
+  .board-grid.d2 .btile,.board-grid.d3 .btile{grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto minmax(0,1fr);align-content:stretch;row-gap:2px}
+  .board-grid.d2 .bt-head,.board-grid.d3 .bt-head{grid-column:1 / -1;grid-row:1}
+  .board-grid.d2 .bt-age,.board-grid.d3 .bt-age{grid-column:1;grid-row:2;align-self:end}
+  .board-grid.d2 .bt-big,.board-grid.d3 .bt-big{grid-column:2;grid-row:2;align-self:end;justify-self:end}
+}
+.board-grid .bt-age{white-space:nowrap}      /* 「たった／今」と2行に折れていた */
+/* 大きい画面（教室のテレビ・1920×1080 など）は札が縦に長い。離れても読めるよう、状態の字を大きく */
+@media (min-height:821px){
+  .board-grid.d3 .bt-big b{font-size:clamp(20px,2.2vw,42px)}
+  .board-grid.d2 .bt-big b.tx,.board-grid.d3 .bt-big b.tx{font-size:clamp(15px,1.25vw,25px)}
+}
+/* ③本部モニタの地図：階が3つのとき、1階（ブースがいちばん多い）を上に幅いっぱいで大きく、2階・3階をその下に並べる。
+   以前は 2×2 に並べて右下の1マスが空き、1階は 250px ほどの小さな図だった */
+.board-maps.m2.lead{grid-template-rows:minmax(0,1.3fr) minmax(0,1fr);grid-auto-rows:unset}
+.board-maps.m2.lead .bm:first-child{grid-column:1 / -1}
+/* ⑦本部モニタ：次のページに替わるまでの線（20秒で左へ縮む）。何ページもあるとき、まだ続きがあること・いつ替わるかが分かる */
+.board-turn{display:block;width:min(180px,40%);height:4px;margin-top:5px;border-radius:999px;background:var(--surface-3);overflow:hidden}
+.board-turn.hide{display:none}
+.board-turn i{display:block;height:100%;background:var(--accent);transform-origin:0 50%;animation:code-drain 20s linear infinite;animation-delay:var(--turn-at,0s)}
+@media (prefers-reduced-motion:reduce){ .board-turn i{animation:none} }
 /* ==== v214：係員の画面の7つの仕上げ ==== */
 /* ①②ログイン：パスワードを「表示する」ボタン（長いパスワードをスマホで打つと、打ち間違いに気づけなかった）と、全角が入っているときの知らせ */
 .pw-row{position:relative}
@@ -3812,6 +3839,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
           <div class="board-title">
             <h1>黒工文化祭 混雑状況</h1>
             <p id="board-sub">本部モニタ</p>
+            <span class="board-turn hide" id="board-turn" aria-hidden="true"><i></i></span>
           </div>
           <div class="board-stats">
             <div><b id="board-visitors">0</b><span>来場者</span></div>
@@ -3951,7 +3979,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-13b',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-13c',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -10223,6 +10251,15 @@ function renderStamps(){
     store('kuroko_cert_at', undefined);
   }
   $('#stamp-share').classList.toggle('hide', got === 0 || !!ws);
+  // v215：回る先がもう無いとき（全部回った）は、「まだ行っていないブースを見る」「まだのスタンプだけ」を出さない（押すと空の一覧になっていた）
+  { const leftN = S.booths.filter(b => !S.stamps.has(b.id) && isVenue(b)).length;
+    const none = !ws && total > 0 && leftN === 0;
+    const td = $('#stamp-todo'), ot = $('#stamp-only-todo');
+    if (td) td.classList.toggle('hide', none);
+    if (ot){
+      ot.classList.toggle('hide', none);
+      if (none && ot.getAttribute('aria-pressed') === 'true'){ ot.setAttribute('aria-pressed', 'false'); $('#stamp-grid').classList.remove('only-todo'); }
+    } }
   $('#stamp-handoff').classList.toggle('hide', S.stamps.size === 0);
   $('#stamp-reset').classList.toggle('hide', !S.isAdmin);
   renderSyncBadge();
@@ -10804,12 +10841,24 @@ function renderInfo(){
   if (renderInfo._cur === key) return;
   renderInfo._cur = key;
 
-  $('#tt-body').innerHTML = ttWithDays(tt)
+  // v215：同じ場所の行が続くとき（「開場・受付」と「最終入場」など）、「◯◯を地図で見る」のボタンは1つだけ出す
+  // （同じボタンが続けて2つ並んでいた）。続きの中に「いまのコマ」があればその行に、なければ最初の行に
+  const ttList = ttWithDays(tt);
+  const goAt = new Set();
+  { let run = [];
+    const flush = () => { if (run.length){ const c = run.find(r => tt.indexOf(r) === cur); goAt.add(c || run[0]); } run = []; };
+    ttList.forEach(x => {
+      if (x.head || !x.r.where){ flush(); return; }
+      if (run.length && run[run.length - 1].where !== x.r.where) flush();
+      run.push(x.r);
+    });
+    flush(); }
+  $('#tt-body').innerHTML = ttList
     .map(x => {
       if (x.head) return `<tr class="tt-day"><th colspan="2" scope="rowgroup">${esc(x.head)}</th></tr>`;
       const r = x.r;
       const on = tt.indexOf(r) === cur;
-      const room = r.where ? slotOf(r.where) : null;
+      const room = r.where && goAt.has(r) ? slotOf(r.where) : null;
       return `<tr${on ? ' class="tt-now"' : ''}>
         <td>${esc(r.t)}</td>
         <td>${on ? '<b>▶ ' + esc(r.v) + '</b>' : esc(r.v)}
@@ -11121,7 +11170,7 @@ function renderBoardMaps(){
   // 2枚を横に並べると1枚が約270px幅にしかならず、上下に大きな余白が残っていた
   // （実測：1366×768 で 270×169 の地図＋330pxの空白）。
   // 2枚までは縦に積んで右の列の幅いっぱいに使い、3枚以上で初めて横に並べる。
-  box.className = 'board-maps' + (floors.length >= 3 ? ' m2' : '');
+  box.className = 'board-maps' + (floors.length >= 3 ? ' m2' : '') + (floors.length === 3 ? ' lead' : '');   // v215：3つのときは、はじめの階を上に大きく
   box.innerHTML = floors.map(f => {
     const plan = FLOOR_PLAN[f.n];
     const here = S.booths.filter(b => floorOfBooth(b) === f.n);
@@ -11189,6 +11238,9 @@ function renderBoard(){
   const shown = S.booths.slice(pg * PER, pg * PER + PER);
   const sub = $('#board-sub');
   if (sub) sub.textContent = pages > 1 ? `本部モニタ　${pg + 1} / ${pages}ページ（20秒ごとに切替）` : '本部モニタ';
+  // v215：次のページに替わるまでの線。時計（20秒の区切り）に合わせる
+  { const bt = $('#board-turn');
+    if (bt){ bt.classList.toggle('hide', pages <= 1); bt.style.setProperty('--turn-at', (-(Date.now() % 20000) / 1000).toFixed(1) + 's'); } }
   const fp = fingerprint('board:' + bws) + '|' + pg + '|' + S.booths.map(b => elapsedMin(b)).join(',');
   if (renderBoard._fp !== fp){
     renderBoard._fp = fp;
@@ -15358,7 +15410,13 @@ function fitMapBox(floorNum){
   // 74px の決め打ちだと、横向きでは20px以上を余分に空けていた。実寸で引く。
   const navEl = $('#nav');
   const navH = (navEl && !navEl.classList.contains('hide')) ? navEl.offsetHeight : 0;
-  const avail = window.innerHeight - top - (navH + 12);
+  let avail = window.innerHeight - top - (navH + 12);
+  // v215：横向き（スマホを横に持ったとき）。地図の上に検索欄と科のチップがあるので、開いた位置から下までの高さ（約140px）だと
+  // 地図が帯になる（844×390 で 150px）。少し送れば、見出しと下のタブのあいだ（約250px）をまるごと地図に使えるので、その高さまで広げる
+  if (land){
+    const hdEl = document.querySelector('.head');
+    avail = Math.max(avail, window.innerHeight - (hdEl ? hdEl.offsetHeight : 0) - navH - 16);
+  }
   // 横向きは縦が狭いぶん、地図に回せる割合を上げないと地図が帯になる
   // v140：操作を地図の上に重ねたので、そのぶん地図を高くとる（Google マップのように地図を主役に）
   const cap = Math.round(window.innerHeight * (land ? 0.82 : 0.7));
