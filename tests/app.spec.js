@@ -3916,3 +3916,133 @@ test('振り返り（v217）：記録が1枠だけの日でも、棒が画面い
   await expect(page.locator('#report-body .rep-few')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v218：文字「特大」・QR から開いたときの輪・振り返りの動き ---------------- */
+test('文字の大きさ（v218）：どの文字も「標準 ≦ 大きく ≦ 特大」（4つの画面）。チップ・スタンプ帳の名前・説明の文・ボタン・地図の＋− は大きくなる', async ({ page }) => {
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02'])); });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const grow = {};
+  for (const tab of ['map', 'list', 'stamp', 'info']) {
+    await page.goto('/?tab=' + tab);
+    await ready(page);
+    const r = await page.evaluate(() => {
+      const html = document.documentElement, before = html.getAttribute('data-fs');
+      // 文字をじかに持つ、見えている部品（＋ 検索の欄）
+      const els = [...document.querySelectorAll('.view.on *, .nav *, .head *')].filter(e => e.offsetParent &&
+        (e.matches('input') || [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())));
+      const key = e => e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\s+/).join('.') : '');
+      const size = fs => { html.setAttribute('data-fs', fs); return els.map(e => parseFloat(getComputedStyle(e).fontSize)); };
+      const n = size('n'), lg = size('lg'), xl = size('xl');
+      html.setAttribute('data-fs', before || 'n');
+      const bad = [], pick = {};
+      els.forEach((e, i) => {
+        if (lg[i] < n[i] - 0.01 || xl[i] < lg[i] - 0.01) bad.push(`${key(e)} ${n[i]}/${lg[i]}/${xl[i]} 「${(e.textContent || e.placeholder || '').trim().slice(0, 12)}」`);
+        for (const sel of ['.chip', '.stamp .lb', '.sum span', '.search input', '#zoom-in', '#v-stamp .card > p', '#stamp-todo', '#fs-n', '.redeem-msg', '.sid-sync', '.diag > summary', '.next-ev .tx'])
+          if (!pick[sel] && e.matches(sel)) pick[sel] = [n[i], lg[i], xl[i]];
+      });
+      return { bad, pick, count: els.length };
+    });
+    expect(r.count).toBeGreaterThan(10);
+    expect(r.bad, tab).toEqual([]);
+    Object.assign(grow, r.pick);
+  }
+  // 小さくならないだけでなく、ちゃんと大きくなる（「特大」は「大きく」より大きい）
+  for (const sel of ['.chip', '.stamp .lb', '.sum span', '.search input', '#v-stamp .card > p', '#stamp-todo', '#fs-n', '.redeem-msg', '.sid-sync', '.diag > summary']) {
+    expect(grow[sel], sel).toBeTruthy();
+    expect(grow[sel][1], sel + ' ' + grow[sel]).toBeGreaterThan(grow[sel][0]);
+    expect(grow[sel][2], sel + ' ' + grow[sel]).toBeGreaterThan(grow[sel][1]);
+  }
+  expect(grow['#zoom-in'][2], '地図の＋').toBeGreaterThanOrEqual(grow['#zoom-in'][0]);
+  // 「特大」で、幅 320px でも横にはみ出さない・スタンプ帳の名前が枠からはみ出さない（標準の文字・幅 390px でも）
+  for (const [fs, W, tab] of [['n', 320, 'stamp'], ['xl', 390, 'stamp'], ['xl', 320, 'map'], ['xl', 320, 'list'], ['xl', 320, 'stamp'], ['xl', 320, 'info']]) {
+    await page.addInitScript(v => localStorage.setItem('kuroko_fs', JSON.stringify(v)), fs);
+    await page.setViewportSize({ width: W, height: 640 });
+    await page.goto('/?tab=' + tab);
+    await ready(page);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), fs + ' ' + W + ' ' + tab).toBeLessThanOrEqual(0);
+    if (tab === 'stamp') {
+      const out = await page.evaluate(() => [...document.querySelectorAll('.stamp')].filter(s => s.offsetParent).filter(s => {
+        const lb = s.querySelector('.lb'); if (!lb) return false;
+        const a = s.getBoundingClientRect(), b = lb.getBoundingClientRect();
+        return b.left < a.left - 0.5 || b.right > a.right + 0.5 || b.bottom > a.bottom + 0.5;
+      }).map(s => s.textContent.trim().slice(0, 16)));
+      expect(out, fs + ' ' + W).toEqual([]);
+      if (fs === 'xl') expect(await page.evaluate(() => getComputedStyle(document.querySelector('.stamp-grid')).gridTemplateColumns.split(' ').length)).toBe(2);
+      // 折り返しても、1文字だけの行・「ー」で始まる行を作らない（標準の文字・幅 320px では、文節にこだわらない折り返しになる）
+      const lines = await page.evaluate(fn => [...document.querySelectorAll('#stamp-grid .stamp .lb')].filter(e => e.offsetParent).map(el => eval(fn)(el)), LINES_FN);
+      expect(lines.filter(l => l.some(x => /^[ー）」、。]/.test(x) || (l.length > 1 && x.length === 1))).map(l => l.join('／')), fs + ' ' + W).toEqual([]);
+    }
+  }
+  // 画面を切り替えた瞬間に、送っている途中の通信が切れると、WebKit は「…due to access control checks」と言う（出ていく画面のことなので、エラーに数えない）
+  expect(errors.filter(e => !/due to access control checks/.test(e))).toEqual([]);
+});
+
+test('QR から開いたとき（?booth=）：とじるボタンに赤い輪を出さない（v218）。キーボードを使う人には、今までどおり出す', async ({ page, isMobile }) => {
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.goto('/?booth=1F-02');
+  await ready(page);
+  const x = page.locator('#bsh-x');
+  await expect(x).toBeVisible({ timeout: 10000 });
+  await expect(x).toBeFocused();                       // とじるボタンへ移すのは今までどおり（読み上げ・Esc のため）
+  await expect(x).toHaveClass(/quiet/);
+  expect(await x.evaluate(e => getComputedStyle(e).outlineStyle)).toBe('none');
+  if (!isMobile) {
+    // キーボードを使いはじめたら、輪を出す
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
+    await expect(x).not.toHaveClass(/quiet/);
+    await expect(x).toBeFocused();
+    expect(await x.evaluate(e => getComputedStyle(e).outlineStyle)).not.toBe('none');
+    // Esc でとじて、キーボードで開き直しても輪が出る
+    await page.keyboard.press('Escape');
+    await expect(x).toBeHidden();
+    await page.evaluate(() => openSheet('1F-03'));
+    await expect(x).toBeFocused();
+    await expect(x).not.toHaveClass(/quiet/);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('振り返り（v218）：開いたとき、棒が下から伸びる（動きを減らす設定では動かさない）。色の列を押すと、時刻と混み具合が出る', async ({ page }) => {
+  const errors = watchErrors(page);
+  const report = reportFromGas(24);
+  await mockGas(page, { report });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?mode=report');
+  await expect(page.locator('#report-body .hm-row').nth(1)).toBeVisible({ timeout: 15000 });
+  // 棒は、時刻ごとのまとまり（.rc）で、下を軸に伸びる
+  const a = await page.evaluate(() => {
+    const g = document.querySelector('#report-body .rep-chart g.rc'), cs = getComputedStyle(g);
+    return { n: document.querySelectorAll('#report-body .rep-chart g.rc').length, anim: cs.animationName, box: cs.transformBox, on: document.querySelector('#report-body').classList.contains('rep-in') };
+  });
+  expect(a.n).toBe(24);
+  expect(a.on).toBe(true);
+  expect(a.anim).toBe('rep-grow');
+  expect(a.box).toBe('fill-box');
+  // 動きが終わったら、印を外す（印刷・画像に途中を出さない）。棒は元の高さ
+  await expect.poll(() => page.evaluate(() => document.querySelector('#report-body').classList.contains('rep-in')), { timeout: 5000 }).toBe(false);
+  expect(await page.evaluate(() => Math.min(...[...document.querySelectorAll('#report-body .rep-chart g.rc')].map(g => g.getBoundingClientRect().height)))).toBeGreaterThan(20);
+  // 色の列を押す → 時刻・ブース・混み具合。押した所に印（1つだけ）
+  const read = page.locator('#hm-read');
+  await expect(read).toContainText('押すと');
+  const row = page.locator('#report-body .hm-row:not(.hm-axis)').nth(2);
+  const name = (await row.locator('.hm-n').textContent()).trim();
+  const lv = report.booths[2].series[5];
+  await row.locator('.hm-cells i').nth(5).click();
+  await expect(read).toContainText(report.buckets[5]);
+  await expect(read).toContainText(name);
+  await expect(read).toContainText(['空き', 'やや混雑', '混雑'][lv]);
+  await row.locator('.hm-cells i').nth(9).click();
+  await expect(read).toContainText(report.buckets[9]);
+  await expect(page.locator('#report-body .hm-cells i.sel')).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  // 動きを減らす設定では、動かさない
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.locator('#btn-report-reload').click();
+  await expect(page.locator('#report-body .hm-row').nth(1)).toBeVisible({ timeout: 15000 });
+  expect(await page.evaluate(() => { const g = document.querySelector('#report-body .rep-chart g.rc'); return g.getBoundingClientRect().height; })).toBeGreaterThan(20);
+  expect(errors).toEqual([]);
+});
