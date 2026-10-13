@@ -340,3 +340,70 @@ test('司令塔（v217）：新しいパスワードを打っている途中に�
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v218：司令塔の手ごたえ ---------------- */
+test('司令塔（v218）：一覧は、変わっていなければ描き直さない。押したボタンは返事まで「…」で、重ねて送らない。変わった行が光る。入ったときに札が順に出る', async ({ page, baseURL }) => {
+  const errors = watchErrors(page);
+  const { g, origin } = server(baseURL);
+  ['aaaa1111aaaa', 'bbbb2222bbbb'].forEach(cid => g.__post({ action: 'verify', pass: PASS, cid }));
+  await bridge(page, g);
+  // 端末の操作と、入・切の切り替えだけ、返事を遅らせる（本番の GAS は 1〜3秒かかる）
+  const sent = [];
+  let slow = 900;
+  await page.route(/script\.google(usercontent)?\.com\//, async route => {
+    const body = route.request().postData() || '';
+    const m = /"action":"(owner_dev|owner_mode)"/.exec(body);
+    if (m) { sent.push(m[1]); await new Promise(r => setTimeout(r, slow)); }
+    return route.fallback();
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await ownerLogin(page, origin);
+  // 入ったとき：札が順に出る（終わったら印を外す）
+  expect(await page.evaluate(() => document.querySelector('#own-main').classList.contains('own-in'))).toBe(true);
+  await expect.poll(() => page.evaluate(() => document.querySelector('#own-main').classList.contains('own-in')), { timeout: 5000 }).toBe(false);
+  await expect(page.locator('#own-devs .own-dev')).toHaveCount(2);
+  // 取り直しても、中身が同じなら作り直さない（押そうとしたボタンが入れ替わらない・フォーカスが飛ばない）
+  const first = page.locator('#own-devs .own-dev').first();
+  await first.locator('[data-dev="label"]').focus();
+  await page.evaluate(() => { document.querySelector('#own-devs .own-dev').__mark = 1; });
+  await page.evaluate(() => ownRefresh(true));
+  await page.evaluate(() => ownRefresh(true));
+  expect(await page.evaluate(() => document.querySelector('#own-devs .own-dev').__mark)).toBe(1);
+  await expect(first.locator('[data-dev="label"]')).toBeFocused();
+  // 「止める」を押す → 返事が来るまで、そのボタンは「…」、その行のほかのボタンは押せない。重ねて押しても1回しか送らない
+  const cid = await first.getAttribute('data-cid');
+  const row = page.locator(`#own-devs .own-dev[data-cid="${cid}"]`);
+  await row.locator('[data-dev="no"]').click();
+  await expect(row).toHaveClass(/busy/);
+  await expect(row.locator('[data-dev="no"]')).toHaveClass(/ing/);
+  await expect(row.locator('[data-dev="no"]')).toBeDisabled();
+  await expect(row.locator('[data-dev="del"]')).toBeDisabled();
+  await page.evaluate(c => { ownDevAct(c, 'no'); ownDevAct(c, 'ok'); }, cid);        // 重ねて呼んでも送らない
+  await page.locator('#own-devs .own-dev').nth(1).locator('[data-dev="no"]').click();  // ほかの行も、返事を待つ
+  await expect(row.locator('.od-st')).toHaveText('止めています', { timeout: 10000 });
+  await expect(row).toHaveClass(/changed/);                    // 変わった行が光る
+  await expect(row).not.toHaveClass(/busy/);
+  expect(sent.filter(a => a === 'owner_dev').length).toBe(1);
+  await expect(page.locator('#own-dev-sum')).toHaveText('2台：入れます 1・止めています 1');
+  await expect(row).not.toHaveClass(/changed/, { timeout: 5000 });
+  // 入・切の切り替え：返事が来るまで「切り替えています…」で、押せない
+  accept(page);
+  await page.locator('#own-mode-on').click();
+  await expect(page.locator('.own-seg')).toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('#own-mode-note')).toHaveText('切り替えています…');
+  await expect(page.locator('#own-mode-on')).toHaveAttribute('aria-pressed', 'true', { timeout: 10000 });
+  await expect(page.locator('.own-seg')).not.toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('#own-mode-note')).toContainText('許可する');
+  // 送れなかったとき：ボタンは元に戻る（「…」のまま固まらない）
+  slow = 0;
+  await page.route(/script\.google(usercontent)?\.com\//, async route => {
+    if (/"action":"owner_dev"/.test(route.request().postData() || '')) return route.abort();
+    return route.fallback();
+  });
+  const row2 = page.locator('#own-devs .own-dev').filter({ hasNot: page.locator(`[data-cid="${cid}"]`) }).last();
+  await page.locator(`#own-devs .own-dev:not([data-cid="${cid}"]) [data-dev="no"]`).click();
+  await expect(page.locator('#toast')).toContainText('通信', { timeout: 10000 });
+  await expect(page.locator('#own-devs .own-dev.busy')).toHaveCount(0);
+  await expect(page.locator(`#own-devs .own-dev:not([data-cid="${cid}"]) [data-dev="no"]`)).toBeEnabled();
+  expect(errors.filter(e => !/Failed to load resource|net::ERR_FAILED/.test(e))).toEqual([]);
+});
