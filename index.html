@@ -1877,6 +1877,17 @@ html.lite .hero-gear{animation:none}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
 /* ---- v206：地図の左下のボタン。開いた直後は「全体」だけ（左の角）。動かしたら、その右に「ブースに寄せる」が出る ---- */
 #map-card.gmap .map-fit-ctl #zoom-reset{order:-1}
+/* ==== v217：振り返りレポートと司令塔 の13の仕上げ ==== */
+/* ①振り返り：札と札のあいだにすき間（中の札どうしが、くっついていた） */
+#report-body{display:flex;flex-direction:column;gap:16px}
+/* ⑨司令塔：打っている途中の手がかり（あと何文字・2つの欄が同じか） */
+.own-hint{margin:0;min-height:1.7em}
+.own-hint[data-ok="1"]{color:var(--free)}
+.own-hint[data-ok="0"]{color:var(--warn)}
+/* ⑩司令塔：端末の数のまとめ */
+.own-sum{margin:2px 0 0;color:var(--text-dim)}
+.own-sum b{font-weight:900;color:var(--warn)}
+.own-foot{text-align:center}
 /* ==== v216：司令塔（持ち主だけ）と、端末の許可を待つ画面 ==== */
 .own-h{font-size:16px;font-weight:900;text-align:center}
 .own-lead{font-size:12.5px;font-weight:700;color:var(--text-dim);line-height:1.7;text-align:center;margin:4px 0 12px}
@@ -2687,6 +2698,24 @@ html.sheet-open{overflow:hidden}
 /* 印刷の既定（背景を刷らない）でも、ブースごとの推移と凡例の色が消えないように */
 @media print{ .hm-cells i,.legend i,.sw{-webkit-print-color-adjust:exact;print-color-adjust:exact} }
 .hm-max{width:34px;flex:none;text-align:right;font-size:9.5px;font-weight:800;color:var(--text-mute)}
+/* ---- v217：振り返りレポートの仕上げ（①は上の v217 のまとまりに） ---- */
+/* ②まとめの札：半端な1枚は横いっぱいに（右が空いていた）。広い画面では4枚ずつ */
+.rep-grid{display:flex;flex-wrap:wrap}
+.rep-grid > div{flex:1 1 calc(50% - 4px);min-width:0}
+@media (min-width:720px){ .rep-grid > div{flex-basis:calc(25% - 6px)} }
+.rep-few{font-size:11px;font-weight:700;color:var(--text-mute);line-height:1.7;margin-top:8px}
+/* ⑤ブースごとの推移：名前を読めるように（「アームロボット・…」で切れていた）。せまい画面は2行まで、広い画面は欄を広く */
+.hm-nm{width:112px;white-space:normal}
+.hm-n{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;line-height:1.25;
+  word-break:auto-phrase;overflow-wrap:anywhere}
+@media (min-width:720px){ .hm-nm{width:250px;font-size:11.5px} .hm-nm small{font-size:9.5px} }
+/* ④記録が少ない日：1枠が画面いっぱいの板にならないように、1枠の幅に上限。⑥時刻の目盛りも同じ幅にそろえる */
+.hm-cells,.hm-ticks{flex:1 1 0;max-width:calc(var(--hmn,999) * 49px)}
+.hm-max{margin-left:auto}
+.hm-ticks{display:flex;justify-content:space-between;min-width:0;font-size:9px;font-weight:800;color:var(--text-mute);
+  font-variant-numeric:tabular-nums;line-height:1.4}
+.hm-axis .hm-max{font-size:8.5px}
+@media (min-width:720px){ .hm-ticks{font-size:10px} }
 
 .staff-card{background:#fff;color:#000;border:2px solid #b91c1c;border-radius:var(--r);
             padding:14px;margin-top:12px}
@@ -3890,10 +3919,12 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
           <div class="card-t">係員のパスワード</div>
           <p class="own-note" id="own-pass-now"></p>
           <div class="pw-row">
-            <input class="field" type="password" id="own-np" placeholder="新しいパスワード（8文字以上）" autocomplete="new-password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <input class="field" type="password" id="own-np" placeholder="新しいパスワード" aria-describedby="own-np-hint" autocomplete="new-password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false">
             <button type="button" class="pw-show" id="own-np-show" aria-pressed="false" aria-controls="own-np">表示する</button>
           </div>
           <input class="field" type="password" id="own-np2" placeholder="もう一度（同じものを）" autocomplete="new-password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false">
+          <!-- v217：打っている途中に、あと何文字か・2つの欄が同じかを出す（押してから「違います」と言われていた） -->
+          <p class="own-note own-hint" id="own-np-hint" aria-live="polite"></p>
           <button class="btn" id="own-setpass" type="button">係員のパスワードを変える</button>
           <p class="own-note">変えた瞬間から、古いパスワードでは入れなくなります（入っている係員も、次に送るときに入り直しになります）。新しいパスワードは、あなたから係員に伝えてください。</p>
         </div>
@@ -3904,6 +3935,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
             <button type="button" id="own-mode-on" aria-pressed="false">許可した端末だけ</button>
           </div>
           <p class="own-note" id="own-mode-note"></p>
+          <p class="own-note own-sum" id="own-dev-sum"></p>
           <ul class="own-devs" id="own-devs"></ul>
         </div>
         <div class="card">
@@ -3914,6 +3946,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
           <button class="btn ghost" id="own-reg" type="button">この端末を登録する</button>
         </div>
         <button class="btn ghost" id="own-logout" type="button">司令塔から出る</button>
+        <p class="own-note own-foot">このタブを閉じると、自動で出ます（開いたままでも、30分 通信がないと出ます）。ほかの人も使う端末では、終わったら「司令塔から出る」を押してください。</p>
       </div>
     </section>
 
@@ -4082,7 +4115,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-14a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-14b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -12164,7 +12197,7 @@ function renderOwner(){
   gate.classList.toggle('hide', inside);
   main.classList.toggle('hide', !inside);
   clearTimeout(OWN.timer);
-  if (!inside){ renderOwnerGate(); return; }
+  if (!inside){ OWN._wait = null; renderOwnerGate(); return; }
   const st = OWN.state;
   // 係員のパスワード（中身は出さない。長さと、いつ変えたかだけ）
   $('#own-pass-now').textContent = `いまのパスワード：${st.passLen}文字` + (st.passAt ? `（${ago(st.passAt)}に変更）` : '（司令塔からは、まだ変えていません）');
@@ -12177,13 +12210,28 @@ function renderOwner(){
   const rank = d => d.st === 'wait' ? 0 : d.st === 'no' ? 2 : 1;
   const devs = (st.devices || []).slice().sort((a, b) => rank(a) - rank(b) || String(b.last || '').localeCompare(String(a.last || '')));
   const me = deviceId();
+  // v217：端末の数のまとめ（許可を待っている端末があれば、先に言う）
+  { const isWait = d => d.st === 'wait' || (d.st === 'seen' && st.approval);
+    const nWait = devs.filter(isWait).length, nNo = devs.filter(d => d.st === 'no').length, nOk = devs.length - nWait - nNo;
+    $('#own-dev-sum').innerHTML = !devs.length ? '' :
+      `${devs.length}台：` + (nWait ? `<b>許可を待っています ${nWait}</b>・` : '') + `${st.approval ? '許可しています' : '入れます'} ${nOk}` + (nNo ? `・止めています ${nNo}` : '');
+    // v217：開いているあいだに、新しい端末が許可を待ちはじめたら知らせる（一覧を見張っていなくてよい）
+    const waitNow = devs.filter(isWait).map(d => d.cid);
+    if (OWN._wait){
+      const nw = devs.filter(d => isWait(d) && OWN._wait.indexOf(d.cid) < 0);
+      if (nw.length){
+        toast(nw.length === 1 ? `端末 ${nw[0].code}${nw[0].label ? '（' + nw[0].label + '）' : ''} が、許可を待っています` : `${nw.length}台の端末が、許可を待っています`, null, 7000);
+        try{ if (navigator.vibrate) navigator.vibrate(60); }catch(e){}
+      }
+    }
+    OWN._wait = waitNow; }
   const stText = d => d.st === 'wait' ? '許可を待っています' : d.st === 'no' ? '止めています' : d.st === 'ok' ? '許可しています' : (st.approval ? '許可を待っています' : '入れます');
   $('#own-devs').innerHTML = devs.length ? devs.map(d => `
     <li class="own-dev" data-st="${d.st === 'seen' && st.approval ? 'wait' : esc(d.st)}" data-cid="${esc(d.cid)}">
       <div class="od-main">
         <div class="od-top"><b class="od-code">${esc(d.code)}</b>${d.label ? `<span class="od-label">${esc(d.label)}</span>` : ''}${d.cid === me ? '<span class="od-me">この端末</span>' : ''}</div>
         <span class="od-st">${stText(d)}</span>
-        <span class="od-when">${d.last ? '最後に入った：' + esc(ago(d.last)) : ''}</span>
+        <span class="od-when">${d.last ? ((d.st === 'wait' || (d.st === 'seen' && st.approval)) ? '許可を求めた：' : '最後に入った：') + esc(ago(d.last)) : ''}</span>
       </div>
       <div class="od-acts">
         ${d.st !== 'ok' && (st.approval || d.st === 'no') ? `<button type="button" class="go" data-dev="ok">${d.st === 'no' ? '入れるように戻す' : '許可する'}</button>` : ''}
@@ -12312,6 +12360,23 @@ async function ownKeyDel(id){
   try{ OWN.state = await ownCall('owner_key_del', { token: ownToken(), id }); renderOwner(); }
   catch(e){ if (!ownDropIfExpired(e)) toast(ownErrText(e)); }
 }
+/** v217：新しいパスワードを打っている途中の手がかり。サーバーの決まり（8〜64文字・前後の空白と全角は不可）と同じ見方 */
+function ownPassHint(){
+  const el = $('#own-np-hint');
+  if (!el) return;
+  const a = $('#own-np').value, b = $('#own-np2').value;
+  let t, ok = '';
+  if (!a && !b) t = '8〜64文字。半角の英数字・記号で（全角は使えません）';
+  else if (/[　！-～]/.test(a)){ t = '全角の文字が入っています。半角にしてください'; ok = '0'; }
+  else if (a !== a.trim()){ t = '前か後ろに空白が入っています'; ok = '0'; }
+  else if (a.length < 8){ t = `あと ${8 - a.length}文字（いま ${a.length}文字）`; ok = '0'; }
+  else if (a.length > 64){ t = `長すぎます（64文字まで。いま ${a.length}文字）`; ok = '0'; }
+  else if (!b) t = `${a.length}文字。下の欄にも、同じものを入れてください`;
+  else if (a !== b){ t = '2つの欄が、まだ同じではありません'; ok = '0'; }
+  else { t = `${a.length}文字。2つの欄が同じです`; ok = '1'; }
+  el.textContent = t;
+  if (ok) el.dataset.ok = ok; else delete el.dataset.ok;
+}
 async function ownSetPass(){
   const a = $('#own-np').value, b2 = $('#own-np2').value;
   if (!a){ toast('新しいパスワードを入れてください'); return; }
@@ -12323,6 +12388,7 @@ async function ownSetPass(){
   try{
     OWN.state = await ownCall('owner_set_pass', { token: ownToken(), pass: a });
     $('#own-np').value = ''; $('#own-np2').value = ''; $('#own-np').type = 'password';
+    ownPassHint();
     { const s = $('#own-np-show'); s.setAttribute('aria-pressed', 'false'); s.textContent = '表示する'; }
     // この端末が係員として入っていたら、新しいパスワードに差し替える（自分まで入り直しにしない）
     if (pw()){ try{ sessionStorage.setItem('kuroko_pw', a); }catch(_){} }
@@ -12381,6 +12447,9 @@ function initOwner(){
   $('#own-pw').addEventListener('keydown', e => { if (e.key === 'Enter') ownLoginPass(); });
   $('#own-passkey').addEventListener('click', ownLoginPasskey);
   $('#own-setpass').addEventListener('click', ownSetPass);
+  $('#own-np').addEventListener('input', ownPassHint);
+  $('#own-np2').addEventListener('input', ownPassHint);
+  ownPassHint();
   $('#own-mode-on').addEventListener('click', () => ownSetMode(true));
   $('#own-mode-off').addEventListener('click', () => ownSetMode(false));
   $('#own-reg').addEventListener('click', ownRegister);
@@ -14938,7 +15007,8 @@ async function renderReport(){
   // 描画幅は画面の実寸に合わせる（時間帯の数で決めると、1枠だけの日は文字が巨大に、
   // 1日分の記録では豆粒になる）。PCで広がりすぎないよう900で頭打ち
   const W = Math.max(320, Math.min(box.clientWidth || 360, 900)), H = 130, pad = 24;
-  const colW = (W - pad) / n;
+  // v217：1枠の幅に上限（記録が1〜数枠だけのとき、棒が画面いっぱいの板になっていた）
+  const colW = Math.min((W - pad) / n, 72);
 
   // 全体の推移（積み上げ棒）
   let bars = '';
@@ -14983,21 +15053,33 @@ async function renderReport(){
     });
   }
 
-  const heat = r.booths.map(b => `
+  // v217：ブースごとの推移の上に、時刻の目盛り（はじめ・まん中・おわり）。右の数字が何かも書く
+  const ticks = n === 1 ? [r.buckets[0]] : n === 2 ? [r.buckets[0], r.buckets[1]] : [r.buckets[0], r.buckets[Math.floor((n - 1) / 2)], r.buckets[n - 1]];
+  const heatAxis = `
+    <div class="hm-row hm-axis" aria-hidden="true">
+      <span class="hm-nm"></span>
+      <div class="hm-ticks">${ticks.map(t => `<span>${esc(t)}</span>`).join('')}</div>
+      <span class="hm-max">最大</span>
+    </div>`;
+  const heat = heatAxis + r.booths.map(b => `
     <div class="hm-row">
-      <span class="hm-nm">${esc(b.name)}<small>${esc(reportWhere(b.id))}</small></span>
+      <span class="hm-nm"><span class="hm-n">${esc(b.name)}</span><small>${esc(reportWhere(b.id))}${b.stamps ? '・スタンプ ' + b.stamps : ''}</small></span>
       <div class="hm-cells">${(b.series || []).map((lv, i) =>
         `<i data-lv="${lv === null ? 'x' : lv}" title="${esc(r.buckets[i])}"></i>`).join('')}</div>
       <span class="hm-max">${b.maxWait == null ? '' : b.maxWait + '人'}</span>
     </div>`).join('');
 
   const s = r.summary || {};
+  // v217：日付は「10月24日（土）」の形で（2026-10-24 のままだった）
+  const dm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(r.date || '');
+  const dayLabel = dm ? `${+dm[2]}月${+dm[3]}日（${'日月火水木金土'[new Date(+dm[1], +dm[2] - 1, +dm[3]).getDay()]}）` : (r.date || '');
+  const bm = r.bucketMinutes || 15;
   box.innerHTML = `
     <div class="card">
-      <div class="card-t">${esc(r.date || '')} の記録</div>
+      <div class="card-t">${esc(dayLabel)}${dm ? '' : ' '}の記録</div>
       <div class="rep-grid">
-        <div><b>${esc(s.openLabel || '-')}</b><span>記録された時間帯</span></div>
-        <div><b>${esc(s.peakTime || '-')}</b><span>最も混んだ時間</span></div>
+        <div><b>${esc(n === 1 ? r.buckets[0] + ' から' : (s.openLabel || '-'))}</b><span>記録された時間帯</span></div>
+        <div><b>${esc(s.peakTime || '-')}</b><span>最も混んだ時間${s.peakBusyCount ? `（混雑 ${+s.peakBusyCount}ブース）` : ''}</span></div>
         <div><b>${esc(s.busiestBooth || '-')}</b><span>最も混雑したブース</span></div>
         <div><b>${s.busiestMinutes || 0}分</b><span>そのブースの混雑時間</span></div>
         <div><b>${s.totalUpdates || 0}回</b><span>係員の更新回数</span></div>
@@ -15006,6 +15088,7 @@ async function renderReport(){
         ${s.stampsTotal ? `<div><b>${s.stampsTotal}個</b><span>押されたスタンプ（${s.stampPeople || 0}人）</span></div>
         <div><b>${esc(s.topStampBooth || '-')}</b><span>スタンプ最多（${s.topStampCount || 0}個）</span></div>` : ''}
       </div>
+      ${n < 3 ? `<p class="rep-few">まだ、記録が${n * bm}分ぶんだけです。時間がたつと、下に移り変わりが出ます。</p>` : ''}
     </div>
 
     <div class="card">
@@ -15039,7 +15122,7 @@ async function renderReport(){
 
     <div class="card">
       <div class="card-t">ブース別の推移（${r.bucketMinutes || 15}分ごと）</div>
-      <div class="hm">${heat}</div>
+      <div class="hm" style="--hmn:${n}">${heat}</div>
       <p style="font-size:9.5px;color:var(--text-mute);font-weight:600;margin-top:8px">
         右端の数字はその日の最大待ち人数です。
         <span style="display:inline-block;width:9px;height:9px;border-radius:2px;

@@ -3802,3 +3802,117 @@ test('⑥横向き（844×390）：地図の箱は、見出しと下のタブの
   expect(g.over).toBeLessThanOrEqual(0);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v217：振り返りレポートの仕上げ ---------------- */
+/** Code.gs が作った集計（本物の形）。nB を渡すと、時間帯を nB 枠ぶんに広げる（1日ぶんの記録のまね） */
+function reportFromGas(nB) {
+  const { loadGas } = require('./gas-mock');
+  const g = loadGas({ props: { ADMIN_PASS: 'test-pass-1234' } });
+  g.setupR8AndArchiveOthers();
+  const P = { pass: 'test-pass-1234', cid: 'c1' };
+  const ids = g.__get({}).booths.map(b => b.id);
+  ids.forEach((id, i) => g.__post({ action: 'update', ...P, id, wait: (i * 7) % 26 }));
+  g.__post({ action: 'visitor', ...P, n: 12, uid: 'v' });
+  g.__post({ action: 'ledger', cid: 'RRRR1111', ev: [{ t: 's', id: '1F-02', at: Date.now() }] });
+  const r = g.__get({ report: '1' });
+  // 15分の境目をまたいで2枠になっても、1枠にそろえる（時計に左右されないように）
+  const cut = n => {
+    r.buckets = r.buckets.slice(0, n); r.overall = r.overall.slice(0, n); r.visitors.series = r.visitors.series.slice(0, n);
+    r.booths.forEach(b => { b.series = b.series.slice(0, n); });
+    r.summary.openLabel = r.buckets[0] + '〜' + r.buckets[n - 1];
+  };
+  if (!nB || nB === 1) { cut(1); return r; }
+  const labels = Array.from({ length: nB }, (_, i) => { const m = 9 * 60 + i * 15; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); });
+  r.buckets = labels;
+  r.booths.forEach((b, k) => { b.series = labels.map((_, i) => (k + i) % 7 < 3 ? 0 : (k + i) % 7 < 5 ? 1 : 2); });
+  r.overall = labels.map((t, i) => { const c = [0, 0, 0, 0]; r.booths.forEach(b => { c[b.series[i]]++; }); return { t, free: c[0], warn: c[1], busy: c[2], prep: c[3] }; });
+  r.visitors = { total: 30 * nB, series: labels.map(() => 30) };
+  r.summary.openLabel = labels[0] + '〜' + labels[nB - 1];
+  r.summary.peakTime = labels[3]; r.summary.peakBusyCount = 14;
+  return r;
+}
+for (const W of [390, 1280]) {
+  test(`振り返り（v217）：札のすき間・まとめの札・日付・ブースの名前・時刻の目盛り（幅${W}px）`, async ({ page }) => {
+    const errors = watchErrors(page);
+    const report = reportFromGas(24);
+    await mockGas(page, { report });
+    await page.setViewportSize({ width: W, height: 844 });
+    await page.goto('/?mode=report');
+    await expect(page.locator('#report-body .hm-row').nth(1)).toBeVisible({ timeout: 15000 });
+    // ③日付は「10月14日（水）の記録」の形
+    await expect(page.locator('#report-body .card-t').first()).toHaveText(/^\d{1,2}月\d{1,2}日（[日月火水木金土]）の記録$/);
+    // ⑦最も混んだ時間に、混雑していたブースの数
+    await expect(page.locator('#report-body .rep-grid')).toContainText('混雑 14ブース');
+    const m = await page.evaluate(() => {
+      const q = s => [...document.querySelectorAll(s)];
+      const cards = q('#report-body > .card').map(c => c.getBoundingClientRect());
+      const gaps = cards.slice(1).map((c, i) => Math.round(c.top - cards[i].bottom));
+      const grid = document.querySelector('#report-body .rep-grid').getBoundingClientRect();
+      const tiles = q('#report-body .rep-grid > div').map(t => t.getBoundingClientRect());
+      const rows = {};
+      tiles.forEach(t => { const k = Math.round(t.top); (rows[k] = rows[k] || []).push(t); });
+      const rowList = Object.keys(rows).map(Number).sort((a, b) => a - b).map(k => rows[k]);
+      const names = q('#report-body .hm-n').map(e => ({ t: e.textContent, cut: e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1, lines: Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight)) }));
+      const ticks = document.querySelector('#report-body .hm-axis .hm-ticks'), cells = document.querySelector('#report-body .hm-row:not(.hm-axis) .hm-cells');
+      const tr = ticks.getBoundingClientRect(), cr = cells.getBoundingClientRect();
+      return { gaps, nTiles: tiles.length, firstRow: rowList[0].length,
+        holes: rowList.map(r => Math.round(grid.right - Math.max(...r.map(t => t.right)))),
+        names, tickText: [...ticks.children].map(x => x.textContent), axisMax: document.querySelector('#report-body .hm-axis .hm-max').textContent,
+        tickOff: [Math.abs(tr.left - cr.left), Math.abs(tr.right - cr.right)],
+        over: document.documentElement.scrollWidth - innerWidth };
+    });
+    // ①札どうしが、くっついていない
+    expect(m.gaps.length).toBeGreaterThanOrEqual(2);
+    expect(Math.min(...m.gaps), JSON.stringify(m.gaps)).toBeGreaterThanOrEqual(12);
+    // ②まとめの札：どの段も右はしまで（半端な1枚の右が空かない）。広い画面では4枚ずつ
+    expect(m.nTiles).toBeGreaterThanOrEqual(7);
+    expect(Math.max(...m.holes), JSON.stringify(m.holes)).toBeLessThanOrEqual(1);
+    expect(m.firstRow).toBe(W >= 720 ? 4 : 2);
+    // ⑤ブースの名前：広い画面では全部が1行で読める。せまい画面でも、長い名前が2行で読める（「アームロボット・…」にしない）
+    expect(m.names.length).toBe(46);
+    const arm = m.names.find(x => x.t.indexOf('アームロボット') === 0);
+    expect(arm && arm.cut, JSON.stringify(arm)).toBe(false);
+    if (W >= 720) expect(m.names.filter(x => x.cut || x.lines > 1).map(x => x.t)).toEqual([]);
+    else { expect(Math.max(...m.names.map(x => x.lines))).toBeLessThanOrEqual(2); expect(m.names.filter(x => x.cut).length).toBeLessThanOrEqual(3); }
+    // ⑥時刻の目盛り：はじめ・まん中・おわり。色の列と同じ幅。右の数字が何かも書く
+    expect(m.tickText).toEqual(['09:00', '11:45', '14:45']);
+    expect(Math.max(...m.tickOff)).toBeLessThanOrEqual(1);
+    expect(m.axisMax).toBe('最大');
+    expect(m.over).toBeLessThanOrEqual(0);
+    expect(errors).toEqual([]);
+  });
+}
+test('振り返り（v217）：記録が1枠だけの日でも、棒が画面いっぱいの板にならない。「まだ15分ぶん」と言う。スタンプの数はブースの行にも', async ({ page }) => {
+  const errors = watchErrors(page);
+  const report = reportFromGas(1);
+  expect(report.buckets.length).toBe(1);
+  await mockGas(page, { report });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/?mode=report');
+  await expect(page.locator('#report-body .hm-row').nth(1)).toBeVisible({ timeout: 15000 });
+  // 「00:15〜00:15」ではなく「00:15 から」
+  await expect(page.locator('#report-body .rep-grid > div').first().locator('b')).toHaveText(/^\d\d:\d\d から$/);
+  await expect(page.locator('#report-body .rep-few')).toContainText('15分ぶん');
+  const m = await page.evaluate(() => {
+    const svg = document.querySelector('#report-body .rep-chart');
+    const k = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
+    return { bars: [...document.querySelectorAll('#report-body .rep-chart rect')].map(r => Math.round(r.getBoundingClientRect().width)), k,
+      cells: Math.round(document.querySelector('#report-body .hm-row:not(.hm-axis) .hm-cells').getBoundingClientRect().width),
+      ticks: [...document.querySelectorAll('#report-body .hm-ticks span')].map(x => x.textContent),
+      maxRight: Math.round(document.querySelector('#report-body .hm').getBoundingClientRect().right - document.querySelector('#report-body .hm-row:not(.hm-axis) .hm-max').getBoundingClientRect().right) };
+  });
+  expect(m.bars.length).toBeGreaterThan(0);
+  expect(Math.max(...m.bars), JSON.stringify(m)).toBeLessThanOrEqual(Math.ceil(72 * m.k));
+  expect(m.cells).toBeLessThanOrEqual(50);
+  expect(m.ticks).toEqual([report.buckets[0]]);
+  expect(m.maxRight).toBeLessThanOrEqual(1);            // 「◯人」は右はしのまま
+  // ⑧スタンプが押されたブースは、行にも数が出る
+  const row = page.locator('#report-body .hm-row', { has: page.locator('.hm-n', { hasText: /^旋盤の加工実演/ }) });
+  await expect(row.locator('small')).toContainText('スタンプ 1');
+  // 3枠以上あれば、「まだ…ぶん」は出さない
+  await mockGas(page, { report: reportFromGas(3) });
+  await page.locator('#btn-report-reload').click();
+  await expect(page.locator('#report-body .hm-ticks span')).toHaveCount(3);
+  await expect(page.locator('#report-body .rep-few')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
