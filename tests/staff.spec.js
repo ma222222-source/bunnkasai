@@ -261,3 +261,118 @@ test('係員の更新：サーバーが「この中身は受け取れない」�
   expect(await page.evaluate(id => id in S.unsent, id)).toBe(true);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v214：係員の画面の7つの仕上げ ---------------- */
+test('①②ログイン：「表示する」で打った字を見られる。全角が入っていたら知らせ、1押しで半角に直せる。入れたあとは欄を空にして隠す', async ({ page }) => {
+  const errors = watchErrors(page);
+  await mockGas(page, { verifyOk: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?mode=admin');
+  const pwEl = page.locator('#pw'), show = page.locator('#pw-show'), zen = page.locator('#pw-zen');
+  await expect(pwEl).toHaveAttribute('type', 'password');
+  await expect(zen).toBeHidden();
+  // 「表示する」→ 字が見える。もう一度で隠れる
+  await pwEl.fill('Abc-1234');
+  await show.click();
+  await expect(pwEl).toHaveAttribute('type', 'text');
+  await expect(show).toHaveAttribute('aria-pressed', 'true');
+  await expect(show).toHaveText('かくす');
+  await show.click();
+  await expect(pwEl).toHaveAttribute('type', 'password');
+  await expect(show).toHaveText('表示する');
+  // ボタンは欄の中の右。押す大きさ 44px 以上。字と重ならない
+  const g = await page.evaluate(() => { const a = document.getElementById('pw').getBoundingClientRect(), b = document.getElementById('pw-show').getBoundingClientRect();
+    return { in: b.left >= a.left && b.right <= a.right + 1 && b.top >= a.top - 1 && b.bottom <= a.bottom + 1, h: b.height, w: b.width, pad: parseFloat(getComputedStyle(document.getElementById('pw')).paddingRight) }; });
+  expect(g.in).toBe(true); expect(g.h).toBeGreaterThanOrEqual(44); expect(g.pad).toBeGreaterThanOrEqual(g.w);
+  // 全角：知らせが出る → 「半角に直す」
+  await pwEl.fill('ｔｅｓｔ－ｐａｓｓｗｏｒｄ－１２３４');
+  await expect(zen).toBeVisible();
+  await expect(zen).toContainText('全角');
+  await page.locator('#pw-zen-fix').click();
+  await expect(pwEl).toHaveValue('test-password-1234');
+  await expect(zen).toBeHidden();
+  // 日本語の字（ひらがな・漢字）は、全角の知らせの対象にしない（英数字・記号だけ）
+  await pwEl.fill('あいう漢字');
+  await expect(zen).toBeHidden();
+  // ログインできたら、欄は空・隠す状態に戻る
+  await pwEl.fill('test-password-1234');
+  await show.click();
+  await page.locator('#btn-login').click();
+  await expect(page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
+  expect(await page.evaluate(() => ({ v: document.getElementById('pw').value, t: document.getElementById('pw').type, s: document.getElementById('pw-show').getAttribute('aria-pressed') }))).toEqual({ v: '', t: 'password', s: 'false' });
+  expect(errors).toEqual([]);
+});
+
+test('①ログイン：パスワードが違うときは、確かめる点（表示する・大文字小文字・全角）も言う', async ({ page }) => {
+  await mockGas(page, { verifyOk: false });
+  // 本番のサーバーと同じ返事（unauthorized）にする
+  await page.route(/script\.google(usercontent)?\.com\//, route => route.request().method() === 'POST'
+    ? route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'unauthorized', status: 'error' }) })
+    : route.fallback());
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?mode=admin');
+  await page.locator('#pw').fill('chigau-pass-0000');
+  await page.locator('#btn-login').click();
+  await expect(page.locator('#auth-err')).toContainText('パスワードが違います');
+  await expect(page.locator('#auth-err')).toContainText('表示する');
+  await expect(page.locator('#auth-err')).toContainText('全角');
+});
+
+test('③お菓子の交換コード：あと何秒で変わるかの線が時計に合っている。毎分0秒に番号が変わる（15秒おくれない）', async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.clock.install({ time: new Date('2026-10-24T11:20:42+09:00') });        // 分の 42秒
+  await login(page);
+  await page.locator('#admtab-recept').click();
+  const code = page.locator('#adm-code');
+  await expect(code).toHaveText(/^\d{4}$/);
+  const c0 = await code.textContent();
+  // 線：60秒で1周。いま 42〜45秒あたり
+  const bar = await page.locator('#code-left').evaluate(el => { const cs = getComputedStyle(el); return { name: cs.animationName, dur: parseFloat(cs.animationDuration), delay: parseFloat(cs.animationDelay), sec: (Date.now() % 60000) / 1000 }; });
+  expect(bar.name).toBe('code-drain'); expect(bar.dur).toBe(60);
+  expect(Math.abs(-bar.delay - bar.sec)).toBeLessThan(6);
+  expect(-bar.delay).toBeGreaterThan(40);
+  // 番号は、時計から作った番号と同じ
+  expect(c0).toBe(await page.evaluate(() => redeemCode()));
+  // 分が変わる（21:00）→ すぐ変わる
+  const left = await page.evaluate(() => 60000 - (Date.now() % 60000));
+  await page.clock.runFor(left + 400);
+  const c1 = await page.evaluate(() => redeemCode());
+  await expect(code).toHaveText(c1);
+  const d1 = await page.locator('#code-left').evaluate(el => parseFloat(getComputedStyle(el).animationDelay));
+  expect(-d1).toBeLessThan(3);                                 // 線は、はじめ（満ちた状態）に戻っている
+  expect(errors).toEqual([]);
+});
+
+test('④準備の画面のボタンは、どれにも絵が付き、間隔がそろっている', async ({ page }) => {
+  const errors = watchErrors(page);
+  await login(page);
+  await page.locator('#admtab-setup').click();
+  const r = await page.evaluate(() => { const els = [...document.querySelectorAll('#admpane-setup > a.btn')];
+    const rs = els.map(e => e.getBoundingClientRect());
+    return { n: els.length, icons: els.map(e => !!e.querySelector('svg.ic')), gaps: rs.slice(1).map((x, i) => Math.round(x.top - rs[i].bottom)) }; });
+  expect(r.n).toBe(5);
+  expect(r.icons).toEqual([true, true, true, true, true]);
+  expect(new Set(r.gaps).size, JSON.stringify(r.gaps)).toBe(1);      // 以前は、三つ折りパンフレットの下だけ広かった
+  expect(errors).toEqual([]);
+});
+
+test('⑥⑦本部：止まっているブースが全部で何件か（出すのは5件だけ）と、いちばん新しい更新を出す', async ({ page }) => {
+  const errors = watchErrors(page);
+  await login(page);
+  await page.locator('#admtab-hq').click();
+  const sum = page.locator('#stale-sum');
+  await expect(sum).toBeVisible();
+  const total = await page.evaluate(() => S.booths.filter(b => isVenue(b) && lvOf(b).lv !== 3 && elapsedMin(b) >= CONFIG.ADMIN_WARN_MIN).length);
+  expect(total).toBeGreaterThan(5);
+  await expect(sum).toContainText(total + '件');
+  await expect(sum).toContainText('長い順に5件を表示');
+  await expect(page.locator('#stale-list li')).toHaveCount(5);
+  await expect(sum).toContainText('いちばん新しい更新：たった今');
+  // 1つ更新すると、数が減る
+  await page.evaluate(() => { const b = S.booths.filter(x => isVenue(x) && lvOf(x).lv !== 3 && elapsedMin(x) >= CONFIG.ADMIN_WARN_MIN)[0]; b.status = '空いています'; b.time = new Date().toISOString(); b.stale = false; renderAdmin(); });
+  await expect(sum).toContainText((total - 1) + '件');
+  // だれも更新していないとき
+  await page.evaluate(() => { S.lastUpdate = null; S.booths.forEach(b => { b.time = null; b.status = ''; }); renderStaleList._fp = null; renderAdmin(); });
+  await expect(sum).toContainText('まだ、どのブースも更新されていません');
+  expect(errors).toEqual([]);
+});

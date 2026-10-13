@@ -1877,6 +1877,33 @@ html.lite .hero-gear{animation:none}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
 /* ---- v206：地図の左下のボタン。開いた直後は「全体」だけ（左の角）。動かしたら、その右に「ブースに寄せる」が出る ---- */
 #map-card.gmap .map-fit-ctl #zoom-reset{order:-1}
+/* ==== v214：係員の画面の7つの仕上げ ==== */
+/* ①②ログイン：パスワードを「表示する」ボタン（長いパスワードをスマホで打つと、打ち間違いに気づけなかった）と、全角が入っているときの知らせ */
+.pw-row{position:relative}
+.pw-row .field{padding-right:92px}
+.pw-show{position:absolute;right:6px;top:50%;transform:translateY(-50%);min-width:76px;min-height:44px;padding:0 10px;border-radius:10px;
+  border:1px solid var(--border);background:var(--surface-2);color:var(--text-dim);font:inherit;font-size:12px;font-weight:800;cursor:pointer}
+.pw-show[aria-pressed="true"]{background:var(--accent-soft,var(--surface-3));color:var(--text);border-color:var(--text-mute)}
+.pw-zen{margin:8px 0 0;padding:9px 11px;border-radius:var(--r-sm);background:var(--warn-soft);color:var(--text);font-size:12px;font-weight:800;line-height:1.6;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pw-zen button{min-height:44px;padding:0 14px;border-radius:10px;border:1.5px solid var(--warn);background:var(--surface);color:var(--text);font:inherit;font-size:12.5px;font-weight:900;cursor:pointer}
+[data-fs="xl"] .pw-show{font-size:14px;min-width:88px} [data-fs="xl"] .pw-row .field{padding-right:104px} [data-fs="xl"] .pw-zen{font-size:14.5px}
+/* ③お菓子の交換コード：あと何秒で変わるかの線（1分で左へ縮む）。変わる直前に読み上げて、打つころには変わっている、を防ぐ */
+.code-left{height:5px;margin:2px 0 7px;border-radius:999px;background:var(--surface-2);overflow:hidden;max-width:220px}
+.code-left i{display:block;height:100%;width:100%;background:var(--accent);transform-origin:0 50%;
+  animation:code-drain 60s linear infinite;animation-delay:var(--code-at,0s)}
+@keyframes code-drain{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+#adm-code.flip{animation:code-flip .45s var(--ease)}
+@keyframes code-flip{0%{opacity:.2;transform:translateY(6px)}100%{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){ #adm-code.flip{animation:none} }
+/* ⑤押す所は 44px 以上（お知らせの×・スタンプ帳の階の見出し）。見た目の大きさは変えず、押せる広さを広げる */
+.notice-x{min-width:44px;min-height:44px;margin-top:-10px;margin-bottom:-10px;margin-right:-4px;
+  background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.18) 0 18px,transparent 18.5px)}
+.stamp-floor .stamp-fold{min-height:44px}
+/* ⑥⑦本部：止まっているブースの数と、いちばん新しい更新 */
+.stale-sum{margin:-2px 0 8px;font-size:12px;font-weight:800;color:var(--text-dim);line-height:1.6}
+.stale-sum b{color:var(--text)}
+[data-fs="xl"] .stale-sum{font-size:14.5px}
 /* ==== v211：7つの仕上げ・3 ==== */
 /* ①文節で折り返すのを、画面ぜんたいの文に広げる（v210 はブースの名前だけ）。
    詳細の説明「…（溶接実／習室）」、おすすめ「…（電／子科3年）」、見出し「…地図に出／ます）」と、語の途中で切れていた。対応しているブラウザだけ */
@@ -3542,7 +3569,12 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
           <h2 style="font-size:15px;font-weight:900"><i data-ic="tool"></i> 係員ログイン</h2>
           <p style="font-size:11px;color:var(--text-mute);font-weight:700;margin-top:4px">パスワードは係員に配布されたものを入力</p>
         </div>
-        <input class="field" type="password" id="pw" placeholder="パスワード" autocomplete="current-password" inputmode="text">
+        <!-- v214：打った文字を確かめられる「表示する」と、全角が入っているときの知らせ -->
+        <div class="pw-row">
+          <input class="field" type="password" id="pw" placeholder="パスワード" autocomplete="current-password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false">
+          <button type="button" class="pw-show" id="pw-show" aria-pressed="false" aria-controls="pw">表示する</button>
+        </div>
+        <p class="pw-zen hide" id="pw-zen" role="status"><span>全角の文字が入っています（パスワードは半角です）</span><button type="button" id="pw-zen-fix">半角に直す</button></p>
         <button class="btn" id="btn-login">ログイン</button>
         <p class="stale-warn hide" id="auth-err">パスワードが違います</p>
       </div>
@@ -3607,6 +3639,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
           <div class="adm-code" id="adm-code-box">
             <div style="font-size:11px;font-weight:800;color:var(--text-mute)">お菓子の交換コード（1分ごとに変わります）</div>
             <b id="adm-code">----</b>
+            <div class="code-left" aria-hidden="true"><i id="code-left"></i></div>
             <div style="font-size:11px;font-weight:700;color:var(--text-dim);margin-top:5px;line-height:1.6">
               お菓子を渡すとき、来場者の<b>スタンプ画面</b>で「お菓子と交換する」を押してもらい、
               この4桁を<b>係員が入力</b>してください。スタンプが消費されて赤くなります。<br>
@@ -3628,6 +3661,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
         <!-- v158：更新が止まっているブース（長い順に5件）。押すとそのブースの更新カードへ -->
         <div class="card" id="stale-card">
           <div class="card-t">更新が止まっているブース</div>
+          <p class="stale-sum" id="stale-sum"></p>
           <ul class="stale-list" id="stale-list"></ul>
         </div>
         <div class="bulk-row">
@@ -3681,7 +3715,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
         </details>
 
         <a class="btn ghost" href="?mode=qr" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg> QRコード印刷シートを開く</a>
-        <a class="btn ghost" href="?mode=pamphlet" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px">三つ折りパンフレットを開く</a>
+        <a class="btn ghost" href="?mode=pamphlet" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M9 4v16M15 4v16"/></svg> 三つ折りパンフレットを開く</a>
         <a class="btn ghost" href="?mode=print" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg> 配布用の紙マップを開く</a>
         <a class="btn ghost" href="?mode=report" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M8 17V10M13 17V6M18 17v-4"/></svg> 混雑の振り返りを見る</a>
         <a class="btn ghost" href="?mode=board" style="display:block;text-align:center;text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5h20v12H2z"/><path d="M8.5 20.5h7M12 16.5v4"/></svg> 本部用の大画面ボードを開く</a>
@@ -3917,7 +3951,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-13a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-13b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -9941,8 +9975,22 @@ function stampRank(got, total){
 function tickCode(){
   const ac = $('#adm-code');
   if (ac){
-    ac.textContent = redeemCode();
+    const c = redeemCode();
+    // v214：番号が変わったら、変わったことが分かるように一度動かす
+    if (ac.textContent !== c && /^\d{4}$/.test(ac.textContent)){ ac.classList.remove('flip'); void ac.offsetWidth; ac.classList.add('flip'); }
+    ac.textContent = c;
   }
+  codeClock();
+}
+/**
+ * v214：交換コードの「あと何秒で変わるか」の線を時計に合わせ、変わる瞬間（毎分0秒）に番号を書き換える。
+ * 以前は15秒おきに書き換えていたので、変わってから最長15秒、前の番号が出ていた
+ */
+function codeClock(){
+  const bar = $('#code-left');
+  if (bar) bar.style.setProperty('--code-at', (-(Date.now() % 60000) / 1000).toFixed(1) + 's');
+  clearTimeout(codeClock._t);
+  codeClock._t = setTimeout(() => { if (S.isAdmin && !document.hidden) tickCode(); else codeClock(); }, 60000 - (Date.now() % 60000) + 60);
 }
 
 /**
@@ -11922,6 +11970,9 @@ async function login(){
       try{ sessionStorage.setItem('kuroko_pw', v); }catch(_){ saved = false; }
       S.isAdmin = true;
       $('#auth-err').classList.add('hide');
+      // v214：入れた文字を画面に残さない（「表示する」のまま、次の人に見えないように）
+      { const pe = $('#pw'), ps = $('#pw-show'); pe.value = ''; pe.type = 'password';
+        if (ps){ ps.setAttribute('aria-pressed', 'false'); ps.textContent = '表示する'; } }
       renderAssign(); renderAdmin(); renderChecklist();
       // v180：履歴の「パスワードの画面」を、行き先の画面で置き換える。積み足すと、ログインしたあとの「戻る」で
       // パスワードの画面がもう一度出て、ログアウトされたように見えていた
@@ -11939,7 +11990,8 @@ async function login(){
       /locked/.test(m) ? '入力の失敗が続いたため、しばらく受け付けできません（90秒ほど待ってください）'
       // サーバー側の設定の問題（ADMIN_PASS が短い・未設定）。通信の失敗と取り違えさせない
       : /^weak:|未設定/.test(m) ? m.replace(/^weak:\s*/, '')
-      : m === 'bad' || /unauthorized/.test(m) ? 'パスワードが違います'
+      // v214：何を確かめればよいかも言う（「表示する」で打った字を見られる）
+      : m === 'bad' || /unauthorized/.test(m) ? 'パスワードが違います。「表示する」を押して、大文字・小文字と、全角になっていないかを確かめてください'
       : '通信に失敗しました';
   }finally{ $('#btn-login').disabled = false; }
 }
@@ -12342,10 +12394,7 @@ function renderAdmin(){
   $('#adm-warn').innerHTML = warn.map(t => `<p class="stale-warn">${ICON_ALERT} ${esc(t)}</p>`).join('');
   $('#adm-warn').classList.toggle('hide', !warn.length);
 
-  const ac = $('#adm-code');
-  if (ac){
-    ac.textContent = redeemCode();
-  }
+  tickCode();                     // v214：番号と、残り時間の線を時計に合わせる
 
   // 数えたのに送信していない下書きは、画面上は更新済みに見えてしまう。
   // 1分放置されたら言う（来場者にはその人数が届いていない）
@@ -12526,8 +12575,17 @@ function admPreview(card, n){
 function renderStaleList(){
   const box = $('#stale-list');
   if (!box) return;
-  const list = S.booths.filter(b => isVenue(b) && lvOf(b).lv !== 3 && elapsedMin(b) >= CONFIG.ADMIN_WARN_MIN)
-    .sort((a, b) => elapsedMin(b) - elapsedMin(a)).slice(0, 5);
+  const all = S.booths.filter(b => isVenue(b) && lvOf(b).lv !== 3 && elapsedMin(b) >= CONFIG.ADMIN_WARN_MIN)
+    .sort((a, b) => elapsedMin(b) - elapsedMin(a));
+  const list = all.slice(0, 5);
+  // v214：全部で何件止まっているか（下に出すのは長い順に5件だけなので、5件なのか30件なのかが分からなかった）と、
+  // 全体でいちばん新しい更新（だれも更新していない＝係員の端末がつながっていない、に気づける）
+  { const sum = $('#stale-sum'), ls = lastStaffAt();
+    if (sum){
+      const t = (all.length ? `<b>${all.length}件</b>が${CONFIG.ADMIN_WARN_MIN}分以上 更新なし` + (all.length > list.length ? `（長い順に${list.length}件を表示）` : '') + '　' : '')
+        + (ls ? `いちばん新しい更新：<b>${esc(ago(ls))}</b>` : 'まだ、どのブースも更新されていません');
+      if (sum.innerHTML !== t) sum.innerHTML = t;
+    } }
   const fp = list.map(b => b.id + ':' + Math.min(elapsedMin(b), 999)).join(',');
   if (renderStaleList._fp === fp) return;
   renderStaleList._fp = fp;
@@ -14964,6 +15022,23 @@ function init(){
     if (e.key === 'Escape' && !$('#edit-sheet').classList.contains('hide')) closeEditor();
   });
   $('#pw').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+  // v214：「表示する」と、全角の知らせ
+  { const pwEl = $('#pw'), sh = $('#pw-show'), zen = $('#pw-zen'), fix = $('#pw-zen-fix');
+    const ZEN = /[\uFF01-\uFF5E\u3000]/;                    // 全角の英数字・記号・空白
+    const chk = () => { if (zen) zen.classList.toggle('hide', !ZEN.test(pwEl.value)); };
+    if (sh) sh.addEventListener('click', () => {
+      const on = pwEl.type === 'password';
+      pwEl.type = on ? 'text' : 'password';
+      sh.setAttribute('aria-pressed', String(on));
+      sh.textContent = on ? 'かくす' : '表示する';
+      pwEl.focus({ preventScroll: true });
+    });
+    pwEl.addEventListener('input', chk);
+    if (fix) fix.addEventListener('click', () => {
+      pwEl.value = pwEl.value.replace(/[\uFF01-\uFF5E]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/\u3000/g, ' ');
+      chk(); pwEl.focus({ preventScroll: true });
+    });
+  }
   $$('#btn-bulk, #btn-bulk-close').forEach(b =>
     b.addEventListener('click', () => bulkReset(b)));
   $$('.vis-btns button').forEach(b =>
