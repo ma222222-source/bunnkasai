@@ -3646,3 +3646,25 @@ test('見出しの「係の人の更新 ◯分前」は、係の人がいちば�
   await expect(txt).toHaveText('最新の情報です（係の人の更新はまだありません）');
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v214：押す所は 44px 以上（お知らせの×・スタンプ帳の階の見出し） ---------------- */
+test('押す所の大きさ：お知らせの「×」とスタンプ帳の階の見出しは 44px 以上（見た目の丸は 36px のまま）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const errors = watchErrors(page);
+  await mockGas(page, { notice: { text: '14時から第一体育館でステージ発表があります', level: 'info' } });
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  const x = await page.locator('#notice-x').boundingBox();
+  expect(x.width).toBeGreaterThanOrEqual(44); expect(x.height).toBeGreaterThanOrEqual(44);
+  expect(await page.locator('#notice-x').evaluate(el => getComputedStyle(el).backgroundImage)).toContain('radial-gradient');
+  // 帯の高さは、ボタンを大きくしても変わらない（1行のお知らせで 60px 台）
+  expect((await page.locator('#banner-notice').boundingBox()).height).toBeLessThan(76);
+  const folds = await page.evaluate(() => [...document.querySelectorAll('#stamp-grid .stamp-fold')].map(el => Math.round(el.getBoundingClientRect().height)));
+  expect(folds.length).toBeGreaterThanOrEqual(3);
+  for (const h of folds) expect(h).toBeGreaterThanOrEqual(44);
+  // 押して畳める（大きくしても、これまでどおり働く）
+  await page.locator('#stamp-grid .stamp-fold').first().click();
+  await expect(page.locator('#stamp-grid .stamp-fold').first()).toHaveAttribute('aria-expanded', 'false');
+  expect(errors).toEqual([]);
+});
