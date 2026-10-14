@@ -1180,3 +1180,95 @@ test('イベント（v223）：一斉お知らせを「しずかに」（紙ふ�
   await A.ctx.close(); await B.ctx.close(); await W.ctx.close();
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v224：一斉お知らせの予約・タイムテーブルから・入力中の見本 ---------------- */
+test('イベント（v224）：一斉お知らせを時刻で予約できる（ようすにも出て、取り消せる）。時刻が来たら来場者に出る。タイムテーブルから1回で入る。入力中の見本', async ({ page, browser, baseURL }) => {
+  test.setTimeout(120000);
+  const errors = watchErrors(page);
+  const { g, origin } = server(baseURL);
+  await bridge(page, g);
+  const V = await visitor(browser, g);
+  await V.page.goto(origin + '/?tab=map');
+  await loaded(V.page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await ownerLogin(page, origin, 'event');
+  // 入力中の見本
+  const prev = page.locator('#own-show-prev');
+  await expect(prev.locator('.op-t')).toHaveText('見出し');
+  await page.locator('#own-show-title').fill('まもなく最終入場');
+  await page.locator('#own-show-text').fill('14:00からです');
+  await expect(prev.locator('.op-t')).toHaveText('まもなく最終入場');
+  await expect(prev.locator('.op-x')).toHaveText('14:00からです');
+  await page.locator('#own-show-fx [data-v="calm"]').click();
+  await expect(prev).toHaveClass(/calm/);
+  await expect(prev.locator('.op-fx')).toContainText('しずかに');
+  // 過ぎた時刻は受け付けない
+  await expect(page.locator('#own-sched-row')).toBeVisible();
+  await page.locator('#own-show-at').fill('00:00');
+  await page.locator('#own-show-sched').click();
+  await expect(page.locator('#toast')).toContainText('過ぎています');
+  // 3分後に予約
+  const hm = await page.evaluate(() => { const d = new Date(nowMs() + 3 * 60000); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); });
+  await page.locator('#own-show-at').fill(hm);
+  accept(page);
+  await page.locator('#own-show-sched').click();
+  await expect(page.locator('#toast')).toContainText(hm + ' に予約しました', { timeout: 10000 });
+  await expect(page.locator('#own-sched li')).toHaveCount(1);
+  await expect(page.locator('#own-sched li b')).toHaveText(hm);
+  await expect(page.locator('#own-sched li span')).toContainText('しずかに');
+  await expect(page.locator('#own-show-title')).toHaveValue('');
+  expect(JSON.parse(g.__props.LIVE).sched.length).toBe(1);
+  // 来場者には、まだ何も出ない
+  await V.page.evaluate(() => sync(false));
+  await V.page.waitForTimeout(500);
+  await expect(V.page.locator('#lfx')).toHaveCount(0);
+  // ようすにも出る
+  await page.locator('#owntab-home').click();
+  await expect(page.locator('#own-now')).toContainText('予約 ' + hm);
+  // 時刻が来た（サーバーの予約の時刻を、いまにする）→ 来場者に出る。しずかに
+  const o = JSON.parse(g.__props.LIVE); o.sched[0].at = Date.now() - 1000; g.__props.LIVE = JSON.stringify(o);
+  g.clearCache_();
+  await V.page.evaluate(() => sync(false));
+  await expect(V.page.locator('#lfx.calm .lfx-title')).toHaveText('まもなく最終入場', { timeout: 10000 });
+  await V.page.locator('#lfx [data-fx="close"]').click();
+  // ようすから取り消す
+  await page.locator('#owntab-event').click();
+  await page.locator('#own-show-title').fill('あとで出すもの');
+  const hm2 = await page.evaluate(() => { const d = new Date(nowMs() + 10 * 60000); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); });
+  await page.locator('#own-show-at').fill(hm2);
+  accept(page);
+  await page.locator('#own-show-sched').click();
+  await expect(page.locator('#own-sched li')).toHaveCount(1, { timeout: 10000 });
+  await page.locator('#owntab-home').click();
+  accept(page);
+  await page.locator('#own-now [data-stop^="sched:"]').click();
+  await expect(page.locator('#toast')).toContainText('予約を取り消しました', { timeout: 10000 });
+  expect(JSON.parse(g.__props.LIVE).sched.filter(x => x.at > Date.now())).toEqual([]);
+  // タイムテーブルから：きょうの、これからの行が出る。押すと、見出し・ひとこと・5分前の時刻が入る
+  await page.locator('#owntab-event').click();
+  const ttHm = await page.evaluate(() => {
+    const d = new Date(nowMs() + 30 * 60000), today = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const h = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    CONFIG.INFO.timetable = [['00:01', 'もう終わった行', '', today], [h, 'ステージ発表', '', today], [h, '別の日の行', '', '2001-01-01']];
+    renderOwnLive();
+    const e = new Date(d.getTime() - 5 * 60000);
+    return { h, at: String(e.getHours()).padStart(2, '0') + ':' + String(e.getMinutes()).padStart(2, '0') };
+  });
+  const tt = page.locator('#own-show-tt button');
+  await expect(tt).toHaveCount(1);
+  await expect(tt).toHaveText(ttHm.h + ' ステージ発表');
+  await tt.click();
+  await expect(page.locator('#own-show-title')).toHaveValue('まもなく「ステージ発表」');
+  await expect(page.locator('#own-show-text')).toHaveValue(ttHm.h + 'からです');
+  await expect(page.locator('#own-show-at')).toHaveValue(ttHm.at);
+  await expect(prev.locator('.op-t')).toHaveText('まもなく「ステージ発表」');
+  // 予約すると、その行は「予約ずみ」で押せない（同じ知らせを2回予約しない）
+  accept(page);
+  await page.locator('#own-show-sched').click();
+  await expect(page.locator('#own-sched li')).toHaveCount(1, { timeout: 10000 });
+  await expect(tt).toBeDisabled();
+  await expect(tt).toContainText('予約ずみ');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  await V.ctx.close();
+  expect(errors).toEqual([]);
+});

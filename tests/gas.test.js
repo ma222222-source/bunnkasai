@@ -1093,3 +1093,54 @@ test('v223 ラッキーブースの効果：始めてから、そのブースで
   // 終わらせたら、数は返さない
   assert.strictEqual(g.__post({ action: 'owner_lucky', ...T, booth: '' }).live.lucky, undefined);
 });
+
+/* ---------------- v224：一斉お知らせの予約 ---------------- */
+test('v224 一斉お知らせの予約：時刻が来るまで来場者には出さない（予約があることも返さない）。時刻が来たら出る。取り消し・時刻の確かめ・配る中身を覚えておく時間', () => {
+  const g = freshOwner();
+  const T = { token: ownerIn(g) };
+  const now = Date.now();
+  assert.match(g.__post({ action: 'owner_show', ...T, title: 'x', at: now + 5000 }).error, /^bad request: .*過ぎています/);
+  assert.match(g.__post({ action: 'owner_show', ...T, title: 'x', at: now + 25 * 3600000 }).error, /^bad request: .*24時間/);
+  assert.match(g.__post({ action: 'owner_show', ...T, title: 'x', at: 'あした' }).error, /^bad request: .*時刻の形/);
+  assert.match(g.__post({ action: 'owner_show', pass: PASS, title: 'x', at: now + 120000 }).error, /^owner session/);
+  const at = now + 120000;
+  const st = g.__post({ action: 'owner_show', ...T, title: 'まもなく最終入場', text: '14:00からです', calm: true, at });
+  assert.strictEqual(st.ok, true, JSON.stringify(st));
+  assert.strictEqual(st.live.show, undefined, 'すぐには出さない');
+  assert.strictEqual(st.live.sched.length, 1);
+  assert.deepStrictEqual([st.live.sched[0].title, st.live.sched[0].fx, st.live.sched[0].at], ['まもなく最終入場', 'calm', at]);
+  const pub = g.__get().live;
+  assert.deepStrictEqual(pub, {}, '来場者には、予約があることも返さない');
+  // 配る中身を覚えておく時間は、次の予約の時刻まで（遅れて出ないように）
+  const sec = g.liveNextDueSec_();
+  assert.ok(sec > 100 && sec <= 120, String(sec));
+  // 時刻が来たら出る（LIVE を書きかえずに、時刻で見分ける）
+  const o = JSON.parse(g.__props.LIVE); o.sched[0].at = Date.now() - 1000; g.__props.LIVE = JSON.stringify(o);
+  g.clearCache_();
+  const sh = g.__get().live.show;
+  assert.deepStrictEqual([sh.title, sh.text, sh.fx], ['まもなく最終入場', '14:00からです', 'calm']);
+  assert.strictEqual(sh.until - sh.at, 180000);
+  assert.strictEqual(g.liveNextDueSec_(), Infinity);
+  const st2 = g.__post({ action: 'owner_state', ...T });
+  assert.strictEqual(st2.live.show.title, 'まもなく最終入場');
+  assert.deepStrictEqual(st2.live.sched, [], '出たものは、これからの予約に入れない');
+  // あとからすぐに出したものがあれば、新しい方
+  g.__post({ action: 'owner_show', ...T, title: 'いま出したもの' });
+  assert.strictEqual(g.__get().live.show.title, 'いま出したもの');
+  // 「一斉お知らせを消す」：出ているもの（時刻が来た予約も）は消え、これからの予約は残る
+  const later = g.__post({ action: 'owner_show', ...T, title: 'あとで', at: Date.now() + 600000 }).live.sched[0];
+  g.__post({ action: 'owner_live_clear', ...T, what: 'show' });
+  assert.strictEqual(g.__get().live.show, undefined);
+  assert.deepStrictEqual(g.__post({ action: 'owner_state', ...T }).live.sched.map(x => x.title), ['あとで']);
+  // 取り消す
+  assert.deepStrictEqual(g.__post({ action: 'owner_sched_del', ...T, id: later.id }).live.sched, []);
+  assert.match(g.__post({ action: 'owner_sched_del', ...T, id: later.id }).error, /^bad request: .*見つかりません/);
+  // 時刻の早い順・20件まで
+  for (let i = 0; i < 20; i++) g.__post({ action: 'owner_show', ...T, title: '予約' + i, at: Date.now() + (40 - i) * 60000 });
+  const list = g.__post({ action: 'owner_state', ...T }).live.sched;
+  assert.strictEqual(list.length, 20);
+  assert.ok(list.every((x, i) => i === 0 || list[i - 1].at <= x.at));
+  assert.match(g.__post({ action: 'owner_show', ...T, title: '21件目', at: Date.now() + 3600000 }).error, /20件まで/);
+  // 記録
+  assert.match(JSON.stringify(g.__ss.getSheetByName('司令塔の記録').data), /一斉お知らせを予約（\d\d:\d\d）：まもなく最終入場/);
+});
