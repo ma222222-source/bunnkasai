@@ -47,7 +47,7 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-10-14b';
+var GAS_VERSION = '2026-10-14c';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
@@ -2376,6 +2376,14 @@ function liveApi_(action, body) {
     var min = Math.round(Number(body.min)), n = Math.round(Number(body.n));
     if (!isFinite(min) || min < 1 || min > 60) throw new Error('bad request: スタンプの数は 1〜60 にしてください');
     if (!isFinite(n) || n < 1 || n > 10) throw new Error('bad request: 当たりの人数は 1〜10 にしてください');
+    // v220：引く前の下見（dry）。いま条件に合う人が何人いるかだけを返す。当たりは引かない・何も書かない
+    if (body.dry === true) {
+      var oD = liveRead_(), dayD = liveDay_(new Date());
+      var pastD = (oD.past && oD.past.day === dayD && Array.isArray(oD.past.cids)) ? oD.past.cids : [];
+      var exD = {};
+      if (body.again !== true) pastD.forEach(function (c) { exD[c] = 1; });
+      return { ok: true, dry: true, min: min, elig: drawPick_(min, 0, exD).elig, sv: GAS_VERSION };
+    }
     return withLock_(function () {
       var o = liveRead_(), now = Date.now(), today = liveDay_(new Date());
       var past = (o.past && o.past.day === today && Array.isArray(o.past.cids)) ? o.past.cids : [];

@@ -976,3 +976,29 @@ test('v219 イベント：スタンプの抽選。きょう決めた数以上あ
   assert.strictEqual(g2.__post({ action: 'owner_live_clear', ...T2, what: 'draw' }).live.draw, undefined);
   assert.strictEqual(g2.__get({ win: r3.live.draw.id, cid: 'NEWW0001' }).win, false);
 });
+
+/* ---------------- v220：抽選の前の下見 ---------------- */
+test('v220 抽選の下見（dry）：いまの対象の人数だけを返す。当たりは引かない・何も書かない・司令塔の印が要る', () => {
+  const g = freshOwner();
+  const T = { token: ownerIn(g) };
+  const now = Date.now();
+  ['AAAA1111', 'BBBB2222'].forEach(c => g.__post({ action: 'ledger', cid: c, ev: ['1F-02', '1F-03', '2F-12'].map(id => ({ t: 's', id, at: now })) }));
+  g.__post({ action: 'ledger', cid: 'CCCC3333', ev: [{ t: 's', id: '1F-02', at: now }] });
+  const logRows = () => { const sh = g.__ss.getSheetByName('司令塔の記録'); return sh ? sh.getLastRow() : 0; };
+  const rows0 = logRows();
+  const d3 = g.__post({ action: 'owner_draw', ...T, min: 3, n: 1, dry: true });
+  assert.deepStrictEqual([d3.ok, d3.dry, d3.elig, d3.min], [true, true, 2, 3]);
+  assert.strictEqual(d3.live, undefined, '下見の返事に、司令塔の状態（当たった番号）は入れない');
+  assert.strictEqual(g.__post({ action: 'owner_draw', ...T, min: 1, n: 1, dry: true }).elig, 3);
+  assert.strictEqual(g.__post({ action: 'owner_draw', ...T, min: 10, n: 1, dry: true }).elig, 0, '0人でもエラーにしない');
+  assert.strictEqual(g.__props.LIVE, undefined, '何も書いていない');
+  assert.strictEqual(logRows(), rows0, '記録も増えない');
+  assert.deepStrictEqual(g.__get().live, {});
+  assert.match(g.__post({ action: 'owner_draw', pass: PASS, min: 3, n: 1, dry: true }).error, /^owner session/);
+  assert.match(g.__post({ action: 'owner_draw', ...T, min: 0, n: 1, dry: true }).error, /^bad request/);
+  // 本当に引いたあと：前に当たった人をのぞいた人数。again なら入れた人数
+  const w = g.__post({ action: 'owner_draw', ...T, min: 3, n: 1 }).live.draw.winners[0].cid;
+  assert.strictEqual(g.__post({ action: 'owner_draw', ...T, min: 3, n: 1, dry: true }).elig, 1);
+  assert.strictEqual(g.__post({ action: 'owner_draw', ...T, min: 3, n: 1, dry: true, again: true }).elig, 2);
+  assert.strictEqual(JSON.parse(g.__props.LIVE).draw.winners[0].cid, w, '下見で、当たりは変わらない');
+});

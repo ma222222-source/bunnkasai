@@ -4115,3 +4115,31 @@ test('イベント（v219）：サーバーの返事に live があると、一�
   await expect(page.locator('#lfx')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v220：来場者の画面のイベントの仕上げ ---------------- */
+test('イベント（v220）：一斉お知らせは、時間がたつと自分でとじる（残りの線つき）。「当たり」は、とじるまで出しておく。ラッキーブースの帯は、上から出る', async ({ page }) => {
+  const errors = watchErrors(page);
+  const live = { lucky: { id: 'luck0220', booth: '1F-02', at: Date.now(), until: Date.now() + 300000 } };
+  await mockGas(page, { mutate: j => { j.live = live; } });
+  await page.goto('/?tab=map');
+  await ready(page);
+  // 帯：出るときの動き
+  await expect(page.locator('#banner-lucky')).toBeVisible();
+  expect(await page.locator('#banner-lucky').evaluate(el => getComputedStyle(el).animationName)).toBe('lk-in');
+  // 一斉お知らせ：線が出て、時間で消える（ここでは 1.5秒に縮めて見る。ふだんは 15秒）
+  await page.evaluate(() => { showLiveFx.autoMs = 1500; showLiveFx('show', 'まもなく開場です', '少しお待ちください'); });
+  await expect(page.locator('#lfx .lfx-bar i')).toBeVisible();
+  expect(await page.locator('#lfx .lfx-bar i').evaluate(el => getComputedStyle(el).animationName)).toBe('lfx-bar');
+  await expect(page.locator('#lfx')).toHaveCount(0, { timeout: 6000 });
+  // 手でとじたときは、その時間が来ても、あとから出たものを勝手にとじない
+  await page.evaluate(() => { showLiveFx.autoMs = 2500; showLiveFx('show', '1つ目', ''); showLiveFx.close(); });
+  await expect(page.locator('#lfx')).toHaveCount(0);
+  await page.evaluate(() => { showLiveFx.autoMs = 60000; showLiveFx('win', '当たり！', '本部で、この画面を見せてください'); });
+  await expect(page.locator('#lfx.win')).toBeVisible();
+  await expect(page.locator('#lfx .lfx-bar')).toHaveCount(0);                // 「当たり」には線が無い
+  await page.waitForTimeout(3200);
+  await expect(page.locator('#lfx.win')).toBeVisible();                     // 1つ目の時間（2.5秒）が来ても、とじない
+  await page.locator('#lfx [data-fx="close"]').click();
+  await expect(page.locator('#lfx')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
