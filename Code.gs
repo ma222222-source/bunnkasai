@@ -47,7 +47,7 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-10-14a';
+var GAS_VERSION = '2026-10-14b';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
@@ -660,6 +660,15 @@ function doGet(e) {
       return json_({ ok: false, error: String(errL.message || errL) });
     }
   }
+  // ?win=抽選の番号&cid=スタンプ番号 … その番号が、いまの抽選に当たっているか（v219）。
+  // 当たった番号そのものは、だれにも返さない（番号が分かると、スタンプをつないで横取りできるため）
+  if (param.win) {
+    try {
+      return json_(liveWin_(String(param.win), String(param.cid || '')));
+    } catch (errW) {
+      return json_({ ok: false, error: String(errW.message || errW) });
+    }
+  }
   if (param.report === '1') {
     try {
       // 日付は YYYY-MM-DD だけ受け付ける（任意の文字列でキャッシュを素通りされないように）
@@ -857,6 +866,7 @@ function buildPayload_() {
     waitThresholds: { warn: WAIT_WARN, busy: WAIT_BUSY },
     pollSec: pollSec_(),
     notice: readNotice_(),
+    live: livePublic_(),               // v219：司令塔が起こしたイベント（一斉お知らせ・ラッキーブース・抽選）。無ければ {}
     visitors: readVisitors_(),
     booths: booths
   };
@@ -1239,14 +1249,14 @@ function doPost(e) {
     // （新しい口だけが「不明な操作」で失敗する）。
     // ---------------------------------------------------------------
     if (action === 'upsert') {
-      checkPass_(body.pass, body.cid);
+      ownerOnly_(body);                            // v219：ブースの追加・書き換えは、司令塔（持ち主）だけ
       var uid = cleanBoothId_(body.id);            // 部屋ID（例 1F-02）の形だけ受ける（数式や巨大な文字列を入れさせない）
       if (!uid) throw new Error('bad request: 部屋ID（例 1F-02）の形が違います');
       return json_(upsertBooth_(uid, body));
     }
 
     if (action === 'remove') {
-      checkPass_(body.pass, body.cid);
+      ownerOnly_(body);
       var rid = String(body.id || '').trim();
       if (!rid) throw new Error('bad request: ブースの id がありません');
       return json_({ ok: true, removed: removeBooth_(rid) });
@@ -1255,7 +1265,7 @@ function doPost(e) {
     // 本部からその場でお知らせを出す。スプレッドシートを開かずに流せるようにする。
     // 落とし物・ステージ開始・雨天対応など、当日は「すぐ出す」ことに価値がある
     if (action === 'notice') {
-      checkPass_(body.pass, body.cid);
+      ownerOnly_(body);                            // v219：お知らせは、司令塔（持ち主）だけ
       var text = String(body.text || '').trim().slice(0, 200);
       var level = body.level === 'alert' ? 'alert' : 'info';
       // 本部の2人が同時に流すと、先に出した方が黙って消えていた
@@ -1304,7 +1314,7 @@ function doPost(e) {
     }
 
     if (action === 'bulk') {
-      checkPass_(body.pass, body.cid);
+      ownerOnly_(body);                            // v219：開場・閉場の一括は、司令塔（持ち主）だけ
       var st = isStatus_(body.status) ? String(body.status) : '空いています';
       var cnt = writeBooth_(null, st, 0);
       return json_({ ok: true, status: 'success', updated: cnt });
@@ -2236,7 +2246,168 @@ function ownerStateOut_() {
   var ap0 = props_().getProperty('ADMIN_PASS') || '';
   return { ok: true, approval: ap.on, devices: devList_(), keys: ownerKeysPublic_(),
     passLen: ap0.length, passAt: props_().getProperty('ADMIN_PASS_AT') || '',
+    live: liveOwner_(),
     rpId: rpIdOf_(ownerOrigins_()[0]), sessionSec: OWNER_SESSION_SEC, sv: GAS_VERSION };
+}
+
+/* =====================================================================
+   v219：本部・準備の操作は、司令塔（持ち主）だけ ／ 司令塔だけが起こせるイベント
+   ・お知らせ（notice）・開場と閉場の一括（bulk）・ブースの追加と削除（upsert・remove）は、
+     係員のパスワードでは通さない。司令塔に入っている印（token）が要る。
+   ・イベントは、スクリプトプロパティ LIVE に1つにまとめて持つ（シートは使わない。読むのが速い）。
+       show  … 演出つきの一斉お知らせ（見出し・文。出してから LIVE_SHOW_SEC 秒のあいだ、開いた人に1回ずつ出る）
+       lucky … ラッキーブース（選んだブースが、決めた時間だけ地図と一覧で光る）
+       draw  … スタンプの抽選（当たった番号は LIVE の中だけ。来場者には「抽選があった」ことだけ返し、
+               自分が当たったかは ?win= で自分の番号を出して聞く）
+   ===================================================================== */
+var LIVE_SHOW_SEC = 180;
+var LIVE_DRAW_MIN = 30;          // 当たりの表示を出しておく時間（分）
+var LIVE_PAST_MAX = 200;         // その日に当たった番号を覚えておく数（同じ人が何度も当たらないように）
+
+function ownerOnly_(body) {
+  if (body && body.token) { ownerNeed_(body.token); return; }
+  throw new Error('owner only: この操作は、司令塔（持ち主）からだけ行えます');
+}
+function liveRead_() {
+  try {
+    var o = JSON.parse(props_().getProperty('LIVE') || '{}');
+    return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+  } catch (e) { return {}; }
+}
+function liveSave_(o) { props_().setProperty('LIVE', JSON.stringify(o)); }
+function liveId_() { return Utilities.getUuid().replace(/-/g, '').slice(0, 12); }
+/** 来場者に返す分。終わったものは入れない。当たった番号は入れない */
+function livePublic_() {
+  var o = liveRead_(), now = Date.now(), out = {};
+  if (o.show && o.show.until > now) out.show = { id: o.show.id, title: o.show.title, text: o.show.text, at: o.show.at, until: o.show.until };
+  if (o.lucky && o.lucky.until > now) out.lucky = { id: o.lucky.id, booth: o.lucky.booth, at: o.lucky.at, until: o.lucky.until };
+  if (o.draw && o.draw.until > now) out.draw = { id: o.draw.id, at: o.draw.at, until: o.draw.until, min: o.draw.min, n: (o.draw.winners || []).length };
+  return out;
+}
+/** 司令塔に返す分（当たった番号つき） */
+function liveOwner_() {
+  var o = liveRead_(), now = Date.now(), out = livePublic_();
+  if (out.draw) { out.draw.winners = o.draw.winners || []; out.draw.elig = o.draw.elig || 0; }
+  out.now = now;
+  return out;
+}
+/** その番号が、いまの抽選に当たっているか */
+function liveWin_(idRaw, cidRaw) {
+  var cid = resolveCid_(cleanCid_(cidRaw));
+  var d = liveRead_().draw;
+  var live = !!(d && d.until > Date.now() && d.id === String(idRaw));
+  var hit = live && (d.winners || []).some(function (w) { return w.cid === cid; });
+  return { ok: true, sv: GAS_VERSION, id: live ? d.id : '', win: !!hit };
+}
+/** 日付（日本時間）の文字。抽選は、その日に押されたスタンプだけを数える */
+function liveDay_(d) { return Utilities.formatDate(d, TZ, 'yyyy-MM-dd'); }
+/**
+ * 抽選。その日にスタンプを min 個以上あつめた番号から、n 人を選ぶ。
+ * 番号をつないだ人（旧 → 新）は、新しい番号にまとめて数える。exclude の番号は選ばない。
+ */
+function drawPick_(min, n, exclude) {
+  var sh = ledgerSheet_(), last = sh.getLastRow();
+  if (last < 2) return { winners: [], elig: 0 };
+  var alias = {}, as = ss_().getSheetByName(SHEET_ALIAS);
+  if (as && as.getLastRow() >= 2) {
+    as.getRange(2, 1, as.getLastRow() - 1, 2).getValues().forEach(function (r) { if (r[0] && r[1]) alias[String(r[0])] = String(r[1]); });
+  }
+  var res = function (c) { for (var i = 0; i < 5 && alias[c] && alias[c] !== c; i++) c = alias[c]; return c; };
+  var today = liveDay_(new Date()), by = {};
+  sh.getRange(2, 1, last - 1, 5).getValues().forEach(function (r) {
+    if (r[2] !== 's' || !r[1]) return;
+    var when = r[4] ? (r[4] instanceof Date ? r[4] : new Date(r[4])) : (r[0] instanceof Date ? r[0] : new Date(r[0]));
+    if (isNaN(when.getTime()) || liveDay_(when) !== today) return;
+    var c = res(String(r[1]));
+    (by[c] = by[c] || {})[String(r[3])] = 1;
+  });
+  var pool = Object.keys(by).filter(function (c) { return Object.keys(by[c]).length >= min && !exclude[c]; });
+  var elig = pool.length, winners = [];
+  while (winners.length < n && pool.length) {
+    var c1 = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    winners.push({ cid: c1, stamps: Object.keys(by[c1]).length });
+  }
+  return { winners: winners, elig: elig };
+}
+function liveLog_(what) {
+  try { appendTo_('司令塔の記録', ['timestamp', 'what'], [new Date(), safeText_(what)]); } catch (eW) {}
+}
+/** 司令塔のイベントの操作（ownerApi_ から。入っている印は確かめ済み） */
+function liveApi_(action, body) {
+  if (action === 'owner_show') {
+    var title = cut_(String(body.title == null ? '' : body.title).trim(), 30);
+    var text = cut_(String(body.text == null ? '' : body.text).trim(), 80);
+    if (!title) throw new Error('bad request: 見出しを入れてください');
+    return withLock_(function () {
+      var o = liveRead_(), now = Date.now();
+      o.show = { id: liveId_(), title: title, text: text, at: now, until: now + LIVE_SHOW_SEC * 1000 };
+      liveSave_(o);
+      liveLog_('一斉お知らせ：' + title + (text ? '／' + text : ''));
+      clearCache_();
+      return ownerStateOut_();
+    });
+  }
+  if (action === 'owner_lucky') {
+    var booth = cleanBoothId_(body.booth);
+    var minutes = Math.round(Number(body.minutes));
+    if (body.booth && !booth) throw new Error('bad request: ブースの id の形が違います');
+    if (booth && (!isFinite(minutes) || minutes < 3 || minutes > 60)) throw new Error('bad request: 時間は 3〜60分にしてください');
+    return withLock_(function () {
+      var o = liveRead_(), now = Date.now();
+      if (!booth) { delete o.lucky; liveLog_('ラッキーブースを終わらせた'); }
+      else {
+        // シートにあるブースだけ（無い番号を光らせない）
+        var sh = sheet_(SHEET_MAIN), idx = headerIndex_(sh), nm = '';
+        if (sh.getLastRow() >= 2) {
+          sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues().forEach(function (r) {
+            if (String(r[idx['id']]).trim() === booth) nm = String(r[idx['name']] || booth);
+          });
+        }
+        if (!nm) throw new Error('bad request: そのブースは、シートにありません');
+        o.lucky = { id: liveId_(), booth: booth, at: now, until: now + minutes * 60000 };
+        liveLog_('ラッキーブース：' + nm + '（' + minutes + '分）');
+      }
+      liveSave_(o);
+      clearCache_();
+      return ownerStateOut_();
+    });
+  }
+  if (action === 'owner_draw') {
+    var min = Math.round(Number(body.min)), n = Math.round(Number(body.n));
+    if (!isFinite(min) || min < 1 || min > 60) throw new Error('bad request: スタンプの数は 1〜60 にしてください');
+    if (!isFinite(n) || n < 1 || n > 10) throw new Error('bad request: 当たりの人数は 1〜10 にしてください');
+    return withLock_(function () {
+      var o = liveRead_(), now = Date.now(), today = liveDay_(new Date());
+      var past = (o.past && o.past.day === today && Array.isArray(o.past.cids)) ? o.past.cids : [];
+      var ex = {};
+      if (body.again !== true) past.forEach(function (c) { ex[c] = 1; });
+      var pick = drawPick_(min, n, ex);
+      if (!pick.winners.length) {
+        throw new Error('bad request: 当たりを引ける人がいません（きょうスタンプを ' + min + '個以上あつめた人：' + pick.elig + '人）');
+      }
+      o.draw = { id: liveId_(), at: now, until: now + LIVE_DRAW_MIN * 60000, min: min, winners: pick.winners, elig: pick.elig };
+      pick.winners.forEach(function (w) { if (past.indexOf(w.cid) < 0) past.push(w.cid); });
+      o.past = { day: today, cids: past.slice(-LIVE_PAST_MAX) };
+      liveSave_(o);
+      // 記録には、番号そのものは残さない（人数だけ）
+      liveLog_('抽選：' + pick.winners.length + '人が当たり（' + min + '個以上の人 ' + pick.elig + '人から）');
+      clearCache_();
+      return ownerStateOut_();
+    });
+  }
+  if (action === 'owner_live_clear') {
+    var what = String(body.what || '');
+    if (['show', 'lucky', 'draw'].indexOf(what) < 0) throw new Error('bad request: 消すものが違います');
+    return withLock_(function () {
+      var o = liveRead_();
+      delete o[what];
+      liveSave_(o);
+      liveLog_({ show: '一斉お知らせ', lucky: 'ラッキーブース', draw: '抽選の当たりの表示' }[what] + 'を消した');
+      clearCache_();
+      return ownerStateOut_();
+    });
+  }
+  return null;
 }
 
 /** 司令塔の操作の入口（doPost から） */
@@ -2354,5 +2525,8 @@ function ownerApi_(action, body) {
     ownerKeysSave_(left);
     return ownerStateOut_();
   }
+  // v219：司令塔だけのイベント
+  var lv = liveApi_(action, body);
+  if (lv) return lv;
   throw new Error('unknown action: この操作（' + cut_(action, 20) + '）は、このサーバーの版（' + GAS_VERSION + '）にはありません');
 }

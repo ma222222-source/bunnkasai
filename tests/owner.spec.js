@@ -40,11 +40,13 @@ async function staffLogin(page, origin, pass) {
   await page.locator('#pw').fill(pass);
   await page.locator('#btn-login').click();
 }
-async function ownerLogin(page, origin) {
+/** 司令塔に入る。tab：入ったあとに開く画面（係員＝パスワードと端末。'' なら、はじめの「ようす」のまま） */
+async function ownerLogin(page, origin, tab = 'staff') {
   await page.goto(origin + '/?mode=owner');
   await page.locator('#own-pw').fill(OWNER);
   await page.locator('#own-login').click();
   await expect(page.locator('#own-main')).toBeVisible({ timeout: 10000 });
+  if (tab) await page.locator('#owntab-' + tab).click();
 }
 const accept = page => page.once('dialog', d => d.accept());
 
@@ -63,8 +65,7 @@ test('司令塔：持ち主パスワードが決まっていないあいだは�
   // 係員は、今までどおり入れる
   await staffLogin(page, origin, PASS);
   await expect(page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
-  // 準備の画面から、司令塔を開ける
-  await page.locator('#admtab-setup').click();
+  // 係員の画面の下から、司令塔を開ける
   await page.locator('#btn-open-owner').click();
   await expect(page.locator('#v-owner')).toBeVisible();
   expect(errors).toEqual([]);
@@ -85,6 +86,7 @@ test('司令塔：持ち主パスワードで入り、係員のパスワード�
   await page.locator('#own-pw').press('Enter');
   await expect(page.locator('#own-main')).toBeVisible({ timeout: 10000 });
   await expect(page.locator('#own-gate')).toBeHidden();
+  await page.locator('#owntab-staff').click();
   await expect(page.locator('#own-pass-now')).toContainText(PASS.length + '文字');
   expect(await page.locator('#own-pw').inputValue()).toBe('');
   expect(await page.evaluate(([a, b]) => document.body.innerText.includes(a) || document.body.innerText.includes(b), [PASS, OWNER])).toBe(false);
@@ -223,6 +225,7 @@ test('司令塔：パスキー（顔認証・指紋）を登録して、次か�
   await page.locator('#own-pw').fill(OWNER);
   await page.locator('#own-login').click();
   await expect(page.locator('#own-main')).toBeVisible({ timeout: 10000 });
+  await page.locator('#owntab-setup').click();
   await page.locator('#own-key-label').fill('わたしのスマホ');
   await page.locator('#own-reg').click();
   await expect(page.locator('#own-keys .own-key')).toHaveCount(1, { timeout: 15000 });
@@ -304,7 +307,7 @@ test('司令塔（v217）：新しいパスワードを打っている途中に�
   }));
   // #own-pw は入口の欄（いまは隠れていて幅 0）なので、見えている欄だけを見る
   fit.filter(f => f.room > 0).forEach(f => expect(f.w, JSON.stringify(f)).toBeLessThanOrEqual(f.room));
-  expect(fit.filter(f => f.room > 0).length).toBeGreaterThanOrEqual(3);
+  expect(fit.filter(f => f.room > 0).length).toBeGreaterThanOrEqual(2);
   // 打っている途中
   await page.locator('#own-np').fill('abc');
   await expect(hint).toHaveText('あと 5文字（いま 3文字）');
@@ -406,4 +409,312 @@ test('司令塔（v218）：一覧は、変わっていなければ描き直さ�
   await expect(page.locator('#own-devs .own-dev.busy')).toHaveCount(0);
   await expect(page.locator(`#own-devs .own-dev:not([data-cid="${cid}"]) [data-dev="no"]`)).toBeEnabled();
   expect(errors.filter(e => !/Failed to load resource|net::ERR_FAILED/.test(e))).toEqual([]);
+});
+
+/* ---------------- v219：司令塔の作り直し（5枚・本部と準備を移す）と、司令塔だけのイベント ---------------- */
+/** 来場者の端末（スタンプ番号とスタンプを持たせる） */
+async function visitor(browser, g, sid, stamps) {
+  const d = await device(browser, g);
+  await d.page.addInitScript(([sid, stamps]) => {
+    localStorage.setItem('kuroko_intro_v1', '1');
+    if (sid) localStorage.setItem('kuroko_sid', JSON.stringify(sid));
+    if (stamps && !localStorage.getItem('kuroko_stamps_v2')) localStorage.setItem('kuroko_stamps_v2', JSON.stringify(stamps));
+  }, [sid || '', stamps || null]);
+  return d;
+}
+const loaded = page => expect.poll(() => page.evaluate(() => (typeof S !== 'undefined' && S.booths) ? S.booths.length : 0), { timeout: 15000 }).toBe(46);
+
+test('司令塔（v219）：5枚のタブ。本部（お知らせ・開場と閉場）と準備（地図の割り当て・印刷物）は司令塔の中だけ。係員の画面は 更新・受付 の2枚で、係員のパスワードでは出せない', async ({ page, browser, baseURL }) => {
+  test.setTimeout(90000);
+  const errors = watchErrors(page);
+  const { g, origin } = server(baseURL);
+  g.__post({ action: 'visitor', pass: PASS, cid: 'aaaa1111aaaa', n: 7, uid: 'v219' });
+  await bridge(page, g);
+  // 係員の画面：2枚だけ。本部・準備の部品は無い。出る所と、司令塔への入口は下にある
+  const A = await device(browser, g);
+  await staffLogin(A.page, origin, PASS);
+  await expect(A.page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
+  await expect(A.page.locator('.adm-tabs button')).toHaveCount(2);
+  expect(await A.page.evaluate(() => ['#notice-card', '#btn-bulk', '#btn-edit-map', '#chk-card', '#stale-card'].filter(s => document.querySelector('#v-admin ' + s)))).toEqual([]);
+  await expect(A.page.locator('#btn-logout')).toBeVisible();
+  await expect(A.page.locator('#btn-open-owner')).toBeVisible();
+  // 係員のパスワードでは、お知らせも一括も出せない（画面を通さずに送っても、サーバーが断る）
+  const denied = await A.page.evaluate(async () => {
+    const out = [];
+    for (const body of [{ action: 'notice', text: 'いたずら', level: 'alert' }, { action: 'bulk', status: '準備中' }]) {
+      try { await api({ body: Object.assign({ pass: pw() }, body) }); out.push('ok'); } catch (e) { out.push(String(e.message)); }
+    }
+    return out;
+  });
+  denied.forEach(m => expect(m).toMatch(/^owner only/));
+  expect(g.__get().notice).toBeNull();
+  // 司令塔：はじめは「ようす」。来場者の数・止まっているブースの数・混み具合が出る
+  await ownerLogin(page, origin, '');
+  await expect(page.locator('.own-tabs button')).toHaveCount(5);
+  await expect(page.locator('#owntab-home')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#own-tiles .own-tile').first()).toContainText('7');
+  const stale = await page.evaluate(() => S.booths.filter(b => isVenue(b) && lvOf(b).lv !== 3 && elapsedMin(b) >= CONFIG.ADMIN_WARN_MIN).length);
+  await expect(page.locator('#own-tiles [data-ogo="hq"] b')).toContainText(String(stale));
+  await expect(page.locator('#owntab-hq-n')).toHaveText(String(stale));
+  await expect(page.locator('#own-tiles .own-mix-lg')).toContainText('情報なし');
+  await expect(page.locator('#own-now')).toContainText('何も出していません');
+  // どのタブも：その1枚だけが見える・幅 320px で横にはみ出さない・押す所は 44px 以上
+  await page.setViewportSize({ width: 320, height: 640 });
+  for (const t of ['home', 'event', 'hq', 'staff', 'setup']) {
+    await page.locator('#owntab-' + t).click();
+    await expect(page.locator('#ownpane-' + t)).toBeVisible();
+    const m = await page.evaluate(() => ({
+      panes: [...document.querySelectorAll('.own-pane')].filter(p => p.offsetParent).length,
+      over: document.documentElement.scrollWidth - innerWidth,
+      small: [...document.querySelectorAll('#own-main button, #own-main input:not([type=checkbox]), #own-main select, #own-main a.btn, #own-main summary')]
+        .filter(el => el.offsetParent && el.offsetHeight < 43.5).map(el => (el.id || el.textContent.trim().slice(0, 12)) + ' ' + el.offsetHeight) }));   // 押したときの動き（少し縮む）に左右されないよう、並べたときの高さで見る
+    expect(m.panes, t).toBe(1);
+    expect(m.over, t).toBeLessThanOrEqual(0);
+    expect(m.small, t).toEqual([]);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  // ようすの札を押すと、その画面へ
+  await page.locator('#owntab-home').click();
+  await page.locator('#own-tiles [data-ogo="hq"]').click();
+  await expect(page.locator('#owntab-hq')).toHaveAttribute('aria-selected', 'true');
+  // 本部：お知らせを出す（司令塔に入っている印で送る。係員のパスワードは送らない）
+  const sent = [];
+  page.on('request', r => { const b = r.postData() || ''; if (/"action":"(notice|bulk)"/.test(b)) sent.push(JSON.parse(b)); });
+  await page.locator('#notice-card > summary').click();
+  await page.locator('#notice-text').fill('12:00 から体育館でステージ発表があります');
+  await page.locator('#notice-send').click();
+  await expect(page.locator('#toast')).toContainText('お知らせを出しました', { timeout: 10000 });
+  expect(g.__get().notice.text).toBe('12:00 から体育館でステージ発表があります');
+  expect(sent[0].token).toMatch(/^[a-f0-9]{64}$/);
+  expect(sent[0].pass).toBeUndefined();
+  await page.locator('#owntab-home').click();
+  await expect(page.locator('#own-now')).toContainText('12:00 から体育館');
+  // 閉場：全ブースを「準備中」に
+  await page.locator('#owntab-hq').click();
+  accept(page);
+  await page.locator('#btn-bulk-close').click();
+  await expect(page.locator('#toast')).toContainText('準備中', { timeout: 10000 });
+  expect(g.__get().booths.every(b => b.status === '準備中')).toBe(true);
+  // 準備：印刷するもの5つ（絵つき）。地図の割り当てに入って、やめると「準備」に戻る
+  await page.locator('#owntab-setup').click();
+  const links = await page.evaluate(() => [...document.querySelectorAll('#ownpane-setup .own-links a.btn')].map(a => ({ href: a.getAttribute('href'), ic: !!a.querySelector('svg.ic') })));
+  expect(links.map(l => l.href)).toEqual(['?mode=qr', '?mode=pamphlet', '?mode=print', '?mode=report', '?mode=board']);
+  expect(links.every(l => l.ic)).toBe(true);
+  await page.locator('#ownpane-setup .setup-card > summary').click();
+  await page.locator('#btn-edit-map').click();
+  await expect(page.locator('#edit-bar')).toBeVisible();
+  await expect(page.locator('#v-map')).toBeVisible();
+  await page.locator('#edit-off').click();
+  await expect(page.locator('#ownpane-setup')).toBeVisible({ timeout: 10000 });
+  // QR の印刷シート：司令塔に入っていれば開ける。戻り口は「← 司令塔」
+  await page.locator('#ownpane-setup .own-links a[href="?mode=qr"]').click();
+  await expect(page.locator('#v-qr')).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('#staff-back-btn')).toHaveText('← 司令塔');
+  await expect(page.locator('#staff-jump button')).toHaveCount(5);
+  await page.locator('#staff-back-btn').click();
+  await expect(page.locator('#own-main')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('#owntab-setup')).toHaveAttribute('aria-selected', 'true');     // 前に開いていた所へ
+  // 係員だけの端末には、印刷物への近道は出ない
+  await A.page.goto(origin + '/?mode=report');
+  await expect(A.page.locator('#staff-back-btn')).toHaveText('← 係員画面');
+  await expect(A.page.locator('#staff-jump button')).toHaveCount(0);
+  await A.ctx.close();
+  expect(errors).toEqual([]);
+});
+
+test('イベント（v219）：演出つきの一斉お知らせ。「この端末で試す」は送らない。出すと、来場者の画面に1回だけ出る（係員の画面・本部モニタには出ない）。打った文字はタグにしない', async ({ page, browser, baseURL }) => {
+  test.setTimeout(90000);
+  const errors = watchErrors(page);
+  const { g, origin } = server(baseURL);
+  await bridge(page, g);
+  await ownerLogin(page, origin, 'event');
+  // 見出しが無ければ出さない
+  await page.locator('#own-show-send').click();
+  await expect(page.locator('#toast')).toContainText('見出しを入れてください');
+  // ひな形 → この端末で試す（だれにも送らない）
+  await page.locator('#own-show-tpl .chip').first().click();
+  await expect(page.locator('#own-show-title')).toHaveValue('まもなくステージ発表！');
+  await page.locator('#own-show-try').click();
+  await expect(page.locator('#lfx .lfx-title')).toHaveText('まもなくステージ発表！');
+  await expect(page.locator('#lfx .sfx-kicker')).toContainText('ためし');
+  expect(g.__props.LIVE).toBeUndefined();
+  await page.locator('#lfx [data-fx="close"]').click();
+  await expect(page.locator('#lfx')).toHaveCount(0);
+  // 全員に出す
+  await page.locator('#own-show-title').fill('A<b id="xss1">太字</b>');
+  await page.locator('#own-show-text').fill('<img src=x onerror="window.__xss=1">第一体育館へ');
+  accept(page);
+  await page.locator('#own-show-send').click();
+  await expect(page.locator('#own-show-now')).toContainText('出しています', { timeout: 10000 });
+  await expect(page.locator('#own-ev-show')).toHaveAttribute('data-live', '1');
+  await expect(page.locator('#owntab-event-n')).toHaveText('1');
+  await expect(page.locator('#own-show-title')).toHaveValue('');
+  // 司令塔の画面には、演出は出ない
+  await page.evaluate(() => sync(false));
+  await expect(page.locator('#lfx')).toHaveCount(0);
+  // 来場者：開くと出る。文字はそのまま（タグにならない）
+  const V = await visitor(browser, g);
+  const verr = watchErrors(V.page);
+  await V.page.goto(origin + '/?tab=map');
+  await expect(V.page.locator('#lfx')).toBeVisible({ timeout: 15000 });
+  await expect(V.page.locator('#lfx .sfx-kicker')).toHaveText('本部から');
+  await expect(V.page.locator('#lfx .lfx-title')).toHaveText('A<b id="xss1">太字</b>');
+  await expect(V.page.locator('#lfx .lfx-text')).toContainText('第一体育館へ');
+  expect(await V.page.evaluate(() => !!document.querySelector('#xss1') || !!window.__xss || !!document.querySelector('#lfx img'))).toBe(false);
+  await expect(V.page.locator('#lfx [data-fx="close"]')).toBeFocused();
+  await V.page.keyboard.press('Escape');
+  await expect(V.page.locator('#lfx')).toHaveCount(0);
+  // 同じお知らせは、開き直しても もう出ない
+  await V.page.reload();
+  await loaded(V.page);
+  await V.page.waitForTimeout(600);
+  await expect(V.page.locator('#lfx')).toHaveCount(0);
+  // もう一度出すと（番号が変わる）、また出る
+  await page.locator('#own-show-title').fill('ただいま開場しました！');
+  accept(page);
+  await page.locator('#own-show-send').click();
+  await expect(page.locator('#own-show-now')).toContainText('ただいま開場', { timeout: 10000 });
+  await V.page.evaluate(() => sync(false));
+  await expect(V.page.locator('#lfx .lfx-title')).toHaveText('ただいま開場しました！', { timeout: 10000 });
+  await V.page.locator('#lfx [data-fx="close"]').click();
+  expect(verr).toEqual([]);
+  await V.ctx.close();
+  // 本部モニタ・係員の画面には出ない
+  const B = await visitor(browser, g);
+  await B.page.goto(origin + '/?mode=board');
+  await B.page.waitForTimeout(1500);
+  await expect(B.page.locator('#lfx')).toHaveCount(0);
+  await staffLogin(B.page, origin, PASS);
+  await expect(B.page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
+  await B.page.waitForTimeout(800);
+  await expect(B.page.locator('#lfx')).toHaveCount(0);
+  await B.ctx.close();
+  expect(errors).toEqual([]);
+});
+
+test('イベント（v219）：ラッキーブース。来場者の画面に帯が出て、地図と一覧で光る。「見る」でそのブースが開く。終わらせる・時間が来ると消える', async ({ page, browser, baseURL }) => {
+  test.setTimeout(90000);
+  const errors = watchErrors(page);
+  const { g, origin } = server(baseURL);
+  await bridge(page, g);
+  const V = await visitor(browser, g);
+  const verr = watchErrors(V.page);
+  await V.page.goto(origin + '/?tab=map');
+  await loaded(V.page);
+  await expect(V.page.locator('#banner-lucky')).toBeHidden();
+  await ownerLogin(page, origin, 'event');
+  // えらばないと始められない
+  await page.locator('#own-lucky-start').click();
+  await expect(page.locator('#toast')).toContainText('ブースをえらんでください');
+  expect(await page.locator('#own-lucky-booth option').count()).toBeGreaterThan(40);
+  await page.locator('#own-lucky-booth').selectOption('1F-02');
+  await page.locator('#own-lucky-min [data-v="5"]').click();
+  await expect(page.locator('#own-lucky-min [data-v="5"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#own-lucky-min [aria-pressed="true"]')).toHaveCount(1);
+  accept(page);
+  await page.locator('#own-lucky-start').click();
+  await expect(page.locator('#own-lucky-now')).toContainText('光らせています：旋盤の加工実演', { timeout: 10000 });
+  await expect(page.locator('#own-lucky-end')).toBeVisible();
+  expect(g.__get().live.lucky.booth).toBe('1F-02');
+  // 来場者：次の同期で、帯と知らせが出る
+  await V.page.evaluate(() => sync(false));
+  const bn = V.page.locator('#banner-lucky');
+  await expect(bn).toBeVisible({ timeout: 10000 });
+  await expect(bn).toContainText('旋盤の加工実演');
+  await expect(bn).toContainText(/ラッキーブース・あと[45]分/);
+  await expect(V.page.locator('#toast')).toContainText('ラッキーブース：旋盤の加工実演');
+  // 地図の部屋と、一覧の札が光る
+  const glow = await V.page.evaluate(() => {
+    const f = document.querySelector('.room[data-id="1F-02"] .fill'), o = document.querySelector('.room[data-id="1F-03"] .fill');
+    return { stroke: f ? getComputedStyle(f).stroke : '', other: o ? getComputedStyle(o).stroke : '' };
+  });
+  expect(glow.stroke).toBe('rgb(217, 165, 20)');
+  expect(glow.other).not.toBe('rgb(217, 165, 20)');
+  // 「見る」→ そのブースの詳細
+  await V.page.locator('#banner-lucky-go').click();
+  await expect(V.page.locator('.bsh-head h2')).toHaveText('旋盤の加工実演', { timeout: 10000 });
+  await V.page.locator('#bsh-x').click();
+  await V.page.locator('#nav button[data-view="list"]').click();
+  await expect(bn).toBeVisible();
+  expect(await V.page.evaluate(() => { const el = document.getElementById('booth-1F-02'); return el ? getComputedStyle(el).outlineColor : ''; })).toBe('rgb(217, 165, 20)');
+  expect(await V.page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  // 時間が来たら、次の同期を待たずに消える
+  await V.page.evaluate(() => { S.live.lucky.until = Date.now() + 1200; renderLive(); });
+  await expect(bn).toBeHidden({ timeout: 8000 });
+  expect(await V.page.evaluate(() => document.getElementById('lucky-style').textContent)).toBe('');
+  // 持ち主が終わらせる
+  await V.page.evaluate(() => sync(false));
+  await expect(bn).toBeVisible({ timeout: 10000 });
+  accept(page);
+  await page.locator('#own-lucky-end').click();
+  await expect(page.locator('#own-lucky-now')).toHaveText('', { timeout: 10000 });
+  await expect(page.locator('#own-lucky-end')).toBeHidden();
+  await V.page.evaluate(() => sync(false));
+  await expect(bn).toBeHidden({ timeout: 10000 });
+  expect(verr).toEqual([]);
+  await V.ctx.close();
+  expect(errors).toEqual([]);
+});
+
+test('イベント（v219）：スタンプの抽選。当たった人の画面にだけ「当たり」と自分のスタンプ番号が出て、司令塔の番号と同じ。はずれ・スタンプなしの人には出ない。消すと、当たった人の画面からも消える', async ({ page, browser, baseURL }) => {
+  test.setTimeout(120000);
+  const errors = watchErrors(page);
+  const { g, origin } = server(baseURL);
+  await bridge(page, g);
+  const now = Date.now();
+  // 当たる人（3個）・はずれる人（1個）・スタンプなしの人
+  g.__post({ action: 'ledger', cid: 'WWWW1234', ev: ['1F-02', '1F-03', '2F-12'].map(id => ({ t: 's', id, at: now })) });
+  g.__post({ action: 'ledger', cid: 'LLLL5678', ev: [{ t: 's', id: '1F-02', at: now }] });
+  const W = await visitor(browser, g, 'WWWW1234', ['1F-02', '1F-03', '2F-12']);
+  const L = await visitor(browser, g, 'LLLL5678', ['1F-02']);
+  const N = await visitor(browser, g);
+  const werr = watchErrors(W.page);
+  for (const d of [W, L, N]) { await d.page.goto(origin + '/?tab=map'); await loaded(d.page); await d.page.evaluate(() => { liveDrawCheck.wait = 0; }); }
+  await ownerLogin(page, origin, 'event');
+  // 条件に合う人がいない
+  await page.locator('#own-draw-min [data-v="10"]').click();
+  accept(page);
+  await page.locator('#own-draw-go').click();
+  await expect(page.locator('#toast')).toContainText('当たりを引ける人がいません', { timeout: 10000 });
+  await expect(page.locator('#own-draw-res li')).toHaveCount(0);
+  // 3個以上から1人
+  await page.locator('#own-draw-min [data-v="3"]').click();
+  accept(page);
+  await page.locator('#own-draw-go').click();
+  await expect(page.locator('#own-draw-res li')).toHaveCount(1, { timeout: 10000 });
+  await expect(page.locator('#own-draw-res li b')).toHaveText('WWWW-1234');
+  await expect(page.locator('#own-draw-now')).toContainText('1人が当たり');
+  await expect(page.locator('#own-draw-clear')).toBeVisible();
+  // 当たった人：演出と、自分のスタンプ番号
+  await W.page.evaluate(() => sync(false));
+  await expect(W.page.locator('#lfx.win')).toBeVisible({ timeout: 15000 });
+  await expect(W.page.locator('#lfx .lfx-title')).toHaveText('当たり！');
+  await expect(W.page.locator('#lfx .lfx-sid b')).toHaveText('WWWW-1234');
+  await W.page.locator('#lfx [data-fx="close"]').click();
+  // スタンプの画面に、札が残る。開き直しても残る（演出は、もう出ない）
+  await W.page.locator('#nav button[data-view="stamp"]').click();
+  await expect(W.page.locator('#win-card')).toBeVisible();
+  await expect(W.page.locator('#win-card .sid')).toHaveText('WWWW-1234');
+  await W.page.reload();
+  await loaded(W.page);
+  await W.page.locator('#nav button[data-view="stamp"]').click();
+  await expect(W.page.locator('#win-card')).toBeVisible();
+  await expect(W.page.locator('#lfx')).toHaveCount(0);
+  // はずれの人・スタンプなしの人：演出も札も出ない（ひとこと知らせるだけ）
+  await L.page.evaluate(() => sync(false));
+  await expect(L.page.locator('#toast')).toContainText('はずれ', { timeout: 15000 });
+  await N.page.evaluate(() => sync(false));
+  await expect(N.page.locator('#toast')).toContainText('スタンプをあつめると', { timeout: 15000 });
+  for (const d of [L, N]) { await expect(d.page.locator('#lfx')).toHaveCount(0); await expect(d.page.locator('#win-card')).toHaveCount(0); }
+  // 当たった番号は、ほかの人の画面のどこにも届いていない
+  expect(await L.page.evaluate(() => JSON.stringify(S.live) + document.body.innerText)).not.toContain('WWWW');
+  // 当たりの表示を消す → 当たった人の画面からも消える
+  accept(page);
+  await page.locator('#own-draw-clear').click();
+  await expect(page.locator('#own-draw-res li')).toHaveCount(0, { timeout: 10000 });
+  await W.page.evaluate(() => sync(false));
+  await expect(W.page.locator('#win-card')).toHaveCount(0, { timeout: 10000 });
+  expect(werr).toEqual([]);
+  await W.ctx.close(); await L.ctx.close(); await N.ctx.close();
+  expect(errors).toEqual([]);
 });

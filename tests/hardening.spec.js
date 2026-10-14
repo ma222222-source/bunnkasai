@@ -56,11 +56,38 @@ test('XSS：係員コンソール（ログイン後）でも動かない', async
   await page.locator('#btn-login').click();
   await expect(page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
   await ready(page);
-  for (const tab of ['update', 'recept', 'hq', 'setup']) {
+  for (const tab of ['update', 'recept']) {
     await page.locator(`[data-tab="${tab}"]`).first().click();
     await page.waitForTimeout(300);
   }
+  // v219：本部・準備は司令塔へ移った。司令塔の5枚も、悪い文字列（ブースの名前・端末の名前・パスキーの名前・イベントの見出し）で見る
+  const bad = '<img src=x onerror="window.__xss=1"><script>window.__xss=1</script>';
+  const st = { ok: true, approval: true, passLen: 18, passAt: '', sv: '2026-10-14b',
+    devices: [{ cid: 'devaaaaaaaaaaaa01', st: 'wait', code: 'AB12', label: bad, last: new Date().toISOString() }],
+    keys: [{ id: 'k1', label: bad, at: new Date().toISOString() }],
+    live: { show: { id: 's1', title: bad, text: bad, at: Date.now(), until: Date.now() + 60000 },
+      lucky: { id: 'l1', booth: '1F-02', at: Date.now(), until: Date.now() + 60000 },
+      draw: { id: 'd1', at: Date.now(), until: Date.now() + 60000, min: 3, elig: 2, winners: [{ cid: bad, stamps: 3 }] } } };
+  await page.route(/script\.google(usercontent)?\.com\//, async route => {
+    if (/"action":"owner_/.test(route.request().postData() || '')) {
+      return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/json',
+        body: JSON.stringify(Object.assign({ token: 'a'.repeat(64), state: st }, st)) });
+    }
+    return route.fallback();
+  });
+  await page.evaluate(() => { sessionStorage.setItem('kuroko_owner', 'a'.repeat(64)); return openOwner(); });
+  await expect(page.locator('#own-main')).toBeVisible({ timeout: 10000 });
+  for (const tab of ['home', 'event', 'hq', 'staff', 'setup']) {
+    await page.locator('#owntab-' + tab).click();
+    await page.waitForTimeout(300);
+  }
+  await expect(page.locator('#own-draw-res li')).toHaveCount(1);        // 当たりの一覧まで描いている
+  // 来場者むけの演出も、悪い文字列で
+  await page.evaluate(([t]) => showLiveFx('show', t, t, true), [bad]);
+  await expect(page.locator('#lfx .lfx-title')).toHaveText(bad);
+  await page.waitForTimeout(300);
   expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+  expect(await page.evaluate(() => document.querySelectorAll('#own-main img, #lfx img, #own-main script, #lfx script').length)).toBe(0);
   expect(errors).toEqual([]);
 });
 

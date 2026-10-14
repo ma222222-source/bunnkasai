@@ -119,13 +119,13 @@ test('古い更新は「情報なし」で返す（45分）。準備中はその
 });
 
 test('お知らせ：出す・消す。数式は文字のまま入れる。控えに残る', () => {
-  const g = fresh();
-  const r = g.__post({ action: 'notice', pass: PASS, cid: 'c1', text: '=IMPORTXML("http://x")', level: 'alert' });
+  const g = freshOwner();
+  const r = g.__post({ action: 'notice', token: ownerIn(g), text: '=IMPORTXML("http://x")', level: 'alert' });
   assert.strictEqual(r.ok, true);
   const nt = g.__ss.getSheetByName('お知らせ');
   assert.ok(String(nt.cell(2, 1)).startsWith("'="), 'シートでは数式にならない');
   assert.deepStrictEqual(g.__get().notice.level, 'alert');
-  g.__post({ action: 'notice', pass: PASS, cid: 'c1', text: '' });
+  g.__post({ action: 'notice', token: ownerIn(g), text: '' });
   assert.strictEqual(g.__get().notice, null);
   assert.strictEqual(g.__ss.getSheetByName('お知らせ履歴').getLastRow() - 1, 2);
 });
@@ -141,19 +141,19 @@ test('来場者カウント：足し引き・同じ押下（uid）は2回数え�
 });
 
 test('ブースの追加・書き換え・削除：数式を無効にし、消した行は控えに移す', () => {
-  const g = fresh();
-  const r = g.__post({ action: 'upsert', pass: PASS, cid: 'c1', id: '3F-09', name: '+SUM(A1)', category: '展示', floor: 3 });
+  const g = freshOwner();
+  const r = g.__post({ action: 'upsert', token: ownerIn(g), id: '3F-09', name: '+SUM(A1)', category: '展示', floor: 3 });
   assert.strictEqual(r.created, true);
   assert.ok(String(rowOf(g, '3F-09').name).startsWith("'+"));
-  assert.strictEqual(g.__post({ action: 'upsert', pass: PASS, cid: 'c1', id: '=bad id', name: 'x' }).ok, false);
-  assert.strictEqual(g.__post({ action: 'remove', pass: PASS, cid: 'c1', id: '3F-09' }).removed, 1);
+  assert.strictEqual(g.__post({ action: 'upsert', token: ownerIn(g), id: '=bad id', name: 'x' }).ok, false);
+  assert.strictEqual(g.__post({ action: 'remove', token: ownerIn(g), id: '3F-09' }).removed, 1);
   assert.strictEqual(rowOf(g, '3F-09'), null);
   assert.strictEqual(g.__ss.getSheetByName('削除したブース').getLastRow() >= 2, true);
 });
 
 test('一括（開場・閉場）：全ブースの状態を変える', () => {
-  const g = fresh();
-  const r = g.__post({ action: 'bulk', pass: PASS, cid: 'c1', status: '準備中' });
+  const g = freshOwner();
+  const r = g.__post({ action: 'bulk', token: ownerIn(g), status: '準備中' });
   assert.strictEqual(r.updated, 46);
   assert.ok(g.__get().booths.every(b => b.status === '準備中'));
 });
@@ -297,9 +297,9 @@ test('障害時：シートが読めなくても、直前の控えがあれば�
 });
 
 test('お知らせ・来場者の書き込みもキャッシュを捨てる（すぐ画面に出る）', () => {
-  const g = fresh();
+  const g = freshOwner();
   g.__get();
-  g.__post({ action: 'notice', pass: PASS, cid: 'c1', text: '雨のため屋外は中止', level: 'info' });
+  g.__post({ action: 'notice', token: ownerIn(g), text: '雨のため屋外は中止', level: 'info' });
   assert.strictEqual(g.__get().notice.text, '雨のため屋外は中止');
   g.__post({ action: 'visitor', pass: PASS, cid: 'c1', n: 2, uid: 'x1' });
   assert.strictEqual(g.__get().visitors.today, 2);
@@ -313,11 +313,11 @@ test('validate：問題なしのときと、出しっぱなしのお知らせ・
   assert.match(m0, /先読み（warmCache）：止まっています/);
   assert.doesNotMatch(m0, /パスワード/);
 
-  const g = fresh({ ADMIN_PASS: 'abcd12345' });                  // 9文字
-  g.__post({ action: 'notice', pass: 'abcd12345', cid: 'c', text: 'テストです', level: 'alert' });
+  const g = freshOwner({ ADMIN_PASS: 'abcd12345' });                  // 9文字
+  g.__post({ action: 'notice', token: ownerIn(g), text: 'テストです', level: 'alert' });
   // シートから1件消し、1件足す（R8 との食い違い）
-  g.__post({ action: 'remove', pass: 'abcd12345', cid: 'c', id: '1F-02' });
-  g.__post({ action: 'upsert', pass: 'abcd12345', cid: 'c', id: '3F-09', name: '追加', category: '展示', floor: 3 });
+  g.__post({ action: 'remove', token: ownerIn(g), id: '1F-02' });
+  g.__post({ action: 'upsert', token: ownerIn(g), id: '3F-09', name: '追加', category: '展示', floor: 3 });
   g.__ss.getSpreadsheetTimeZone = () => 'America/New_York';
   const m = g.validate();
   assert.match(m, /要確認/);
@@ -445,7 +445,7 @@ test('②来場者数は2分おぼえておく：配信データを作り直す�
 });
 
 test('③1つのブースの更新は、その行だけを書く（ほかの行を書き戻さない）。列の並びが違っても・一括のときも正しい', () => {
-  const g = fresh();
+  const g = freshOwner();
   const sh = g.__ss.getSheetByName('ブース');
   const head = sh.data[0].map(h => String(h).toLowerCase());
   const rowIdx = sh.data.findIndex((r, i) => i > 0 && String(r[head.indexOf('id')]) === '1F-03') + 1;
@@ -465,7 +465,7 @@ test('③1つのブースの更新は、その行だけを書く（ほかの行�
   assert.strictEqual(rowOf(g, '1F-05').status, '');
   // 一括（全部のブース）は、これまでどおり列でまとめて書く
   log.writes.length = 0;
-  const b = g.__post({ action: 'bulk', pass: PASS, cid: 'c1', status: '準備中' });
+  const b = g.__post({ action: 'bulk', token: ownerIn(g), status: '準備中' });
   assert.strictEqual(b.updated, 46);
   assert.ok(log.writes.some(w => w[2] === 46), '一括は列ごとに1回');
   assert.strictEqual(rowOf(g, '1F-05').status, '準備中');
@@ -507,12 +507,12 @@ test('④lastUpdate：係の人がいちばん最近に更新した時刻を返�
 });
 
 test('⑤エラーの文：先頭の合図（英語）はそのまま、うしろに何を直せばよいかを日本語で付ける', () => {
-  const g = fresh();
+  const g = freshOwner();
   const err = b => g.__post(b).error;
   assert.match(err({ action: 'update', pass: PASS, cid: 'c1', id: '1F-03', wait: 5000 }), /^bad wait: .*0〜999/);
   assert.match(err({ action: 'update', pass: PASS, cid: 'c1', wait: 3 }), /^bad request: .*id/);
   assert.match(err({ action: 'update', pass: PASS, cid: 'c1', id: '1F-03' }), /^bad request: .*空いています/);
-  assert.match(err({ action: 'upsert', pass: PASS, cid: 'c1', id: '=1+1', name: 'x' }), /^bad request: .*1F-02/);
+  assert.match(err({ action: 'upsert', token: ownerIn(g), id: '=1+1', name: 'x' }), /^bad request: .*1F-02/);
   assert.match(err({ action: 'visitor', pass: PASS, cid: 'c1', n: 0 }), /^bad count: /);
   assert.match(err({ action: 'なにか', pass: PASS }), /^unknown action: .*2026-/);
   assert.match(err({ action: 'ledger', cid: '!!', ev: [] }), /^bad cid: /);
@@ -829,4 +829,150 @@ test('司令塔：端末の一覧がいっぱいでも、承認制が切のあ�
   g.__post({ action: 'owner_mode', token, on: true, keep: true });
   assert.match(g.__post({ action: 'verify', pass: PASS, cid: DEV_C }).error, /^busy: /);
   assert.strictEqual(g.__post({ action: 'update', pass: PASS, cid: DEV_A, id: '1F-03', wait: 3 }).ok, true);   // 許可ずみの端末は使える
+});
+
+/* ---------------- v219：本部・準備の操作は持ち主だけ ／ 司令塔だけのイベント ---------------- */
+test('v219：お知らせ・一括・ブースの追加と削除は、係員のパスワードでは通らない（司令塔に入っている印が要る）。更新・受付は今までどおり', () => {
+  const g = freshOwner();
+  const before = JSON.stringify(g.__ss.getSheetByName('混雑状況') ? g.__ss.getSheetByName('混雑状況').data : g.__get().booths);
+  for (const body of [
+    { action: 'notice', text: 'いたずら', level: 'alert' }, { action: 'bulk', status: '準備中' },
+    { action: 'upsert', id: '3F-09', name: 'にせもの', category: '展示', floor: 3 }, { action: 'remove', id: '1F-02' }]) {
+    const r = g.__post(Object.assign({ pass: PASS, cid: 'c1' }, body));
+    assert.strictEqual(r.ok, false, body.action);
+    assert.match(r.error, /^owner only: .*司令塔/, body.action);
+    // にせの印・形の合わない印でも通らない
+    assert.match(g.__post(Object.assign({ token: 'a'.repeat(64) }, body)).error, /^owner session/, body.action);
+    assert.match(g.__post(Object.assign({ pass: PASS, token: 'x' }, body)).error, /^owner session/, body.action);
+  }
+  assert.strictEqual(g.__get().notice, null);
+  assert.strictEqual(booth(g, '1F-02').name, '旋盤の加工実演');
+  assert.strictEqual(g.__get().booths.length, 46);
+  assert.strictEqual(JSON.stringify(g.__ss.getSheetByName('混雑状況') ? g.__ss.getSheetByName('混雑状況').data : g.__get().booths), before);
+  // 係員のパスワードで、更新と受付はできる
+  assert.strictEqual(g.__post({ action: 'update', pass: PASS, cid: 'c1', id: '1F-02', wait: 3 }).ok, true);
+  assert.strictEqual(g.__post({ action: 'visitor', pass: PASS, cid: 'c1', n: 1, uid: 'u219' }).ok, true);
+  // 司令塔から出たあとの印は使えない
+  const t = ownerIn(g);
+  assert.strictEqual(g.__post({ action: 'notice', token: t, text: '本部から', level: 'info' }).ok, true);
+  g.__post({ action: 'owner_logout', token: t });
+  assert.match(g.__post({ action: 'notice', token: t, text: 'もう一度' }).error, /^owner session/);
+  assert.strictEqual(g.__get().notice.text, '本部から');
+  // 持ち主パスワードが無い環境では、だれも出せない
+  const g0 = fresh();
+  assert.match(g0.__post({ action: 'notice', pass: PASS, cid: 'c1', text: 'x' }).error, /^owner only/);
+});
+
+test('v219 イベント：演出つきの一斉お知らせ。出すと来場者への返事（live.show）に入り、時間がたつと消える。司令塔の印が要る', () => {
+  const g = freshOwner();
+  const T = { token: ownerIn(g) };
+  assert.deepStrictEqual(g.__get().live, {});
+  assert.match(g.__post({ action: 'owner_show', title: 'x' }).error, /^owner session/);
+  assert.match(g.__post({ action: 'owner_show', ...T, title: '  ' }).error, /^bad request: .*見出し/);
+  const r = g.__post({ action: 'owner_show', ...T, title: 'まもなくステージ発表！', text: '<b>第一体育館</b>へどうぞ' });
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.live.show.title, 'まもなくステージ発表！');
+  const pub = g.__get().live.show;
+  assert.strictEqual(pub.title, 'まもなくステージ発表！');
+  assert.strictEqual(pub.text, '<b>第一体育館</b>へどうぞ');           // 文字のまま返す（画面の側で、文字として出す）
+  assert.ok(pub.until - pub.at >= 60000 && /^[a-f0-9]{12}$/.test(pub.id));
+  // 長すぎる見出し・文は切る
+  const long = g.__post({ action: 'owner_show', ...T, title: 'あ'.repeat(99), text: 'い'.repeat(300) });
+  assert.ok(long.live.show.title.length <= 31 && long.live.show.text.length <= 81);
+  assert.notStrictEqual(long.live.show.id, pub.id, '出すたびに番号が変わる（画面は、番号が変わったら もう一度出す）');
+  // 時間がたったら、返事から消える
+  const o = JSON.parse(g.__props.LIVE); o.show.until = Date.now() - 1000; g.__props.LIVE = JSON.stringify(o);
+  g.clearCache_();
+  assert.deepStrictEqual(g.__get().live, {});
+  // 消す
+  g.__post({ action: 'owner_show', ...T, title: 'もう一度' });
+  assert.strictEqual(g.__post({ action: 'owner_live_clear', ...T, what: 'show' }).live.show, undefined);
+  assert.deepStrictEqual(g.__get().live, {});
+  assert.match(g.__post({ action: 'owner_live_clear', ...T, what: 'なにか' }).error, /^bad request/);
+  // 記録に残る
+  assert.match(JSON.stringify(g.__ss.getSheetByName('司令塔の記録').data), /一斉お知らせ：まもなくステージ発表/);
+});
+
+test('v219 イベント：ラッキーブース。シートにあるブースを 3〜60分。終わらせられる', () => {
+  const g = freshOwner();
+  const T = { token: ownerIn(g) };
+  assert.match(g.__post({ action: 'owner_lucky', ...T, booth: '9F-99', minutes: 10 }).error, /^bad request: .*シートにありません/);
+  assert.match(g.__post({ action: 'owner_lucky', ...T, booth: '=1+1', minutes: 10 }).error, /^bad request/);
+  assert.match(g.__post({ action: 'owner_lucky', ...T, booth: '1F-02', minutes: 999 }).error, /^bad request: .*3〜60分/);
+  assert.match(g.__post({ action: 'owner_lucky', pass: PASS, booth: '1F-02', minutes: 10 }).error, /^owner session/);
+  const t0 = Date.now();
+  const r = g.__post({ action: 'owner_lucky', ...T, booth: '1F-02', minutes: 10 });
+  assert.strictEqual(r.live.lucky.booth, '1F-02');
+  const pub = g.__get().live.lucky;
+  assert.strictEqual(pub.booth, '1F-02');
+  assert.ok(Math.abs(pub.until - t0 - 600000) < 5000);
+  // 別のブースに替える（番号が変わる）
+  const r2 = g.__post({ action: 'owner_lucky', ...T, booth: '2F-12', minutes: 5 });
+  assert.strictEqual(g.__get().live.lucky.booth, '2F-12');
+  assert.notStrictEqual(r2.live.lucky.id, r.live.lucky.id);
+  // 終わらせる
+  assert.strictEqual(g.__post({ action: 'owner_lucky', ...T, booth: '' }).live.lucky, undefined);
+  assert.deepStrictEqual(g.__get().live, {});
+});
+
+test('v219 イベント：スタンプの抽選。きょう決めた数以上あつめた人から選ぶ。当たった番号は来場者への返事に入れず、自分の番号で聞いた人にだけ答える', () => {
+  const g = freshOwner();
+  const T = { token: ownerIn(g) };
+  const now = Date.now();
+  const give = (cid, ids, at) => g.__post({ action: 'ledger', cid, ev: ids.map(id => ({ t: 's', id, at: at || now })) });
+  const A = ['AAAA1111', 'BBBB2222', 'CCCC3333', 'DDDD4444', 'EEEE5555'];
+  A.forEach(c => give(c, ['1F-02', '1F-03', '2F-12']));          // 3個の人が5人
+  give('FFFF6666', ['1F-02']);                                    // 1個の人
+  give('GGGG7777', ['1F-02', '1F-03', '2F-12', '1F-05'], now - 2 * 86400000);   // おとといの4個（きょうの分ではない）
+  // だれも条件に合わない
+  assert.match(g.__post({ action: 'owner_draw', ...T, min: 10, n: 1 }).error, /^bad request: .*当たりを引ける人がいません.*0人/);
+  assert.match(g.__post({ action: 'owner_draw', ...T, min: 0, n: 1 }).error, /^bad request/);
+  assert.match(g.__post({ action: 'owner_draw', ...T, min: 3, n: 99 }).error, /^bad request/);
+  assert.match(g.__post({ action: 'owner_draw', pass: PASS, min: 3, n: 1 }).error, /^owner session/);
+  // 3個以上から2人
+  const r = g.__post({ action: 'owner_draw', ...T, min: 3, n: 2 });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  const d = r.live.draw;
+  assert.strictEqual(d.winners.length, 2);
+  assert.strictEqual(d.elig, 5);
+  d.winners.forEach(w => { assert.ok(A.includes(w.cid), w.cid); assert.strictEqual(w.stamps, 3); });
+  assert.notStrictEqual(d.winners[0].cid, d.winners[1].cid);
+  // 来場者への返事：抽選があったことと人数だけ。番号は、どこにも入っていない
+  const pubText = JSON.stringify(g.__get());
+  const pub = JSON.parse(pubText).live.draw;
+  assert.deepStrictEqual(Object.keys(pub).sort(), ['at', 'id', 'min', 'n', 'until']);
+  assert.strictEqual(pub.n, 2);
+  for (const w of d.winners) assert.ok(!pubText.includes(w.cid), '当たった番号が、来場者への返事に入っている');
+  // 自分の番号で聞くと、当たりかどうかが分かる
+  const w0 = d.winners[0].cid, lose = A.find(c => !d.winners.some(w => w.cid === c));
+  assert.strictEqual(g.__get({ win: d.id, cid: w0 }).win, true);
+  assert.strictEqual(g.__get({ win: d.id, cid: lose }).win, false);
+  assert.strictEqual(g.__get({ win: d.id, cid: 'FFFF6666' }).win, false);
+  assert.strictEqual(g.__get({ win: 'chigau-bangou', cid: w0 }).win, false, '前の抽選の番号では当たりにならない');
+  assert.strictEqual(g.__get({ win: d.id, cid: '!!' }).ok, false);
+  assert.strictEqual(g.__get({ win: d.id }).ok, false);
+  // 記録には、番号そのものは残さない
+  const log = JSON.stringify(g.__ss.getSheetByName('司令塔の記録').data);
+  assert.match(log, /抽選：2人が当たり/);
+  for (const w of d.winners) assert.ok(!log.includes(w.cid));
+  // もう一度引くと、前に当たった人は選ばない（残りの3人から）
+  const r2 = g.__post({ action: 'owner_draw', ...T, min: 3, n: 5 });
+  assert.strictEqual(r2.live.draw.winners.length, 3);
+  assert.strictEqual(r2.live.draw.elig, 3);
+  r2.live.draw.winners.forEach(w => assert.ok(!d.winners.some(x => x.cid === w.cid)));
+  assert.strictEqual(g.__get({ win: d.id, cid: w0 }).win, false, '新しい抽選に替わったら、前の当たりは出さない');
+  // 全員当たったあと：もう引けない。「前に当たった人も入れる」（again）なら引ける
+  assert.match(g.__post({ action: 'owner_draw', ...T, min: 3, n: 1 }).error, /当たりを引ける人がいません/);
+  assert.strictEqual(g.__post({ action: 'owner_draw', ...T, min: 3, n: 1, again: true }).live.draw.winners.length, 1);
+  // 番号をつないだ人は、新しい番号にまとめて数える（旧 2個 ＋ 新 1個 ＝ 3個）。旧い番号で聞いても当たりが分かる
+  const g2 = freshOwner();
+  const T2 = { token: ownerIn(g2) };
+  g2.__post({ action: 'ledger', cid: 'OLDD0001', ev: [{ t: 's', id: '1F-02', at: now }, { t: 's', id: '1F-03', at: now }] });
+  g2.__post({ action: 'ledger', cid: 'NEWW0001', from: 'OLDD0001', ev: [{ t: 's', id: '2F-12', at: now }] });
+  const r3 = g2.__post({ action: 'owner_draw', ...T2, min: 3, n: 3 });
+  assert.deepStrictEqual(r3.live.draw.winners.map(w => w.cid), ['NEWW0001']);
+  assert.strictEqual(g2.__get({ win: r3.live.draw.id, cid: 'OLDD0001' }).win, true);
+  // 当たりの表示を消す
+  assert.strictEqual(g2.__post({ action: 'owner_live_clear', ...T2, what: 'draw' }).live.draw, undefined);
+  assert.strictEqual(g2.__get({ win: r3.live.draw.id, cid: 'NEWW0001' }).win, false);
 });

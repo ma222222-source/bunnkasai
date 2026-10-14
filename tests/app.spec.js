@@ -4070,3 +4070,48 @@ test('スタンプ帳の名前（v218）：幅 320〜430px・3つの文字の大
   expect(bad).toEqual([]);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v219：司令塔が起こしたイベント（来場者の画面） ---------------- */
+test('イベント（v219）：サーバーの返事に live があると、一斉お知らせ（1回だけ）とラッキーブースの帯が出る。係員のログインの画面には出ない。変な形の live でも落ちない', async ({ page }) => {
+  const errors = watchErrors(page);
+  const live = { show: { id: 'show0001', title: 'まもなくステージ発表！', text: '第一体育館へどうぞ', at: Date.now(), until: Date.now() + 120000 },
+    lucky: { id: 'luck0001', booth: '1F-02', at: Date.now(), until: Date.now() + 300000 } };
+  await mockGas(page, { mutate: j => { j.live = live; } });
+  await page.goto('/?tab=map');
+  await expect(page.locator('#lfx .lfx-title')).toHaveText('まもなくステージ発表！', { timeout: 15000 });
+  await expect(page.locator('#lfx .lfx-text')).toHaveText('第一体育館へどうぞ');
+  await expect(page.locator('#lfx [data-fx="close"]')).toBeFocused();
+  await page.locator('#lfx [data-fx="close"]').click();
+  await expect(page.locator('#lfx')).toHaveCount(0);
+  // ラッキーブース：帯（名前・残り時間・「見る」）。横にはみ出さない・押す所は 44px 以上
+  const bn = page.locator('#banner-lucky');
+  await expect(bn).toBeVisible();
+  await expect(bn).toContainText('旋盤の加工実演');
+  await expect(bn).toContainText(/あと[45]分/);
+  expect(await page.locator('#banner-lucky-go').evaluate(el => el.offsetHeight)).toBeGreaterThanOrEqual(44);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  // 開き直しても、同じお知らせは もう出ない。帯は、どのタブにも出る
+  for (const tab of ['list', 'stamp', 'info']) {
+    await page.goto('/?tab=' + tab);
+    await ready(page);
+    await expect(bn).toBeVisible();
+    await expect(page.locator('#lfx')).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), tab).toBeLessThanOrEqual(0);
+  }
+  // 変な形の live でも落ちない・何も出さない（古い・時間の過ぎたものも出さない）
+  for (const bad of ['x', 5, [], null, { show: 'a', lucky: [], draw: 7 }, { show: { id: 5, title: {}, until: 'z' } },
+    { lucky: { id: 'l2', booth: '"><img src=x onerror=window.__xss=1>', until: Date.now() + 60000 } }, { show: { id: 'old1', title: 'ふるい', until: Date.now() - 1000 } },
+    { draw: { id: 'd9', until: Date.now() - 5 } }]) {
+    await page.evaluate(v => { S.live = v; renderLive(); }, bad);
+    await expect(page.locator('#lfx')).toHaveCount(0);
+    await expect(bn).toBeHidden();
+  }
+  expect(await page.evaluate(() => !!window.__xss)).toBe(false);
+  // 係員のログインの画面には出ない
+  await page.goto('/?mode=admin');
+  await expect(page.locator('#v-auth')).toBeVisible({ timeout: 15000 });
+  await page.waitForTimeout(600);
+  await expect(bn).toBeHidden();
+  await expect(page.locator('#lfx')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

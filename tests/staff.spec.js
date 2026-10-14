@@ -14,6 +14,20 @@ async function login(page, opt = {}) {
   await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
   return log;
 }
+/** 司令塔に入った状態にして、tab の画面を開く（サーバーは模擬。司令塔の操作にだけ、決まった返事を返す） */
+async function ownerIn(page, tab) {
+  const st = { ok: true, approval: false, devices: [], keys: [], passLen: 18, passAt: '', live: {}, sv: '2026-10-14b' };
+  await page.route(/script\.google(usercontent)?\.com\//, async route => {
+    if (/"action":"owner_/.test(route.request().postData() || '')) {
+      return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/json',
+        body: JSON.stringify(Object.assign({ token: 'a'.repeat(64), state: st }, st)) });
+    }
+    return route.fallback();
+  });
+  await page.evaluate(() => { sessionStorage.setItem('kuroko_owner', 'a'.repeat(64)); return openOwner(); });
+  await expect(page.locator('#own-main')).toBeVisible({ timeout: 10000 });
+  await page.locator('#owntab-' + tab).click();
+}
 const updates = log => log.posts.filter(p => p.action === 'update' || p.action === 'upsert' || (!p.action && p.id) || p.updates || p.id);
 
 test('待ち人数：＋5・＋1 → 送信 で、そのブースの人数が GAS に届く', async ({ page }) => {
@@ -138,7 +152,7 @@ test('係員カード：人数を変えると「送ると：やや混雑・お�
 
 test('本部：お知らせのひな形を押すと欄に入る（そのまま出さない）', async ({ page }) => {
   const log = await login(page);
-  await page.locator('[data-tab="hq"]').first().click();
+  await ownerIn(page, 'hq');
   await page.locator('#notice-card > summary').click();              // お知らせの欄は畳んである
   await page.locator('#notice-tpl [data-tpl]').first().click();
   await expect(page.locator('#notice-text')).toHaveValue(/落とし物/);
@@ -147,7 +161,7 @@ test('本部：お知らせのひな形を押すと欄に入る（そのまま�
 
 test('本部「更新が止まっているブース」：長い順に出て、押すとそのブースの更新カードへ', async ({ page }) => {
   await login(page, { grouped: true });
-  await page.locator('[data-tab="hq"]').first().click();
+  await ownerIn(page, 'hq');
   const items = page.locator('#stale-list [data-goto]');
   await expect.poll(() => items.count()).toBeGreaterThan(0);
   const id = await items.first().getAttribute('data-goto');
@@ -346,20 +360,22 @@ test('③お菓子の交換コード：あと何秒で変わるかの線が時�
 test('④準備の画面のボタンは、どれにも絵が付き、間隔がそろっている', async ({ page }) => {
   const errors = watchErrors(page);
   await login(page);
-  await page.locator('#admtab-setup').click();
-  const r = await page.evaluate(() => { const els = [...document.querySelectorAll('#admpane-setup > a.btn')];
+  await ownerIn(page, 'setup');
+  const r = await page.evaluate(() => { const els = [...document.querySelectorAll('#ownpane-setup .own-links > a.btn')];
     const rs = els.map(e => e.getBoundingClientRect());
-    return { n: els.length, icons: els.map(e => !!e.querySelector('svg.ic')), gaps: rs.slice(1).map((x, i) => Math.round(x.top - rs[i].bottom)) }; });
+    const tops = [...new Set(rs.map(x => Math.round(x.top)))].sort((a, b) => a - b);
+    return { n: els.length, icons: els.map(e => !!e.querySelector('svg.ic')), h: rs.map(x => Math.round(x.height)), gaps: tops.slice(1).map((t, i) => t - tops[i]) }; });
   expect(r.n).toBe(5);
   expect(r.icons).toEqual([true, true, true, true, true]);
-  expect(new Set(r.gaps).size, JSON.stringify(r.gaps)).toBe(1);      // 以前は、三つ折りパンフレットの下だけ広かった
+  expect(Math.min(...r.h)).toBeGreaterThanOrEqual(44);
+  expect(new Set(r.gaps).size, JSON.stringify(r)).toBe(1);           // 段の間隔がそろっている（以前は、三つ折りパンフレットの下だけ広かった）
   expect(errors).toEqual([]);
 });
 
 test('⑥⑦本部：止まっているブースが全部で何件か（出すのは5件だけ）と、いちばん新しい更新を出す', async ({ page }) => {
   const errors = watchErrors(page);
   await login(page);
-  await page.locator('#admtab-hq').click();
+  await ownerIn(page, 'hq');
   const sum = page.locator('#stale-sum');
   await expect(sum).toBeVisible();
   const total = await page.evaluate(() => S.booths.filter(b => isVenue(b) && lvOf(b).lv !== 3 && elapsedMin(b) >= CONFIG.ADMIN_WARN_MIN).length);
