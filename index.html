@@ -1877,6 +1877,23 @@ html.lite .hero-gear{animation:none}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
 /* ---- v206：地図の左下のボタン。開いた直後は「全体」だけ（左の角）。動かしたら、その右に「ブースに寄せる」が出る ---- */
 #map-card.gmap .map-fit-ctl #zoom-reset{order:-1}
+/* ==== v223：抽選を係員・本部モニタにも／受け取りの場所／演出を選ぶ／ラッキーブースの効果／使い分けの案内／残り時間の線 ==== */
+/* ②当たった人：受け取りの場所を地図で見る */
+.win-card .win-go,.lfx .lfx-go{margin-top:8px;min-height:44px;padding:0 16px;border-radius:999px;border:1.5px solid #3d2a00;background:none;color:inherit;
+  font:inherit;font-size:13px;font-weight:900;cursor:pointer}
+.lfx .lfx-go{display:block;width:100%;margin:10px 0 0;border-color:var(--border-strong);color:var(--text)}
+/* ③しずかな一斉お知らせ（紙ふぶきなし） */
+.lfx.calm .lfx-burst{background:var(--surface-3);color:var(--text);animation:none}
+.own-fx{display:flex;width:100%}
+.own-fx button{flex:1;padding:6px 4px}
+#own-main .own-opt .field{flex:1;min-width:0;width:auto}
+/* ⑤使い分けの案内（文の中の、押せる言葉） */
+.own-link{display:flex;align-items:center;min-height:44px;padding:0;border:none;background:none;color:var(--accent);font:inherit;font-size:12px;font-weight:900;text-align:left;
+  text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+/* ⑥ラッキーブースの帯：残り時間の線 */
+.banner.lucky{position:relative;overflow:hidden}
+.banner.lucky .lk-bar{position:absolute;left:0;bottom:0;height:3px;width:calc(var(--lk,1) * 100%);background:#b8860b;border-radius:0 3px 3px 0;transition:width 1s linear}
+@media (prefers-reduced-motion:reduce){ .banner.lucky .lk-bar{transition:none} }
 /* ==== v222：司令塔の PC の並び／見のがしたお知らせの読み返し／ラッキーブースまわり の8つの仕上げ ==== */
 /* ①司令塔を PC の広い画面で：1列に縦長だったのを、横に並べる（本部の PC で、なぞらずに全体が見える） */
 @media (min-width:960px){
@@ -3582,7 +3599,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
     </div>
     <div class="banner notice hide" id="banner-notice" role="status" aria-live="polite"><span id="banner-notice-icon"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l4.5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 8.5a5 5 0 0 1 0 7"/></svg></span><span id="banner-notice-text"></span><button class="notice-x hide" id="notice-x" type="button" aria-label="このお知らせを閉じる">×</button></div>
     <!-- v219：ラッキーブース（司令塔が起こす。時間になったら消える） -->
-    <div class="banner lucky hide no-print" id="banner-lucky" role="status" aria-live="polite"><span class="lk-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.500l2.700 6 6.500.7-4.900 4.400 1.400 6.400L12 16.700 6.300 20l1.400-6.400L2.800 9.200l6.500-.7z"/></svg></span><span class="lk-tx"><small id="banner-lucky-left">ラッキーブース</small><span id="banner-lucky-nm"></span></span><button type="button" id="banner-lucky-go">見る</button><button type="button" class="lk-x" id="banner-lucky-x" aria-label="この帯をとじる">×</button></div>
+    <div class="banner lucky hide no-print" id="banner-lucky" role="status" aria-live="polite"><span class="lk-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.500l2.700 6 6.500.7-4.900 4.400 1.400 6.400L12 16.700 6.300 20l1.400-6.400L2.800 9.200l6.500-.7z"/></svg></span><span class="lk-tx"><small id="banner-lucky-left">ラッキーブース</small><span id="banner-lucky-nm"></span></span><button type="button" id="banner-lucky-go">見る</button><button type="button" class="lk-x" id="banner-lucky-x" aria-label="この帯をとじる">×</button><i class="lk-bar" aria-hidden="true"></i></div>
     <div class="banner alert hide" id="banner-alert" role="status" aria-live="polite"><span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20.5h19z"/><path d="M12 9.5v5M12 17.5h.01"/></svg></span><span id="banner-alert-text"></span></div>
     <div class="banner info hide" id="banner-offline" role="status" aria-live="assertive"><span id="banner-offline-icon" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8.5a16 16 0 0 1 20 0M5 12.5a11 11 0 0 1 14 0M8.5 16.3a6 6 0 0 1 7 0"/><path d="M12 20h.01"/></svg></span><span id="banner-offline-text">通信できません。最後に取得した情報を表示しています。</span><button id="banner-retry" class="retry">再試行</button></div>
     <div class="banner hours hide" id="banner-hours" role="status" aria-live="polite"><span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span id="banner-hours-text"></span></div>
@@ -4170,7 +4187,8 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
           </div>
           <div class="card own-ev" id="own-ev-show">
             <div class="card-t">演出つきの一斉お知らせ</div>
-            <p class="own-note">全員の画面に、大きな見出しと紙ふぶきが出ます（1人に1回。出してから3分のあいだに開いた人にも出ます）。</p>
+            <p class="own-note">全員の画面に、大きな見出しが1回だけ出ます（出してから3分のあいだに開いた人にも出ます）。</p>
+            <button type="button" class="own-link" data-ogo="hq">ずっと出しておく帯は、「本部」のお知らせへ</button>
             <input class="field" id="own-show-title" maxlength="30" placeholder="見出し（30文字まで）" aria-label="見出し（30文字まで）" autocomplete="off">
             <input class="field" id="own-show-text" maxlength="80" placeholder="ひとこと（80文字まで。無くてもよい）" aria-label="ひとこと（80文字まで。無くてもよい）" autocomplete="off">
             <p class="own-len" id="own-show-len" aria-live="polite"></p>
@@ -4179,6 +4197,11 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
               <button type="button" class="chip" data-t="ただいま開場しました！" data-x="ゆっくり楽しんでいってください">開場</button>
               <button type="button" class="chip" data-t="スタンプの抽選をします" data-x="スタンプの画面を開いて、お待ちください">抽選の前</button>
               <button type="button" class="chip" data-t="まもなく終了です" data-x="本日はご来場ありがとうございました">フィナーレ</button>
+            </div>
+            <!-- v223：演出をえらぶ（落とし物・注意の知らせに、紙ふぶきは合わない） -->
+            <div class="seg own-fx hide" id="own-show-fx" role="group" aria-label="演出">
+              <button type="button" data-v="party" aria-pressed="true">お祝い（紙ふぶき）</button>
+              <button type="button" data-v="calm" aria-pressed="false">しずかに</button>
             </div>
             <!-- v222：さっき出したもの（記録から、新しい順に3つ）。押すと、上の欄に入る -->
             <div class="own-sug hide" id="own-show-recent"></div>
@@ -4209,7 +4232,9 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
           </div>
           <div class="card own-ev" id="own-ev-draw">
             <div class="card-t">スタンプの抽選</div>
-            <p class="own-note">きょうスタンプをあつめた人の中から、当たりを引きます。当たった人の画面にだけ「当たり」が出ます（30分）。本部で、その画面のスタンプ番号と、下の番号を見くらべてください。</p>
+            <p class="own-note">きょうスタンプをあつめた人の中から、当たりを引きます。当たった人の画面にだけ「当たり」と、受け取りの場所が出ます（30分）。その画面のスタンプ番号と、下の番号を見くらべてください。</p>
+            <!-- v223：受け取りの場所（当たった人の画面に出る。「本部」では、来場者にはどこか分からない） -->
+            <div class="own-opt"><span>受け取りは</span><input class="field" id="own-draw-place" maxlength="20" value="受付（南棟昇降口）" aria-label="受け取りの場所（20文字まで）" autocomplete="off"></div>
             <div class="own-opt"><span>スタンプが</span>
               <div class="seg own-seg2" id="own-draw-min" role="group" aria-label="何個以上あつめた人から">
                 <button type="button" data-v="1" aria-pressed="false">1個〜</button>
@@ -4243,7 +4268,8 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
             <span class="card-note" id="notice-now" style="margin-left:2px">いまは出ていません</span></summary>
           <div style="padding-top:10px">
             <p style="font-size:11px;color:var(--text-mute);font-weight:700;margin-bottom:8px">
-              来場者全員の画面の上に出ます。落とし物・ステージ開始・雨天の案内などに。</p>
+              来場者全員の画面の上に、消すまで出ます。落とし物・ステージ開始・雨天の案内などに。</p>
+            <button type="button" class="own-link" data-ogo="event" style="margin:-4px 0 6px">1回だけ大きく知らせるなら、「イベント」の一斉お知らせへ</button>
             <textarea class="field" id="notice-text" rows="2" maxlength="200"
               placeholder="例）12:00 から体育館でステージ発表があります。"></textarea>
             <p class="notice-len" id="notice-len">あと200文字</p>
@@ -12931,6 +12957,10 @@ const LIVE_IC = {
   win: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v1.500A3.500 3.500 0 0 0 7.500 11M17 6h3v1.500a3.500 3.500 0 0 1-3.500 3.500M12 14v4M8.500 20h7"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.500l2.700 6 6.500.7-4.900 4.400 1.400 6.400L12 16.700 6.300 20l1.400-6.400L2.800 9.200l6.500-.7z"/></svg>'
 };
+/** v223：抽選の受け取りの場所（サーバーが返さない古い版では、受付） */
+function livePlace(d){ const p = d && typeof d.place === 'string' ? d.place.trim().slice(0, 20) : ''; return p || '受付（南棟昇降口）'; }
+/** 受け取りの場所が受付なら、そのブース（地図で開ける） */
+function livePlaceBooth(place){ return /受付/.test(String(place || '')) ? (S.booths.find(b => b.category === '受付') || null) : null; }
 /** v221：係員の画面と本部モニタに、いま起きているイベントを出す（来場者むけの演出は出さない） */
 function renderStaffLive(L){
   const b = L.lucky ? S.booths.find(x => x.id === L.lucky.booth) : null;
@@ -12939,6 +12969,8 @@ function renderStaffLive(L){
     const parts = [];
     if (b) parts.push(`<b>ラッキーブース中：${esc(b.name)}</b>（${esc(liveLeft(L.lucky.until))}）。このブースは人が増えます。こまめに更新してください`);
     if (L.show) parts.push(`いま、来場者の画面に一斉お知らせが出ています：「${esc(String(L.show.title || ''))}」`);
+    // v223：抽選があった（当たった人が、受け取りに来る）
+    if (L.draw) parts.push(`<b>スタンプの抽選がありました</b>（${Number(L.draw.n) || 0}人が当たり）。当たった人が「${esc(livePlace(L.draw))}」に来ます。画面のスタンプ番号を、司令塔の番号と見くらべます`);
     adm.classList.toggle('hide', !parts.length);
     setHtml(adm, parts.map(p => `<p>${p}</p>`).join(''));
   }
@@ -12947,6 +12979,7 @@ function renderStaffLive(L){
     const parts = [];
     if (b) parts.push(`<span>ラッキーブース：${esc(b.name)}（${esc(liveLeft(L.lucky.until))}）</span>`);
     if (L.show) parts.push(`<span>一斉お知らせ：「${esc(String(L.show.title || ''))}」</span>`);
+    if (L.draw) parts.push(`<span>抽選：${Number(L.draw.n) || 0}人が当たり（受け取りは ${esc(livePlace(L.draw))}）</span>`);
     bd.classList.toggle('hide', !parts.length);
     setHtml(bd, parts.join(''));
   }
@@ -12964,7 +12997,7 @@ function renderLive(){
   if (L.show && seen.show !== L.show.id){
     liveMark('show', L.show.id);
     liveLogAdd(L.show);                          // v222：インフォで、あとから読み返せるように覚える
-    showLiveFx('show', String(L.show.title || ''), String(L.show.text || ''));
+    showLiveFx('show', String(L.show.title || ''), String(L.show.text || ''), false, L.show.fx === 'calm' ? 'calm' : 'party');
   }
   if (L.lucky && seen.lucky !== L.lucky.id){
     liveMark('lucky', L.lucky.id);
@@ -13029,6 +13062,9 @@ function renderLucky(lk){
     if (nm.textContent !== b.name) nm.textContent = b.name;
     const t = `ラッキーブース・${liveLeft(lk.until)}`;
     if (lf.textContent !== t) lf.textContent = t;
+    // v223：残り時間の線（始まりから終わりまでの、どのあたりか）
+    { const span = Number(lk.until) - Number(lk.at), left = Number(lk.until) - nowMs();
+      el.style.setProperty('--lk', String(span > 0 ? Math.max(0, Math.min(1, left / span)) : 0)); }
   }
   if (was !== show){ try{ measureHead(); fitMapBox._key = null; fitMapBox(S.floor); }catch(e){} }
   clearTimeout(renderLucky._t);
@@ -13046,8 +13082,14 @@ function renderWin(){
     el.id = 'win-card'; el.className = 'card win-card'; el.setAttribute('role', 'status');
     const v = $('#v-stamp'); v.insertBefore(el, v.firstChild);
   }
-  const html = `<h3>抽選に当たりました！</h3><p>本部で、この画面を見せてください（${esc(liveLeft(w.until))}）</p><b class="sid">${esc(sidLabel())}</b><p>あなたのスタンプ番号</p>`;
-  if (el.innerHTML !== html) el.innerHTML = html;
+  const place = livePlace(w), pb = livePlaceBooth(place);
+  const html = `<h3>抽選に当たりました！</h3><p>${esc(place)}で、この画面を見せてください（${esc(liveLeft(w.until))}）</p><b class="sid">${esc(sidLabel())}</b><p>あなたのスタンプ番号</p>`
+    + (pb ? `<button type="button" class="win-go" data-win-go="${esc(pb.id)}">${esc(pb.name)}を地図で見る</button>` : '');
+  if (el.innerHTML !== html){
+    el.innerHTML = html;
+    const go = el.querySelector('[data-win-go]');
+    if (go) go.addEventListener('click', () => { switchView('map'); openSheet(go.dataset.winGo); });
+  }
 }
 /** 抽選があった：自分のスタンプ番号で、当たったかをサーバーに聞く（全員が同じ瞬間に聞きに行かないよう、少しずらす） */
 async function liveDrawCheck(d){
@@ -13078,9 +13120,9 @@ async function liveDrawCheck(d){
   liveDrawCheck._busy = null;
   liveMark('draw', d.id);
   if (win){
-    store('kuroko_live_win', { id: d.id, until: Number(d.until) });
+    store('kuroko_live_win', { id: d.id, until: Number(d.until), place: livePlace(d) });
     renderWin();
-    if (!liveQuiet()) showLiveFx('win', '当たり！', '本部で、この画面を見せてください');
+    if (!liveQuiet()) showLiveFx('win', '当たり！', `${livePlace(d)}で、この画面を見せてください`);
   } else {
     toast('スタンプの抽選がありました。今回は はずれ でした（次の抽選を お楽しみに）', null, 6000);
   }
@@ -13090,13 +13132,14 @@ async function liveDrawCheck(d){
  * @param {'show'|'win'} kind
  * @param {boolean=} preview 司令塔の「この端末で試す」（だれにも送らない）
  */
-function showLiveFx(kind, title, text, preview){
+function showLiveFx(kind, title, text, preview, fx){
   // 出ている最中に次が来たら、とじたあとで出す（一斉お知らせと「当たり」が重なったとき、片方が消えていた）
   const old = document.getElementById('lfx');
-  if (old && !preview && !old.classList.contains('out')){ (showLiveFx._q = showLiveFx._q || []).push([kind, title, text]); return; }
+  if (old && !preview && !old.classList.contains('out')){ (showLiveFx._q = showLiveFx._q || []).push([kind, title, text, fx]); return; }
   if (old) old.remove();
   const el = document.createElement('div');
-  el.id = 'lfx'; el.className = 'sfx lfx first fresh' + (kind === 'win' ? ' win' : '');
+  const calm = kind !== 'win' && fx === 'calm';       // v223：しずかに（紙ふぶき・音なし）
+  el.id = 'lfx'; el.className = 'sfx lfx first fresh' + (kind === 'win' ? ' win' : '') + (calm ? ' calm' : '');
   el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', title || 'お知らせ');
   el.innerHTML = `
     <div class="sfx-card lfx-card">
@@ -13106,6 +13149,7 @@ function showLiveFx(kind, title, text, preview){
       <p class="lfx-text"></p>
       ${kind === 'win' ? `<div class="lfx-sid"><small>あなたのスタンプ番号</small><b>${esc(sidLabel())}</b></div>` : ''}
       <div class="sfx-acts"><button class="btn" data-fx="close">とじる</button></div>
+      ${kind === 'win' && livePlaceBooth(text) ? `<button type="button" class="lfx-go" data-fx="place">${esc(livePlaceBooth(text).name)}を地図で見る</button>` : ''}
       ${kind === 'win' ? '' : '<span class="lfx-bar" aria-hidden="true"><i></i></span>'}
       ${kind === 'win' || preview ? '' : '<p class="sfx-note">とじたあとも、インフォの画面で読み返せます</p>'}
     </div>`;
@@ -13128,7 +13172,7 @@ function showLiveFx(kind, title, text, preview){
     document.removeEventListener('keydown', onKey);
     try{ if (prev && prev.focus && document.body.contains(prev)) prev.focus({ preventScroll:true }); }catch(e){}
     const q = showLiveFx._q && showLiveFx._q.shift();
-    if (q) setTimeout(() => showLiveFx(q[0], q[1], q[2]), 320);
+    if (q) setTimeout(() => showLiveFx(q[0], q[1], q[2], false, q[3]), 320);
   };
   const onKey = e => {
     if (e.key === 'Escape'){ close(); return; }
@@ -13136,12 +13180,16 @@ function showLiveFx(kind, title, text, preview){
   };
   showLiveFx.close = close;
   el.querySelector('[data-fx="close"]').addEventListener('click', close);
+  { const pg = el.querySelector('[data-fx="place"]');
+    if (pg) pg.addEventListener('click', () => { const b = livePlaceBooth(text); close(); if (b){ switchView('map'); openSheet(b.id); } }); }
   el.addEventListener('click', e => { if (e.target === el) close(); });
   document.addEventListener('keydown', onKey);
   setTimeout(() => { const b = el.querySelector('[data-fx="close"]'); if (b) b.focus({ preventScroll:true }); }, 60);
-  buzz(kind === 'win' ? [30, 60, 30, 60, 120] : [18, 40, 70]);
-  try{ if (S.sound) ding(); }catch(e){}
-  setTimeout(() => confetti(), 250);
+  buzz(kind === 'win' ? [30, 60, 30, 60, 120] : calm ? [18] : [18, 40, 70]);
+  if (!calm){
+    try{ if (S.sound) ding(); }catch(e){}
+    setTimeout(() => confetti(), 250);
+  }
 }
 
 /* =====================================================================
@@ -13264,7 +13312,11 @@ function renderOwnLive(){
   const liveCard = (id, on) => { const c = $(id); if (c){ if (on) c.dataset.live = '1'; else delete c.dataset.live; } };
   stateOf('#own-show-now', !!show, show ? `出しています：「${show.title}」（${liveLeft(show.until)}は、新しく開いた人にも出ます）` : '');
   liveCard('#own-ev-show', !!show);
-  stateOf('#own-lucky-now', !!lucky, lucky ? `光らせています：${nameOf(lucky.booth)}（${liveLeft(lucky.until)}）` : '');
+  // v223：ラッキーブースの効果（始めてから、そのブースでスタンプを押した人の数）
+  stateOf('#own-lucky-now', !!lucky, lucky ? `光らせています：${nameOf(lucky.booth)}（${liveLeft(lucky.until)}）` + (lucky.stamps != null ? `・この間のスタンプ ${Number(lucky.stamps) || 0}人` : '') : '');
+  // v223：演出をえらぶ（新しいサーバーだけ）。出しているあいだは、ボタンを「新しく出す」に
+  { const fxSeg = $('#own-show-fx'); if (fxSeg) fxSeg.classList.toggle('hide', !(String(st.sv || '') >= '2026-10-14e'));
+    const sb = $('#own-show-send'); if (sb && !sb.disabled){ const tx = show ? '新しく出す' : '全員に出す'; if (sb.textContent !== tx) sb.textContent = tx; } }
   liveCard('#own-ev-lucky', !!lucky);
   { const e = $('#own-lucky-end'); if (e) e.classList.toggle('hide', !lucky); }
   { const s = $('#own-lucky-start'); if (s && !s.disabled) s.textContent = lucky ? 'このブースに替える' : 'はじめる'; }
@@ -13342,7 +13394,7 @@ function initOwnerLive(){
   // ようすの札・「すぐ使う」から、その画面へ
   $('#own-main').addEventListener('click', e => { const b = e.target.closest('[data-ogo]'); if (b) setOwnTab(b.dataset.ogo); });
   // えらぶボタン（時間・個数・人数）
-  $$('#own-lucky-min, #own-draw-min, #own-draw-n').forEach(seg => seg.addEventListener('click', e => {
+  $$('#own-lucky-min, #own-draw-min, #own-draw-n, #own-show-fx').forEach(seg => seg.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     $$('button', seg).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     if (seg.id === 'own-draw-min') ownDrawElig(true);
@@ -13391,11 +13443,12 @@ function initOwnerLive(){
     if (initOwnerLive._len) initOwnerLive._len();
     $('#own-show-title').focus({ preventScroll: true });
   }));
-  const showIn = () => ({ title: $('#own-show-title').value.trim().slice(0, 30), text: $('#own-show-text').value.trim().slice(0, 80) });
+  const showFx = () => { const b = $('#own-show-fx button[aria-pressed="true"]'); return b && b.dataset.v === 'calm' && !$('#own-show-fx').classList.contains('hide') ? 'calm' : 'party'; };
+  const showIn = () => ({ title: $('#own-show-title').value.trim().slice(0, 30), text: $('#own-show-text').value.trim().slice(0, 80), calm: showFx() === 'calm' });
   $('#own-show-try').addEventListener('click', () => {
     const v = showIn();
     if (!v.title){ toast('見出しを入れてください'); return; }
-    showLiveFx('show', v.title, v.text, true);
+    showLiveFx('show', v.title, v.text, true, v.calm ? 'calm' : 'party');
   });
   $('#own-show-send').addEventListener('click', async () => {
     const v = showIn();
@@ -13422,7 +13475,8 @@ function initOwnerLive(){
   $('#own-draw-go').addEventListener('click', () => {
     const min = segValue('#own-draw-min'), n = segValue('#own-draw-n'), again = $('#own-draw-again').checked;
     if (!confirm(`きょうスタンプを ${min}個以上あつめた人から、${n}人に当たりを出します。\n（当たった人の画面に、すぐ出ます。やり直すと、別の人が当たります）\n\nよろしいですか？`)) return;
-    ownLive('owner_draw', { min, n, again }, $('#own-draw-go'), '抽選しました。下に、当たった人のスタンプ番号が出ています').then(() => ownDrawElig(true));
+    const place = ($('#own-draw-place').value || '').trim().slice(0, 20);
+    ownLive('owner_draw', { min, n, again, place }, $('#own-draw-go'), '抽選しました。下に、当たった人のスタンプ番号が出ています').then(() => ownDrawElig(true));
   });
   $('#own-draw-clear').addEventListener('click', () => {
     if (!confirm('当たりの表示を消します（当たった人の画面からも消えます）。よろしいですか？')) return;

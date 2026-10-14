@@ -1014,25 +1014,31 @@ test('司令塔（v222）：PC の広い画面では、イベントの3枚・本
   await page.setViewportSize({ width: 1366, height: 768 });
   await ownerLogin(page, origin, 'event');
   const tops = sel => page.evaluate(s => [...document.querySelectorAll(s)].filter(e => e.offsetParent).map(e => { const r = e.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.left), Math.round(r.width)]; }), sel);
+  // タブを押した直後は、入りの動き（0.28秒）の途中で位置が動く。落ち着いてから測る（GitHub で 2px ずれて1回失敗した）
+  // （位置が止まって見えても、動きの終わり際は 1回の間に 1px も動かないので、動きそのものが終わるのを待つ。くり返しの動き＝点の点滅は数えない）
+  const settled = async sel => {
+    await page.waitForFunction(() => document.getAnimations().filter(an => an.playState === 'running' && isFinite(an.effect.getComputedTiming().endTime)).length === 0, null, { timeout: 5000 });
+    return tops(sel);
+  };
   // イベント：3枚が同じ高さから始まり、左から順に並ぶ。近道は出さない
-  let c = await tops('#ownpane-event .own-ev');
+  let c = await settled('#ownpane-event .own-ev');
   expect(c.length).toBe(3);
   expect(Math.max(...c.map(x => x[0])) - Math.min(...c.map(x => x[0]))).toBeLessThanOrEqual(1);
   expect(c[0][1] < c[1][1] && c[1][1] < c[2][1]).toBe(true);
   await expect(page.locator('#own-jump')).toBeHidden();
   // 本部：お知らせ（左）と、止まっているブース（右）
   await page.locator('#owntab-hq').click();
-  const n = (await tops('#notice-card'))[0], st = (await tops('#stale-card'))[0];
+  const n = (await settled('#notice-card'))[0], st = (await settled('#stale-card'))[0];
   expect(Math.abs(n[0] - st[0])).toBeLessThanOrEqual(1);
   expect(n[1]).toBeLessThan(st[1]);
   // 係員：パスワード（左）と、入れる端末（右）
   await page.locator('#owntab-staff').click();
-  c = await tops('#ownpane-staff > .card');
+  c = await settled('#ownpane-staff > .card');
   expect(c.length).toBe(2);
   expect(Math.abs(c[0][0] - c[1][0])).toBeLessThanOrEqual(1);
   // 準備：2列
   await page.locator('#owntab-setup').click();
-  c = await tops('#ownpane-setup > .card, #ownpane-setup > details');
+  c = await settled('#ownpane-setup > .card, #ownpane-setup > details');
   expect(new Set(c.map(x => x[1])).size).toBe(2);
   for (const w of [1366, 960]) {
     await page.setViewportSize({ width: w, height: 768 });
@@ -1050,7 +1056,7 @@ test('司令塔（v222）：PC の広い画面では、イベントの3枚・本
   // スマホの幅：縦に並ぶ。近道が出る
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('#owntab-event').click();
-  c = await tops('#ownpane-event .own-ev');
+  c = await settled('#ownpane-event .own-ev');
   expect(c[0][0] < c[1][0] && c[1][0] < c[2][0]).toBe(true);
   await expect(page.locator('#own-jump')).toBeVisible();
   // さっき出した見出し：出すと、次からは押すだけで欄に入る
@@ -1068,5 +1074,109 @@ test('司令塔（v222）：PC の広い画面では、イベントの3枚・本
   await expect(page.locator('#own-show-title')).toHaveValue('まもなくステージ発表！');
   await expect(page.locator('#own-show-text')).toHaveValue('第一体育館へどうぞ');
   await expect(page.locator('#own-show-len')).toContainText('見出し あと19文字');
+  expect(errors).toEqual([]);
+});
+
+/* ---------------- v223：抽選を係員・本部モニタにも／受け取りの場所／演出を選ぶ／ラッキーブースの効果／使い分けの案内 ---------------- */
+test('イベント（v223）：一斉お知らせを「しずかに」（紙ふぶきなし）で出せる。抽選は、係員の画面・本部モニタにも出て、当たった人には受け取りの場所（受付なら地図のボタン）。ラッキーブースの効果・使い分けの案内', async ({ page, browser, baseURL }) => {
+  test.setTimeout(120000);
+  const errors = watchErrors(page);
+  const { g, origin } = server(baseURL);
+  const now = Date.now();
+  g.__post({ action: 'ledger', cid: 'WWWW1234', ev: ['1F-02', '1F-03', '2F-12'].map(id => ({ t: 's', id, at: now })) });
+  await bridge(page, g);
+  const A = await device(browser, g);
+  await staffLogin(A.page, origin, PASS);
+  await expect(A.page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
+  const B = await device(browser, g);
+  await B.page.setViewportSize({ width: 1366, height: 768 });
+  await B.page.goto(origin + '/?mode=board');
+  await loaded(B.page);
+  const W = await visitor(browser, g, 'WWWW1234', ['1F-02', '1F-03', '2F-12']);
+  const werr = watchErrors(W.page);
+  await W.page.goto(origin + '/?tab=map');
+  await loaded(W.page);
+  await W.page.evaluate(() => { liveDrawCheck.wait = 0; });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await ownerLogin(page, origin, 'event');
+  // 使い分けの案内：文の中の言葉を押すと、その画面へ
+  await page.locator('#own-ev-show .own-link[data-ogo="hq"]').click();
+  await expect(page.locator('#owntab-hq')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#notice-card')).toContainText('消すまで出ます');
+  await page.locator('#notice-card .own-link[data-ogo="event"]').click();
+  await expect(page.locator('#owntab-event')).toHaveAttribute('aria-selected', 'true');
+  // 演出：しずかに → 試すと、紙ふぶきが出ない
+  await expect(page.locator('#own-show-fx')).toBeVisible();
+  await page.locator('#own-show-title').fill('落とし物が届いています');
+  await page.locator('#own-show-fx [data-v="calm"]').click();
+  await expect(page.locator('#own-show-fx [aria-pressed="true"]')).toHaveText('しずかに');
+  await page.locator('#own-show-try').click();
+  await expect(page.locator('#lfx.calm .lfx-title')).toHaveText('落とし物が届いています');
+  await page.waitForTimeout(700);
+  await expect(page.locator('.confetti')).toHaveCount(0);
+  await page.locator('#lfx [data-fx="close"]').click();
+  // 出す → 来場者にも、しずかに出る。出しているあいだ、ボタンは「新しく出す」
+  await expect(page.locator('#own-show-send')).toHaveText('全員に出す');
+  accept(page);
+  await page.locator('#own-show-send').click();
+  await expect(page.locator('#own-show-now')).toContainText('出しています', { timeout: 10000 });
+  await expect(page.locator('#own-show-send')).toHaveText('新しく出す');
+  expect(g.__get().live.show.fx).toBe('calm');
+  await W.page.evaluate(() => sync(false));
+  await expect(W.page.locator('#lfx.calm')).toBeVisible({ timeout: 10000 });
+  await W.page.waitForTimeout(700);
+  await expect(W.page.locator('.confetti')).toHaveCount(0);
+  await W.page.locator('#lfx [data-fx="close"]').click();
+  // 抽選（受け取りの場所は、はじめは受付）
+  await expect(page.locator('#own-draw-place')).toHaveValue('受付（南棟昇降口）');
+  accept(page);
+  await page.locator('#own-draw-go').click();
+  await expect(page.locator('#own-draw-res li b')).toHaveText('WWWW-1234', { timeout: 10000 });
+  // 当たった人：受け取りの場所と、地図のボタン
+  await W.page.evaluate(() => sync(false));
+  await expect(W.page.locator('#lfx.win')).toBeVisible({ timeout: 15000 });
+  await expect(W.page.locator('#lfx .lfx-text')).toHaveText('受付（南棟昇降口）で、この画面を見せてください');
+  await expect(W.page.locator('#lfx .lfx-go')).toContainText('を地図で見る');
+  await W.page.locator('#lfx .lfx-go').click();
+  await expect(W.page.locator('#lfx')).toHaveCount(0);
+  await expect(W.page.locator('.bsh-head h2')).toContainText('受付', { timeout: 10000 });
+  await W.page.locator('#bsh-x').click();
+  await W.page.locator('#nav button[data-view="stamp"]').click();
+  await expect(W.page.locator('#win-card')).toContainText('受付（南棟昇降口）で、この画面を見せてください');
+  await W.page.locator('#win-card .win-go').click();
+  await expect(W.page.locator('.bsh-head h2')).toContainText('受付', { timeout: 10000 });
+  await W.page.locator('#bsh-x').click();
+  // 係員の画面・本部モニタにも、抽選があったこと
+  await A.page.evaluate(() => sync(false));
+  await expect(A.page.locator('#adm-live')).toContainText('スタンプの抽選がありました（1人が当たり）', { timeout: 10000 });
+  await expect(A.page.locator('#adm-live')).toContainText('受付（南棟昇降口）');
+  expect(await A.page.locator('#adm-live').textContent()).not.toContain('WWWW');       // 当たった番号は、係員の画面には出ない
+  await B.page.evaluate(() => sync(false));
+  await expect(B.page.locator('#board-live')).toContainText('抽選：1人が当たり', { timeout: 10000 });
+  // 受け取りの場所を変えて、もう一度（受付でなければ、地図のボタンは出さない）
+  await page.locator('#own-draw-place').fill('2階 生徒会室');
+  await page.locator('#own-draw-again').check();
+  accept(page);
+  await page.locator('#own-draw-go').click();
+  await expect(page.locator('#toast')).toContainText('抽選しました', { timeout: 10000 });
+  await W.page.evaluate(() => sync(false));
+  await expect(W.page.locator('#lfx.win .lfx-text')).toHaveText('2階 生徒会室で、この画面を見せてください', { timeout: 15000 });
+  await expect(W.page.locator('#lfx .lfx-go')).toHaveCount(0);
+  await W.page.locator('#lfx [data-fx="close"]').click();
+  await W.page.locator('#nav button[data-view="stamp"]').click();
+  await expect(W.page.locator('#win-card')).toContainText('2階 生徒会室');
+  await expect(W.page.locator('#win-card .win-go')).toHaveCount(0);
+  // ラッキーブースの効果：始めてから、そのブースでスタンプを押した人の数
+  await page.locator('#own-lucky-booth').selectOption('1F-05');
+  accept(page);
+  await page.locator('#own-lucky-start').click();
+  await expect(page.locator('#own-lucky-now')).toContainText('この間のスタンプ 0人', { timeout: 10000 });
+  g.__post({ action: 'ledger', cid: 'NEWW0001', ev: [{ t: 's', id: '1F-05', at: Date.now() + 500 }] });
+  for (const k of [...g.__cache.keys()]) if (k.startsWith('lks_')) g.__cache.delete(k);
+  await page.evaluate(() => ownRefresh(true));
+  await expect(page.locator('#own-lucky-now')).toContainText('この間のスタンプ 1人', { timeout: 10000 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  expect(werr).toEqual([]);
+  await A.ctx.close(); await B.ctx.close(); await W.ctx.close();
   expect(errors).toEqual([]);
 });

@@ -47,7 +47,7 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-10-14d';
+var GAS_VERSION = '2026-10-14e';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
@@ -2263,7 +2263,8 @@ function ownerStateOut_() {
    ===================================================================== */
 var LIVE_SHOW_SEC = 180;
 var LIVE_DRAW_MIN = 30;          // 当たりの表示を出しておく時間（分）
-var LIVE_PAST_MAX = 200;         // その日に当たった番号を覚えておく数（同じ人が何度も当たらないように）
+var LIVE_PAST_MAX = 200;
+var LIVE_PLACE_DEFAULT = '受付（南棟昇降口）';         // その日に当たった番号を覚えておく数（同じ人が何度も当たらないように）
 
 function ownerOnly_(body) {
   if (body && body.token) { ownerNeed_(body.token); return; }
@@ -2280,15 +2281,17 @@ function liveId_() { return Utilities.getUuid().replace(/-/g, '').slice(0, 12); 
 /** 来場者に返す分。終わったものは入れない。当たった番号は入れない */
 function livePublic_() {
   var o = liveRead_(), now = Date.now(), out = {};
-  if (o.show && o.show.until > now) out.show = { id: o.show.id, title: o.show.title, text: o.show.text, at: o.show.at, until: o.show.until };
+  if (o.show && o.show.until > now) out.show = { id: o.show.id, title: o.show.title, text: o.show.text, fx: o.show.fx === 'calm' ? 'calm' : 'party', at: o.show.at, until: o.show.until };
   if (o.lucky && o.lucky.until > now) out.lucky = { id: o.lucky.id, booth: o.lucky.booth, at: o.lucky.at, until: o.lucky.until };
-  if (o.draw && o.draw.until > now) out.draw = { id: o.draw.id, at: o.draw.at, until: o.draw.until, min: o.draw.min, n: (o.draw.winners || []).length };
+  if (o.draw && o.draw.until > now) out.draw = { id: o.draw.id, at: o.draw.at, until: o.draw.until, min: o.draw.min, n: (o.draw.winners || []).length,
+    place: o.draw.place || LIVE_PLACE_DEFAULT };
   return out;
 }
 /** 司令塔に返す分（当たった番号つき） */
 function liveOwner_() {
   var o = liveRead_(), now = Date.now(), out = livePublic_();
   if (out.draw) { out.draw.winners = o.draw.winners || []; out.draw.elig = o.draw.elig || 0; }
+  if (out.lucky) out.lucky.stamps = luckyStamps_(o.lucky);      // v223：始めてから、そのブースでスタンプを押した人の数
   out.now = now;
   return out;
 }
@@ -2330,6 +2333,32 @@ function drawPick_(min, n, exclude) {
   }
   return { winners: winners, elig: elig };
 }
+/**
+ * v223：ラッキーブースを始めてから、そのブースでスタンプを押した人の数（効果が見えるように）。
+ * 控えのシートを全部読むので、20秒おぼえておく（司令塔は8秒ごとに取り直す）。
+ */
+function luckyStamps_(lk) {
+  if (!lk || !lk.id) return 0;
+  var c = CacheService.getScriptCache(), k = 'lks_' + lk.id, hit = null;
+  try { hit = c.get(k); } catch (e0) {}
+  if (hit != null) return Number(hit) || 0;
+  var n = 0;
+  try {
+    var sh = ledgerSheet_(), last = sh.getLastRow();
+    if (last >= 2) {
+      var seen = {};
+      sh.getRange(2, 1, last - 1, 5).getValues().forEach(function (r) {
+        if (r[2] !== 's' || !r[1] || String(r[3]) !== lk.booth) return;
+        var when = r[4] ? (r[4] instanceof Date ? r[4] : new Date(r[4])) : (r[0] instanceof Date ? r[0] : new Date(r[0]));
+        if (isNaN(when.getTime()) || when.getTime() < lk.at) return;
+        seen[String(r[1])] = 1;
+      });
+      n = Object.keys(seen).length;
+    }
+  } catch (e1) { n = 0; }
+  try { c.put(k, String(n), 20); } catch (e2) {}
+  return n;
+}
 /** v221：司令塔の記録の、新しい方から8件（いつ・何をしたか。パスワードやスタンプ番号は、もともと記録に入れていない） */
 function ownerLog_() {
   try {
@@ -2353,7 +2382,8 @@ function liveApi_(action, body) {
     if (!title) throw new Error('bad request: 見出しを入れてください');
     return withLock_(function () {
       var o = liveRead_(), now = Date.now();
-      o.show = { id: liveId_(), title: title, text: text, at: now, until: now + LIVE_SHOW_SEC * 1000 };
+      // v223：演出。calm＝しずかに（紙ふぶきなし。落とし物・注意の知らせ用）／それ以外＝お祝い
+      o.show = { id: liveId_(), title: title, text: text, fx: body.calm === true ? 'calm' : 'party', at: now, until: now + LIVE_SHOW_SEC * 1000 };
       liveSave_(o);
       liveLog_('一斉お知らせ：' + title + (text ? '／' + text : ''));
       clearCache_();
@@ -2420,7 +2450,9 @@ function liveApi_(action, body) {
       if (!pick.winners.length) {
         throw new Error('bad request: 当たりを引ける人がいません（きょうスタンプを ' + min + '個以上あつめた人：' + pick.elig + '人）');
       }
-      o.draw = { id: liveId_(), at: now, until: now + LIVE_DRAW_MIN * 60000, min: min, winners: pick.winners, elig: pick.elig };
+      // v223：受け取りの場所（当たった人の画面に出す。はじめは受付）
+      var place = cut_(String(body.place == null ? '' : body.place).trim(), 20) || LIVE_PLACE_DEFAULT;
+      o.draw = { id: liveId_(), at: now, until: now + LIVE_DRAW_MIN * 60000, min: min, winners: pick.winners, elig: pick.elig, place: place };
       pick.winners.forEach(function (w) { if (past.indexOf(w.cid) < 0) past.push(w.cid); });
       o.past = { day: today, cids: past.slice(-LIVE_PAST_MAX) };
       liveSave_(o);
