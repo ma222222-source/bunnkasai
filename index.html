@@ -1877,6 +1877,41 @@ html.lite .hero-gear{animation:none}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
 /* ---- v206：地図の左下のボタン。開いた直後は「全体」だけ（左の角）。動かしたら、その右に「ブースに寄せる」が出る ---- */
 #map-card.gmap .map-fit-ctl #zoom-reset{order:-1}
+/* ==== v225：ようすの移り変わりと混んでいるブース・数字が動く・取り直す・ラッキーブースの予約・本部モニタの線・振り返りに司令塔の操作 ==== */
+/* ①この3時間の混み具合（15分ごと。混雑とやや混雑のブースの数） */
+/* 札（.own-tile）は中身を左に寄せて縮める並びなので、グラフと目盛りは札の幅いっぱいに広げる（広げないと幅0になっていた） */
+.own-tile .own-trend,.own-tile .own-trend-ax{align-self:stretch;width:100%}
+/* ③数字を動かすための包み（span）に、札の説明文の小さい字が当たらないように */
+.own-tile b > span[data-n]{display:inline;font:inherit;color:inherit;line-height:inherit}
+.own-trend{display:flex;align-items:flex-end;gap:3px;height:54px;margin:8px 0 2px}
+.own-trend i{flex:1;display:flex;flex-direction:column-reverse;min-width:0;height:100%;border-radius:3px;background:var(--surface-2);overflow:hidden}
+.own-trend i b{display:block;background:var(--busy-fill)} .own-trend i u{display:block;background:var(--warn-fill)}
+.own-trend-ax{display:flex;justify-content:space-between;font-size:10.5px;font-weight:800;color:var(--text-mute);font-variant-numeric:tabular-nums}
+/* ②いま混んでいるブース */
+.own-busy{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.own-busy li{display:flex;align-items:baseline;gap:10px;padding:7px 2px;border-top:1px solid var(--border)}
+.own-busy li:first-child{border-top:none}
+.own-busy li b{flex:none;min-width:3.6em;font-size:16px;font-weight:900;font-variant-numeric:tabular-nums}
+.own-busy li[data-lv="2"] b{color:var(--busy-ink)} .own-busy li[data-lv="1"] b{color:var(--warn)}
+.own-busy li span{flex:1;min-width:0;font-size:13px;font-weight:800;overflow-wrap:anywhere}
+.own-busy li small{flex:none;font-size:11px;font-weight:700;color:var(--text-mute)}
+.own-busy .none{color:var(--text-mute);font-size:12.5px;font-weight:700}
+/* ④取り直すボタン */
+.own-reload{flex:none;width:44px;min-height:44px;border-radius:50%;border:1.5px solid var(--border-strong);background:var(--surface);color:var(--text-dim);cursor:pointer;display:grid;place-items:center}
+.own-reload svg{width:18px;height:18px}
+.own-reload.busy svg{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* ⑥本部モニタ：ラッキーブースの残りの線 */
+.board-live{position:relative;overflow:hidden}
+.board-live .lk-bar{position:absolute;left:0;bottom:0;height:4px;width:calc(var(--lk,1) * 100%);background:#b8860b;transition:width 1s linear}
+/* ⑦振り返り：その日の司令塔の操作 */
+.rep-ev{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.rep-ev li{display:flex;gap:12px;align-items:baseline;padding:6px 2px;border-top:1px solid var(--border);font-size:12.5px;font-weight:700;line-height:1.5}
+.rep-ev li:first-child{border-top:none}
+.rep-ev li time{flex:none;font-weight:900;color:var(--accent);font-variant-numeric:tabular-nums}
+.rep-ev li span{flex:1;min-width:0;overflow-wrap:anywhere}
+@media print{ .rep-ev li{break-inside:avoid} }
+@media (prefers-reduced-motion:reduce){ .own-reload.busy svg{animation:none} .board-live .lk-bar{transition:none} }
 /* ==== v224：一斉お知らせの予約・タイムテーブルから・入力中の見本 ==== */
 /* ①予約：時刻の欄と、予約するボタン */
 .own-sched-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-top:10px;border-top:1px dashed var(--border)}
@@ -4176,6 +4211,8 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
              本部と準備は、係員の画面から ここへ移した（サーバーも、司令塔に入っている人からだけ受け付ける） -->
         <div class="own-head">
           <div class="own-head-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"/><path d="M9.5 12l2 2 3.5-4"/></svg><b>司令塔</b><span id="own-head-sub"></span></div>
+          <!-- v225：いますぐ取り直す（8秒ごとに取り直しているが、待たずに見たいとき） -->
+          <button type="button" class="own-reload" id="own-reload" aria-label="いますぐ取り直す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg></button>
           <button type="button" class="own-out" id="own-logout">司令塔から出る</button>
         </div>
         <div class="own-tabs" role="tablist" aria-label="司令塔の画面">
@@ -4194,6 +4231,12 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
             <ul class="own-now" id="own-now"></ul>
           </div>
           <!-- v221：さいきんの操作（いつ・何をしたか。サーバーの「司令塔の記録」から） -->
+          <!-- v225：いま混んでいるブース（待ちの多い順に5つ） -->
+          <div class="card">
+            <div class="card-t">いま混んでいるブース</div>
+            <ul class="own-busy" id="own-busy"></ul>
+            <button type="button" class="own-link" data-ogo="event">空いているブースへ人を流すなら、ラッキーブースへ</button>
+          </div>
           <div class="card hide" id="own-log-card">
             <div class="card-t">さいきんの操作</div>
             <ul class="own-log" id="own-log"></ul>
@@ -4272,6 +4315,13 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
               <button type="button" class="btn ghost hide" id="own-lucky-end">終わらせる</button>
             </div>
             <p class="own-state" id="own-lucky-now"></p>
+            <!-- v225：時刻を決めて始める（予約）。時刻になったら、司令塔を閉じていても始まる -->
+            <div class="own-sched-row hide" id="own-lucky-sched-row">
+              <label for="own-lucky-at">時刻を決めて始める（予約）</label>
+              <input class="field" type="time" id="own-lucky-at" step="60" aria-label="始める時刻">
+              <button type="button" class="btn ghost" id="own-lucky-schedbtn">この時刻に始める</button>
+            </div>
+            <ul class="own-sched hide" id="own-lucky-sched"></ul>
           </div>
           <div class="card own-ev" id="own-ev-draw">
             <div class="card-t">スタンプの抽選</div>
@@ -4582,7 +4632,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-14i',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-14j',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -13020,11 +13070,14 @@ function renderStaffLive(L){
   const bd = $('#board-live');
   if (bd){
     const parts = [];
-    if (b) parts.push(`<span>ラッキーブース：${esc(b.name)}（${esc(liveLeft(L.lucky.until))}）</span>`);
+    if (b) parts.push(`<span>ラッキーブース：${esc(b.name)}（${esc(liveLeft(L.lucky.until))}）</span><i class="lk-bar" aria-hidden="true"></i>`);
     if (L.show) parts.push(`<span>一斉お知らせ：「${esc(String(L.show.title || ''))}」</span>`);
     if (L.draw) parts.push(`<span>抽選：${Number(L.draw.n) || 0}人が当たり（受け取りは ${esc(livePlace(L.draw))}）</span>`);
     bd.classList.toggle('hide', !parts.length);
     setHtml(bd, parts.join(''));
+    // v225：ラッキーブースの残りの線（来場者の帯と同じ）
+    if (b){ const span = Number(L.lucky.until) - Number(L.lucky.at), left = Number(L.lucky.until) - nowMs();
+      bd.style.setProperty('--lk', String(span > 0 ? Math.max(0, Math.min(1, left / span)) : 0)); }
   }
 }
 function renderLive(){
@@ -13288,15 +13341,25 @@ function renderOwnLive(){
   const notice = (S.notice && S.notice.text) ? S.notice : null;
   const nameOf = id => { const b = bs.find(x => x.id === id); return b ? b.name : String(id); };
   // ---- ようす
+  // v225：数字が変わったら、前の数から動かす（入れかえる前の数を覚えておく）
+  const prevN = {}; $$('#own-tiles [data-n]').forEach(e => { prevN[e.dataset.n] = Number(e.dataset.v || e.textContent) || 0; });
   setHtml($('#own-tiles'), `
-    <div class="own-tile"><b>${vis}<small>人</small></b><span>きょうの来場者（受付のカウント）</span></div>
-    <button type="button" class="own-tile" data-ogo="hq" data-tone="${stale ? 'warn' : 'ok'}"><b>${stale}<small>件</small></b><span>更新が止まっているブース（${CONFIG.ADMIN_WARN_MIN}分以上）</span></button>
-    <button type="button" class="own-tile" data-ogo="staff"${nWait ? ' data-tone="warn"' : ''}><b>${nWait}<small>台</small></b><span>${st.approval ? '許可を待っている端末' : '許可を待っている端末（いまは、パスワードだけで入れます）'}</span></button>
-    <button type="button" class="own-tile" data-ogo="event"${nEv ? ' data-tone="ok"' : ''}><b>${nEv}<small>つ</small></b><span>起こしているイベント</span></button>
+    <div class="own-tile"><b><span data-n="vis">${vis}</span><small>人</small></b><span>きょうの来場者（受付のカウント）</span></div>
+    <button type="button" class="own-tile" data-ogo="hq" data-tone="${stale ? 'warn' : 'ok'}"><b><span data-n="stale">${stale}</span><small>件</small></b><span>更新が止まっているブース（${CONFIG.ADMIN_WARN_MIN}分以上）</span></button>
+    <button type="button" class="own-tile" data-ogo="staff"${nWait ? ' data-tone="warn"' : ''}><b><span data-n="wait">${nWait}</span><small>台</small></b><span>${st.approval ? '許可を待っている端末' : '許可を待っている端末（いまは、パスワードだけで入れます）'}</span></button>
+    <button type="button" class="own-tile" data-ogo="event"${nEv ? ' data-tone="ok"' : ''}><b><span data-n="ev">${nEv}</span><small>つ</small></b><span>起こしているイベント</span></button>
+    ${ownTrendTile(bs, t)}
     <div class="own-tile wide"><span>ブースの混み具合（${bs.length}件）</span>
       <div class="own-mix" aria-hidden="true">${[[0, 'm0'], [1, 'm1'], [2, 'm2'], [3, 'm3'], ['x', 'mx']].map(([k, c]) => cnt[k] ? `<i class="${c}" style="flex:${cnt[k]} 0 0"></i>` : '').join('')}</div>
       <div class="own-mix-lg"><span>空き<b>${cnt[0]}</b></span><span>やや混雑<b>${cnt[1]}</b></span><span>混雑<b>${cnt[2]}</b></span><span>準備中<b>${cnt[3]}</b></span><span>情報なし<b>${cnt.x}</b></span></div>
     </div>`);
+  $$('#own-tiles [data-n]').forEach(e => { const k = e.dataset.n, to = Number(e.textContent) || 0;
+    if (prevN[k] != null && prevN[k] !== to){ e.dataset.v = String(prevN[k]); e.textContent = String(prevN[k]); animateNumber(e, to); } else e.dataset.v = String(to); });
+  // v225：いま混んでいるブース（混雑・やや混雑を、待ちの多い順に5つ）
+  { const busy = bs.filter(b => isVenue(b) && (lvOf(b).lv === 2 || lvOf(b).lv === 1))
+      .sort((a, c) => (lvOf(c).lv - lvOf(a).lv) || ((c.wait || 0) - (a.wait || 0))).slice(0, 5);
+    setHtml($('#own-busy'), busy.length ? busy.map(b => `<li data-lv="${lvOf(b).lv}"><b>${b.wait != null ? esc(String(b.wait)) + '人' : esc(lvOf(b).short)}</b><span>${esc(b.name)}</span><small>${esc(flLabel(b))}</small></li>`).join('')
+      : '<li class="none">いま、混んでいるブースはありません</li>'); }
   const now = [];
   // v221：出しているものは、ここから止められる（その画面まで行かなくてよい）
   if (notice) now.push(`<li><em>${notice.level === 'alert' ? '注意' : 'お知らせ'}</em><span>${esc(notice.text)}</span><button type="button" data-stop="notice">消す</button></li>`);
@@ -13307,6 +13370,14 @@ function renderOwnLive(){
   const sched = Array.isArray(lv.sched) ? lv.sched.filter(x => x && Number(x.at) > t) : [];
   const hmOf = at => { const d = new Date(Number(at)); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
   sched.forEach(x => now.push(`<li><em>予約 ${hmOf(x.at)}</em><span>${esc(String(x.title || ''))}</span><button type="button" data-stop="sched:${esc(String(x.id))}">取り消す</button></li>`));
+  // v225：ラッキーブースの予約
+  const lsched = Array.isArray(lv.luckySched) ? lv.luckySched.filter(x => x && Number(x.at) > t) : [];
+  lsched.forEach(x => now.push(`<li><em>予約 ${hmOf(x.at)}</em><span>ラッキーブース：${esc(nameOf(x.booth))}（${Math.round((Number(x.until) - Number(x.at)) / 60000)}分）</span><button type="button" data-stop="sched:${esc(String(x.id))}">取り消す</button></li>`));
+  { const canL = String(st.sv || '') >= '2026-10-14g';
+    const row = $('#own-lucky-sched-row'); if (row) row.classList.toggle('hide', !canL);
+    const ul = $('#own-lucky-sched');
+    if (ul){ ul.classList.toggle('hide', !lsched.length);
+      setHtml(ul, lsched.map(x => `<li><b>${hmOf(x.at)}</b><span>${esc(nameOf(x.booth))}（${Math.round((Number(x.until) - Number(x.at)) / 60000)}分）</span><button type="button" data-sched-del="${esc(String(x.id))}">取り消す</button></li>`).join('')); } }
   setHtml($('#own-now'), now.length ? now.join('') : '<li class="none">いまは、何も出していません</li>');
   // v224：予約の欄（新しいサーバーだけ。古いサーバーは時刻を知らず、すぐに出してしまう）と、予約の一覧
   { const canSched = String(st.sv || '') >= '2026-10-14f';
@@ -13434,6 +13505,34 @@ async function ownLive(action, body, btn, okMsg){
     if (btn && btn.disabled){ btn.disabled = false; btn.textContent = lb; }
   }
 }
+/**
+ * v225：この3時間の混み具合（15分ごと・12本）。各ブースの推移（history：{t:'HH:mm', lv}）から、
+ * その時刻にいちばん近い前の記録で数える。いちばん右は、いまの状態
+ */
+function ownTrendTile(bs, t){
+  const min = s => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || '')); return m ? +m[1] * 60 + +m[2] : -1; };
+  const d = new Date(t), nowM = d.getHours() * 60 + d.getMinutes();
+  const N = 12, cols = [];
+  let any = false;
+  for (let k = 0; k < N; k++){
+    const at = nowM - (N - 1 - k) * 15;
+    let busy = 0, warn = 0;
+    bs.forEach(b => {
+      let lv = -1;
+      if (k === N - 1) lv = lvOf(b).lv;
+      else (Array.isArray(b.history) ? b.history : []).forEach(p => { const pm = min(p && p.t); if (pm >= 0 && pm <= at && pm > at - 180) lv = Number(p.lv); });
+      if (k < N - 1 && lv >= 0) any = true;
+      if (lv === 2) busy++; else if (lv === 1) warn++;
+    });
+    cols.push([busy, warn]);
+  }
+  if (!any) return '';
+  const max = Math.max(1, ...cols.map(c => c[0] + c[1]));
+  const hm = m => { m = (m + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+  return `<div class="own-tile wide"><span>この3時間の混み具合（混雑・やや混雑のブースの数。15分ごと）</span>
+    <div class="own-trend" role="img" aria-label="この3時間の混み具合">${cols.map(([b, w]) => `<i><b style="height:${(b / max * 100).toFixed(1)}%"></b><u style="height:${(w / max * 100).toFixed(1)}%"></u></i>`).join('')}</div>
+    <div class="own-trend-ax"><span>${hm(nowM - (N - 1) * 15)}</span><span>いま</span></div></div>`;
+}
 /** v224：入力中の見本（来場者の画面で、どう見えるか） */
 function ownShowPrev(){
   const box = $('#own-show-prev'); if (!box) return;
@@ -13507,6 +13606,30 @@ function initOwnerLive(){
     if (initOwnerLive._len) initOwnerLive._len();
     ownShowPrev();
     $('#own-show-sched').focus({ preventScroll: true });
+  });
+  // v225：ラッキーブースを、時刻を決めて始める（予約）
+  $('#own-lucky-schedbtn').addEventListener('click', async () => {
+    const booth = $('#own-lucky-booth').value, minutes = segValue('#own-lucky-min'), hm = $('#own-lucky-at').value;
+    if (!booth){ toast('ブースをえらんでください'); return; }
+    const m = /^(\d{1,2}):(\d{2})/.exec(hm || '');
+    if (!m){ toast('時刻を入れてください'); return; }
+    const d = new Date(nowMs()), at = new Date(d.getFullYear(), d.getMonth(), d.getDate(), Number(m[1]), Number(m[2])).getTime();
+    if (at < nowMs() + 30000){ toast('その時刻は過ぎています（きょうの、これからの時刻にしてください）'); return; }
+    const b = S.booths.find(x => x.id === booth), hh = m[1].padStart(2, '0') + ':' + m[2];
+    if (!confirm(`${hh} から ${minutes}分のあいだ、「${b ? b.name : booth}」をラッキーブースにします（司令塔を閉じていても始まります）。よろしいですか？`)) return;
+    if (await ownLive('owner_lucky', { booth, minutes, at }, $('#own-lucky-schedbtn'), `${hh} からのラッキーブースを予約しました`)) $('#own-lucky-at').value = '';
+  });
+  $('#own-lucky-sched').addEventListener('click', e => {
+    const b = e.target.closest('[data-sched-del]'); if (!b) return;
+    if (!confirm('この予約を取り消します。よろしいですか？')) return;
+    ownLive('owner_sched_del', { id: b.dataset.schedDel }, b, '予約を取り消しました');
+  });
+  // v225：いますぐ取り直す
+  $('#own-reload').addEventListener('click', async () => {
+    const b = $('#own-reload'); if (b.classList.contains('busy')) return;
+    b.classList.add('busy');
+    try{ await Promise.all([ownRefresh(false), sync(false)]); }catch(e){}
+    finally{ b.classList.remove('busy'); }
   });
   // 予約の取り消し（一覧から）
   $('#own-sched').addEventListener('click', e => {
@@ -16286,7 +16409,11 @@ async function renderReport(){
               background:var(--surface-3);border:1px solid var(--border);vertical-align:-1px"></span>
         は記録がない時間帯です。
       </p>
-    </div>`;
+    </div>
+    ${Array.isArray(r.events) && r.events.length ? `<div class="card">
+      <div class="card-t">その日の司令塔の操作（${r.events.length}件）</div>
+      <ul class="rep-ev">${r.events.map(e => `<li><time>${esc(String(e && e.t || ''))}</time><span>${esc(String(e && e.what || ''))}</span></li>`).join('')}</ul>
+    </div>` : ''}`;
   // v218：開いたときの動き（棒が下から伸びる・行が順に出る）。終わったら印を外す（印刷・画像に動きの途中を出さない）
   box.classList.add('rep-in');
   clearTimeout(renderReport._t);

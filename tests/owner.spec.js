@@ -1272,3 +1272,88 @@ test('イベント（v224）：一斉お知らせを時刻で予約できる（�
   await V.ctx.close();
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v225：ようすの移り変わりと混んでいるブース・数字が動く・取り直す・ラッキーブースの予約・本部モニタの線・振り返り ---------------- */
+test('司令塔（v225）：ようすに「いま混んでいるブース」と「この3時間の混み具合」。数字が動く・取り直すボタン。ラッキーブースを時刻で予約（本部モニタに残りの線）。振り返りに、その日の司令塔の操作', async ({ page, browser, baseURL }) => {
+  test.setTimeout(120000);
+  const errors = watchErrors(page);
+  const { g, origin } = server(baseURL);
+  g.__post({ action: 'update', pass: PASS, cid: 'aaaa1111aaaa', id: '1F-02', wait: 25 });
+  g.__post({ action: 'update', pass: PASS, cid: 'aaaa1111aaaa', id: '1F-03', wait: 18 });
+  g.__post({ action: 'update', pass: PASS, cid: 'aaaa1111aaaa', id: '2F-12', wait: 8 });
+  g.__post({ action: 'update', pass: PASS, cid: 'aaaa1111aaaa', id: '1F-05', wait: 1 });
+  g.__post({ action: 'visitor', pass: PASS, cid: 'aaaa1111aaaa', n: 10, uid: 'v225a' });
+  await bridge(page, g);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await ownerLogin(page, origin, '');
+  // いま混んでいるブース：混雑 → やや混雑、待ちの多い順
+  const busy = page.locator('#own-busy li');
+  await expect(busy).toHaveCount(3);
+  await expect(busy.nth(0)).toContainText('25人');
+  await expect(busy.nth(0)).toContainText('旋盤の加工実演');
+  await expect(busy.nth(1)).toContainText('18人');
+  await expect(busy.nth(2)).toContainText('8人');
+  await expect(busy.nth(2)).toHaveAttribute('data-lv', '1');
+  // この3時間の混み具合：推移があれば出る（ここでは 30分前の記録を足して見る）
+  await page.evaluate(() => {
+    const d = new Date(nowMs() - 30 * 60000), hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    S.booths.slice(0, 6).forEach((b, i) => { b.history = [{ t: hm, lv: i < 3 ? 2 : 1 }]; });
+    renderOwnLive();
+  });
+  const trend = page.locator('#own-tiles .own-trend i');
+  await expect(trend).toHaveCount(12);
+  const hs = await trend.evaluateAll(els => els.map(i => Math.round(i.querySelector('b').getBoundingClientRect().height + i.querySelector('u').getBoundingClientRect().height)));
+  expect(hs[0]).toBe(0);                                   // 3時間前は記録なし
+  // グラフは札の幅いっぱい（札の中で縮んで、幅0になっていたことがある）・数字は大きい字のまま（説明文の小さい字が当たっていた）
+  const box = await page.evaluate(() => { const t = document.querySelector('#own-tiles .own-trend'), tile = t.closest('.own-tile');
+    return { w: t.getBoundingClientRect().width, full: tile.clientWidth, fs: parseFloat(getComputedStyle(document.querySelector('#own-tiles [data-n="vis"]')).fontSize) }; });
+  expect(box.w).toBeGreaterThan(box.full * 0.8);
+  expect(box.fs).toBeGreaterThanOrEqual(22);
+  expect(hs[10]).toBeGreaterThan(0);                       // 30分前より後
+  await expect(page.locator('#own-tiles .own-trend-ax')).toContainText('いま');
+  // 数字が動く：来場者が増えたら、前の数から新しい数へ
+  await expect(page.locator('#own-tiles [data-n="vis"]')).toHaveText('10');
+  g.__post({ action: 'visitor', pass: PASS, cid: 'aaaa1111aaaa', n: 40, uid: 'v225b' });
+  // 取り直すボタン（待たずに取り直す）
+  await page.locator('#own-reload').click();
+  await expect(page.locator('#own-tiles [data-n="vis"]')).toHaveText('50', { timeout: 10000 });
+  await expect(page.locator('#own-reload')).not.toHaveClass(/busy/, { timeout: 10000 });
+  // ラッキーブースを時刻で予約
+  await page.locator('#owntab-event').click();
+  await expect(page.locator('#own-lucky-sched-row')).toBeVisible();
+  await page.locator('#own-lucky-booth').selectOption('1F-05');
+  await page.locator('#own-lucky-min [data-v="15"]').click();
+  const hm = await page.evaluate(() => { const d = new Date(nowMs() + 3 * 60000); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); });
+  await page.locator('#own-lucky-at').fill(hm);
+  accept(page);
+  await page.locator('#own-lucky-schedbtn').click();
+  await expect(page.locator('#toast')).toContainText(hm + ' からのラッキーブースを予約しました', { timeout: 10000 });
+  await expect(page.locator('#own-lucky-sched li')).toHaveCount(1);
+  await expect(page.locator('#own-lucky-sched li')).toContainText('（15分）');
+  await page.locator('#owntab-home').click();
+  await expect(page.locator('#own-now')).toContainText('予約 ' + hm);
+  await expect(page.locator('#own-now')).toContainText('ラッキーブース：');
+  // 時刻が来た → 本部モニタに、ラッキーブースと残りの線
+  const o = JSON.parse(g.__props.LIVE); o.luckySched[0].at = Date.now() - 5 * 60000; o.luckySched[0].until = Date.now() + 10 * 60000; g.__props.LIVE = JSON.stringify(o);
+  g.clearCache_();
+  const B = await device(browser, g);
+  await B.page.setViewportSize({ width: 1366, height: 768 });
+  await B.page.goto(origin + '/?mode=board');
+  await loaded(B.page);
+  await B.page.evaluate(() => sync(false));
+  await expect(B.page.locator('#board-live')).toBeVisible({ timeout: 10000 });
+  const bar = await B.page.evaluate(() => { const b = document.querySelector('#board-live'), i = b.querySelector('.lk-bar'); return { lk: parseFloat(getComputedStyle(b).getPropertyValue('--lk')), w: i.getBoundingClientRect().width, full: b.getBoundingClientRect().width }; });
+  expect(bar.lk).toBeGreaterThan(0.55);
+  expect(bar.lk).toBeLessThan(0.75);
+  await B.ctx.close();
+  // 取り消し（ようすから）は、出ているものではなく これからの予約だけ。いまは出ている
+  await page.evaluate(() => ownRefresh(true));
+  await expect(page.locator('#own-now')).toContainText('ラッキーブース', { timeout: 10000 });
+  // 振り返り：その日の司令塔の操作
+  await page.goto(origin + '/?mode=report');
+  await expect(page.locator('.rep-ev li').first()).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('.rep-ev')).toContainText('ラッキーブースを予約');
+  await expect(page.locator('.rep-ev li time').first()).toHaveText(/^\d\d:\d\d$/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  expect(errors).toEqual([]);
+});
