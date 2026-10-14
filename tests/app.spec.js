@@ -4202,3 +4202,53 @@ test('イベント（v222）：見のがした一斉お知らせを、インフ�
   await expect(card).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v223：しずかな一斉お知らせ・帯の残り時間の線・受け取りの場所 ---------------- */
+test('イベント（v223）：「しずかに」の一斉お知らせは、紙ふぶきが出ない（お祝いは出る）。ラッキーブースの帯に、残り時間の線。当たりの札に、受け取りの場所', async ({ page }) => {
+  const errors = watchErrors(page);
+  const now = Date.now();
+  const live = { show: { id: 'show0223', title: '落とし物が届いています', text: '受付へどうぞ', fx: 'calm', at: now, until: now + 120000 },
+    lucky: { id: 'luck0230', booth: '1F-02', at: now - 240000, until: now + 60000 },
+    draw: { id: 'draw0223', at: now, until: now + 600000, min: 1, n: 1, place: '受付（南棟昇降口）' } };
+  await mockGas(page, { mutate: j => { j.live = live; } });
+  await page.goto('/?tab=map');
+  await expect(page.locator('#lfx.calm .lfx-title')).toHaveText('落とし物が届いています', { timeout: 15000 });
+  await page.waitForTimeout(700);
+  await expect(page.locator('.confetti')).toHaveCount(0);
+  await page.locator('#lfx [data-fx="close"]').click();
+  await expect(page.locator('#lfx')).toHaveCount(0);
+  // お祝いは、紙ふぶきが出る（動きを減らす設定・力の弱い端末では出さない決まり）
+  const canConfetti = await page.evaluate(() => !matchMedia('(prefers-reduced-motion: reduce)').matches && !document.documentElement.classList.contains('lite'));
+  await page.evaluate(() => showLiveFx('show', 'ただいま開場しました！', '', false, 'party'));
+  await expect(page.locator('#lfx:not(.calm)')).toBeVisible();
+  if (canConfetti) await expect(page.locator('.confetti')).toHaveCount(1, { timeout: 3000 });
+  await page.locator('#lfx [data-fx="close"]').click();
+  // 帯の線：5分のうち、残り1分 → 2割ほど
+  const bar = await page.evaluate(() => { const b = document.querySelector('#banner-lucky'), i = b.querySelector('.lk-bar');
+    return { lk: parseFloat(getComputedStyle(b).getPropertyValue('--lk')), w: i.getBoundingClientRect().width, full: b.getBoundingClientRect().width }; });
+  expect(bar.lk).toBeGreaterThan(0.1);
+  expect(bar.lk).toBeLessThan(0.25);
+  expect(bar.w).toBeGreaterThan(0);
+  expect(bar.w).toBeLessThan(bar.full * 0.5);
+  // 当たりの札：受け取りの場所。受付なら、地図で見るボタン（押すと、受付の詳細が開く）
+  // （サーバーの返事に抽選 draw0223 が入っている。当たったことにして、札を出す）
+  await page.evaluate(() => {
+    localStorage.setItem('kuroko_live_win', JSON.stringify({ id: 'draw0223', until: Date.now() + 600000, place: '受付（南棟昇降口）' }));
+    renderLive();
+  });
+  await page.locator('#nav button[data-view="stamp"]').click();
+  await expect(page.locator('#win-card')).toContainText('受付（南棟昇降口）で、この画面を見せてください');
+  expect(await page.locator('#win-card .win-go').evaluate(el => el.offsetHeight)).toBeGreaterThanOrEqual(44);
+  await page.locator('#win-card .win-go').click();
+  await expect(page.locator('.bsh-head h2')).toContainText('受付', { timeout: 10000 });
+  await page.locator('#bsh-x').click();
+  // 場所が受付でなければ、ボタンは出さない。古いサーバー（場所なし）なら、受付
+  await page.evaluate(() => { localStorage.setItem('kuroko_live_win', JSON.stringify({ id: 'draw0223', until: Date.now() + 600000, place: '<b>2階</b> 生徒会室' })); renderWin(); });
+  await page.locator('#nav button[data-view="stamp"]').click();
+  await expect(page.locator('#win-card')).toContainText('<b>2階</b> 生徒会室で、この画面を');
+  await expect(page.locator('#win-card .win-go')).toHaveCount(0);
+  await page.evaluate(() => { localStorage.setItem('kuroko_live_win', JSON.stringify({ id: 'draw0223', until: Date.now() + 600000 })); renderWin(); });
+  await expect(page.locator('#win-card')).toContainText('受付（南棟昇降口）で');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  expect(errors).toEqual([]);
+});

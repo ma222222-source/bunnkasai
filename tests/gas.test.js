@@ -940,7 +940,8 @@ test('v219 イベント：スタンプの抽選。きょう決めた数以上あ
   // 来場者への返事：抽選があったことと人数だけ。番号は、どこにも入っていない
   const pubText = JSON.stringify(g.__get());
   const pub = JSON.parse(pubText).live.draw;
-  assert.deepStrictEqual(Object.keys(pub).sort(), ['at', 'id', 'min', 'n', 'until']);
+  assert.deepStrictEqual(Object.keys(pub).sort(), ['at', 'id', 'min', 'n', 'place', 'until']);
+  assert.strictEqual(pub.place, '受付（南棟昇降口）');                  // v223：受け取りの場所（決めなければ受付）
   assert.strictEqual(pub.n, 2);
   for (const w of d.winners) assert.ok(!pubText.includes(w.cid), '当たった番号が、来場者への返事に入っている');
   // 自分の番号で聞くと、当たりかどうかが分かる
@@ -1052,4 +1053,43 @@ test('v221 さいきんの操作（log）：司令塔の状態に、新しい順
   assert.match(log2[0].what, /お知らせ8/);
   // 司令塔に入っていない人には返さない
   assert.match(g.__post({ action: 'owner_state', pass: PASS }).error, /^owner session/);
+});
+
+/* ---------------- v223：演出を選ぶ／受け取りの場所／ラッキーブースの効果 ---------------- */
+test('v223 一斉お知らせの演出：calm なら「しずかに」、それ以外は「お祝い」。受け取りの場所：決めたものを返す（20文字まで・決めなければ受付）', () => {
+  const g = freshOwner();
+  const T = { token: ownerIn(g) };
+  assert.strictEqual(g.__post({ action: 'owner_show', ...T, title: 'お祝い' }).live.show.fx, 'party');
+  assert.strictEqual(g.__get().live.show.fx, 'party');
+  assert.strictEqual(g.__post({ action: 'owner_show', ...T, title: '落とし物', calm: true }).live.show.fx, 'calm');
+  assert.strictEqual(g.__get().live.show.fx, 'calm');
+  assert.strictEqual(g.__post({ action: 'owner_show', ...T, title: 'x', calm: 'yes' }).live.show.fx, 'party', 'true そのものだけを しずかに と見る');
+  // 受け取りの場所
+  g.__post({ action: 'ledger', cid: 'AAAA1111', ev: [{ t: 's', id: '1F-02', at: Date.now() }] });
+  const d1 = g.__post({ action: 'owner_draw', ...T, min: 1, n: 1, place: '  2階 生徒会室  ' }).live.draw;
+  assert.strictEqual(d1.place, '2階 生徒会室');
+  assert.strictEqual(g.__get().live.draw.place, '2階 生徒会室');
+  const d2 = g.__post({ action: 'owner_draw', ...T, min: 1, n: 1, again: true, place: 'あ'.repeat(50) }).live.draw;
+  assert.ok(d2.place.length <= 21);
+  const d3 = g.__post({ action: 'owner_draw', ...T, min: 1, n: 1, again: true, place: '   ' }).live.draw;
+  assert.strictEqual(d3.place, '受付（南棟昇降口）');
+});
+
+test('v223 ラッキーブースの効果：始めてから、そのブースでスタンプを押した人の数（前の分・ほかのブース・同じ人の重なりは数えない）。来場者への返事には入れない', () => {
+  const g = freshOwner();
+  const T = { token: ownerIn(g) };
+  const t0 = Date.now();
+  g.__post({ action: 'ledger', cid: 'BEFO0001', ev: [{ t: 's', id: '1F-02', at: t0 - 3600000 }] });      // 始める前の分
+  const lk = g.__post({ action: 'owner_lucky', ...T, booth: '1F-02', minutes: 10 }).live.lucky;
+  assert.strictEqual(lk.stamps, 0);
+  assert.strictEqual(g.__get().live.lucky.stamps, undefined);
+  const fresh = () => { g.__cache.delete('lks_' + lk.id); return g.__post({ action: 'owner_state', ...T }).live.lucky.stamps; };
+  g.__post({ action: 'ledger', cid: 'AAAA1111', ev: [{ t: 's', id: '1F-02', at: Date.now() + 1000 }] });
+  g.__post({ action: 'ledger', cid: 'BBBB2222', ev: [{ t: 's', id: '1F-02', at: Date.now() + 1000 }, { t: 's', id: '1F-03', at: Date.now() + 1000 }] });
+  g.__post({ action: 'ledger', cid: 'CCCC3333', ev: [{ t: 's', id: '2F-12', at: Date.now() + 1000 }] });   // ほかのブース
+  // 20秒は覚えている（控えを毎回ぜんぶ読まない）
+  assert.strictEqual(g.__post({ action: 'owner_state', ...T }).live.lucky.stamps, 0);
+  assert.strictEqual(fresh(), 2);
+  // 終わらせたら、数は返さない
+  assert.strictEqual(g.__post({ action: 'owner_lucky', ...T, booth: '' }).live.lucky, undefined);
 });
