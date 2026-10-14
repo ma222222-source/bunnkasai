@@ -1877,6 +1877,23 @@ html.lite .hero-gear{animation:none}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
 /* ---- v206：地図の左下のボタン。開いた直後は「全体」だけ（左の角）。動かしたら、その右に「ブースに寄せる」が出る ---- */
 #map-card.gmap .map-fit-ctl #zoom-reset{order:-1}
+/* ==== v229：来場者の画面の仕上げ・2（地図の札の折り返し・検索の例・詳細の前と次・見出しの札） ==== */
+/* ②地図の検索で見つからないとき、押せる例（打ち直さなくても、さがせる言葉が分かる） */
+.map-sug .sg-ex{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:0 14px 12px}
+.map-sug .sg-ex > span{font-size:12px;font-weight:800;color:var(--text-dim);margin-right:2px}
+.map-sug .sg-ex button{display:inline-flex;align-items:center;width:auto;min-height:44px;padding:0 16px;gap:0;border-radius:999px;
+  border:1.5px solid var(--border-strong);background:var(--surface-2);color:var(--text);font-size:13px;font-weight:800}
+/* ③ラッキーブースの帯は、どこを押しても、そのブースへ（「見る」だけでなく） */
+.banner.lucky{cursor:pointer}
+.banner.lucky .lk-x{cursor:pointer}
+/* ④詳細の「前・次」（なぞる・矢印でも）：中身が、進んだ向きからすっと入る */
+#bsh-body.step-r{animation:bsh-step-r .26s var(--ease) both}
+#bsh-body.step-l{animation:bsh-step-l .26s var(--ease) both}
+@keyframes bsh-step-r{from{opacity:.2;transform:translateX(28px)}to{opacity:1;transform:none}}
+@keyframes bsh-step-l{from{opacity:.2;transform:translateX(-28px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){ #bsh-body.step-r,#bsh-body.step-l{animation:none} }
+/* ⑤見出しの「いまの状況」の札：「落ち着き」では黒い見出しに黒い地で、札の形が見えていなかった */
+[data-theme="paper"] .sync{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14)}
 /* ==== v228：来場者の画面の仕上げ（ラッキーブースの知らせ・詳細の上の吹き出し・行頭のかっこ） ==== */
 /* ①ラッキーブースが始まったら、帯に光をひと筋走らせる（吹き出しを重ねて出さない） */
 .banner.lucky.flash::after{content:"";position:absolute;inset:0;pointer-events:none;
@@ -4667,7 +4684,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-14m',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-14n',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4875,6 +4892,20 @@ function waitMinText(b){
   return m == null ? '' : `およそ${m}分待ち`;
 }
 
+/**
+ * v229：詳細の「およそ◯分待ち」の行。人数が分かっていて、目安が1分に満たないときは「およそ1分以内」。
+ * 以前は段階の目安（「15分以上待ち」）に戻していたので、「1人待ち」の横に「15分以上待ち」と食い違って出ていた
+ */
+function waitSubText(b, L){
+  const t = waitMinText(b);
+  if (t) return t;
+  if (b && Number(b.wait) > 0 && L.lv >= 0 && L.lv < 3){
+    const P = CONFIG.PACE_SEC || {};
+    const sec = P[b.category] != null ? P[b.category] : (P._default || 45);
+    if (sec && Number(b.wait) * sec / 60 < 1) return 'およそ1分以内';
+  }
+  return L.wait;
+}
 /** 待ち人数の表示文字列。人数が無ければ段階に応じた目安を返す */
 function waitText(b){
   const L = lvOf(b);
@@ -6258,17 +6289,27 @@ function graphemes(str){
  * 2文字以下しか出せないときは名前を出さない（「企」だけでは何のブースか分からない。番号で引ける）。
  * 縦長の部屋は90度倒した方が大きく入るなら倒す。
  */
-function fitText(text, w, h, maxSize, minSize, pad){
+function fitText(text, w, h, maxSize, minSize, pad, noKinSize){
   const g = graphemes(text);
   if (!g.length) return { lines:[], size:0, rot:false };
   const MAX = maxSize || 5.4, MIN = Math.min(minSize || 3.4, MAX);
   const ROWS = 5;
   const tryBox = (bw, bh) => {
     if (bw <= 0 || bh <= 0) return null;
+    let first = null, steps = 0;
     for (let size = MAX; size >= MIN - 1e-6; size *= 0.94){
       const per = Math.floor(bw / size), rows = Math.min(ROWS, Math.floor(bh / (size * 1.18)));
-      if (per >= 1 && rows >= 1 && per * rows >= g.length) return { size, per, rows, full:true };
+      if (per >= 1 && rows >= 1 && per * rows >= g.length){
+        const r = { size, per, rows, full:true };
+        // v229：折り返しの決まり（禁則）を守れる大きさを、5段（約1/4）まで小さくして探す（字の下限 minSize は守る）。守れなければ、いちばん大きく入る大きさ。
+        // 印刷（noKinSize）は字を小さくしない（紙では小さい字を描かない決まりがあり、名前が消えてしまう）
+        if (noKinSize || per >= g.length || kinsokuFit(g, per, rows)) return r;
+        if (!first) first = r;
+        if (++steps > 5) return first;
+        continue;
+      }
     }
+    if (first) return first;
     const per = Math.floor(bw / MIN), rows = Math.min(ROWS, Math.floor(bh / (MIN * 1.18)));
     return { size: MIN, per: Math.max(0, per), rows: Math.max(0, rows), full:false };
   };
@@ -6291,21 +6332,90 @@ function fitText(text, w, h, maxSize, minSize, pad){
   const lines = [];
   for (let i = 0; i < u.rows && i * u.per < body.length; i++) lines.push(body.slice(i * u.per, (i + 1) * u.per).join(''));
   // 行の長さをそろえる（「企業ブース（電子」「機2教室）」より「企業ブース」「（電子機2教室）」は無理でも、極端な片寄りを避ける）
+  if (!u.full && lines.length > 1){
+    const kc = kinsokuCut(g, u.per, u.rows);          // v229
+    if (kc){ lines.length = 0; lines.push(...kc); }
+  }
   if (u.full && lines.length > 1){
     const per2 = Math.ceil(body.length / lines.length);
+    // v229：行の頭に「）」「ー」や小さい字を、行の終わりに「（」を置かない。「（」の前で折れるなら、そこで折る
+    //（「受付（／南棟昇／降口）」→「受付／（南棟昇／降口）」）。枠の行数に収まらないときは、今までの折り方
+    const kl = kinsokuLines(body, u.per, u.rows, per2) || kinsokuLines(body, u.per, u.rows, u.per);
     lines.length = 0;
-    for (let i = 0; i * per2 < body.length; i++) lines.push(body.slice(i * per2, (i + 1) * per2).join(''));
+    if (kl) lines.push(...kl);
+    else for (let i = 0; i * per2 < body.length; i++) lines.push(body.slice(i * per2, (i + 1) * per2).join(''));
   }
   return { lines, size: Math.round(u.size * 100) / 100, rot: useB, full: u.full };
 }
 
+/** v229：地図の札の折り返しの決まり（禁則）。行の頭に置かない字・行の終わりに置かない字 */
+const KIN_HEAD = /^[）」』】〕〉》、。，．・：；ー～！？ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ)\]}!?,.:;]$/;
+const KIN_TAIL = /^[（「『【〔〈《(\[{]$/;
+/**
+ * 文字（graphemes）を、1行 per 文字まで・rows 行までに、だいたい target 文字ずつ折る。
+ * 「（」が行の後ろ半分にあれば、その前で折る。行の頭の「）」「ー」は前の行へ寄せる（入らなければ、1つ前で折る）。
+ * 収まらない・1文字だけの行ができるときは null（今までの折り方にまかせる）
+ */
+function kinsokuLines(g, per, rows, target){
+  const out = [];
+  let i = 0;
+  while (i < g.length){
+    if (out.length >= rows) return null;
+    let k = Math.min(g.length, i + target);
+    if (k < g.length){
+      const lo = i + Math.max(1, Math.ceil(target / 2));
+      for (let j = k - 1; j >= lo; j--) if (KIN_TAIL.test(g[j])){ k = j; break; }
+      if (KIN_HEAD.test(g[k])){
+        let kk = k;
+        while (kk < g.length && KIN_HEAD.test(g[kk]) && kk - i < per) kk++;
+        if (kk >= g.length || !KIN_HEAD.test(g[kk])) k = kk;
+        else while (k > i + 1 && KIN_HEAD.test(g[k])) k--;
+      }
+      while (k > i + 1 && k < g.length && KIN_TAIL.test(g[k - 1])) k--;
+    }
+    if (k - i > per) return null;
+    out.push(g.slice(i, k).join(''));
+    i = k;
+  }
+  if (out.length > 1 && out.some(x => graphemes(x).length < 2)) return null;
+  return out;
+}
+/** v229：行の長さをそろえた折り方か、1行いっぱいずつの折り方のどちらかで、決まりを守れるか */
+function kinsokuFit(g, per, rows){
+  return kinsokuLines(g, per, rows, Math.ceil(g.length / Math.ceil(g.length / per))) || kinsokuLines(g, per, rows, per);
+}
+/** v229：入りきらず「…」で切るときの折り方。行の頭に「）」「・」、行の終わりに「（」が来るなら、1つ前で折る */
+function kinsokuCut(g, per, rows){
+  if (per < 3) return null;
+  const out = [];
+  let i = 0;
+  while (i < g.length && out.length < rows){
+    let k = Math.min(g.length, i + per);
+    if (k < g.length){
+      let kk = k;
+      while (kk > i + 2 && (KIN_HEAD.test(g[kk]) || KIN_TAIL.test(g[kk - 1]))) kk--;
+      if (!(KIN_HEAD.test(g[kk]) || KIN_TAIL.test(g[kk - 1]))) k = kk;
+    }
+    out.push(g.slice(i, k));
+    i = k;
+  }
+  if (i < g.length){
+    const last = out[out.length - 1];
+    if (last.length < per) last.push('…'); else last.splice(last.length - 1, 1, '…');
+  }
+  return out.map(x => x.join(''));
+}
 /** fitText の結果を <text> に起こす */
 function fitTextSvg(text, x, y, w, h, cls, maxSize, minPx, minSize, pre){
   // v173：地図の上の字は、拡大しても画面の上で18px（立入禁止の字は22px）まで。
   // 図面の単位で上限を決めていたので、×8 では「北桜会館」が80pxになって枠から切れていた。印刷（pl-）は別の物差し
   if (!/^pl-/.test(cls)) maxSize = Math.min(maxSize, (cls === 'blocked-t' ? 22 : 18) / mapScale());
   // v173：余白は画面の上で約4px（図面の単位では倍率で変わる）
-  const f = pre || fitText(text, w, h, maxSize, minSize, Math.min(3, 4 / mapScale()));
+  let f = pre || fitText(text, w, h, maxSize, minSize, Math.min(3, 4 / mapScale()), /^pl-/.test(cls));
+  if (!pre && minPx && !/^pl-/.test(cls) && f.size * mapScale() < minPx){
+    const f2 = fitText(text, w, h, maxSize, minSize, Math.min(3, 4 / mapScale()), true);   // v229
+    if (f2.size * mapScale() >= minPx) f = f2;
+  }
   if (!f.lines.length) return '';
   // 画面の上で minPx より小さくなる字は描かない。
   // 3px の字はどう頑張っても読めず、地図が汚れて見えるだけ。拡大すれば出る。
@@ -7882,6 +7992,12 @@ function sheetStep(d){
   const nb = S.sheetId && sheetNeighbors(S.sheetId);
   if (!nb) return;
   openSheet((d < 0 ? nb.prev : nb.next).id);
+  // v229：中身が、進んだ向きからすっと入る（同じ形の詳細が差し替わるだけで、変わったことに気づきにくかった）
+  { const bd = $('#bsh-body');
+    if (bd && !REDUCE_MOTION.matches && !document.documentElement.classList.contains('lite')){
+      bd.classList.remove('step-l', 'step-r'); void bd.offsetWidth; bd.classList.add(d < 0 ? 'step-l' : 'step-r');
+      clearTimeout(sheetStep._t); sheetStep._t = setTimeout(() => bd.classList.remove('step-l', 'step-r'), 420);
+    } }
   const x = $(`#bsh-body [data-nav="${d < 0 ? -1 : 1}"]`);
   if (x) setTimeout(() => x.isConnected && x.focus({ preventScroll:true }), 80);
 }
@@ -8028,7 +8144,7 @@ function renderSheet(){
     </div>
     <div class="bsh-st" data-lv="${L.lv}">
       <span class="ico" aria-hidden="true">${esc(L.icon)}</span>
-      <span class="tx"><b>${esc(L.short)}</b><small>${esc(waitMinText(b) || L.wait)}</small></span>
+      <span class="tx"><b>${esc(L.short)}</b><small>${esc(waitSubText(b, L))}</small></span>
       ${showWait ? `<span class="wt"><b>${b.wait}</b>人待ち</span>` : ''}
     </div>
     ${b.image ? (saveData()
@@ -8461,6 +8577,8 @@ function showNearestToilet(){
   toast(`いまここから一番近いトイレ：${t.f === 0 ? '屋外' : t.f + '階'}（青い印）`);
 }
 
+/** v229：地図の検索で見つからないときに出す、押せる例（どれも1件以上見つかる言葉） */
+const MAP_Q_EXAMPLES = ['トイレ', '食べ物', '体験', '受付'];
 /** 地図の検索で最近えらんだブース（最大5件。端末に保存） */
 function rememberRecent(id){
   const a = idList('kuroko_recent_q').filter(x => x !== id);
@@ -8503,7 +8621,7 @@ function recentItems(){
       toast(`${title}：${desc}`);
     }
   };
-  const mark = () => $$('button', box).forEach((el, i) => el.setAttribute('aria-selected', String(i === sel)));
+  const mark = () => $$('button[data-i]', box).forEach((el, i) => el.setAttribute('aria-selected', String(i === sel)));
   const render = () => {
     const q = inp.value;
     clr.classList.toggle('hide', !q);
@@ -8533,20 +8651,27 @@ function recentItems(){
         <span class="sg-st" data-lv="${L.lv}">${esc(st)}</span></button>`;
     }).join('') : '<p class="sg-none">' + (waitState() === 'load' ? 'ブースの一覧を読み込んでいます。少し待ってから、もう一度さがしてください'
         : waitState() === 'fail' ? 'ブースの一覧をまだ取れていません。少し待ってから、もう一度さがしてください'
-        : '見つかりませんでした。別のことばでさがしてください') + '</p>');
+        : '見つかりませんでした。別のことばでさがしてください') + '</p>'
+        + (waitState() ? '' : '<div class="sg-ex" role="group" aria-label="さがせる言葉の例"><span>例：</span>'
+          + MAP_Q_EXAMPLES.map(x => `<button type="button" data-ex="${esc(x)}">${esc(x)}</button>`).join('') + '</div>'));
     box.classList.remove('hide');
     inp.setAttribute('aria-expanded', 'true');
-    $$('button', box).forEach(el => {
+    $$('button[data-i]', box).forEach(el => {
       // 候補を押した瞬間に入力欄の blur で候補が消えないよう、pointerdown で先に止める
       el.addEventListener('pointerdown', e => e.preventDefault());
       el.addEventListener('click', () => pick(+el.dataset.i));
+    });
+    // v229：例を押すと、その言葉でさがし直す（入力欄はそのまま使える）
+    $$('button[data-ex]', box).forEach(el => {
+      el.addEventListener('pointerdown', e => e.preventDefault());
+      el.addEventListener('click', () => { inp.value = el.dataset.ex; render(); try{ inp.focus({ preventScroll:true }); }catch(e){} });
     });
   };
   inp.addEventListener('input', render);
   inp.addEventListener('focus', () => render());
   inp.addEventListener('blur', () => setTimeout(close, 150));
   inp.addEventListener('keydown', e => {
-    const n = $$('button', box).length;
+    const n = $$('button[data-i]', box).length;
     if (e.key === 'ArrowDown' && n){ e.preventDefault(); sel = (sel + 1) % n; mark(); }
     else if (e.key === 'ArrowUp' && n){ e.preventDefault(); sel = (sel - 1 + n) % n; mark(); }
     else if (e.key === 'Enter'){ e.preventDefault(); if (n) pick(sel >= 0 ? sel : 0); }
@@ -13197,7 +13322,7 @@ function renderLucky(lk){
 #stamp-grid .stamp[data-sid="${b.id}"]:not(.got){border-color:#d9a514;border-style:solid;box-shadow:0 0 0 2px rgba(217,165,20,.35)}
 #stamp-grid .stamp[data-sid="${b.id}"]:not(.got)::before{content:"ラッキー";position:absolute;top:5px;right:5px;padding:1px 7px;border-radius:999px;background:#b8860b;color:#fff;font-size:10px;font-weight:900;line-height:1.5;z-index:1}
 #bsh[data-booth="${b.id}"] .bsh-tags::after{content:var(--lk-tag,"ラッキーブース");display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;background:#d9a514;color:#fff;font-size:11px;font-weight:900}
-[id="booth-${b.id}"] .booth-nm .nm::after{content:"ラッキー";display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:#d9a514;color:#fff;font-size:10.5px;font-weight:900;vertical-align:2px}
+[id="booth-${b.id}"] .booth-nm .nm::after{content:var(--lk-list,"ラッキー");display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:#d9a514;color:#fff;font-size:10.5px;font-weight:900;vertical-align:2px}
 @media (prefers-reduced-motion:reduce){ .room[data-id="${b.id}"] .fill{animation:none;stroke-width:5} }` : '';
   if (st.textContent !== css){
     st.textContent = css;
@@ -13206,6 +13331,8 @@ function renderLucky(lk){
   }
   // v227：ブースの詳細の札に、残り時間
   { const bsh = document.getElementById('bsh'); if (bsh) bsh.style.setProperty('--lk-tag', b ? JSON.stringify('ラッキーブース・' + liveLeft(lk.until)) : '"ラッキーブース"'); }
+  // v229：一覧の「ラッキー」の札にも、残り時間
+  { const bl = document.getElementById('booth-list'); if (bl) bl.style.setProperty('--lk-list', b ? JSON.stringify('ラッキー・' + liveLeft(lk.until)) : '"ラッキー"'); }
   // v222：×でとじた帯は、そのラッキーブースのあいだ出さない（地図と一覧の光は残る）
   const show = !!(b && !liveQuiet() && liveSeen().luckyX !== lk.id);
   const was = !el.classList.contains('hide');
@@ -13248,7 +13375,7 @@ function renderWin(){
   if (el.innerHTML !== html){
     el.innerHTML = html;
     const go = el.querySelector('[data-win-go]');
-    if (go) go.addEventListener('click', () => { switchView('map'); openSheet(go.dataset.winGo); });
+    if (go) go.addEventListener('click', () => focusBoothOnMap(go.dataset.winGo));        // v229：受け取りの場所も、地図で寄せてから
   }
 }
 /** 抽選があった：自分のスタンプ番号で、当たったかをサーバーに聞く（全員が同じ瞬間に聞きに行かないよう、少しずらす） */
@@ -13835,7 +13962,11 @@ function initOwnerLive(){
     ownLive('owner_live_clear', { what: 'draw' }, $('#own-draw-clear'), '当たりの表示を消しました');
   });
   // ラッキーブースの帯：「見る」
-  { const go = $('#banner-lucky-go'); if (go) go.addEventListener('click', () => { const id = $('#banner-lucky').dataset.id; if (id) openSheet(id); }); }
+  // v229：帯のどこを押しても（×をのぞく）、地図でその場所へ寄せてから詳細を開く（どこにあるかが先に分かる）
+  { const bn = $('#banner-lucky'); if (bn) bn.addEventListener('click', e => {
+      if (e.target.closest && e.target.closest('.lk-x')) return;
+      const id = bn.dataset.id; if (id) focusBoothOnMap(id);
+    }); }
   { const x = $('#banner-lucky-x'); if (x) x.addEventListener('click', () => { const L = liveNow().lucky; if (L) liveMark('luckyX', L.id); renderLive(); }); }
 }
 
@@ -16100,7 +16231,7 @@ function printPlanSvg(floorNum, opt){
       // 紙では2〜3ptにしかならず、読めないので消えるしかなかった。
       const stMax = st.type === 'blocked' ? 10
                   : Math.max(6, Math.min(15, Math.min(st.w, st.h) * 0.38));
-      const stF = st.label ? fitText(st.label, st.w, st.h, stMax) : null;
+      const stF = st.label ? fitText(st.label, st.w, st.h, stMax, undefined, undefined, true) : null;
       if (st.label && readable(stF))
         h += fitTextSvg(st.label, st.x, st.y, st.w, st.h, 'pl-st', stMax)
                .replace(/class="pl-st"/g, `fill="${st.type === 'blocked' ? '#666' : '#777'}" font-weight="700"`);
@@ -16159,7 +16290,7 @@ function printPlanSvg(floorNum, opt){
       const d = deptOf(r);
       h += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="4" fill="#fff" stroke="#ccc"/>`
          + (d ? `<rect x="${r.x}" y="${r.y}" width="${Math.min(3, r.w / 6)}" height="${r.h}" rx="1.5" fill="${d.c}"/>` : '')
-         + ((f => f && f.size * mmPer >= (/昇降口/.test(r.nm || '') ? MIN_MM : MIN_ROOM_MM) && !(opt.mmW && underTag(r)))(fitText(r.nm, r.w, r.h, roomMax))
+         + ((f => f && f.size * mmPer >= (/昇降口/.test(r.nm || '') ? MIN_MM : MIN_ROOM_MM) && !(opt.mmW && underTag(r)))(fitText(r.nm, r.w, r.h, roomMax, undefined, undefined, true))
               ? fitTextSvg(r.nm, r.x, r.y, r.w, r.h, 'pl-bg', roomMax).replace(/class="pl-bg"/g, `fill="${opt.mmW ? '#777' : '#888'}" font-weight="600"`)
               : '');
     });

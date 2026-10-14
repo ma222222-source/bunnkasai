@@ -4361,3 +4361,109 @@ test('ラッキーブース（v228）：始まりは帯を光らせるだけ（�
   await expect(bn).toHaveAttribute('data-flash', 'luck0229');
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v229：来場者の画面の仕上げ・2 ---------------- */
+test('地図の札の折り返し（v229）：行の頭に「）」「ー」、行の終わりに「（」を置かない。「（」の前で折る。どのブース名・部屋名でも、文字が消えず・1行の字数をこえない', async ({ page }) => {
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  expect(await page.evaluate(() => kinsokuLines(graphemes('受付（南棟昇降口）'), 3, 5, 3))).toEqual(['受付', '（南棟', '昇降', '口）']);
+  expect(await page.evaluate(() => kinsokuLines(graphemes('コスプレ喫茶（土木科）'), 6, 3, 4))).toEqual(['コスプレ', '喫茶', '（土木科）']);
+  const bad = await page.evaluate(() => {
+    const names = S.booths.map(b => String(b.name)).concat(Object.values(FLOOR_PLAN).flatMap(p => (p.rooms || []).map(r => r.nm || '')).filter(Boolean));
+    const out = [];
+    for (const nm of names) for (const per of [2, 3, 4, 5, 6, 8]) for (const rows of [2, 3, 4, 5]) {
+      const g = graphemes(nm);
+      if (g.length > per * rows) continue;
+      const t = Math.ceil(g.length / Math.ceil(g.length / per));
+      const L = kinsokuLines(g, per, rows, t);
+      if (!L) continue;
+      if (L.join('') !== nm) out.push('消えた ' + nm);
+      L.forEach((x, i) => {
+        const c = graphemes(x);
+        if (c.length > per) out.push('長い ' + nm + ' ' + per);
+        if (i > 0 && KIN_HEAD.test(c[0])) out.push('行頭 ' + L.join('／'));
+        if (i < L.length - 1 && KIN_TAIL.test(c[c.length - 1])) out.push('行末 ' + L.join('／'));
+      });
+    }
+    return out;
+  });
+  expect(bad).toEqual([]);
+  // 地図の上の札（拡大して名前が出たところ）も、同じ決まり
+  await page.evaluate(() => { zoomTo(8, 200, 300, false); });
+  await page.waitForTimeout(600);
+  const onMap = await page.evaluate(() => {
+    const out = [];
+    document.querySelectorAll('#plan-1 g.room').forEach(g => {
+      const ts = Array.from(g.querySelectorAll('text')).map(t => t.textContent);
+      ts.forEach((x, i) => {
+        if (i > 0 && /^[）」ー、。・]/.test(x)) out.push(ts.join('／'));
+        if (i < ts.length - 1 && /[（「]$/.test(x)) out.push(ts.join('／'));
+      });
+    });
+    return out;
+  });
+  expect(onMap).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('来場者の画面（v229）：見つからない検索の例・ラッキーブースの帯のどこを押しても地図で寄せる・詳細の前と次の動き・見出しの札・待ち時間の目安・一覧の札の残り時間', async ({ page }) => {
+  const errors = watchErrors(page);
+  const live = { lucky: { id: 'luck0229', booth: '1F-05', at: Date.now() - 60000, until: Date.now() + 9 * 60000 } };
+  await mockGas(page, { mutate: j => {
+    j.live = live;
+    const b = (j.booths || j).find(x => x.id === '3F-01'); if (b) { b.category = '展示'; b.wait = 1; b.status = '混雑しています'; }
+  } });
+  await page.addInitScript(() => { try { localStorage.setItem('kuroko_theme', JSON.stringify('paper')); } catch (e) {} });
+  await page.goto('/?tab=map');
+  await ready(page);
+  // ②見つからない検索：押せる例。押すと、その言葉で見つかる
+  await page.locator('#map-q').fill('ぜったいに無い名前');
+  await expect(page.locator('#map-sug')).toContainText('見つかりませんでした');
+  const ex = page.locator('#map-sug .sg-ex button');
+  await expect(ex).toHaveCount(4);
+  expect(await ex.first().evaluate(el => el.offsetHeight)).toBeGreaterThanOrEqual(44);
+  for (let i = 0; i < 4; i++) {
+    const word = await ex.nth(i).textContent();
+    await ex.nth(i).click();
+    await expect(page.locator('#map-q')).toHaveValue(word);
+    await expect(page.locator('#map-sug button[data-i]').first()).toBeVisible();
+    await page.locator('#map-q').fill('ぜったいに無い名前');
+    await expect(ex).toHaveCount(4);
+  }
+  // 例のボタンは、矢印キーのえらびに入らない
+  await page.locator('#map-q').press('ArrowDown');
+  expect(await page.locator('#map-sug [aria-selected="true"]').count()).toBe(0);
+  await page.locator('#map-q').press('Escape');
+  await page.locator('#map-q').fill('');
+  // ⑤見出しの札：「落ち着き」でも形が見える
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector('.sync')).borderTopWidth)).toBe('1px');
+  // ③ラッキーブースの帯：名前のところを押しても、地図で寄せてから詳細。×は押しても開かない
+  await page.locator('#banner-lucky-x').evaluate(el => el.click());
+  await expect(page.locator('#bsh')).toBeHidden();
+  await page.evaluate(() => { localStorage.removeItem('kuroko_live_seen'); S.live = JSON.parse(JSON.stringify(S.live)); S.live.lucky.id = 'luck0230'; renderLive(); });
+  await expect(page.locator('#banner-lucky')).toBeVisible();
+  const k0 = await page.evaluate(() => ZOOM.k);
+  await page.locator('#banner-lucky-nm').click();
+  await expect(page.locator('.bsh-head h2')).toContainText('溶接', { timeout: 10000 });
+  expect(await page.evaluate(() => ZOOM.k)).toBeGreaterThan(k0);
+  // ④前・次：進んだ向きからすっと入る
+  await page.locator('#bsh-body [data-nav="1"]').click();
+  await expect(page.locator('#bsh-body')).toHaveClass(/step-r/);
+  await expect(page.locator('#bsh-body')).not.toHaveClass(/step-r/);
+  await page.locator('#bsh-body [data-nav="-1"]').click();
+  await expect(page.locator('#bsh-body')).toHaveClass(/step-l/);
+  await page.keyboard.press('Escape');
+  // ⑥待ち時間の目安：「1人待ち」の横に「15分以上待ち」と出さない
+  await page.evaluate(() => openSheet('3F-01'));
+  await expect(page.locator('#bsh')).toBeVisible();
+  await expect(page.locator('#bsh-body')).toContainText('およそ1分以内');
+  await expect(page.locator('#bsh-body')).not.toContainText('15分以上待ち');
+  await page.keyboard.press('Escape');
+  // ⑦一覧の「ラッキー」の札にも、残り時間
+  await page.locator('#nav button[data-view="list"]').click();
+  await expect(page.locator('#v-list')).toBeVisible();
+  await expect.poll(() => page.locator('#booth-1F-05 .booth-nm .nm').evaluate(el => getComputedStyle(el, '::after').content), { timeout: 10000 }).toMatch(/ラッキー・あと(9|8)分/);
+  expect(errors).toEqual([]);
+});
