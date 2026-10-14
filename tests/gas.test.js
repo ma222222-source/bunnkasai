@@ -1144,3 +1144,58 @@ test('v224 一斉お知らせの予約：時刻が来るまで来場者には出
   // 記録
   assert.match(JSON.stringify(g.__ss.getSheetByName('司令塔の記録').data), /一斉お知らせを予約（\d\d:\d\d）：まもなく最終入場/);
 });
+
+/* ---------------- v225：ラッキーブースの予約・振り返りに司令塔の操作 ---------------- */
+test('v225 ラッキーブースの予約：時刻が来るまで来場者に出さない。時刻が来たら始まる（のばす・終わらせるも効く）。取り消し・時刻の確かめ', () => {
+  const g = freshOwner();
+  const T = { token: ownerIn(g) };
+  const now = Date.now();
+  assert.match(g.__post({ action: 'owner_lucky', ...T, booth: '1F-02', minutes: 10, at: now + 5000 }).error, /過ぎています/);
+  assert.match(g.__post({ action: 'owner_lucky', ...T, booth: '', minutes: 10, at: now + 120000 }).error, /ブースをえらんで/);
+  assert.match(g.__post({ action: 'owner_lucky', ...T, booth: '1F-02', minutes: 10, at: now + 25 * 3600000 }).error, /24時間/);
+  const st = g.__post({ action: 'owner_lucky', ...T, booth: '1F-02', minutes: 10, at: now + 120000 });
+  assert.strictEqual(st.live.lucky, undefined);
+  assert.strictEqual(st.live.luckySched.length, 1);
+  assert.strictEqual(st.live.luckySched[0].until - st.live.luckySched[0].at, 600000);
+  assert.deepStrictEqual(g.__get().live, {}, '来場者には、予約があることも返さない');
+  assert.ok(g.liveNextDueSec_() <= 120);
+  // 時刻が来た
+  const o = JSON.parse(g.__props.LIVE); o.luckySched[0].at = Date.now() - 1000; o.luckySched[0].until = Date.now() + 600000; g.__props.LIVE = JSON.stringify(o);
+  g.clearCache_();
+  const lk = g.__get().live.lucky;
+  assert.strictEqual(lk.booth, '1F-02');
+  assert.strictEqual(lk.id, o.luckySched[0].id);
+  // のばす（予約で始まったものも）
+  const u0 = lk.until;
+  assert.strictEqual(g.__post({ action: 'owner_lucky', ...T, extend: 5 }).live.lucky.until - u0, 300000);
+  // スタンプの効果は、予約の始まりから数える
+  g.__post({ action: 'ledger', cid: 'AAAA1111', ev: [{ t: 's', id: '1F-02', at: Date.now() }] });
+  g.__cache.delete('lks_' + lk.id);
+  assert.strictEqual(g.__post({ action: 'owner_state', ...T }).live.lucky.stamps, 1);
+  // 終わらせる：出ているものは終わり、これからの予約は残る
+  g.__post({ action: 'owner_lucky', ...T, booth: '2F-12', minutes: 5, at: Date.now() + 600000 });
+  g.__post({ action: 'owner_lucky', ...T, booth: '' });
+  assert.strictEqual(g.__get().live.lucky, undefined);
+  const left = g.__post({ action: 'owner_state', ...T }).live.luckySched;
+  assert.deepStrictEqual(left.map(x => x.booth), ['2F-12']);
+  // 取り消す（一斉お知らせと同じ口）
+  assert.deepStrictEqual(g.__post({ action: 'owner_sched_del', ...T, id: left[0].id }).live.luckySched, []);
+  assert.match(JSON.stringify(g.__ss.getSheetByName('司令塔の記録').data), /ラッキーブースを予約（\d\d:\d\d）：旋盤の加工実演（10分）/);
+});
+
+test('v225 振り返りに、その日の司令塔の操作（時刻の早い順。ほかの日の分は入れない）', () => {
+  const g = freshOwner();
+  const T = { token: ownerIn(g) };
+  g.__post({ action: 'owner_show', ...T, title: 'まもなく開場' });
+  g.__post({ action: 'owner_lucky', ...T, booth: '1F-02', minutes: 10 });
+  g.__ss.getSheetByName('司令塔の記録').appendRow([new Date(Date.now() - 3 * 86400000), 'きのうより前の操作']);
+  g.__post({ action: 'update', pass: PASS, cid: 'c1', id: '1F-02', wait: 3 });
+  const r = g.__get({ report: '1' });
+  assert.strictEqual(r.ok, true);
+  assert.ok(Array.isArray(r.events));
+  const what = r.events.map(e => e.what);
+  assert.ok(what.some(w => /^一斉お知らせ：まもなく開場/.test(w)), JSON.stringify(what));
+  assert.ok(what.some(w => /^ラッキーブース：旋盤の加工実演/.test(w)));
+  assert.ok(!what.includes('きのうより前の操作'));
+  assert.ok(r.events.every(e => /^\d\d:\d\d$/.test(e.t)));
+});
