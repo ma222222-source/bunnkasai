@@ -1115,7 +1115,7 @@ test('v224 一斉お知らせの予約：時刻が来るまで来場者には出
   const sec = g.liveNextDueSec_();
   assert.ok(sec > 100 && sec <= 120, String(sec));
   // 時刻が来たら出る（LIVE を書きかえずに、時刻で見分ける）
-  const o = JSON.parse(g.__props.LIVE); o.sched[0].at = Date.now() - 1000; g.__props.LIVE = JSON.stringify(o);
+  const o = JSON.parse(g.__props.LIVE_SCHED); o.sched[0].at = Date.now() - 1000; g.__props.LIVE_SCHED = JSON.stringify(o);   // v227：予約は LIVE_SCHED
   g.clearCache_();
   const sh = g.__get().live.show;
   assert.deepStrictEqual([sh.title, sh.text, sh.fx], ['まもなく最終入場', '14:00からです', 'calm']);
@@ -1198,4 +1198,44 @@ test('v225 振り返りに、その日の司令塔の操作（時刻の早い順
   assert.ok(what.some(w => /^ラッキーブース：旋盤の加工実演/.test(w)));
   assert.ok(!what.includes('きのうより前の操作'));
   assert.ok(r.events.every(e => /^\d\d:\d\d$/.test(e.t)));
+});
+
+/* ---------------- v227：イベントの記憶を分ける（1件 9KB の上限） ---------------- */
+test('v227 イベントの記憶は3つに分けて持つ：長い予約を20件・当たった人200人でも、1件 9KB をこえない。こえるなら書かずに断る。前の版（全部入りの LIVE）も読める', () => {
+  const g = freshOwner();
+  const T = { token: ownerIn(g) };
+  const B = s => Buffer.byteLength(String(s || ''), 'utf8');
+  // いちばん大きい予約：見出し30文字・ひとこと80文字（日本語）を20件
+  for (let i = 0; i < 20; i++) {
+    const r = g.__post({ action: 'owner_show', ...T, title: 'あ'.repeat(28) + String(i).padStart(2, '0'), text: 'い'.repeat(80), at: Date.now() + (i + 2) * 60000 });
+    assert.strictEqual(r.ok, true, JSON.stringify(r).slice(0, 200));
+  }
+  g.__post({ action: 'owner_show', ...T, title: 'う'.repeat(30), text: 'え'.repeat(80) });
+  for (let i = 0; i < 10; i++) g.__post({ action: 'owner_lucky', ...T, booth: '1F-02', minutes: 60, at: Date.now() + (i + 2) * 3600000 / 10 });
+  const now = Date.now();
+  for (let i = 0; i < 12; i++) g.__post({ action: 'ledger', cid: 'C' + String(i).padStart(7, '0'), ev: [{ t: 's', id: '1F-02', at: now }] });
+  for (let i = 0; i < 12; i++) g.__post({ action: 'owner_draw', ...T, min: 1, n: 1 });
+  for (const k of ['LIVE', 'LIVE_SCHED', 'LIVE_PAST']) assert.ok(B(g.__props[k]) <= 8800, k + ' ' + B(g.__props[k]));
+  assert.ok(B(g.__props.LIVE_SCHED) > 6000, '予約は LIVE_SCHED に入っている');
+  const st = g.__post({ action: 'owner_state', ...T });
+  assert.strictEqual(st.live.sched.length, 20);
+  assert.strictEqual(st.live.luckySched.length, 10);
+  assert.strictEqual(JSON.parse(g.__props.LIVE_PAST).cids.length, 12);
+  // こえるなら、書かずに断る（途中まで書かない）
+  const before = { LIVE: g.__props.LIVE, LIVE_SCHED: g.__props.LIVE_SCHED };
+  const sch = JSON.parse(g.__props.LIVE_SCHED); sch.sched.forEach(x => { x.text = 'お'.repeat(200); }); g.__props.LIVE_SCHED = JSON.stringify(sch);
+  const big = g.__post({ action: 'owner_show', ...T, title: 'すぐ出す' });
+  assert.match(big.error, /^bad request: 予約が多すぎます/);
+  assert.strictEqual(g.__props.LIVE, before.LIVE, 'LIVE も書いていない');
+  // 前の版：全部入りの LIVE（予約・当たった人も中にある）を、そのまま読める。書くと分かれる
+  const g2 = freshOwner();
+  const T2 = { token: ownerIn(g2) };
+  const at = Date.now() + 300000;
+  g2.__props.LIVE = JSON.stringify({ sched: [{ id: 'old1', title: '前の版の予約', text: '', fx: 'party', at }], past: { day: '2000-01-01', cids: [] }, show: { id: 's1', title: '前の版', text: '', at: Date.now(), until: Date.now() + 60000 } });
+  const st2 = g2.__post({ action: 'owner_state', ...T2 });
+  assert.deepStrictEqual(st2.live.sched.map(x => x.title), ['前の版の予約']);
+  assert.strictEqual(st2.live.show.title, '前の版');
+  g2.__post({ action: 'owner_show', ...T2, title: 'あたらしい予約', at: Date.now() + 600000 });
+  assert.strictEqual(JSON.parse(g2.__props.LIVE).sched, undefined, '書いたあとは、予約は LIVE に入れない');
+  assert.deepStrictEqual(JSON.parse(g2.__props.LIVE_SCHED).sched.map(x => x.title), ['前の版の予約', 'あたらしい予約']);
 });

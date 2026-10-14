@@ -1877,6 +1877,13 @@ html.lite .hero-gear{animation:none}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
 /* ---- v206：地図の左下のボタン。開いた直後は「全体」だけ（左の角）。動かしたら、その右に「ブースに寄せる」が出る ---- */
 #map-card.gmap .map-fit-ctl #zoom-reset{order:-1}
+/* ==== v227：ラッキーブースを見つけやすく・置きっぱなしの司令塔・予約の1分前 ==== */
+/* ⑥しばらく操作がない司令塔（取り直しを止めている） */
+.own-idle{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:var(--r-sm);border:1.5px solid var(--warn);background:var(--warn-soft);
+  font-size:12.5px;font-weight:800;line-height:1.6}
+.own-idle.hide{display:none}
+.own-idle span{flex:1 1 200px}
+.own-idle button{flex:none;min-height:44px;padding:0 16px;border-radius:999px;border:none;background:var(--accent);color:var(--on-accent);font:inherit;font-size:13px;font-weight:900;cursor:pointer}
 /* ==== v226：アクセシビリティ（色の差・キーボード・読み上げ・時間の配慮） ==== */
 /* ①タブの数字：落ち着き（明るい見た目）では、暗い琥珀に黒い字で 2.99 しかなかった → 白い字（重厚は明るい琥珀なので黒い字のまま） */
 #own-main .own-tabs button b{color:#fff}
@@ -4218,6 +4225,8 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
       <div class="hide" id="own-main">
         <!-- v219：司令塔を、役目ごとの5枚に分ける（ようす・イベント・本部・係員・準備）。
              本部と準備は、係員の画面から ここへ移した（サーバーも、司令塔に入っている人からだけ受け付ける） -->
+        <!-- v227：しばらく操作がないときは、取り直しを止める（置きっぱなしの端末で、入ったままにならないように） -->
+        <div class="own-idle hide" id="own-idle" role="status"><span>しばらく操作がなかったので、取り直しを止めています（このまま30分たつと、自動で出ます）。</span><button type="button" id="own-idle-go">再開する</button></div>
         <div class="own-head">
           <div class="own-head-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"/><path d="M9.5 12l2 2 3.5-4"/></svg><b>司令塔</b><span id="own-head-sub"></span></div>
           <!-- v225：いますぐ取り直す（8秒ごとに取り直しているが、待たずに見たいとき） -->
@@ -9607,7 +9616,8 @@ function renderList(){
   // 地図で詳細を見てから一覧に移ると、一覧は作り直されない（中身が同じ）ので、いま見たブースが「最近見た」に出なかった
   renderRecentRow();
   const ws = waitState();
-  const fp = fingerprint(`list:${ws}${ws === 'fail' ? S.errKind : ''}:${S.lf}:${S.todoOnly}:${S.cat}:${S.sort}:${S.sort === 'near' ? hereId() : ''}:${S.q}:${S.wishOnly}:${Array.from(S.wish).sort().join(',')}`);
+  const luckyId = (() => { try{ const L = liveNow().lucky; return L ? String(L.booth) : ''; }catch(e){ return ''; } })();   // v227
+  const fp = fingerprint(`list:${ws}${ws === 'fail' ? S.errKind : ''}:${S.lf}:${S.todoOnly}:${S.cat}:${S.sort}:${S.sort === 'near' ? hereId() : ''}:${S.q}:${S.wishOnly}:${Array.from(S.wish).sort().join(',')}:${luckyId}`);
   if (renderList._fp === fp) return;
   renderList._fp = fp;
 
@@ -9656,7 +9666,7 @@ function renderList(){
   items.sort((a, b) => S.sort === 'near'
     ? (placeDist(hid, a.id) - placeDist(hid, b.id)) || (rank(a) - rank(b)) || idCmp(a.id, b.id)
     : S.sort === 'free'
-    ? (rank(a) - rank(b)) || (wk(a) - wk(b)) || idCmp(a.id, b.id)
+    ? ((b.id === luckyId) - (a.id === luckyId)) || (rank(a) - rank(b)) || (wk(a) - wk(b)) || idCmp(a.id, b.id)
     : idCmp(a.id, b.id));
   // 読んでいる途中（下までスクロールしている）の自動更新では並び順を変えない。
   // 並べ替えると指の下のブースが入れ替わり、押そうとしたのと別のブースが開く。
@@ -12690,6 +12700,7 @@ window.addEventListener('popstate', e => {
    入っている印（合言葉）は、このタブの中だけに覚える（sessionStorage。閉じると消える）。パスワードそのものは覚えない
    ===================================================================== */
 const OWN = { state: null, timer: null, info: null, busy: false };
+const OWN_IDLE_MS = 20 * 60000;      // v227：これだけ操作が無ければ、取り直しを止める
 function ownToken(){ try{ return sessionStorage.getItem('kuroko_owner') || ''; }catch(e){ return OWN._t || ''; } }
 function ownTokenSet(t){ OWN._t = t || ''; try{ if (t) sessionStorage.setItem('kuroko_owner', t); else sessionStorage.removeItem('kuroko_owner'); }catch(e){} }
 /** バイトの並び ⇄ 文字（base64url）。パスキーの返事はバイトの並びなので、文字にして送る */
@@ -12813,6 +12824,11 @@ function renderOwner(){
   if (!ownCanPasskey()) reg.textContent = 'この端末・ブラウザは、顔認証・指紋の登録に対応していません';
   renderOwnLive();
   // 許可を待っている端末がすぐ分かるよう、開いているあいだは 8秒ごとに取り直す
+  // v227：20分 操作が無ければ、取り直しを止める（取り直すたびに入っている印がのびるので、置きっぱなしの端末で入ったままになっていた）
+  const idle = Date.now() - (OWN.touchAt || Date.now()) > OWN_IDLE_MS;
+  { const ib = $('#own-idle'); if (ib) ib.classList.toggle('hide', !idle); }
+  if (!OWN.touchAt) OWN.touchAt = Date.now();
+  if (idle) return;
   OWN.timer = setTimeout(() => { if (S.view === 'owner' && ownToken() && !document.hidden) ownRefresh(true); else renderOwner(); }, 8000);
 }
 function renderOwnerGate(){
@@ -13155,10 +13171,18 @@ function renderLucky(lk){
 [id="booth-${b.id}"]{outline:2.5px solid #d9a514;outline-offset:1px}
 #fl-${floorOfBooth(b)}{outline:2.5px solid #d9a514;outline-offset:-3px}
 .adm-booth[data-id="${b.id}"],.btile[data-id="${b.id}"]{outline:3px solid #d9a514;outline-offset:-2px}
-#bsh[data-booth="${b.id}"] .bsh-tags::after{content:"ラッキーブース";display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;background:#d9a514;color:#fff;font-size:11px;font-weight:900}
+.room[data-id="${b.id}"] .room-no circle{fill:#b8860b !important;stroke:#fff}
+#stamp-grid .stamp[data-sid="${b.id}"]:not(.got){border-color:#d9a514;border-style:solid;box-shadow:0 0 0 2px rgba(217,165,20,.35)}
+#bsh[data-booth="${b.id}"] .bsh-tags::after{content:var(--lk-tag,"ラッキーブース");display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;background:#d9a514;color:#fff;font-size:11px;font-weight:900}
 [id="booth-${b.id}"] .booth-nm .nm::after{content:"ラッキー";display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:#d9a514;color:#fff;font-size:10.5px;font-weight:900;vertical-align:2px}
 @media (prefers-reduced-motion:reduce){ .room[data-id="${b.id}"] .fill{animation:none;stroke-width:5} }` : '';
-  if (st.textContent !== css) st.textContent = css;
+  if (st.textContent !== css){
+    st.textContent = css;
+    // v227：一覧の「空いている順」は、ラッキーブースをいちばん上に（変わったら並べ直す）
+    if (S.view === 'list') try{ renderList(); }catch(e){}
+  }
+  // v227：ブースの詳細の札に、残り時間
+  { const bsh = document.getElementById('bsh'); if (bsh) bsh.style.setProperty('--lk-tag', b ? JSON.stringify('ラッキーブース・' + liveLeft(lk.until)) : '"ラッキーブース"'); }
   // v222：×でとじた帯は、そのラッキーブースのあいだ出さない（地図と一覧の光は残る）
   const show = !!(b && !liveQuiet() && liveSeen().luckyX !== lk.id);
   const was = !el.classList.contains('hide');
@@ -13415,6 +13439,14 @@ function renderOwnLive(){
     if (ul){ ul.classList.toggle('hide', !lsched.length);
       setHtml(ul, lsched.map(x => `<li><b>${hmOf(x.at)}</b><span>${esc(nameOf(x.booth))}（${Math.round((Number(x.until) - Number(x.at)) / 60000)}分）</span><button type="button" data-sched-del="${esc(String(x.id))}">取り消す</button></li>`).join('')); } }
   setHtml($('#own-now'), now.length ? now.join('') : '<li class="none">いまは、何も出していません</li>');
+  // v227：予約した一斉お知らせが出る1分前に知らせる（1件に1回。取り消すなら、いま）
+  sched.forEach(x => {
+    const left = Number(x.at) - t;
+    if (left > 0 && left <= 60000 && !(OWN._schedWarn || {})[x.id]){
+      OWN._schedWarn = Object.assign(OWN._schedWarn || {}, { [x.id]: 1 });
+      toast(`まもなく（${hmOf(x.at)}）一斉お知らせ「${String(x.title || '')}」が出ます`, { label: '取り消す', fn: () => { if (confirm('この予約を取り消します。よろしいですか？')) ownLive('owner_sched_del', { id: x.id }, null, '予約を取り消しました'); } }, 9000);
+    }
+  });
   // v224：予約の欄（新しいサーバーだけ。古いサーバーは時刻を知らず、すぐに出してしまう）と、予約の一覧
   { const canSched = String(st.sv || '') >= '2026-10-14f';
     const row = $('#own-sched-row'); if (row) row.classList.toggle('hide', !canSched);
@@ -13683,6 +13715,9 @@ function initOwnerLive(){
     if (!confirm('この予約を取り消します。よろしいですか？')) return;
     ownLive('owner_sched_del', { id: b.dataset.schedDel }, b, '予約を取り消しました');
   });
+  // v227：操作した時刻を覚える（置きっぱなしの見分け）。止めていたら「再開する」で取り直す
+  ['pointerdown', 'keydown'].forEach(ev => $('#v-owner').addEventListener(ev, () => { OWN.touchAt = Date.now(); }, true));
+  $('#own-idle-go').addEventListener('click', () => { OWN.touchAt = Date.now(); $('#own-idle').classList.add('hide'); ownRefresh(false); });
   // v221：渡した印を付ける・外す
   $('#own-draw-res').addEventListener('click', e => {
     const b = e.target.closest('[data-given]'); if (!b) return;

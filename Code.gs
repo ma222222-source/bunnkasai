@@ -47,7 +47,7 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-10-14g';
+var GAS_VERSION = '2026-10-14h';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
@@ -2288,13 +2288,38 @@ function ownerOnly_(body) {
   if (body && body.token) { ownerNeed_(body.token); return; }
   throw new Error('owner only: この操作は、司令塔（持ち主）からだけ行えます');
 }
+/*
+ * v227：イベントの記憶は、3つのスクリプトプロパティに分けて持つ。Apps Script のプロパティは1件 9KB までで、
+ * 予約（見出し・ひとことは日本語で1文字3バイト）を20件入れると、1つにまとめたままでは上限に当たり、司令塔の操作が失敗した。
+ *   LIVE       … いま出しているもの（show・lucky・draw など）と、ラッキーブースの予約（luckySched。10件で 1KB ほど）
+ *   LIVE_SCHED … 一斉お知らせの予約（sched。見出しとひとことが長いと、20件で 8KB ほどになる）
+ *   LIVE_PAST  … その日に当たった番号（同じ人が何度も当たらないように）
+ * 読むときは1つにまとめて返す。前の版の LIVE（全部入り）も、そのまま読める（書くときに分ける）
+ */
+var LIVE_PROP_MAX = 8800;
 function liveRead_() {
+  var p = props_(), o = {};
+  try { var a = JSON.parse(p.getProperty('LIVE') || '{}'); if (a && typeof a === 'object' && !Array.isArray(a)) o = a; } catch (e) {}
   try {
-    var o = JSON.parse(props_().getProperty('LIVE') || '{}');
-    return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
-  } catch (e) { return {}; }
+    var sc = JSON.parse(p.getProperty('LIVE_SCHED') || 'null');
+    if (sc && typeof sc === 'object' && Array.isArray(sc.sched)) o.sched = sc.sched;
+  } catch (e2) {}
+  try { var pa = JSON.parse(p.getProperty('LIVE_PAST') || 'null'); if (pa && typeof pa === 'object' && pa.day) o.past = pa; } catch (e3) {}
+  return o;
 }
-function liveSave_(o) { props_().setProperty('LIVE', JSON.stringify(o)); }
+function liveSave_(o) {
+  var main = {};
+  Object.keys(o).forEach(function (k) { if (k !== 'sched' && k !== 'past') main[k] = o[k]; });
+  var parts = [
+    ['LIVE', JSON.stringify(main), 'イベントの記録が大きすぎます。当たりの表示などを消してから、もう一度お試しください'],
+    ['LIVE_SCHED', JSON.stringify({ sched: o.sched || [] }), '予約が多すぎます（文の長い予約を、いくつか取り消してください）'],
+    ['LIVE_PAST', JSON.stringify(o.past || null), '当たった人の記録が大きすぎます']
+  ];
+  // 書く前に、全部の大きさを確かめる（途中まで書いて、残りが上限で失敗する、を起こさない）
+  parts.forEach(function (x) { if (bytes_(x[1]) > LIVE_PROP_MAX) throw new Error('bad request: ' + x[2]); });
+  var p = props_();
+  parts.forEach(function (x) { p.setProperty(x[0], x[1]); });
+}
 function liveId_() { return Utilities.getUuid().replace(/-/g, '').slice(0, 12); }
 /** 来場者に返す分。終わったものは入れない。当たった番号は入れない */
 /**
