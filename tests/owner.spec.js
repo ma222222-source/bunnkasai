@@ -623,7 +623,8 @@ test('イベント（v219）：ラッキーブース。来場者の画面に帯�
   await expect(bn).toBeVisible({ timeout: 10000 });
   await expect(bn).toContainText('旋盤の加工実演');
   await expect(bn).toContainText(/ラッキーブース・あと[45]分/);
-  await expect(V.page.locator('#toast')).toContainText('ラッキーブース：旋盤の加工実演');
+  await expect(V.page.locator('#banner-lucky')).toHaveAttribute('data-flash', /.+/);                       // v228：帯が見えているときは、帯を光らせる（同じ文の吹き出しは重ねない）
+  await expect(V.page.locator('#toast')).not.toContainText('ラッキーブース：');
   // 地図の部屋と、一覧の札が光る
   const glow = await V.page.evaluate(() => {
     const f = document.querySelector('.room[data-id="1F-02"] .fill'), o = document.querySelector('.room[data-id="1F-03"] .fill');
@@ -896,7 +897,8 @@ test('イベント（v221）：ラッキーブースは、係員の画面・本�
   // 来場者：ブースの詳細にも札
   await V.page.evaluate(() => sync(false));
   await expect(V.page.locator('#banner-lucky')).toBeVisible({ timeout: 10000 });
-  await expect(V.page.locator('#toast')).toContainText('ラッキーブース：旋盤の加工実演');
+  await expect(V.page.locator('#banner-lucky')).toHaveAttribute('data-flash', /.+/);                       // v228：帯が見えているときは、帯を光らせる（同じ文の吹き出しは重ねない）
+  await expect(V.page.locator('#toast')).not.toContainText('ラッキーブース：');
   await V.page.locator('#banner-lucky-go').click();
   await expect(V.page.locator('.bsh-head h2')).toHaveText('旋盤の加工実演', { timeout: 10000 });
   expect(await V.page.evaluate(() => getComputedStyle(document.querySelector('#bsh .bsh-tags'), '::after').content)).toContain('ラッキーブース');
