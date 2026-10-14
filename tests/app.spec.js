@@ -4252,3 +4252,25 @@ test('イベント（v223）：「しずかに」の一斉お知らせは、紙�
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v226：一斉お知らせは、触ったら自分でとじるのを止める ---------------- */
+test('一斉お知らせ（v226）：読んでいる途中で触ると、自分でとじるのを止める（線も止まる）。とじるのは「とじる」で', async ({ page }) => {
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  // （WebKit は押すまでに 1秒以上かかることがあるので、ここでは 4秒に縮めて見る。ふだんは 15秒）
+  await page.evaluate(() => { showLiveFx.autoMs = 4000; showLiveFx('show', 'まもなくステージ発表', '第一体育館へどうぞ'); });
+  await expect(page.locator('#lfx .lfx-title')).toBeVisible();
+  await page.locator('#lfx .lfx-title').click();
+  await expect(page.locator('#lfx')).toHaveClass(/held/);
+  expect(await page.locator('#lfx .lfx-bar i').evaluate(el => getComputedStyle(el).animationPlayState)).toBe('paused');
+  await page.waitForTimeout(4500);
+  await expect(page.locator('#lfx')).toBeVisible();                       // 4秒たっても、とじない
+  await page.locator('#lfx [data-fx="close"]').click();
+  await expect(page.locator('#lfx')).toHaveCount(0);
+  // 触らなければ、今までどおり自分でとじる
+  await page.evaluate(() => { showLiveFx.autoMs = 1500; showLiveFx('show', 'つぎのお知らせ', ''); });
+  await expect(page.locator('#lfx')).toHaveCount(0, { timeout: 6000 });
+  expect(errors).toEqual([]);
+});

@@ -1877,6 +1877,15 @@ html.lite .hero-gear{animation:none}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
 /* ---- v206：地図の左下のボタン。開いた直後は「全体」だけ（左の角）。動かしたら、その右に「ブースに寄せる」が出る ---- */
 #map-card.gmap .map-fit-ctl #zoom-reset{order:-1}
+/* ==== v226：アクセシビリティ（色の差・キーボード・読み上げ・時間の配慮） ==== */
+/* ①タブの数字：落ち着き（明るい見た目）では、暗い琥珀に黒い字で 2.99 しかなかった → 白い字（重厚は明るい琥珀なので黒い字のまま） */
+#own-main .own-tabs button b{color:#fff}
+[data-theme="heavy"] #own-main .own-tabs button b{color:#1a1814}
+/* ②文の中の押せる言葉：重厚では赤い字が暗い札の上で 3.71 しかなかった → 字は本文の色、下線だけ赤 */
+#v-owner .own-link{color:var(--text);text-decoration-color:var(--accent);text-decoration-thickness:2px}
+/* ⑥一斉お知らせ：触ったら、自分でとじるのを止める（線も止まる） */
+.lfx.held .lfx-bar i{animation-play-state:paused}
+.lfx.held .lfx-bar{opacity:.5}
 /* ==== v225：ようすの移り変わりと混んでいるブース・数字が動く・取り直す・ラッキーブースの予約・本部モニタの線・振り返りに司令塔の操作 ==== */
 /* ①この3時間の混み具合（15分ごと。混雑とやや混雑のブースの数） */
 /* 札（.own-tile）は中身を左に寄せて縮める並びなので、グラフと目盛りは札の幅いっぱいに広げる（広げないと幅0になっていた） */
@@ -12856,6 +12865,8 @@ function ownEnter(r){
   renderOwner();
   // v218：入ったときは、札が下から順に出る（入口と中が、ぱっと入れ替わるだけだった）
   { const m = $('#own-main'); m.classList.add('own-in'); clearTimeout(ownEnter._t); ownEnter._t = setTimeout(() => m.classList.remove('own-in'), 900); }
+  // v226：入ったら、フォーカスを選んでいるタブへ（押した「入る」ボタンが消えて、フォーカスが行き先を失っていた）
+  setTimeout(() => { const t = $('.own-tabs button[aria-selected="true"]'); if (t) t.focus({ preventScroll: true }); }, 0);
   if (!OWN.state) ownRefresh(false);
 }
 async function ownLoginPass(){
@@ -13259,6 +13270,10 @@ function showLiveFx(kind, title, text, preview, fx){
   const autoMs = kind === 'win' ? 0 : (showLiveFx.autoMs || 15000);
   if (autoMs) el.style.setProperty('--lfx-ms', autoMs + 'ms');
   let autoT = autoMs ? setTimeout(() => close(), autoMs) : null;
+  // v226：読んでいる途中で消えないように、触ったら（指・マウス・キー）自分でとじるのを止める（線も止まる）。とじるのは「とじる」で
+  const hold = () => { if (!autoT) return; clearTimeout(autoT); autoT = null; el.classList.add('held'); };
+  el.addEventListener('pointerdown', e => { if (!e.target.closest('[data-fx]')) hold(); });
+  el.addEventListener('keydown', e => { if (e.key !== 'Escape' && e.key !== 'Enter' && e.key !== ' ') hold(); });
   const close = () => {
     clearTimeout(autoT);
     if (!document.body.contains(el)) return;
@@ -13291,6 +13306,26 @@ function showLiveFx(kind, title, text, preview, fx){
 /* =====================================================================
    v219：司令塔の中（5枚のタブ・ようす・イベントの操作）
    ===================================================================== */
+/**
+ * v226：タブの並び（role="tablist"）を、矢印キー・Home・End で移れるようにする（WAI-ARIA のタブの決まり）。
+ * 選んでいないタブは Tab では飛ばす（tabindex=-1）。移った先のタブを開く
+ */
+function tabKeys(list, go){
+  if (!list || list._keys) return;
+  list._keys = true;
+  list.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const tabs = $$('button[role="tab"]', list).filter(b => b.offsetParent);
+    const i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    const j = e.key === 'ArrowRight' ? (i + 1) % tabs.length : e.key === 'ArrowLeft' ? (i - 1 + tabs.length) % tabs.length
+      : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : -1;
+    if (j < 0) return;
+    e.preventDefault();
+    tabs[j].focus();
+    go(tabs[j]);
+  });
+}
 function setOwnTab(name, keepScroll){
   const tabs = $$('.own-tabs button');
   if (!tabs.length) return;
@@ -13298,6 +13333,7 @@ function setOwnTab(name, keepScroll){
   tabs.forEach(t => {
     const on = t.dataset.otab === name;
     t.setAttribute('aria-selected', on ? 'true' : 'false');
+    t.tabIndex = on ? 0 : -1;                    // v226：選んでいないタブは Tab で飛ばす（矢印キーで移る）
     const pane = $('#ownpane-' + t.dataset.otab);
     if (pane){ pane.classList.toggle('on', on); pane.hidden = !on; }
   });
@@ -13445,6 +13481,11 @@ function renderOwnLive(){
   // ---- タブの数字
   const setN = (id, n) => { const b = $(id); if (b) b.textContent = n ? String(n) : ''; };
   setN('#owntab-event-n', nEv); setN('#owntab-hq-n', stale); setN('#owntab-staff-n', nWait);
+  // v226：数字の意味も読み上げる（「本部16」だけでは、何の16か分からない）
+  { const lab = (id, base, n, what) => { const b = $(id); if (b){ const v = n ? `${base}（${what}）` : base; if (b.getAttribute('aria-label') !== v) b.setAttribute('aria-label', v); } };
+    lab('#owntab-event', 'イベント', nEv, `いま出しているもの ${nEv}つ`);
+    lab('#owntab-hq', '本部', stale, `更新が止まっているブース ${stale}件`);
+    lab('#owntab-staff', '係員', nWait, `許可を待っている端末 ${nWait}台`); }
   // ---- イベント：いまの状態
   const stateOf = (id, on, text) => { const el = $(id); if (!el) return; if (el.textContent !== text) el.textContent = text; if (on) el.dataset.on = '1'; else delete el.dataset.on; };
   const liveCard = (id, on) => { const c = $(id); if (c){ if (on) c.dataset.live = '1'; else delete c.dataset.live; } };
@@ -13529,8 +13570,10 @@ function ownTrendTile(bs, t){
   if (!any) return '';
   const max = Math.max(1, ...cols.map(c => c[0] + c[1]));
   const hm = m => { m = (m + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+  // v226：読み上げ用の説明（1時間ごとと、いま）
+  const say = [0, 4, 8, N - 1].map(k => `${k === N - 1 ? 'いま' : hm(nowM - (N - 1 - k) * 15)} 混雑${cols[k][0]}・やや混雑${cols[k][1]}`).join('、');
   return `<div class="own-tile wide"><span>この3時間の混み具合（混雑・やや混雑のブースの数。15分ごと）</span>
-    <div class="own-trend" role="img" aria-label="この3時間の混み具合">${cols.map(([b, w]) => `<i><b style="height:${(b / max * 100).toFixed(1)}%"></b><u style="height:${(w / max * 100).toFixed(1)}%"></u></i>`).join('')}</div>
+    <div class="own-trend" role="img" aria-label="この3時間の混み具合：${esc(say)}">${cols.map(([b, w]) => `<i><b style="height:${(b / max * 100).toFixed(1)}%"></b><u style="height:${(w / max * 100).toFixed(1)}%"></u></i>`).join('')}</div>
     <div class="own-trend-ax"><span>${hm(nowM - (N - 1) * 15)}</span><span>いま</span></div></div>`;
 }
 /** v224：入力中の見本（来場者の画面で、どう見えるか） */
@@ -13568,6 +13611,9 @@ function segValue(sel){ const b = $(sel + ' button[aria-pressed="true"]'); retur
 function initOwnerLive(){
   if (!$('#own-main')) return;
   $$('.own-tabs button').forEach(t => t.addEventListener('click', () => setOwnTab(t.dataset.otab)));
+  tabKeys($('.own-tabs'), t => setOwnTab(t.dataset.otab, true));          // v226
+  // v226：札の見出しを、見出しとして読めるように（読み上げで、見出しから見出しへ飛べる）
+  $$('#v-owner .card-t').forEach(e => { e.setAttribute('role', 'heading'); e.setAttribute('aria-level', '3'); });
   // ようすの札・「すぐ使う」から、その画面へ
   $('#own-main').addEventListener('click', e => { const b = e.target.closest('[data-ogo]'); if (b) setOwnTab(b.dataset.ogo); });
   // えらぶボタン（時間・個数・人数）
@@ -14160,6 +14206,7 @@ function setAdmTab(name){
   tabs.forEach(t => {
     const on = t.dataset.tab === name;
     t.setAttribute('aria-selected', on ? 'true' : 'false');
+    t.tabIndex = on ? 0 : -1;                    // v226：選んでいないタブは Tab で飛ばす（矢印キーで移る）
     const pane = $('#admpane-' + t.dataset.tab);
     if (pane){ pane.classList.toggle('on', on); pane.hidden = !on; }
   });
@@ -16924,6 +16971,7 @@ function init(){
   measureHead();
   $$('.adm-tabs button').forEach(t =>
     t.addEventListener('click', () => setAdmTab(t.dataset.tab)));
+  tabKeys($('.adm-tabs'), t => setAdmTab(t.dataset.tab));                  // v226
   let savedTab = 'update';
   try{ savedTab = localStorage.getItem('kuroko_adm_tab') || 'update'; }catch(_){}
   setAdmTab(savedTab);
