@@ -2539,7 +2539,9 @@ test('一覧：下へ送ると検索・絞り込みの段が引っ込み、少�
   // 引っ込んでも、一覧の中身の位置は変わらない（場所は取ったまま、上へずらすだけ）
   expect(await cardsY()).toBe(y0);
   // 見出し（黒い帯）の下にもぐって、見えなくなっている
-  // 引っ込む動きが終わるのを待つ（決まった時間ではなく、終わるまで。重いときは 400ms では終わっていなかった）
+  // 下へ送ったぶんの scroll の合図が届ききるのを待つ（合図は1こまにまとめて届く。すぐ上へ戻すと、まとめた合図が「まだ下へ動いている」と読まれる。v228 で待ちを外して Linux の WebKit で落ちた）
+  await page.waitForTimeout(400);
+  // 引っ込む動きが終わるのを待つ（重いときは 400ms では終わっていなかった）
   await expect.poll(() => page.evaluate(() => {
     const h = document.querySelector('#v-list .list-head').getBoundingClientRect(), top = document.querySelector('.head').getBoundingClientRect().bottom;
     return h.bottom <= top + 1;
