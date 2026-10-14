@@ -47,7 +47,7 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-10-14e';
+var GAS_VERSION = '2026-10-14f';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
@@ -717,6 +717,8 @@ function doGet(e) {
  * ttl … 本体キャッシュの秒数（定期実行は次の実行まで切れないよう長めに置く）
  */
 function buildAndCache_(cache, ttl) {
+  // v224：予約した一斉お知らせが、時刻どおりに出るように（覚えておく時間を、次の予約の時刻までにする）
+  try { ttl = Math.max(1, Math.min(ttl, liveNextDueSec_())); } catch (eT) {}
   try { cache.put(CACHE_BUILDING, '1', 10); } catch (eB) {}
   // 作っている間に係員の更新が入ったら、作った結果はキャッシュに置かない（古い内容を15秒焼き付けない）
   var gen0 = cache.get(CACHE_GEN) || '';
@@ -2264,7 +2266,8 @@ function ownerStateOut_() {
 var LIVE_SHOW_SEC = 180;
 var LIVE_DRAW_MIN = 30;          // 当たりの表示を出しておく時間（分）
 var LIVE_PAST_MAX = 200;
-var LIVE_PLACE_DEFAULT = '受付（南棟昇降口）';         // その日に当たった番号を覚えておく数（同じ人が何度も当たらないように）
+var LIVE_PLACE_DEFAULT = '受付（南棟昇降口）';
+var LIVE_SCHED_MAX = 20;          // v224：一斉お知らせの予約の数         // その日に当たった番号を覚えておく数（同じ人が何度も当たらないように）
 
 function ownerOnly_(body) {
   if (body && body.token) { ownerNeed_(body.token); return; }
@@ -2279,9 +2282,29 @@ function liveRead_() {
 function liveSave_(o) { props_().setProperty('LIVE', JSON.stringify(o)); }
 function liveId_() { return Utilities.getUuid().replace(/-/g, '').slice(0, 12); }
 /** 来場者に返す分。終わったものは入れない。当たった番号は入れない */
+/**
+ * v224：いまの一斉お知らせ。すぐに出したもの（show）と、時刻が来た予約（sched）のうち、出ている時間内でいちばん新しいもの。
+ * 予約は、時刻が来ても LIVE を書きかえない（来場者の GET では書かない・ロックを取らない）。時刻で見分けるだけ
+ */
+function liveShowNow_(o, now) {
+  var cand = [];
+  if (o.show && o.show.until > now) cand.push(o.show);
+  (Array.isArray(o.sched) ? o.sched : []).forEach(function (x) {
+    if (x && x.at <= now && x.at + LIVE_SHOW_SEC * 1000 > now) cand.push({ id: x.id, title: x.title, text: x.text, fx: x.fx, at: x.at, until: x.at + LIVE_SHOW_SEC * 1000 });
+  });
+  cand.sort(function (a, b) { return b.at - a.at; });
+  return cand[0] || null;
+}
+/** v224：次の予約の時刻まで、あと何秒か（予約が無ければ Infinity）。配る中身を覚えておく時間を、これより長くしない */
+function liveNextDueSec_() {
+  var now = Date.now(), o = liveRead_(), best = Infinity;
+  (Array.isArray(o.sched) ? o.sched : []).forEach(function (x) { if (x && x.at > now) best = Math.min(best, Math.ceil((x.at - now) / 1000)); });
+  return best;
+}
 function livePublic_() {
   var o = liveRead_(), now = Date.now(), out = {};
-  if (o.show && o.show.until > now) out.show = { id: o.show.id, title: o.show.title, text: o.show.text, fx: o.show.fx === 'calm' ? 'calm' : 'party', at: o.show.at, until: o.show.until };
+  var sh = liveShowNow_(o, now);
+  if (sh) out.show = { id: sh.id, title: sh.title, text: sh.text, fx: sh.fx === 'calm' ? 'calm' : 'party', at: sh.at, until: sh.until };
   if (o.lucky && o.lucky.until > now) out.lucky = { id: o.lucky.id, booth: o.lucky.booth, at: o.lucky.at, until: o.lucky.until };
   if (o.draw && o.draw.until > now) out.draw = { id: o.draw.id, at: o.draw.at, until: o.draw.until, min: o.draw.min, n: (o.draw.winners || []).length,
     place: o.draw.place || LIVE_PLACE_DEFAULT };
@@ -2292,6 +2315,10 @@ function liveOwner_() {
   var o = liveRead_(), now = Date.now(), out = livePublic_();
   if (out.draw) { out.draw.winners = o.draw.winners || []; out.draw.elig = o.draw.elig || 0; }
   if (out.lucky) out.lucky.stamps = luckyStamps_(o.lucky);      // v223：始めてから、そのブースでスタンプを押した人の数
+  // v224：これからの予約（時刻の早い順。来場者には返さない）
+  out.sched = (Array.isArray(o.sched) ? o.sched : []).filter(function (x) { return x && x.at > now; })
+    .sort(function (a, b) { return a.at - b.at; })
+    .map(function (x) { return { id: x.id, title: x.title, text: x.text, fx: x.fx, at: x.at }; });
   out.now = now;
   return out;
 }
@@ -2380,6 +2407,25 @@ function liveApi_(action, body) {
     var title = cut_(String(body.title == null ? '' : body.title).trim(), 30);
     var text = cut_(String(body.text == null ? '' : body.text).trim(), 80);
     if (!title) throw new Error('bad request: 見出しを入れてください');
+    // v224：時刻を決めて出す（予約）。at はミリ秒。30秒より先〜24時間以内
+    if (body.at != null) {
+      var at = Math.round(Number(body.at)), nowS = Date.now();
+      if (!isFinite(at)) throw new Error('bad request: 時刻の形が違います');
+      if (at < nowS + 30000) throw new Error('bad request: その時刻は過ぎています（30秒より先の時刻にしてください）');
+      if (at > nowS + 24 * 3600000) throw new Error('bad request: 予約できるのは、24時間先までです');
+      return withLock_(function () {
+        var oS = liveRead_(), nS = Date.now();
+        var list = (Array.isArray(oS.sched) ? oS.sched : []).filter(function (x) { return x && x.at > nS - 3600000; });   // 1時間より前のものは片づける
+        if (list.filter(function (x) { return x.at > nS; }).length >= LIVE_SCHED_MAX) throw new Error('bad request: 予約は ' + LIVE_SCHED_MAX + '件までです');
+        list.push({ id: liveId_(), title: title, text: text, fx: body.calm === true ? 'calm' : 'party', at: at });
+        list.sort(function (a, b) { return a.at - b.at; });
+        oS.sched = list;
+        liveSave_(oS);
+        liveLog_('一斉お知らせを予約（' + Utilities.formatDate(new Date(at), TZ, 'HH:mm') + '）：' + title);
+        clearCache_();
+        return ownerStateOut_();
+      });
+    }
     return withLock_(function () {
       var o = liveRead_(), now = Date.now();
       // v223：演出。calm＝しずかに（紙ふぶきなし。落とし物・注意の知らせ用）／それ以外＝お祝い
@@ -2462,12 +2508,26 @@ function liveApi_(action, body) {
       return ownerStateOut_();
     });
   }
+  if (action === 'owner_sched_del') {
+    var sid = String(body.id || '');
+    return withLock_(function () {
+      var oD = liveRead_(), before = (oD.sched || []).length;
+      oD.sched = (Array.isArray(oD.sched) ? oD.sched : []).filter(function (x) { return x && x.id !== sid; });
+      if (oD.sched.length === before) throw new Error('bad request: その予約は見つかりません（もう出たか、取り消しずみです）');
+      liveSave_(oD);
+      liveLog_('一斉お知らせの予約を取り消した');
+      clearCache_();
+      return ownerStateOut_();
+    });
+  }
   if (action === 'owner_live_clear') {
     var what = String(body.what || '');
     if (['show', 'lucky', 'draw'].indexOf(what) < 0) throw new Error('bad request: 消すものが違います');
     return withLock_(function () {
       var o = liveRead_();
       delete o[what];
+      // v224：時刻が来て出ている予約も消す（これからの予約は残す）
+      if (what === 'show' && Array.isArray(o.sched)) { var nC = Date.now(); o.sched = o.sched.filter(function (x) { return x && x.at > nC; }); }
       liveSave_(o);
       liveLog_({ show: '一斉お知らせ', lucky: 'ラッキーブース', draw: '抽選の当たりの表示' }[what] + 'を消した');
       clearCache_();

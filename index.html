@@ -1877,6 +1877,34 @@ html.lite .hero-gear{animation:none}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
 /* ---- v206：地図の左下のボタン。開いた直後は「全体」だけ（左の角）。動かしたら、その右に「ブースに寄せる」が出る ---- */
 #map-card.gmap .map-fit-ctl #zoom-reset{order:-1}
+/* ==== v224：一斉お知らせの予約・タイムテーブルから・入力中の見本 ==== */
+/* ①予約：時刻の欄と、予約するボタン */
+.own-sched-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-top:10px;border-top:1px dashed var(--border)}
+.own-sched-row > label{flex-basis:100%;font-size:12px;font-weight:900;color:var(--text-dim)}
+.own-sched-row .field{flex:1 1 120px;min-width:0;width:auto;min-height:48px;font-variant-numeric:tabular-nums}
+.own-sched-row .btn{flex:1 1 150px}
+.own-sched-row.hide,.own-sched.hide{display:none}
+#own-show-tt button:disabled{opacity:.55;cursor:default;border-style:dashed}
+/* ②予約の一覧 */
+.own-sched{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.own-sched li{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-sm);background:var(--surface-2);border:1px solid var(--border)}
+.own-sched li b{flex:none;font-size:15px;font-weight:900;font-variant-numeric:tabular-nums;color:var(--accent)}
+.own-sched li span{flex:1;min-width:0;font-size:12.5px;font-weight:800;overflow-wrap:anywhere}
+.own-sched li button{flex:none;min-height:44px;padding:0 12px;border-radius:999px;border:1.5px solid var(--border-strong);background:var(--surface);color:var(--text);
+  font:inherit;font-size:12px;font-weight:900;cursor:pointer}
+/* ⑤入力中の見本（来場者の画面で、どう見えるか） */
+.own-prev{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px;border-radius:var(--r-sm);background:repeating-linear-gradient(135deg,var(--surface-2) 0 8px,var(--surface-3) 8px 16px)}
+.own-prev > small{font-size:10.5px;font-weight:900;color:var(--text-mute)}
+.own-prev .op-card{width:min(240px,100%);padding:10px 12px 12px;border-radius:16px;background:var(--surface);box-shadow:var(--shadow);text-align:center}
+.own-prev .op-k{font-size:9.5px;font-weight:900;letter-spacing:.12em;color:var(--busy-ink)}
+.own-prev .op-ic{width:34px;height:34px;margin:4px auto 2px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--on-accent)}
+.own-prev .op-ic svg{width:18px;height:18px}
+.own-prev.calm .op-ic{background:var(--surface-3);color:var(--text)}
+.own-prev .op-t{display:block;font-size:15px;font-weight:900;line-height:1.35;overflow-wrap:anywhere;word-break:auto-phrase}
+.own-prev .op-t.empty{color:var(--text-mute)}
+.own-prev .op-x{display:block;margin-top:3px;font-size:11px;font-weight:800;color:var(--text-dim);overflow-wrap:anywhere}
+.own-prev .op-x:empty{display:none}
+.own-prev .op-fx{font-size:10px;font-weight:800;color:var(--text-mute)}
 /* ==== v223：抽選を係員・本部モニタにも／受け取りの場所／演出を選ぶ／ラッキーブースの効果／使い分けの案内／残り時間の線 ==== */
 /* ②当たった人：受け取りの場所を地図で見る */
 .win-card .win-go,.lfx .lfx-go{margin-top:8px;min-height:44px;padding:0 16px;border-radius:999px;border:1.5px solid #3d2a00;background:none;color:inherit;
@@ -4198,6 +4226,13 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
               <button type="button" class="chip" data-t="スタンプの抽選をします" data-x="スタンプの画面を開いて、お待ちください">抽選の前</button>
               <button type="button" class="chip" data-t="まもなく終了です" data-x="本日はご来場ありがとうございました">フィナーレ</button>
             </div>
+            <!-- v224：入力中の見本（来場者の画面で、どう見えるか） -->
+            <div class="own-prev" id="own-show-prev" aria-hidden="true">
+              <small>来場者の画面では</small>
+              <div class="op-card"><p class="op-k">本部から</p><div class="op-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4h3l6 4V6L6 10z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></div>
+                <b class="op-t empty">見出し</b><span class="op-x"></span></div>
+              <span class="op-fx"></span>
+            </div>
             <!-- v223：演出をえらぶ（落とし物・注意の知らせに、紙ふぶきは合わない） -->
             <div class="seg own-fx hide" id="own-show-fx" role="group" aria-label="演出">
               <button type="button" data-v="party" aria-pressed="true">お祝い（紙ふぶき）</button>
@@ -4210,6 +4245,14 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
               <button type="button" class="btn" id="own-show-send">全員に出す</button>
             </div>
             <p class="own-state" id="own-show-now"></p>
+            <!-- v224：時刻を決めて出す（予約）。時刻になったら、司令塔を閉じていても全員の画面に出る -->
+            <div class="own-sched-row hide" id="own-sched-row">
+              <label for="own-show-at">時刻を決めて出す（予約）</label>
+              <input class="field" type="time" id="own-show-at" step="60" aria-label="出す時刻">
+              <button type="button" class="btn ghost" id="own-show-sched">この時刻に予約</button>
+              <div class="own-sug hide" id="own-show-tt"></div>
+            </div>
+            <ul class="own-sched hide" id="own-sched"></ul>
           </div>
           <div class="card own-ev" id="own-ev-lucky">
             <div class="card-t">ラッキーブース</div>
@@ -4539,7 +4582,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-14h',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-14i',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -13260,7 +13303,31 @@ function renderOwnLive(){
   if (show) now.push(`<li><em>一斉お知らせ</em><span>${esc(show.title)}</span><small>${esc(liveLeft(show.until))}</small><button type="button" data-stop="show">消す</button></li>`);
   if (lucky) now.push(`<li><em>ラッキーブース</em><span>${esc(nameOf(lucky.booth))}</span><small>${esc(liveLeft(lucky.until))}</small><button type="button" data-stop="lucky">終わらせる</button></li>`);
   if (draw) now.push(`<li><em>抽選</em><span>${(draw.winners || []).length}人が当たり</span><small>${esc(liveLeft(draw.until))}</small><button type="button" data-stop="draw">消す</button></li>`);
+  // v224：これからの予約（時刻の早い順）。ここから取り消せる
+  const sched = Array.isArray(lv.sched) ? lv.sched.filter(x => x && Number(x.at) > t) : [];
+  const hmOf = at => { const d = new Date(Number(at)); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+  sched.forEach(x => now.push(`<li><em>予約 ${hmOf(x.at)}</em><span>${esc(String(x.title || ''))}</span><button type="button" data-stop="sched:${esc(String(x.id))}">取り消す</button></li>`));
   setHtml($('#own-now'), now.length ? now.join('') : '<li class="none">いまは、何も出していません</li>');
+  // v224：予約の欄（新しいサーバーだけ。古いサーバーは時刻を知らず、すぐに出してしまう）と、予約の一覧
+  { const canSched = String(st.sv || '') >= '2026-10-14f';
+    const row = $('#own-sched-row'); if (row) row.classList.toggle('hide', !canSched);
+    const ul = $('#own-sched');
+    if (ul){
+      ul.classList.toggle('hide', !sched.length);
+      setHtml(ul, sched.map(x => `<li><b>${hmOf(x.at)}</b><span>${esc(String(x.title || ''))}${x.fx === 'calm' ? '（しずかに）' : ''}</span><button type="button" data-sched-del="${esc(String(x.id))}">取り消す</button></li>`).join(''));
+    }
+    // タイムテーブルから（きょうの、これからの行。5分前に出す）
+    const tbox = $('#own-show-tt');
+    if (tbox){
+      const d0 = new Date(t), today = d0.getFullYear() + '-' + String(d0.getMonth() + 1).padStart(2, '0') + '-' + String(d0.getDate()).padStart(2, '0');
+      const rows = ((CONFIG.INFO && CONFIG.INFO.timetable) || []).filter(r => Array.isArray(r) && /^\d{1,2}:\d{2}$/.test(String(r[0])) && (!r[3] || r[3] === today))
+        .map(r => { const [h, m] = String(r[0]).split(':').map(Number); const at = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate(), h, m).getTime() - 5 * 60000; return { r, at }; })
+        .filter(x => x.at > t + 60000).slice(0, 4);
+      tbox.classList.toggle('hide', !(canSched && rows.length));
+      // 予約ずみの行は、押せなくして「予約ずみ」（同じ知らせを2回予約しない）
+      const done = new Set(sched.map(x => Number(x.at)));
+      setHtml(tbox, rows.length ? '<span>タイムテーブルから（5分前に）：</span>' + rows.map(x => `<button type="button" data-tt-at="${x.at}" data-tt-t="${esc(String(x.r[1]))}" data-tt-h="${esc(String(x.r[0]))}"${done.has(x.at) ? ' disabled' : ''}>${esc(String(x.r[0]))} ${esc(String(x.r[1]))}${done.has(x.at) ? '（予約ずみ）' : ''}</button>`).join('') : '');
+    } }
   // v221：さいきんの操作（新しいサーバーだけが返す）
   { const card = $('#own-log-card');
     if (card){
@@ -13367,6 +13434,17 @@ async function ownLive(action, body, btn, okMsg){
     if (btn && btn.disabled){ btn.disabled = false; btn.textContent = lb; }
   }
 }
+/** v224：入力中の見本（来場者の画面で、どう見えるか） */
+function ownShowPrev(){
+  const box = $('#own-show-prev'); if (!box) return;
+  const t = $('#own-show-title').value.trim(), x = $('#own-show-text').value.trim();
+  const fxb = $('#own-show-fx button[aria-pressed="true"]'), calm = !!(fxb && fxb.dataset.v === 'calm' && !$('#own-show-fx').classList.contains('hide'));
+  const tt = box.querySelector('.op-t');
+  tt.textContent = t || '見出し'; tt.classList.toggle('empty', !t);
+  box.querySelector('.op-x').textContent = x;
+  box.classList.toggle('calm', calm);
+  box.querySelector('.op-fx').textContent = calm ? 'しずかに（紙ふぶき・音なし）・15秒で自分でとじる' : '紙ふぶきと音・15秒で自分でとじる';
+}
 /** v220：抽選の前の下見。いまの条件で、対象が何人いるか（新しいサーバーにだけ聞く。古いサーバーは dry を知らず、本当に引いてしまう） */
 async function ownDrawElig(force){
   const el = $('#own-draw-elig');
@@ -13400,6 +13478,42 @@ function initOwnerLive(){
     if (seg.id === 'own-draw-min') ownDrawElig(true);
   }));
   $('#own-draw-again').addEventListener('change', () => ownDrawElig(true));
+  // v224：入力中の見本
+  ['#own-show-title', '#own-show-text'].forEach(sel => $(sel).addEventListener('input', ownShowPrev));
+  $('#own-show-fx').addEventListener('click', () => setTimeout(ownShowPrev, 0));
+  ownShowPrev();
+  // v224：時刻を決めて出す（予約）
+  $('#own-show-sched').addEventListener('click', async () => {
+    const v = showIn(), hm = $('#own-show-at').value;
+    if (!v.title){ toast('見出しを入れてください'); return; }
+    const m = /^(\d{1,2}):(\d{2})/.exec(hm || '');
+    if (!m){ toast('時刻を入れてください'); return; }
+    const d = new Date(nowMs()), at = new Date(d.getFullYear(), d.getMonth(), d.getDate(), Number(m[1]), Number(m[2])).getTime();
+    if (at < nowMs() + 30000){ toast('その時刻は過ぎています（きょうの、これからの時刻にしてください）'); return; }
+    if (!confirm(`${m[1].padStart(2, '0')}:${m[2]} に、開いている全員の画面に出します（司令塔を閉じていても出ます）。\n\n「${v.title}」${v.text ? '\n' + v.text : ''}\n\nよろしいですか？`)) return;
+    if (await ownLive('owner_show', Object.assign({}, v, { at }), $('#own-show-sched'), `${m[1].padStart(2, '0')}:${m[2]} に予約しました`)){
+      $('#own-show-title').value = ''; $('#own-show-text').value = ''; $('#own-show-at').value = '';
+      if (initOwnerLive._len) initOwnerLive._len();
+      ownShowPrev();
+    }
+  });
+  // タイムテーブルから：見出し・時刻を入れる（予約は、確かめてから押す）
+  $('#own-show-tt').addEventListener('click', e => {
+    const b = e.target.closest('[data-tt-at]'); if (!b) return;
+    const d = new Date(Number(b.dataset.ttAt));
+    $('#own-show-title').value = `まもなく「${b.dataset.ttT}」`.slice(0, 30);
+    $('#own-show-text').value = `${b.dataset.ttH}からです`.slice(0, 80);
+    $('#own-show-at').value = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    if (initOwnerLive._len) initOwnerLive._len();
+    ownShowPrev();
+    $('#own-show-sched').focus({ preventScroll: true });
+  });
+  // 予約の取り消し（一覧から）
+  $('#own-sched').addEventListener('click', e => {
+    const b = e.target.closest('[data-sched-del]'); if (!b) return;
+    if (!confirm('この予約を取り消します。よろしいですか？')) return;
+    ownLive('owner_sched_del', { id: b.dataset.schedDel }, b, '予約を取り消しました');
+  });
   // v221：渡した印を付ける・外す
   $('#own-draw-res').addEventListener('click', e => {
     const b = e.target.closest('[data-given]'); if (!b) return;
@@ -13413,6 +13527,11 @@ function initOwnerLive(){
   $('#own-now').addEventListener('click', e => {
     const b = e.target.closest('[data-stop]'); if (!b) return;
     const k = b.dataset.stop;
+    if (k.indexOf('sched:') === 0){            // v224：予約の取り消し
+      if (!confirm('この予約を取り消します。よろしいですか？')) return;
+      ownLive('owner_sched_del', { id: k.slice(6) }, b, '予約を取り消しました');
+      return;
+    }
     if (k === 'notice') $('#notice-clear').click();
     else if (k === 'lucky') $('#own-lucky-end').click();
     else if (k === 'draw') $('#own-draw-clear').click();
