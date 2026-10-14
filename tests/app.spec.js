@@ -4143,3 +4143,61 @@ test('イベント（v220）：一斉お知らせは、時間がたつと自分�
   await expect(page.locator('#lfx')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v222：来場者の画面のイベントの仕上げ ---------------- */
+test('イベント（v222）：見のがした一斉お知らせを、インフォで読み返せる。ラッキーブースの帯はとじられ、ある階のボタンに印。スタンプが足りない人は、抽選をサーバーに聞きに行かない', async ({ page }) => {
+  const errors = watchErrors(page);
+  const now = Date.now();
+  const live = { show: { id: 'show0222', title: 'まもなく<b id="x222">開場</b>', text: '南棟昇降口へどうぞ', at: now, until: now + 120000 },
+    lucky: { id: 'luck0222', booth: '2F-12', at: now, until: now + 300000 },
+    draw: { id: 'draw0222', at: now, until: now + 600000, min: 3, n: 1 } };
+  const log = await mockGas(page, { mutate: j => { j.live = live; } });
+  await page.addInitScript(() => { if (!localStorage.getItem('kuroko_stamps_v2')) localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02'])); });
+  await page.goto('/?tab=map');
+  // 一斉お知らせ：読み返せることを言う
+  await expect(page.locator('#lfx .lfx-title')).toHaveText('まもなく<b id="x222">開場</b>', { timeout: 15000 });
+  await expect(page.locator('#lfx .sfx-note')).toContainText('インフォの画面で読み返せます');
+  await page.locator('#lfx [data-fx="close"]').click();
+  await expect(page.locator('#lfx')).toHaveCount(0);
+  // 抽選：スタンプ1個（3個以上が対象）→ あと2個。サーバーには聞かない
+  await expect(page.locator('#toast')).toContainText('あと2個', { timeout: 10000 });
+  await page.waitForTimeout(600);
+  expect(log.gets.filter(q => /win=/.test(q))).toEqual([]);
+  await expect(page.locator('#win-card')).toHaveCount(0);
+  // ラッキーブース（2階）：いま見ている1階ではなく、2階のボタンに印
+  const ring = await page.evaluate(() => ['#fl-2', '#fl-1'].map(s => getComputedStyle(document.querySelector(s)).outlineColor));
+  expect(ring[0]).toBe('rgb(217, 165, 20)');
+  expect(ring[1]).not.toBe('rgb(217, 165, 20)');
+  // 帯は×でとじられる。開き直しても、そのラッキーブースのあいだは出ない。地図の印は残る
+  const bn = page.locator('#banner-lucky');
+  await expect(bn).toBeVisible();
+  expect(await page.locator('#banner-lucky-x').evaluate(el => el.offsetHeight)).toBeGreaterThanOrEqual(44);
+  await page.locator('#banner-lucky-x').click();
+  await expect(bn).toBeHidden();
+  expect(await page.evaluate(() => document.getElementById('lucky-style').textContent.length)).toBeGreaterThan(50);
+  await page.goto('/?tab=info');
+  await ready(page);
+  await expect(bn).toBeHidden();
+  // インフォ：本部からのお知らせ（時刻・見出し・ひとこと）。文字はタグにしない
+  const card = page.locator('#live-log-card');
+  await expect(card).toBeVisible();
+  await expect(card.locator('li b')).toHaveText('まもなく<b id="x222">開場</b>');
+  await expect(card.locator('li span')).toHaveText('南棟昇降口へどうぞ');
+  await expect(card.locator('li small')).toHaveText(/^\d\d:\d\d$/);
+  expect(await page.evaluate(() => !!document.querySelector('#x222'))).toBe(false);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  // 別のラッキーブースが始まったら、帯はまた出る
+  await page.evaluate(() => { S.live.lucky = { id: 'luck0223', booth: '1F-02', at: Date.now(), until: Date.now() + 300000 }; renderLive(); });
+  await expect(bn).toBeVisible();
+  // ラッキーブースでスタンプを押したときだけ、演出にひとこと
+  await page.evaluate(() => showStampFx('1F-02', true));
+  await expect(page.locator('.sfx-lucky')).toHaveText('ラッキーブースでスタンプ！');
+  await page.evaluate(() => { document.querySelectorAll('.sfx').forEach(e => e.remove()); document.documentElement.classList.remove('sfx-open'); showStampFx('1F-03', true); });
+  await expect(page.locator('.sfx .sfx-goal')).toBeVisible();
+  await expect(page.locator('.sfx-lucky')).toHaveCount(0);
+  await page.evaluate(() => { document.querySelectorAll('.sfx').forEach(e => e.remove()); document.documentElement.classList.remove('sfx-open'); });
+  // 古いお知らせ（6時間より前）・こわれた保存は出さない
+  await page.evaluate(() => { localStorage.setItem('kuroko_live_log', JSON.stringify([{ id: 'old', title: 'きのうの', text: '', at: Date.now() - 7 * 3600000 }, 5, null, { title: 9 }])); renderLiveLog(); });
+  await expect(card).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
