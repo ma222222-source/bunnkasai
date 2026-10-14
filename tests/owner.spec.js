@@ -1014,25 +1014,31 @@ test('司令塔（v222）：PC の広い画面では、イベントの3枚・本
   await page.setViewportSize({ width: 1366, height: 768 });
   await ownerLogin(page, origin, 'event');
   const tops = sel => page.evaluate(s => [...document.querySelectorAll(s)].filter(e => e.offsetParent).map(e => { const r = e.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.left), Math.round(r.width)]; }), sel);
+  // タブを押した直後は、入りの動き（下から 12px・0.28秒）の途中で位置が動く。動きが終わってから測る（GitHub で1回失敗した）
+  // （位置が止まって見えても、動きの終わり際は 1回の間に 1px も動かないので、動きそのものが終わるのを待つ。くり返しの動き＝点の点滅は数えない）
+  const settled = async sel => {
+    await page.waitForFunction(() => document.getAnimations().filter(an => an.playState === 'running' && isFinite(an.effect.getComputedTiming().endTime)).length === 0, null, { timeout: 5000 });
+    return tops(sel);
+  };
   // イベント：3枚が同じ高さから始まり、左から順に並ぶ。近道は出さない
-  let c = await tops('#ownpane-event .own-ev');
+  let c = await settled('#ownpane-event .own-ev');
   expect(c.length).toBe(3);
   expect(Math.max(...c.map(x => x[0])) - Math.min(...c.map(x => x[0]))).toBeLessThanOrEqual(1);
   expect(c[0][1] < c[1][1] && c[1][1] < c[2][1]).toBe(true);
   await expect(page.locator('#own-jump')).toBeHidden();
   // 本部：お知らせ（左）と、止まっているブース（右）
   await page.locator('#owntab-hq').click();
-  const n = (await tops('#notice-card'))[0], st = (await tops('#stale-card'))[0];
+  const n = (await settled('#notice-card'))[0], st = (await settled('#stale-card'))[0];
   expect(Math.abs(n[0] - st[0])).toBeLessThanOrEqual(1);
   expect(n[1]).toBeLessThan(st[1]);
   // 係員：パスワード（左）と、入れる端末（右）
   await page.locator('#owntab-staff').click();
-  c = await tops('#ownpane-staff > .card');
+  c = await settled('#ownpane-staff > .card');
   expect(c.length).toBe(2);
   expect(Math.abs(c[0][0] - c[1][0])).toBeLessThanOrEqual(1);
   // 準備：2列
   await page.locator('#owntab-setup').click();
-  c = await tops('#ownpane-setup > .card, #ownpane-setup > details');
+  c = await settled('#ownpane-setup > .card, #ownpane-setup > details');
   expect(new Set(c.map(x => x[1])).size).toBe(2);
   for (const w of [1366, 960]) {
     await page.setViewportSize({ width: w, height: 768 });
@@ -1050,7 +1056,7 @@ test('司令塔（v222）：PC の広い画面では、イベントの3枚・本
   // スマホの幅：縦に並ぶ。近道が出る
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('#owntab-event').click();
-  c = await tops('#ownpane-event .own-ev');
+  c = await settled('#ownpane-event .own-ev');
   expect(c[0][0] < c[1][0] && c[1][0] < c[2][0]).toBe(true);
   await expect(page.locator('#own-jump')).toBeVisible();
   // さっき出した見出し：出すと、次からは押すだけで欄に入る
