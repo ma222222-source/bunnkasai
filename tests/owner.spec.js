@@ -360,9 +360,11 @@ test('司令塔（v218）：一覧は、変わっていなければ描き直さ�
     return route.fallback();
   });
   await page.setViewportSize({ width: 390, height: 844 });
+  // 入ったときの印（own-in）は 0.9秒で外れる。PC が重いと見のがすので、付いた瞬間を画面の中で覚えておく
+  await page.addInitScript(() => { window.__sawOwnIn = false; setInterval(() => { const m = document.querySelector('#own-main'); if (m && m.classList.contains('own-in')) window.__sawOwnIn = true; }, 20); });
   await ownerLogin(page, origin);
   // 入ったとき：札が順に出る（終わったら印を外す）
-  expect(await page.evaluate(() => document.querySelector('#own-main').classList.contains('own-in'))).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__sawOwnIn), { timeout: 5000 }).toBe(true);
   await expect.poll(() => page.evaluate(() => document.querySelector('#own-main').classList.contains('own-in')), { timeout: 5000 }).toBe(false);
   await expect(page.locator('#own-devs .own-dev')).toHaveCount(2);
   // 取り直しても、中身が同じなら作り直さない（押そうとしたボタンが入れ替わらない・フォーカスが飛ばない）
@@ -480,7 +482,6 @@ test('司令塔（v219）：5枚のタブ。本部（お知らせ・開場と閉
   // 本部：お知らせを出す（司令塔に入っている印で送る。係員のパスワードは送らない）
   const sent = [];
   page.on('request', r => { const b = r.postData() || ''; if (/"action":"(notice|bulk)"/.test(b)) sent.push(JSON.parse(b)); });
-  await page.locator('#notice-card > summary').click();
   await page.locator('#notice-text').fill('12:00 から体育館でステージ発表があります');
   await page.locator('#notice-send').click();
   await expect(page.locator('#toast')).toContainText('お知らせを出しました', { timeout: 10000 });
@@ -716,5 +717,118 @@ test('イベント（v219）：スタンプの抽選。当たった人の画面�
   await expect(W.page.locator('#win-card')).toHaveCount(0, { timeout: 10000 });
   expect(werr).toEqual([]);
   await W.ctx.close(); await L.ctx.close(); await N.ctx.close();
+  expect(errors).toEqual([]);
+});
+
+/* ---------------- v220：司令塔とイベントの仕上げ ---------------- */
+test('司令塔（v220）：入口は、パスキーが無いあいだ 持ち主パスワードが主役（押せないボタンを上に置かない）。登録があれば、顔認証・指紋が主役', async ({ page, baseURL }) => {
+  const errors = watchErrors(page);
+  const { g, origin } = server(baseURL);
+  await bridge(page, g);
+  await page.goto(origin + '/?mode=owner');
+  await expect(page.locator('#own-pw')).toBeVisible();
+  await expect(page.locator('#own-passkey-note')).toContainText('「準備」で登録できます');
+  await expect(page.locator('#own-passkey')).toBeHidden();
+  await expect(page.locator('#own-gate .own-or')).toBeHidden();
+  await expect(page.locator('#own-login')).not.toHaveClass(/ghost/);
+  // 登録がある（公開の鍵がサーバーにある）とき
+  g.__props.OWNER_KEYS = JSON.stringify([{ id: 'abc', x: 'AA', y: 'BB', label: 'スマホ', at: new Date().toISOString(), n: 0 }]);
+  await page.reload();
+  await expect(page.locator('#own-passkey')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('#own-passkey')).toBeEnabled();
+  await expect(page.locator('#own-gate .own-or')).toBeVisible();
+  await expect(page.locator('#own-login')).toHaveClass(/ghost/);
+  // 画面の上から：顔認証 → または → 持ち主パスワード
+  const y = await page.evaluate(() => ['#own-passkey', '#own-gate .own-or', '#own-pw', '#own-login'].map(s => Math.round(document.querySelector(s).getBoundingClientRect().top)));
+  expect(y.slice().sort((a, b) => a - b)).toEqual(y);
+  expect(errors).toEqual([]);
+});
+
+test('イベント（v220）：近道・あと何文字・空いているブースのおすすめ・抽選の前に対象の人数（引かずに数える）。出している状態は緑の字', async ({ page, baseURL }) => {
+  test.setTimeout(90000);
+  const errors = watchErrors(page);
+  const { g, origin } = server(baseURL);
+  const now = Date.now();
+  // 空いているブース3つ（待ち 0・1・2）と、混んでいるブース
+  g.__post({ action: 'update', pass: PASS, cid: 'aaaa1111aaaa', id: '1F-03', wait: 2 });
+  g.__post({ action: 'update', pass: PASS, cid: 'aaaa1111aaaa', id: '2F-12', wait: 0 });
+  g.__post({ action: 'update', pass: PASS, cid: 'aaaa1111aaaa', id: '1F-05', wait: 1 });
+  g.__post({ action: 'update', pass: PASS, cid: 'aaaa1111aaaa', id: '1F-02', wait: 30 });
+  ['AAAA1111', 'BBBB2222'].forEach(c => g.__post({ action: 'ledger', cid: c, ev: ['1F-02', '1F-03', '2F-12'].map(id => ({ t: 's', id, at: now })) }));
+  g.__post({ action: 'ledger', cid: 'CCCC3333', ev: [{ t: 's', id: '1F-02', at: now }] });
+  await bridge(page, g);
+  await ownerLogin(page, origin, 'event');
+  await expect(page.locator('#own-head-sub')).toHaveText(/^いま \d\d:\d\d$/);
+  // 近道：押すと、その札が見える所まで動く
+  await expect(page.locator('#own-jump button')).toHaveCount(3);
+  await page.locator('#own-jump [data-ev="draw"]').click();
+  await expect.poll(async () => { const b = await page.locator('#own-ev-draw').boundingBox(); return b && b.y > 60 && b.y < 420; }, { timeout: 8000 }).toBe(true);
+  // あと何文字
+  const len = page.locator('#own-show-len');
+  await expect(len).toHaveText('見出し あと30文字・ひとこと あと80文字');
+  await page.locator('#own-show-title').fill('あ'.repeat(26));
+  await expect(len).toContainText('見出し あと4文字');
+  await expect(len).toHaveAttribute('data-low', '1');
+  await page.locator('#own-show-tpl .chip').first().click();
+  await expect(len).toContainText('見出し あと19文字');
+  // 空いているブースのおすすめ：待ちの少ない順に3つ。押すと、下の欄に入る
+  const sug = page.locator('#own-lucky-sug button');
+  await expect(sug).toHaveCount(3);
+  expect(await sug.evaluateAll(els => els.map(e => e.dataset.id))).toEqual(['2F-12', '1F-05', '1F-03']);
+  await sug.nth(1).click();
+  await expect(page.locator('#own-lucky-booth')).toHaveValue('1F-05');
+  // 抽選の前：いまの対象の人数（引かずに数える）
+  const elig = page.locator('#own-draw-elig');
+  await expect(elig).toContainText('いま対象の人：2人', { timeout: 10000 });
+  await page.locator('#own-draw-min [data-v="1"]').click();
+  await expect(elig).toContainText('いま対象の人：3人', { timeout: 10000 });
+  await expect(elig).toContainText('1個以上');
+  expect(g.__props.LIVE).toBeUndefined();                                  // 数えただけ。当たりは引いていない
+  await page.locator('#own-draw-min [data-v="3"]').click();
+  await expect(elig).toContainText('2人', { timeout: 10000 });
+  // 引いたあとは、当たった人をのぞいた人数。「もう一度 入れる」で戻る
+  accept(page);
+  await page.locator('#own-draw-go').click();
+  await expect(page.locator('#own-draw-res li')).toHaveCount(1, { timeout: 10000 });
+  await expect(elig).toContainText('いま対象の人：1人', { timeout: 10000 });
+  await page.locator('#own-draw-again').check();
+  await expect(elig).toContainText('いま対象の人：2人', { timeout: 10000 });
+  // 出している状態：緑の字（赤＝エラーに見えない）。近道にも点
+  await expect(page.locator('#own-draw-now')).toHaveAttribute('data-on', '1');
+  const col = await page.evaluate(() => {
+    const p = document.createElement('i'); document.body.appendChild(p);
+    p.style.color = 'var(--free)'; const free = getComputedStyle(p).color;
+    p.style.color = 'var(--accent)'; const accent = getComputedStyle(p).color; p.remove();
+    return { now: getComputedStyle(document.querySelector('#own-draw-now')).color, free, accent };
+  });
+  expect(col.now).toBe(col.free);
+  expect(col.now).not.toBe(col.accent);
+  await expect(page.locator('#own-jump [data-ev="draw"]')).toHaveAttribute('data-on', '1');
+  expect(await page.locator('#own-jump [data-ev="show"]').getAttribute('data-on')).toBeNull();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  expect(errors).toEqual([]);
+});
+
+test('司令塔（v220）：本部は「お知らせ」がいちばん上で、開いている。準備の札は短い言い方で、半端な1枚は横いっぱい', async ({ page, baseURL }) => {
+  const errors = watchErrors(page);
+  const { g, origin } = server(baseURL);
+  await bridge(page, g);
+  await ownerLogin(page, origin, 'hq');
+  const order = await page.evaluate(() => [...document.querySelectorAll('#ownpane-hq > *')].map(e => e.id || e.className));
+  expect(order[0]).toBe('notice-card');
+  expect(order[order.length - 1]).toBe('chk-card');
+  expect(order.indexOf('stale-card')).toBeLessThan(order.indexOf('chk-card'));
+  await expect(page.locator('#notice-text')).toBeVisible();                 // 押さなくても、文面の欄が見えている
+  await expect(page.locator('#notice-send')).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });             // スマホの幅では2列（広い画面は3列）
+  await page.locator('#owntab-setup').click();
+  const links = await page.evaluate(() => {
+    const box = document.querySelector('#ownpane-setup .own-links').getBoundingClientRect();
+    return [...document.querySelectorAll('#ownpane-setup .own-links a.btn')].map(a => ({ t: a.textContent.trim(), w: Math.round(a.getBoundingClientRect().width), full: Math.round(box.width), lines: Math.round(a.getBoundingClientRect().height) }));
+  });
+  expect(links.map(l => l.t)).toEqual(['QRの印刷シート', '三つ折りパンフレット', '配布用の紙マップ', '混雑の振り返り', '本部モニタ（大画面）']);
+  expect(links[4].w).toBeGreaterThanOrEqual(links[4].full - 2);              // 5枚目は横いっぱい
+  expect(links[0].w).toBeLessThan(links[0].full / 2 + 2);
+  await expect(page.locator('#ownpane-setup .setup-card > summary')).toHaveText('地図でブースを割り当てる');
   expect(errors).toEqual([]);
 });

@@ -152,8 +152,7 @@ test('係員カード：人数を変えると「送ると：やや混雑・お�
 
 test('本部：お知らせのひな形を押すと欄に入る（そのまま出さない）', async ({ page }) => {
   const log = await login(page);
-  await ownerIn(page, 'hq');
-  await page.locator('#notice-card > summary').click();              // お知らせの欄は畳んである
+  await ownerIn(page, 'hq');                                          // お知らせの欄は、はじめから開いている（v220）
   await page.locator('#notice-tpl [data-tpl]').first().click();
   await expect(page.locator('#notice-text')).toHaveValue(/落とし物/);
   expect(log.posts.filter(p => p.action === 'notice').length).toBe(0);
