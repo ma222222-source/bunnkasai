@@ -1217,7 +1217,7 @@ test('イベント（v224）：一斉お知らせを時刻で予約できる（�
   await expect(page.locator('#own-sched li b')).toHaveText(hm);
   await expect(page.locator('#own-sched li span')).toContainText('しずかに');
   await expect(page.locator('#own-show-title')).toHaveValue('');
-  expect(JSON.parse(g.__props.LIVE).sched.length).toBe(1);
+  expect(JSON.parse(g.__props.LIVE_SCHED).sched.length).toBe(1);
   // 来場者には、まだ何も出ない
   await V.page.evaluate(() => sync(false));
   await V.page.waitForTimeout(500);
@@ -1226,7 +1226,7 @@ test('イベント（v224）：一斉お知らせを時刻で予約できる（�
   await page.locator('#owntab-home').click();
   await expect(page.locator('#own-now')).toContainText('予約 ' + hm);
   // 時刻が来た（サーバーの予約の時刻を、いまにする）→ 来場者に出る。しずかに
-  const o = JSON.parse(g.__props.LIVE); o.sched[0].at = Date.now() - 1000; g.__props.LIVE = JSON.stringify(o);
+  const o = JSON.parse(g.__props.LIVE_SCHED); o.sched[0].at = Date.now() - 1000; g.__props.LIVE_SCHED = JSON.stringify(o);
   g.clearCache_();
   await V.page.evaluate(() => sync(false));
   await expect(V.page.locator('#lfx.calm .lfx-title')).toHaveText('まもなく最終入場', { timeout: 10000 });
@@ -1243,7 +1243,7 @@ test('イベント（v224）：一斉お知らせを時刻で予約できる（�
   accept(page);
   await page.locator('#own-now [data-stop^="sched:"]').click();
   await expect(page.locator('#toast')).toContainText('予約を取り消しました', { timeout: 10000 });
-  expect(JSON.parse(g.__props.LIVE).sched.filter(x => x.at > Date.now())).toEqual([]);
+  expect(JSON.parse(g.__props.LIVE_SCHED).sched.filter(x => x.at > Date.now())).toEqual([]);
   // タイムテーブルから：きょうの、これからの行が出る。押すと、見出し・ひとこと・5分前の時刻が入る
   await page.locator('#owntab-event').click();
   const ttHm = await page.evaluate(() => {
@@ -1406,5 +1406,36 @@ test('司令塔（v226）：入ったらフォーカスは選んでいるタブ�
   await expect(A.page.locator('#admpane-recept')).toBeVisible();
   expect(await A.page.evaluate(() => [...document.querySelectorAll('.adm-tabs [role="tab"]')].map(t => t.tabIndex))).toEqual([-1, 0]);
   await A.ctx.close();
+  expect(errors).toEqual([]);
+});
+
+/* ---------------- v227：置きっぱなしの司令塔・予約の1分前 ---------------- */
+test('司令塔（v227）：20分 操作が無ければ取り直しを止める（「再開する」で戻る）。予約した一斉お知らせが出る1分前に知らせる（取り消せる）', async ({ page, baseURL }) => {
+  const errors = watchErrors(page);
+  const { g, origin } = server(baseURL);
+  await bridge(page, g);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await ownerLogin(page, origin, '');
+  let polls = 0;
+  page.on('request', r => { if (/"action":"owner_state"/.test(r.postData() || '')) polls++; });
+  // 21分前に触ったことにする → 取り直しを止め、知らせを出す
+  await page.evaluate(() => { OWN.touchAt = Date.now() - 21 * 60000; renderOwner(); });
+  await expect(page.locator('#own-idle')).toBeVisible();
+  expect(await page.evaluate(() => OWN.timer)).toBeTruthy();
+  polls = 0;
+  await page.waitForTimeout(9000);
+  expect(polls).toBe(0);                                                    // 8秒ごとの取り直しが止まっている
+  await page.locator('#own-idle-go').click();
+  await expect(page.locator('#own-idle')).toBeHidden();
+  await expect.poll(() => polls, { timeout: 10000 }).toBeGreaterThan(0);
+  // 予約の1分前：知らせ（取り消すボタンつき）。1件に1回
+  const at = Date.now() + 45000;
+  g.__post({ action: 'owner_show', token: await page.evaluate(() => ownToken()), title: 'まもなく最終入場', at: at + 10000 });
+  await page.evaluate(() => ownRefresh(true));
+  await expect(page.locator('#toast')).toContainText('一斉お知らせ「まもなく最終入場」が出ます', { timeout: 10000 });
+  await expect(page.locator('#toast .toast-act')).toHaveText('取り消す');
+  accept(page);
+  await page.locator('#toast .toast-act').click();
+  await expect.poll(() => (JSON.parse(g.__props.LIVE_SCHED || '{"sched":[]}').sched || []).length, { timeout: 10000 }).toBe(0);
   expect(errors).toEqual([]);
 });

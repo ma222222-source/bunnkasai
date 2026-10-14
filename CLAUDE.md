@@ -86,7 +86,7 @@
 - `tools/gas.sh` は送る前に改行を LF にそろえる（CRLF の appsscript.json だと clasp が「Skipping push.」で黙って送らない）。送られなかったら止まる（古い中身で版を作らない）。「Script is already up to date.」は変更なしの意味で正常
 - GAS 側のファイル名は `コード`。`tools/gas.sh` が送る直前に `.gas-build/コード.js` に写す。clasp push はプロジェクトを丸ごと置き換えるので、`.gas-build` を通さずに push しない
 - `setupR8AndArchiveOthers` など本番のシートを書き換える関数は自動で動かさない（ユーザーに頼む）
-- v219：お知らせ（`notice`）・一括（`bulk`）・ブースの追加と削除（`upsert`・`remove`）は、司令塔に入っている印（`token`）でだけ通る（係員のパスワードでは `owner only:`）。テストで送るときも `token: ownerIn(g)`。司令塔のイベントは、スクリプトプロパティ `LIVE` にサーバーが書く（当たったスタンプ番号が入るので、中身を記録・資料に写さない）
+- v219：お知らせ（`notice`）・一括（`bulk`）・ブースの追加と削除（`upsert`・`remove`）は、司令塔に入っている印（`token`）でだけ通る（係員のパスワードでは `owner only:`）。テストで送るときも `token: ownerIn(g)`。司令塔のイベントは、スクリプトプロパティ `LIVE`・`LIVE_SCHED`（一斉お知らせの予約）・`LIVE_PAST`（その日に当たった番号）にサーバーが書く（v227 で分けた。1件 9KB の上限があるため。当たったスタンプ番号が入るので、中身を記録・資料に写さない）
 - 司令塔（v216）の `OWNER_PASS`（持ち主パスワード）は、ユーザーが Apps Script の「プロジェクトの設定 → スクリプト プロパティ」に自分で入れる。Claude Code は決めない・受け取らない・書き込まない。`OWNER_KEYS`（パスキーの公開の鍵）・`APPROVAL`（端末の承認の入・切）・`ADMIN_PASS_AT` は、司令塔の画面からの操作でサーバーが書く
 - デプロイ後は `?mode=check` の「サーバーの版」で確かめる。`Code.gs` を変えたら `GAS_VERSION` を上げる（RULES.md §4）
 - Apps Script API がオフだと push できない：https://script.google.com/home/usersettings でオン

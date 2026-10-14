@@ -383,7 +383,8 @@ test('地図の検索：何も打たずに押すと「最近見たブース」�
   await ready(page);
   await page.locator('#map-q').fill('旋盤');
   await page.locator('#map-sug button').first().click();
-  await expect(page.locator('#bsh')).toBeVisible();
+  // 候補を押すと、地図をその部屋へ寄せる動きのあとで詳細が開く。PC が重いと WebKit では 5秒をこえることがあった（v227 の手元の全件で1回）
+  await expect(page.locator('#bsh')).toBeVisible({ timeout: 10000 });
   await page.evaluate(() => closeSheet());
   await page.locator('#map-q').fill('');
   await page.locator('#map-q').blur();
@@ -4272,5 +4273,36 @@ test('一斉お知らせ（v226）：読んでいる途中で触ると、自分�
   // 触らなければ、今までどおり自分でとじる
   await page.evaluate(() => { showLiveFx.autoMs = 1500; showLiveFx('show', 'つぎのお知らせ', ''); });
   await expect(page.locator('#lfx')).toHaveCount(0, { timeout: 6000 });
+  expect(errors).toEqual([]);
+});
+
+/* ---------------- v227：ラッキーブースを見つけやすく ---------------- */
+test('ラッキーブース（v227）：地図の番号の丸が金色・一覧の「空いている順」でいちばん上・スタンプ帳の枠（まだ押していないとき）・詳細の札に残り時間', async ({ page }) => {
+  const errors = watchErrors(page);
+  const live = { lucky: { id: 'luck0227', booth: '1F-05', at: Date.now() - 60000, until: Date.now() + 9 * 60000 } };
+  await mockGas(page, { mutate: j => { j.live = live; } });
+  await page.goto('/?tab=map');
+  await ready(page);
+  // 地図の番号の丸
+  expect(await page.evaluate(() => { const c = document.querySelector('.room[data-id="1F-05"] .room-no circle'); return c ? getComputedStyle(c).fill : ''; })).toBe('rgb(184, 134, 11)');
+  // 一覧：空いている順のいちばん上（ほかの並べ方では、ふつうの位置）
+  await page.locator('#nav button[data-view="list"]').click();
+  await expect(page.locator('#booth-list .booth').first()).toHaveAttribute('id', 'booth-1F-05');
+  await page.locator('#sort-name').click();
+  await expect(page.locator('#booth-list .booth').first()).not.toHaveAttribute('id', 'booth-1F-05');
+  await page.locator('#sort-free').click();
+  await expect(page.locator('#booth-list .booth').first()).toHaveAttribute('id', 'booth-1F-05');
+  // ラッキーブースが終わったら、ふつうの並びに戻る（一覧のいちばん上を見ているとき。下まで読んでいる途中は、指の下が入れ替わらないよう並べ替えない決まり）
+  await page.evaluate(() => { window.scrollTo(0, 0); S.live.lucky.until = Date.now() - 1; renderLive(); });
+  await expect(page.locator('#booth-list .booth').first()).not.toHaveAttribute('id', 'booth-1F-05');
+  await page.evaluate(() => { S.live.lucky.until = Date.now() + 9 * 60000; renderLive(); });
+  // スタンプ帳の枠（まだ押していないとき）
+  await page.locator('#nav button[data-view="stamp"]').click();
+  await expect(page.locator('#stamp-grid .stamp[data-sid="1F-05"]')).toBeVisible();
+  expect(await page.locator('#stamp-grid .stamp[data-sid="1F-05"]').evaluate(el => getComputedStyle(el).borderTopColor)).toBe('rgb(217, 165, 20)');
+  // 詳細の札に、残り時間
+  await page.evaluate(() => openSheet('1F-05'));
+  await expect(page.locator('#bsh')).toBeVisible();
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector('#bsh .bsh-tags'), '::after').content)).toMatch(/ラッキーブース・あと(9|8)分/);
   expect(errors).toEqual([]);
 });
