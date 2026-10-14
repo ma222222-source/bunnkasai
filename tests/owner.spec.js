@@ -1014,7 +1014,7 @@ test('司令塔（v222）：PC の広い画面では、イベントの3枚・本
   await page.setViewportSize({ width: 1366, height: 768 });
   await ownerLogin(page, origin, 'event');
   const tops = sel => page.evaluate(s => [...document.querySelectorAll(s)].filter(e => e.offsetParent).map(e => { const r = e.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.left), Math.round(r.width)]; }), sel);
-  // タブを押した直後は、入りの動き（0.28秒）の途中で位置が動く。落ち着いてから測る（GitHub で 2px ずれて1回失敗した）
+  // タブを押した直後は、入りの動き（下から 12px・0.28秒）の途中で位置が動く。動きが終わってから測る（GitHub で1回失敗した）
   // （位置が止まって見えても、動きの終わり際は 1回の間に 1px も動かないので、動きそのものが終わるのを待つ。くり返しの動き＝点の点滅は数えない）
   const settled = async sel => {
     await page.waitForFunction(() => document.getAnimations().filter(an => an.playState === 'running' && isFinite(an.effect.getComputedTiming().endTime)).length === 0, null, { timeout: 5000 });
