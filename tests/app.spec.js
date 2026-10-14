@@ -2539,7 +2539,9 @@ test('一覧：下へ送ると検索・絞り込みの段が引っ込み、少�
   // 引っ込んでも、一覧の中身の位置は変わらない（場所は取ったまま、上へずらすだけ）
   expect(await cardsY()).toBe(y0);
   // 見出し（黒い帯）の下にもぐって、見えなくなっている
-  // 引っ込む動きが終わるのを待つ（決まった時間ではなく、終わるまで。重いときは 400ms では終わっていなかった）
+  // 下へ送ったぶんの scroll の合図が届ききるのを待つ（合図は1こまにまとめて届く。すぐ上へ戻すと、まとめた合図が「まだ下へ動いている」と読まれる。v228 で待ちを外して Linux の WebKit で落ちた）
+  await page.waitForTimeout(400);
+  // 引っ込む動きが終わるのを待つ（重いときは 400ms では終わっていなかった）
   await expect.poll(() => page.evaluate(() => {
     const h = document.querySelector('#v-list .list-head').getBoundingClientRect(), top = document.querySelector('.head').getBoundingClientRect().bottom;
     return h.bottom <= top + 1;
@@ -4466,4 +4468,16 @@ test('来場者の画面（v229）：見つからない検索の例・ラッキ�
   await expect(page.locator('#v-list')).toBeVisible();
   await expect.poll(() => page.locator('#booth-1F-05 .booth-nm .nm').evaluate(el => getComputedStyle(el, '::after').content), { timeout: 10000 }).toMatch(/ラッキー・あと(9|8)分/);
   expect(errors).toEqual([]);
+});
+
+/* ---------------- v230：地図の検索の例を1列に ---------------- */
+test('地図の検索の例（v230）：幅 390px で4つが1列に並ぶ', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.locator('#map-q').fill('ぜったいに無い名前');
+  await expect(page.locator('#map-sug .sg-ex button')).toHaveCount(4);
+  const tops = await page.locator('#map-sug .sg-ex button').evaluateAll(els => els.map(el => Math.round(el.getBoundingClientRect().top)));
+  expect(new Set(tops).size).toBe(1);
 });
