@@ -2539,12 +2539,11 @@ test('一覧：下へ送ると検索・絞り込みの段が引っ込み、少�
   // 引っ込んでも、一覧の中身の位置は変わらない（場所は取ったまま、上へずらすだけ）
   expect(await cardsY()).toBe(y0);
   // 見出し（黒い帯）の下にもぐって、見えなくなっている
-  await page.waitForTimeout(400);
-  const hidden = await page.evaluate(() => {
+  // 引っ込む動きが終わるのを待つ（決まった時間ではなく、終わるまで。重いときは 400ms では終わっていなかった）
+  await expect.poll(() => page.evaluate(() => {
     const h = document.querySelector('#v-list .list-head').getBoundingClientRect(), top = document.querySelector('.head').getBoundingClientRect().bottom;
     return h.bottom <= top + 1;
-  });
-  expect(hidden).toBe(true);
+  }), { timeout: 5000 }).toBe(true);
   // 少し上へ戻す → 出る
   await userScroll(-60, 1);
   await expect(head).not.toHaveClass(/tuck/);
@@ -2827,7 +2826,7 @@ test('「重厚」（暗い見た目）では、押した判子の下に紙の�
   await expect(page.locator('#sfx')).toBeVisible();
   expect(lum(await page.locator('#sfx .sfx-stamp .stamp-art').evaluate(el => getComputedStyle(el).backgroundColor))).toBeGreaterThan(0.8);
   await page.evaluate(() => showStampFx.close());
-  await expect(page.locator('#sfx')).toBeHidden({ timeout: 3000 });
+  await expect(page.locator('#sfx')).toBeHidden({ timeout: 8000 })   // 重いときは、とじる動きに3秒より長くかかった;
   // 「落ち着き」（明るい見た目）では敷かない
   await page.locator('#btn-theme').click();
   r = await bg();
@@ -4304,5 +4303,61 @@ test('ラッキーブース（v227）：地図の番号の丸が金色・一覧�
   await page.evaluate(() => openSheet('1F-05'));
   await expect(page.locator('#bsh')).toBeVisible();
   expect(await page.evaluate(() => getComputedStyle(document.querySelector('#bsh .bsh-tags'), '::after').content)).toMatch(/ラッキーブース・あと(9|8)分/);
+  expect(errors).toEqual([]);
+});
+
+/* ---------------- v228：来場者の画面の仕上げ ---------------- */
+test('ラッキーブース（v228）：始まりは帯を光らせるだけ（吹き出しを重ねない）・帯に階と部屋・残り2分で赤く・終わったら畳んで消す・スタンプ帳の札。詳細を開いているあいだの吹き出しは上に', async ({ page }) => {
+  const errors = watchErrors(page);
+  const live = { lucky: { id: 'luck0228', booth: '1F-05', at: Date.now() - 60000, until: Date.now() + 9 * 60000 } };
+  await mockGas(page, { mutate: j => { j.live = live; } });
+  await page.goto('/?tab=map');
+  await ready(page);
+  const bn = page.locator('#banner-lucky');
+  await expect(bn).toBeVisible();
+  await expect(bn).toHaveAttribute('data-flash', 'luck0228');
+  await expect(page.locator('#toast')).not.toContainText('ラッキーブース：');
+  // 小さい行：残り時間・階・部屋（1行に収める）
+  await expect(page.locator('#banner-lucky-left')).toHaveText(/^ラッキーブース・あと(9|8)分・1階 /);
+  expect(await page.locator('#banner-lucky-left').evaluate(el => getComputedStyle(el).whiteSpace)).toBe('nowrap');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  // 残り2分を切ったら赤く
+  await expect(bn).not.toHaveClass(/\bsoon\b/);
+  await page.evaluate(() => { S.live.lucky.until = Date.now() + 100000; renderLive(); });
+  await expect(bn).toHaveClass(/\bsoon\b/);
+  expect(await page.locator('#banner-lucky .lk-bar').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(192, 57, 43)');
+  await page.evaluate(() => { S.live.lucky.until = Date.now() + 9 * 60000; renderLive(); });
+  await expect(bn).not.toHaveClass(/\bsoon\b/);
+  // スタンプ帳：まだ押していないラッキーブースの枠に「ラッキー」の札
+  await page.locator('#nav button[data-view="stamp"]').click();
+  await expect(page.locator('#stamp-grid .stamp[data-sid="1F-05"]')).toBeVisible();
+  expect(await page.locator('#stamp-grid .stamp[data-sid="1F-05"]').evaluate(el => getComputedStyle(el, '::before').content)).toBe('"ラッキー"');
+  expect(await page.locator('#stamp-grid .stamp[data-sid="1F-02"]').evaluate(el => getComputedStyle(el, '::before').content)).toBe('none');
+  // 詳細を開いているあいだの吹き出しは、画面の上に（詳細のボタンを隠さない）
+  await page.locator('#nav button[data-view="map"]').click();
+  await page.evaluate(() => openSheet('1F-05'));
+  await expect(page.locator('#bsh')).toBeVisible();
+  await page.evaluate(() => toast('テストの知らせ'));
+  await expect(page.locator('#toast')).toHaveClass(/\bon\b/);
+  const tb = await page.locator('#toast').boundingBox();
+  expect(tb.y + tb.height).toBeLessThan(160);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#bsh')).toBeHidden();
+  // 名前の行頭の「（」を詰める（対応しているブラウザだけ）
+  const trim = await page.evaluate(() => {
+    if (!CSS.supports('text-spacing-trim', 'trim-start')) return 'skip';
+    const d = document.createElement('div'); d.className = 'booth-nm'; d.innerHTML = '<span class="nm">x</span>'; document.body.appendChild(d);
+    const v = getComputedStyle(d.firstChild).textSpacingTrim; d.remove(); return v;
+  });
+  expect(['trim-start', 'skip']).toContain(trim);
+  // 終わったら、畳んでから消す（その場で消さない）
+  await page.evaluate(() => { S.live.lucky.until = Date.now() - 1; renderLive(); });
+  await expect(bn).toBeHidden();
+  await expect(bn).toHaveClass(/\bhide\b/);
+  expect(await bn.evaluate(el => el.style.height)).toBe('');
+  // もう一度始まったら、また出る
+  await page.evaluate(() => { S.live.lucky = { id: 'luck0229', booth: '1F-05', at: Date.now(), until: Date.now() + 300000 }; renderLive(); });
+  await expect(bn).toBeVisible();
+  await expect(bn).toHaveAttribute('data-flash', 'luck0229');
   expect(errors).toEqual([]);
 });
