@@ -182,7 +182,8 @@ test('GAS の応答が遅くても（15秒）すぐに画面を操作できる',
   await expect(page.locator('#v-stamp')).toBeVisible();
   await page.locator('#nav').getByText('インフォ').click();
   await expect(page.locator('#v-info')).toBeVisible();
-  expect(Date.now() - t0).toBeLessThan(8000);
+  // 見たいのは「サーバーの返事（15秒後）を待たずに操作できる」こと。8秒で切っていたが、PC が重いと WebKit は開くだけで 8秒を超える（v221・v222 で 8.6秒）。返事より前、で見る
+  expect(Date.now() - t0).toBeLessThan(13000);
 });
 
 test('一度読めたあとは、電波が切れても最後の情報を出す', async ({ page, context }) => {
