@@ -383,7 +383,8 @@ test('地図の検索：何も打たずに押すと「最近見たブース」�
   await ready(page);
   await page.locator('#map-q').fill('旋盤');
   await page.locator('#map-sug button').first().click();
-  await expect(page.locator('#bsh')).toBeVisible();
+  // 候補を押すと、地図をその部屋へ寄せる動きのあとで詳細が開く。PC が重いと WebKit では 5秒をこえることがあった（v227 の手元の全件で1回）
+  await expect(page.locator('#bsh')).toBeVisible({ timeout: 10000 });
   await page.evaluate(() => closeSheet());
   await page.locator('#map-q').fill('');
   await page.locator('#map-q').blur();
