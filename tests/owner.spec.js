@@ -832,3 +832,156 @@ test('司令塔（v220）：本部は「お知らせ」がいちばん上で、�
   await expect(page.locator('#ownpane-setup .setup-card > summary')).toHaveText('地図でブースを割り当てる');
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v221：イベントを 係員・本部モニタ・ブースの詳細にも／ようすから止める・操作の記録・渡した印・のばす ---------------- */
+test('イベント（v221）：ラッキーブースは、係員の画面・本部モニタ・ブースの詳細にも出る。司令塔で「＋5分 のばす」（来場者に、もう一度は知らせない）・終わる1分前の知らせ・ようすから止める・さいきんの操作', async ({ page, browser, baseURL }) => {
+  test.setTimeout(120000);
+  const errors = watchErrors(page);
+  const { g, origin } = server(baseURL);
+  await bridge(page, g);
+  // 係員・本部モニタ・来場者
+  const A = await device(browser, g);
+  await A.page.addInitScript(() => localStorage.setItem('kuroko_adm_mode', JSON.stringify('flat')));
+  await staffLogin(A.page, origin, PASS);
+  await expect(A.page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
+  await expect(A.page.locator('#adm-live')).toBeHidden();
+  const B = await device(browser, g);
+  await B.page.setViewportSize({ width: 1366, height: 768 });
+  await B.page.goto(origin + '/?mode=board');
+  await loaded(B.page);
+  await expect(B.page.locator('#board-live')).toBeHidden();
+  const V = await visitor(browser, g);
+  await V.page.goto(origin + '/?tab=map');
+  await loaded(V.page);
+  // 司令塔：ラッキーブースをはじめる（10分）
+  await ownerLogin(page, origin, 'event');
+  await expect(page.locator('#own-lucky-more')).toBeHidden();
+  await page.locator('#own-lucky-booth').selectOption('1F-02');
+  accept(page);
+  await page.locator('#own-lucky-start').click();
+  await expect(page.locator('#own-lucky-now')).toContainText('光らせています', { timeout: 10000 });
+  await expect(page.locator('#own-lucky-more')).toBeVisible();
+  const id0 = g.__get().live.lucky.id, until0 = g.__get().live.lucky.until;
+  // 係員の画面：知らせと、そのブースのカードの輪
+  await A.page.evaluate(() => sync(false));
+  await expect(A.page.locator('#adm-live')).toBeVisible({ timeout: 10000 });
+  await expect(A.page.locator('#adm-live')).toContainText('ラッキーブース中：旋盤の加工実演');
+  await expect(A.page.locator('#adm-live')).toContainText('人が増えます');
+  expect(await A.page.evaluate(() => getComputedStyle(document.querySelector('.adm-booth[data-id="1F-02"]')).outlineColor)).toBe('rgb(217, 165, 20)');
+  await expect(A.page.locator('#lfx')).toHaveCount(0);
+  await expect(A.page.locator('#banner-lucky')).toBeHidden();                  // 来場者むけの帯は、係員の画面には出さない
+  // 本部モニタ
+  await B.page.evaluate(() => sync(false));
+  await expect(B.page.locator('#board-live')).toBeVisible({ timeout: 10000 });
+  await expect(B.page.locator('#board-live')).toContainText('ラッキーブース：旋盤の加工実演');
+  // 来場者：ブースの詳細にも札
+  await V.page.evaluate(() => sync(false));
+  await expect(V.page.locator('#banner-lucky')).toBeVisible({ timeout: 10000 });
+  await expect(V.page.locator('#toast')).toContainText('ラッキーブース：旋盤の加工実演');
+  await V.page.locator('#banner-lucky-go').click();
+  await expect(V.page.locator('.bsh-head h2')).toHaveText('旋盤の加工実演', { timeout: 10000 });
+  expect(await V.page.evaluate(() => getComputedStyle(document.querySelector('#bsh .bsh-tags'), '::after').content)).toContain('ラッキーブース');
+  await V.page.locator('#bsh-x').click();
+  await V.page.evaluate(() => openSheet('1F-03'));
+  await expect(V.page.locator('.bsh-head h2')).not.toHaveText('旋盤の加工実演');
+  expect(await V.page.evaluate(() => getComputedStyle(document.querySelector('#bsh .bsh-tags'), '::after').content)).not.toContain('ラッキーブース');
+  await V.page.locator('#bsh-x').click();
+  // ＋5分 のばす：終わりの時刻だけ のびる。番号は同じなので、来場者に もう一度は知らせない
+  await V.page.evaluate(() => { document.querySelector('#toast').textContent = ''; });
+  await page.locator('#own-lucky-more').click();
+  await expect(page.locator('#toast')).toContainText('5分のばしました', { timeout: 10000 });
+  expect(g.__get().live.lucky.id).toBe(id0);
+  expect(g.__get().live.lucky.until - until0).toBe(5 * 60000);
+  await V.page.evaluate(() => sync(false));
+  await expect(V.page.locator('#banner-lucky')).toContainText(/あと1[45]分/, { timeout: 10000 });
+  expect(await V.page.locator('#toast').textContent()).toBe('');
+  // 終わる1分前：司令塔に知らせ（1回だけ）。「5分のばす」で のばせる
+  await page.evaluate(() => { document.querySelector('#toast').textContent = ''; OWN.state.live.lucky.until = Date.now() + 50000; clearTimeout(OWN.timer); renderOwnLive(); });
+  await expect(page.locator('#toast')).toContainText('あと1分で終わります');
+  await expect(page.locator('#toast .toast-act')).toHaveText('5分のばす');
+  await page.evaluate(() => { document.querySelector('#toast').textContent = ''; renderOwnLive(); });
+  expect(await page.locator('#toast').textContent()).toBe('');
+  // ようす：出しているものを、その場で止める
+  await page.evaluate(() => ownRefresh(true));
+  await page.locator('#owntab-home').click();
+  await expect(page.locator('#own-now li')).toHaveCount(1);
+  accept(page);
+  await page.locator('#own-now [data-stop="lucky"]').click();
+  await expect(page.locator('#own-now')).toContainText('何も出していません', { timeout: 10000 });
+  expect(g.__get().live.lucky).toBeUndefined();
+  // お知らせ・一斉お知らせも、ようすから消せる
+  g.__post({ action: 'notice', token: await page.evaluate(() => ownToken()), text: '落とし物があります', level: 'info' });
+  g.__post({ action: 'owner_show', token: await page.evaluate(() => ownToken()), title: 'まもなく開場' });
+  await page.evaluate(async () => { await sync(false); await ownRefresh(true); });
+  await expect(page.locator('#own-now li')).toHaveCount(2, { timeout: 10000 });
+  accept(page);
+  await page.locator('#own-now [data-stop="show"]').click();
+  await expect(page.locator('#own-now li')).toHaveCount(1, { timeout: 10000 });
+  expect(g.__get().live.show).toBeUndefined();
+  accept(page);
+  await page.locator('#own-now [data-stop="notice"]').click();
+  await expect(page.locator('#own-now')).toContainText('何も出していません', { timeout: 10000 });
+  expect(g.__get().notice).toBeNull();
+  // さいきんの操作：新しい順
+  const log = page.locator('#own-log li');
+  await expect(page.locator('#own-log-card')).toBeVisible();
+  await expect(log.first()).toContainText('一斉お知らせを消した');
+  await expect(page.locator('#own-log')).toContainText('ラッキーブースを 5分 のばした');
+  await expect(page.locator('#own-log')).toContainText('ラッキーブース：旋盤の加工実演（10分）');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  // 係員の画面・本部モニタからも消える
+  await A.page.evaluate(() => sync(false));
+  await expect(A.page.locator('#adm-live')).toBeHidden({ timeout: 10000 });
+  await B.page.evaluate(() => sync(false));
+  await expect(B.page.locator('#board-live')).toBeHidden({ timeout: 10000 });
+  await A.ctx.close(); await B.ctx.close(); await V.ctx.close();
+  expect(errors).toEqual([]);
+});
+
+test('抽選（v221）：当たった人に「渡した」の印を付けられる。開き直しても残る。新しい抽選では、付いていない。係員の画面の下は、線で区切ってある', async ({ page, browser, baseURL }) => {
+  const errors = watchErrors(page);
+  const { g, origin } = server(baseURL);
+  const now = Date.now();
+  ['AAAA1111', 'BBBB2222', 'CCCC3333'].forEach(c => g.__post({ action: 'ledger', cid: c, ev: ['1F-02', '1F-03', '2F-12'].map(id => ({ t: 's', id, at: now })) }));
+  await bridge(page, g);
+  await ownerLogin(page, origin, 'event');
+  await page.locator('#own-draw-n [data-v="3"]').click();
+  accept(page);
+  await page.locator('#own-draw-go').click();
+  const rows = page.locator('#own-draw-res li');
+  await expect(rows).toHaveCount(3, { timeout: 10000 });
+  await expect(rows.nth(1).locator('[data-given]')).toHaveAttribute('aria-pressed', 'false');
+  await rows.nth(1).locator('[data-given]').click();
+  await expect(rows.nth(1)).toHaveClass(/given/);
+  await expect(rows.nth(1).locator('[data-given]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(rows.nth(1).locator('[data-given]')).toContainText('✓');
+  await expect(rows.nth(0)).not.toHaveClass(/given/);
+  // この端末に覚えるのは「何番目か」だけ（スタンプ番号は覚えない）
+  const saved = await page.evaluate(() => localStorage.getItem('kuroko_own_given'));
+  expect(JSON.parse(saved).i).toEqual([1]);
+  expect(/[A-Z]{4}\d{4}/.test(saved)).toBe(false);
+  // 開き直しても残る。もう一度押すと外れる
+  await page.reload();
+  await expect(page.locator('#own-main')).toBeVisible({ timeout: 10000 });
+  await expect(rows.nth(1)).toHaveClass(/given/);
+  await rows.nth(1).locator('[data-given]').click();
+  await expect(rows.nth(1)).not.toHaveClass(/given/);
+  await rows.nth(0).locator('[data-given]').click();
+  // 新しい抽選（前に当たった人も入れる）では、印は付いていない
+  await page.locator('#own-draw-again').check();
+  accept(page);
+  await page.locator('#own-draw-go').click();
+  await expect(page.locator('#toast')).toContainText('抽選しました', { timeout: 10000 });
+  await expect(page.locator('#own-draw-res li.given')).toHaveCount(0);
+  // 係員の画面の下：ログアウトと司令塔への入口。上と線で区切り、説明は読める大きさ
+  const A = await device(browser, g);
+  await staffLogin(A.page, origin, PASS);
+  await expect(A.page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
+  const foot = await A.page.evaluate(() => { const f = document.querySelector('.adm-foot'), cs = getComputedStyle(f), h = getComputedStyle(f.querySelector('.adm-hint'));
+    return { line: parseFloat(cs.borderTopWidth), hint: parseFloat(h.fontSize), btn: [...f.querySelectorAll('button')].map(b => b.offsetHeight) }; });
+  expect(foot.line).toBeGreaterThanOrEqual(1);
+  expect(foot.hint).toBeGreaterThanOrEqual(11);
+  expect(Math.min(...foot.btn)).toBeGreaterThanOrEqual(44);
+  await A.ctx.close();
+  expect(errors).toEqual([]);
+});
