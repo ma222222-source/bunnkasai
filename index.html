@@ -1877,11 +1877,30 @@ html.lite .hero-gear{animation:none}
 @media (max-height:480px) and (orientation:landscape){ .hero{padding:12px 14px} .hero-title{font-size:22px} .hero-day b{font-size:18px} }
 /* ---- v206：地図の左下のボタン。開いた直後は「全体」だけ（左の角）。動かしたら、その右に「ブースに寄せる」が出る ---- */
 #map-card.gmap .map-fit-ctl #zoom-reset{order:-1}
+/* ==== v230：係員の画面の仕上げ（階のボタン・検索欄・送る前の色・長い名前・0人の−・状態のボタンの色）。検索の例を1列に、は v229 の決まりの中で直す ==== */
+/* ②担当ブースの検索欄：名前を打つ欄なので、左寄せ・ふつうの字の間（合言葉の欄の見た目のままだった） */
+#assign-q{text-align:left;letter-spacing:normal;font-weight:700}
+#assign-q::placeholder{letter-spacing:normal}
+/* ③「送ると：」に、送ったあとの状態の色の印（数えた人数で、何色になるかが先に分かる） */
+.adm-preview[data-lv]::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px;
+  background:var(--free);box-shadow:0 0 0 2px color-mix(in srgb,var(--free) 25%,transparent)}
+.adm-preview[data-lv="1"]::before{background:var(--warn);box-shadow:0 0 0 2px color-mix(in srgb,var(--warn) 25%,transparent)}
+.adm-preview[data-lv="2"]::before{background:var(--busy);box-shadow:0 0 0 2px color-mix(in srgb,var(--busy) 25%,transparent)}
+/* ④長いブース名は2行まで（「めんずお茶会クラブ（機械科3…」と切れて、どのブースか見分けにくかった） */
+.adm-nm{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.35;
+  word-break:auto-phrase;overflow-wrap:anywhere;flex:0 1 auto}
+/* ⑤0人のときの「−1」「−5」は、押しても変わらないので薄く */
+.adm-wait:has(.adm-wait-n[data-n="0"]) .step[data-step^="-"]{opacity:.38;cursor:default}
+/* ⑥「空き・やや混雑・混雑」のボタンに、その状態の色の線（えらぶ前から、どれがどの色か分かる） */
+.adm-btns button[data-lv]{box-shadow:inset 0 -3px 0 var(--free)}
+.adm-btns button[data-lv="1"]{box-shadow:inset 0 -3px 0 var(--warn)}
+.adm-btns button[data-lv="2"]{box-shadow:inset 0 -3px 0 var(--busy)}
+.adm-btns button[data-sel="1"]{box-shadow:none}
 /* ==== v229：来場者の画面の仕上げ・2（地図の札の折り返し・検索の例・詳細の前と次・見出しの札） ==== */
 /* ②地図の検索で見つからないとき、押せる例（打ち直さなくても、さがせる言葉が分かる） */
-.map-sug .sg-ex{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:0 14px 12px}
+.map-sug .sg-ex{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:0 12px 12px}   /* v230：390px の幅で4つが1列に */
 .map-sug .sg-ex > span{font-size:12px;font-weight:800;color:var(--text-dim);margin-right:2px}
-.map-sug .sg-ex button{display:inline-flex;align-items:center;width:auto;min-height:44px;padding:0 16px;gap:0;border-radius:999px;
+.map-sug .sg-ex button{display:inline-flex;align-items:center;width:auto;min-height:44px;padding:0 11px;gap:0;border-radius:999px;
   border:1.5px solid var(--border-strong);background:var(--surface-2);color:var(--text);font-size:13px;font-weight:800}
 /* ③ラッキーブースの帯は、どこを押しても、そのブースへ（「見る」だけでなく） */
 .banner.lucky{cursor:pointer}
@@ -4684,7 +4703,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-14n',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-14o',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -14153,7 +14172,7 @@ function renderAssign(){
         const n = g.items.filter(b => S.assigned.has(b.id)).length;
         const open = S.assignGrp === g.k;
         return `<button class="chip as-grp" data-asg="${esc(g.k)}" aria-expanded="${open}" style="--g:${esc(g.c || '')}"
-            ><i aria-hidden="true"></i>${esc(g.label)} <b>${g.items.length}${n ? `・${n}選択中` : ''}</b></button>` +
+            >${g.c ? '<i aria-hidden="true"></i>' : ''}${esc(g.label)} <b>${g.items.length}${n ? `・${n}選択中` : ''}</b></button>` +
           (open ? `<div class="as-sub">${g.items.length > 1
               ? `<button class="chip" data-asall="${esc(g.k)}">${gm === 'floor' ? 'この階' : g.k.startsWith('d:') ? 'この科・棟' : 'この場所'}をぜんぶ</button>` : ''}${
               (() => {
@@ -14630,9 +14649,10 @@ function admPreview(card, n){
   if (!el) return;
   el.classList.remove('warn');
   const b = S.booths.find(x => x.id === card.dataset.id);
-  if (!b || n == null){ el.textContent = ''; return; }
+  if (!b || n == null){ el.textContent = ''; el.removeAttribute('data-lv'); return; }
   const th = S.waitTh || { warn:6, busy:16 };
   const lvName = n >= th.busy ? '混雑' : n >= th.warn ? 'やや混雑' : '空き';
+  el.dataset.lv = n >= th.busy ? '2' : n >= th.warn ? '1' : '0';          // v230：その状態の色の印
   const P = CONFIG.PACE_SEC || {};
   const sec = P[b.category] != null ? P[b.category] : (P._default || 45);
   const m = sec ? Math.round(n * sec / 60) : 0;
@@ -14727,7 +14747,7 @@ async function update(id, status, wait, retry){
     if (isFinite(t) && Date.now() - t < 60000 && Math.abs(t - mine) > 15000){
       // 送ったあとの「元に戻す」の通知と取り合わないよう、カードの中（人数の下）に出す
       const pv = document.querySelector(`.adm-booth[data-id="${CSS.escape(id)}"] .adm-preview`);
-      if (pv){ pv.textContent = `⚠ ${Math.max(1, Math.round((Date.now() - t) / 1000))}秒前にほかの端末からも更新されています。同じブースを2人で受け持っていないか確かめてください`; pv.classList.add('warn'); }
+      if (pv){ pv.textContent = `⚠ ${Math.max(1, Math.round((Date.now() - t) / 1000))}秒前にほかの端末からも更新されています。同じブースを2人で受け持っていないか確かめてください`; pv.classList.add('warn'); pv.removeAttribute('data-lv'); }
     }
   }
   S.mySent = S.mySent || {};

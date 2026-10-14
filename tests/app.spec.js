@@ -4469,3 +4469,15 @@ test('来場者の画面（v229）：見つからない検索の例・ラッキ�
   await expect.poll(() => page.locator('#booth-1F-05 .booth-nm .nm').evaluate(el => getComputedStyle(el, '::after').content), { timeout: 10000 }).toMatch(/ラッキー・あと(9|8)分/);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v230：地図の検索の例を1列に ---------------- */
+test('地図の検索の例（v230）：幅 390px で4つが1列に並ぶ', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.locator('#map-q').fill('ぜったいに無い名前');
+  await expect(page.locator('#map-sug .sg-ex button')).toHaveCount(4);
+  const tops = await page.locator('#map-sug .sg-ex button').evaluateAll(els => els.map(el => Math.round(el.getBoundingClientRect().top)));
+  expect(new Set(tops).size).toBe(1);
+});

@@ -391,3 +391,42 @@ test('⑥⑦本部：止まっているブースが全部で何件か（出す�
   await expect(sum).toContainText('まだ、どのブースも更新されていません');
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v230：係員の画面の仕上げ ---------------- */
+test('係員の画面（v230）：階のボタンが1列・検索欄は左寄せ・送る前の色の印・長い名前は2行・0人の「−」は薄い・状態のボタンの色の線', async ({ page }) => {
+  const errors = watchErrors(page);
+  await login(page);
+  // ①「すべて表示・1階・2階・3階」が1列に並ぶ（階のボタンに空の丸を置かない）
+  const rowOf = () => page.evaluate(() => Array.from(document.querySelectorAll('#assign-chips > .chip')).map(el => Math.round(el.getBoundingClientRect().top)));
+  expect((await rowOf()).length).toBe(4);
+  await expect.poll(async () => new Set(await rowOf()).size, { message: JSON.stringify(await page.evaluate(() => Array.from(document.querySelectorAll('#assign-chips > .chip')).map(el => [el.textContent.trim(), Math.round(el.getBoundingClientRect().width), Math.round(el.getBoundingClientRect().top)]))) }).toBe(1);
+  expect(await page.locator('#assign-chips .as-grp i').count()).toBe(0);
+  // ②担当ブースの検索欄は左寄せ・ふつうの字の間
+  expect(await page.locator('#assign-q').evaluate(el => [getComputedStyle(el).textAlign, getComputedStyle(el).letterSpacing])).toEqual(['left', 'normal']);
+  const card = page.locator('#admin-list .adm-booth').first();
+  // ⑤0人のときの「−」は薄い。1人にすると戻る
+  const op = () => card.locator('[data-step="-1"]').evaluate(el => Number(getComputedStyle(el).opacity));
+  expect(await op()).toBeLessThan(0.5);
+  await card.locator('[data-step="1"]').click();
+  expect(await op()).toBe(1);
+  // ③送る前の色の印：人数で 空き → やや混雑 → 混雑
+  const pv = card.locator('.adm-preview');
+  await expect(pv).toHaveAttribute('data-lv', '0');
+  await card.locator('[data-step="5"]').click();
+  await expect(pv).toHaveAttribute('data-lv', '1');
+  await card.locator('[data-step="5"]').click();
+  await card.locator('[data-step="5"]').click();
+  await expect(pv).toHaveAttribute('data-lv', '2');
+  expect(await pv.evaluate(el => getComputedStyle(el, '::before').backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
+  // ⑥状態のボタンに、その色の線
+  const sh = await card.locator('.adm-btns button').evaluateAll(els => els.map(el => getComputedStyle(el).boxShadow));
+  expect(sh.every(x => /inset/.test(x))).toBe(true);
+  expect(new Set(sh).size).toBe(3);
+  // ④長いブース名は2行まで（1行で「…」にしない）。どのカードも名前が切れていない
+  const cut = await page.evaluate(() => Array.from(document.querySelectorAll('#admin-list .adm-nm')).filter(el => el.scrollHeight > el.clientHeight + 2).map(el => el.textContent));
+  expect(cut).toEqual([]);
+  const tall = await page.evaluate(() => Math.max(...Array.from(document.querySelectorAll('#admin-list .adm-nm')).map(el => Math.round(el.getBoundingClientRect().height))));
+  expect(tall).toBeGreaterThan(20);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  expect(errors).toEqual([]);
+});
