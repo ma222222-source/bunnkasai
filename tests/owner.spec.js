@@ -1357,3 +1357,54 @@ test('司令塔（v225）：ようすに「いま混んでいるブース」と�
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v226：キーボード・読み上げ ---------------- */
+test('司令塔（v226）：入ったらフォーカスは選んでいるタブ。タブは矢印キー・Home・End で移れる（選んでいないタブは Tab で飛ばす）。数字の意味を読み上げる。見出し・グラフの説明。係員のタブも矢印キーで', async ({ page, browser, baseURL }) => {
+  const errors = watchErrors(page);
+  const { g, origin } = server(baseURL);
+  g.__post({ action: 'update', pass: PASS, cid: 'aaaa1111aaaa', id: '1F-02', wait: 25 });
+  await bridge(page, g);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + '/?mode=owner');
+  await page.locator('#own-pw').fill(OWNER);
+  await page.locator('#own-pw').press('Enter');
+  await expect(page.locator('#own-main')).toBeVisible({ timeout: 10000 });
+  // 入ったら、フォーカスは選んでいるタブ（押した「入る」は消えている）
+  await expect(page.locator('#owntab-home')).toBeFocused();
+  const tabIdx = () => page.evaluate(() => [...document.querySelectorAll('.own-tabs [role="tab"]')].map(t => t.tabIndex));
+  expect(await tabIdx()).toEqual([0, -1, -1, -1, -1]);
+  // 矢印キー → 次のタブを開く。End → 最後。Home → 最初。左の端から ← → 最後へ回る
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('#owntab-event')).toBeFocused();
+  await expect(page.locator('#owntab-event')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#ownpane-event')).toBeVisible();
+  expect(await tabIdx()).toEqual([-1, 0, -1, -1, -1]);
+  await page.keyboard.press('End');
+  await expect(page.locator('#owntab-setup')).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('Home');
+  await expect(page.locator('#owntab-home')).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.locator('#owntab-setup')).toBeFocused();
+  // 数字の意味（本部に、止まっているブースの数）
+  const stale = await page.evaluate(() => S.booths.filter(b => isVenue(b) && lvOf(b).lv !== 3 && elapsedMin(b) >= CONFIG.ADMIN_WARN_MIN).length);
+  await expect(page.locator('#owntab-hq')).toHaveAttribute('aria-label', `本部（更新が止まっているブース ${stale}件）`);
+  await expect(page.locator('#owntab-staff')).toHaveAttribute('aria-label', '係員');
+  // 札の見出しは、見出しとして読める
+  expect(await page.evaluate(() => [...document.querySelectorAll('#v-owner .card-t')].every(e => e.getAttribute('role') === 'heading' && e.getAttribute('aria-level') === '3'))).toBe(true);
+  // 3時間のグラフの説明（時刻ごとの数）
+  await page.evaluate(() => { const d = new Date(nowMs() - 30 * 60000), hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); S.booths.slice(0, 4).forEach(b => { b.history = [{ t: hm, lv: 2 }]; }); renderOwnLive(); });
+  await expect(page.locator('#own-tiles .own-trend')).toHaveAttribute('aria-label', /^この3時間の混み具合：.*いま 混雑\d+・やや混雑\d+$/);
+  // 係員のタブも、矢印キーで
+  const A = await device(browser, g);
+  await staffLogin(A.page, origin, PASS);
+  await expect(A.page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
+  await A.page.locator('#admtab-update').click();
+  await A.page.locator('#admtab-update').focus();
+  await A.page.keyboard.press('ArrowRight');
+  await expect(A.page.locator('#admtab-recept')).toBeFocused();
+  await expect(A.page.locator('#admtab-recept')).toHaveAttribute('aria-selected', 'true');
+  await expect(A.page.locator('#admpane-recept')).toBeVisible();
+  expect(await A.page.evaluate(() => [...document.querySelectorAll('.adm-tabs [role="tab"]')].map(t => t.tabIndex))).toEqual([-1, 0]);
+  await A.ctx.close();
+  expect(errors).toEqual([]);
+});
