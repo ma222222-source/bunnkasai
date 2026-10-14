@@ -47,7 +47,7 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-10-14c';
+var GAS_VERSION = '2026-10-14d';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
@@ -2247,6 +2247,7 @@ function ownerStateOut_() {
   return { ok: true, approval: ap.on, devices: devList_(), keys: ownerKeysPublic_(),
     passLen: ap0.length, passAt: props_().getProperty('ADMIN_PASS_AT') || '',
     live: liveOwner_(),
+    log: ownerLog_(),                  // v221：さいきんの操作（新しい順に8件）
     rpId: rpIdOf_(ownerOrigins_()[0]), sessionSec: OWNER_SESSION_SEC, sv: GAS_VERSION };
 }
 
@@ -2329,6 +2330,18 @@ function drawPick_(min, n, exclude) {
   }
   return { winners: winners, elig: elig };
 }
+/** v221：司令塔の記録の、新しい方から8件（いつ・何をしたか。パスワードやスタンプ番号は、もともと記録に入れていない） */
+function ownerLog_() {
+  try {
+    var sh = ss_().getSheetByName('司令塔の記録');
+    if (!sh || sh.getLastRow() < 2) return [];
+    var n = Math.min(8, sh.getLastRow() - 1);
+    return sh.getRange(sh.getLastRow() - n + 1, 1, n, 2).getValues().map(function (r) {
+      var d = r[0] instanceof Date ? r[0] : new Date(r[0]);
+      return { t: isNaN(d.getTime()) ? '' : d.toISOString(), what: cut_(String(r[1] == null ? '' : r[1]), 80) };
+    }).reverse();
+  } catch (e) { return []; }
+}
 function liveLog_(what) {
   try { appendTo_('司令塔の記録', ['timestamp', 'what'], [new Date(), safeText_(what)]); } catch (eW) {}
 }
@@ -2348,6 +2361,20 @@ function liveApi_(action, body) {
     });
   }
   if (action === 'owner_lucky') {
+    // v221：のばす（extend：分）。番号 id はそのまま（来場者に、もう一度は知らせない）。いまから 60分より先へは のばさない
+    if (body.extend != null) {
+      var ext = Math.round(Number(body.extend));
+      if (!isFinite(ext) || ext < 1 || ext > 30) throw new Error('bad request: のばす時間は 1〜30分にしてください');
+      return withLock_(function () {
+        var oE = liveRead_(), nowE = Date.now();
+        if (!oE.lucky || !(oE.lucky.until > nowE)) throw new Error('bad request: いま、ラッキーブースは出ていません');
+        oE.lucky.until = Math.min(oE.lucky.until + ext * 60000, nowE + 60 * 60000);
+        liveSave_(oE);
+        liveLog_('ラッキーブースを ' + ext + '分 のばした');
+        clearCache_();
+        return ownerStateOut_();
+      });
+    }
     var booth = cleanBoothId_(body.booth);
     var minutes = Math.round(Number(body.minutes));
     if (body.booth && !booth) throw new Error('bad request: ブースの id の形が違います');

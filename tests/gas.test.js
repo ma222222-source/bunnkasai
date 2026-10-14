@@ -1002,3 +1002,54 @@ test('v220 抽選の下見（dry）：いまの対象の人数だけを返す。
   assert.strictEqual(g.__post({ action: 'owner_draw', ...T, min: 3, n: 1, dry: true, again: true }).elig, 2);
   assert.strictEqual(JSON.parse(g.__props.LIVE).draw.winners[0].cid, w, '下見で、当たりは変わらない');
 });
+
+/* ---------------- v221：ラッキーブースをのばす／さいきんの操作 ---------------- */
+test('v221 ラッキーブースをのばす（extend）：番号 id はそのまま、終わりの時刻だけ のびる。いまから60分より先へは のばさない。出ていないときは断る', () => {
+  const g = freshOwner();
+  const T = { token: ownerIn(g) };
+  assert.match(g.__post({ action: 'owner_lucky', ...T, extend: 5 }).error, /^bad request: .*出ていません/);
+  const a = g.__post({ action: 'owner_lucky', ...T, booth: '1F-02', minutes: 10 }).live.lucky;
+  const b = g.__post({ action: 'owner_lucky', ...T, extend: 5 }).live.lucky;
+  assert.strictEqual(b.id, a.id, '番号は変えない（来場者に、もう一度は知らせない）');
+  assert.strictEqual(b.booth, '1F-02');
+  assert.strictEqual(b.until - a.until, 5 * 60000);
+  assert.strictEqual(g.__get().live.lucky.until, b.until, '来場者への返事にも、のびた時刻');
+  assert.match(g.__post({ action: 'owner_lucky', ...T, extend: 0 }).error, /^bad request: .*1〜30分/);
+  assert.match(g.__post({ action: 'owner_lucky', ...T, extend: 99 }).error, /^bad request/);
+  assert.match(g.__post({ action: 'owner_lucky', pass: PASS, extend: 5 }).error, /^owner session/);
+  // 何度のばしても、いまから60分より先へは行かない
+  let last = b;
+  for (let i = 0; i < 5; i++) last = g.__post({ action: 'owner_lucky', ...T, extend: 30 }).live.lucky;
+  assert.ok(last.until - Date.now() <= 60 * 60000 + 2000, String(last.until - Date.now()));
+  assert.ok(last.until - Date.now() > 55 * 60000);
+  // 終わらせたあとは、のばせない
+  g.__post({ action: 'owner_lucky', ...T, booth: '' });
+  assert.match(g.__post({ action: 'owner_lucky', ...T, extend: 5 }).error, /出ていません/);
+});
+
+test('v221 さいきんの操作（log）：司令塔の状態に、新しい順に8件まで。番号・パスワードは入らない', () => {
+  const g = freshOwner();
+  const T = { token: ownerIn(g) };
+  assert.deepStrictEqual(g.__post({ action: 'owner_state', ...T }).log, []);
+  g.__post({ action: 'owner_show', ...T, title: 'ひとつめ' });
+  g.__post({ action: 'owner_lucky', ...T, booth: '1F-02', minutes: 10 });
+  g.__post({ action: 'owner_lucky', ...T, extend: 5 });
+  const NEWPASS = 'atarashii-pass-2026';
+  g.__post({ action: 'owner_set_pass', ...T, pass: NEWPASS });
+  g.__post({ action: 'ledger', cid: 'AAAA1111', ev: [{ t: 's', id: '1F-02', at: Date.now() }] });
+  const st = g.__post({ action: 'owner_draw', ...T, min: 1, n: 1 });
+  const log = st.log;
+  assert.strictEqual(log.length, 5);
+  assert.match(log[0].what, /^抽選：1人が当たり/);                 // 新しいものが先
+  assert.match(log[4].what, /^一斉お知らせ：ひとつめ/);
+  assert.ok(log.every(x => !isNaN(Date.parse(x.t))));
+  const text = JSON.stringify(log);
+  assert.ok(!text.includes('AAAA1111') && !text.includes(NEWPASS) && !text.includes(OWNER));
+  // 8件まで
+  for (let i = 0; i < 9; i++) g.__post({ action: 'owner_show', ...T, title: 'お知らせ' + i });
+  const log2 = g.__post({ action: 'owner_state', ...T }).log;
+  assert.strictEqual(log2.length, 8);
+  assert.match(log2[0].what, /お知らせ8/);
+  // 司令塔に入っていない人には返さない
+  assert.match(g.__post({ action: 'owner_state', pass: PASS }).error, /^owner session/);
+});
