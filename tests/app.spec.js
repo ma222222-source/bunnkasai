@@ -4481,3 +4481,62 @@ test('地図の検索の例（v230）：幅 390px で4つが1列に並ぶ', asyn
   const tops = await page.locator('#map-sug .sg-ex button').evaluateAll(els => els.map(el => Math.round(el.getBoundingClientRect().top)));
   expect(new Set(tops).size).toBe(1);
 });
+
+/* ---------------- v231：本部モニタの仕上げ ---------------- */
+test('本部モニタ（v231）：広い画面で名前の字が大きい・ページが替わると札が順に入る・このページのブースを地図でふちどる・番号の丸・色の見かた・階のまとめ・止まった札の明滅', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const errors = watchErrors(page);
+  // 1ページ目（30枚）が出る時刻から始める
+  const t0 = Math.floor(Date.parse('2026-10-24T11:20:00+09:00') / 40000) * 40000 + 1000;
+  await page.clock.install({ time: new Date(t0) });
+  await mockGas(page);
+  await page.goto('/?mode=board');
+  await ready(page);
+  await expect(page.locator('#board-grid .btile')).toHaveCount(30);
+  // ①広い画面：16枚のページの名前は 16px 以上（以前は 14px が上限）。30枚のページでも 13px 以上
+  expect(await page.locator('#board-grid .bt-nm').first().evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(13);
+  // ③地図：このページ（1ページ目）のブースだけ、ふちどる。ほかは薄い
+  const pg1 = await page.evaluate(() => [...document.querySelectorAll('#board-grid .btile')].map(t => t.dataset.id));
+  const ring = await page.evaluate(() => [...document.querySelectorAll('#board-maps .room')].map(g => ({ id: g.dataset.id, pg: g.classList.contains('pg'), op: Number(getComputedStyle(g.querySelector('.fill')).opacity) })));
+  expect(ring.filter(r => r.pg).map(r => r.id).sort()).toEqual(pg1.slice().sort());
+  expect(ring.filter(r => !r.pg).every(r => r.op < 0.5)).toBe(true);
+  // ⑥地図の見出しは「1階」のまま。横に、その階のまとめ（数の合計は、その階の空き・やや混雑・混雑の数）
+  const hd = await page.evaluate(() => [...document.querySelectorAll('#board-maps .bm')].map(b => ({ h: b.querySelector('h3').textContent, s: (b.querySelector('.bm-hd small') || {}).textContent || '' })));
+  expect(hd.map(x => x.h)).toEqual(['1階', '2階', '3階']);
+  const want = await page.evaluate(() => [1, 2, 3].map(f => [0, 1, 2].map(lv => S.booths.filter(b => floorOfBooth(b) === f && lvOf(b).lv === lv).length)));
+  hd.forEach((x, i) => { [0, 1, 2].forEach(lv => { if (want[i][lv]) expect(x.s).toContain(['空き', 'やや混雑', '混雑'][lv] + ' ' + want[i][lv]); }); });
+  // ⑦更新が止まって長い札は、ふちが明滅する
+  const dangerAnim = await page.evaluate(() => { const d = document.querySelector('#board-grid .btile[data-fresh="danger"]'); return d ? getComputedStyle(d).animationName : 'none-found'; });
+  expect(['bt-stale', 'none-found']).toContain(dangerAnim);
+  // 1ページ目は全部うまっているので、色の見かたは出さない
+  await expect(page.locator('#board-grid .bt-legend')).toHaveCount(0);
+  // ②ページが替わる（20秒）→ 札が順に入る。⑤最後のページの空きに、色の見かた
+  // 「札が順に入る」印は 1.8 秒で外す。時計を早送りすると外れたあとになるので、付いたことを記録して見る
+  await page.evaluate(() => { window.__turned = 0; new MutationObserver(() => { if (document.getElementById('board-grid').classList.contains('turned')) window.__turned++; }).observe(document.getElementById('board-grid'), { attributes: true, attributeFilter: ['class'] }); });
+  await page.clock.runFor(21000);
+  await expect(page.locator('#board-sub')).toContainText('2 / 2ページ', { timeout: 10000 });
+  await expect.poll(() => page.evaluate(() => window.__turned)).toBeGreaterThan(0);
+  await expect(page.locator('#board-grid .btile')).toHaveCount(16);
+  const lg = page.locator('#board-grid .bt-legend');
+  await expect(lg).toHaveCount(1);
+  await expect(lg).toContainText('色の見かた');
+  for (const w of ['空き', 'やや混雑', '混雑', '準備中']) await expect(lg).toContainText(w);
+  expect(await page.locator('#board-grid .bt-nm').first().evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
+  // ④番号は丸い地の上。名前は丸の下にもぐらない
+  const ov = await page.evaluate(() => [...document.querySelectorAll('#board-grid .btile')].filter(t => {
+    const n = t.querySelector('.bt-no').getBoundingClientRect(), m = t.querySelector('.bt-nm').getBoundingClientRect();
+    return m.right > n.left + 1 && m.top < n.bottom - 1;
+  }).map(t => t.dataset.id));
+  expect(ov).toEqual([]);
+  expect(await page.locator('#board-grid .bt-no').first().evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
+  // 地図のふちどりも、2ページ目のブースに替わる
+  const pg2 = await page.evaluate(() => [...document.querySelectorAll('#board-grid .btile')].map(t => t.dataset.id).sort());
+  expect(await page.evaluate(() => [...document.querySelectorAll('#board-maps .room.pg')].map(g => g.dataset.id).sort())).toEqual(pg2);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  // 1280×800 でも、色の見かたの札が画面からはみ出さない
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForTimeout(300);
+  const lb = await lg.boundingBox();
+  expect(lb.y + lb.height).toBeLessThanOrEqual(800 + 1);
+  expect(errors).toEqual([]);
+});

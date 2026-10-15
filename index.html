@@ -3695,6 +3695,51 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
     linear-gradient(#000,#000) top/.2mm 3mm no-repeat,linear-gradient(#000,#000) bottom/.2mm 3mm no-repeat;width:.2mm;
     -webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+/* ==== v231：本部モニタの仕上げ（広い画面の字・ページの替わり目・地図との対応・番号・色の見かた・階のまとめ・止まった札） ==== */
+/* 本部モニタの決まりより後ろに置く（同じ強さの決まりは、後ろが勝つ） */
+/* ①広い画面（1600px 以上。教室の大きいテレビ）では、ブース名・場所の字を大きく。遠くから読めなかった（1920px でも 14px） */
+@media (min-width:1600px){
+  .bt-nm{font-size:clamp(17px,1.1vw,24px)}
+  .board-grid.d2 .bt-nm{font-size:clamp(14px,.95vw,20px)}
+  .board-grid.d3 .bt-nm{font-size:clamp(12px,.78vw,16px)}
+  .board-grid.d2 .bt-loc{font-size:clamp(11px,.66vw,14px)}
+  .bt-age,.board-grid.d3 .bt-age{font-size:clamp(11px,.62vw,13px)}
+}
+/* ②ページが替わったとき、札が順にすっと入る（替わったことに気づける。20秒ごとの切り替えのときだけ） */
+@keyframes bt-turn{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+.board-grid.turned .btile,.board-grid.turned .bt-legend{animation:bt-turn .45s var(--ease) both;animation-delay:calc(var(--i,0) * 22ms)}
+/* ③このページに出ているブースを、右の地図でふちどる（ほかは少し薄く）。どの札が地図のどこかが分かる */
+.bm.pgm .room .fill{transition:opacity .4s ease}
+.bm.pgm .room:not(.pg) .fill{opacity:.32}
+.bm.pgm .room.pg .fill{stroke:var(--text);stroke-width:2.4}
+/* ④札の番号を、丸い地の上に大きく（係員に「31番」と呼びかけやすい） */
+.bt-no{padding:1px 8px;border-radius:999px;background:var(--surface-2);color:var(--text-dim);font-size:clamp(11px,.8vw,16px);line-height:1.5}
+.board-grid.d3 .bt-no{padding:0;background:none;font-size:9px;line-height:1.2}     /* 30枚のときは今までどおり（名前の幅を取らない） */
+/* 名前は丸の下にもぐらせない（丸のぶん、右を空ける） */
+.btile .bt-head{padding-right:clamp(34px,2.9vw,52px)}
+.board-grid.d3 .btile .bt-head{padding-right:0}
+@media (max-height:820px){ .bt-legend{flex-direction:row;flex-wrap:wrap;align-items:center;column-gap:12px;row-gap:2px;padding:8px 12px} .bt-legend b{width:100%} }
+/* ⑤最後のページの空いた場所に、色の見かた（凡例）の札 */
+.bt-legend{border-radius:var(--r-lg);padding:clamp(10px,1vw,16px);border:1.5px dashed var(--border-strong);
+  display:flex;flex-direction:column;justify-content:center;gap:clamp(4px,.5vw,8px);font-size:clamp(11px,.85vw,16px);font-weight:800;color:var(--text-dim)}
+.bt-legend b{font-size:clamp(11px,.8vw,15px);font-weight:900;color:var(--text)}
+.bt-legend span{display:flex;align-items:center;gap:8px}
+.bt-legend i{flex:none;width:clamp(12px,1vw,18px);height:clamp(12px,1vw,18px);border-radius:4px;background:var(--unknown)}
+.bt-legend i[data-lv="0"]{background:var(--free)} .bt-legend i[data-lv="1"]{background:var(--warn)} .bt-legend i[data-lv="2"]{background:var(--busy)} .bt-legend i[data-lv="3"]{background:var(--closed)}
+/* ⑥地図の見出しに、その階のまとめ（空き・やや混雑・混雑の数） */
+.bm-hd{display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap;margin-bottom:6px}
+.bm-hd h3{margin-bottom:0}
+.bm-hd small{font-size:clamp(10px,.8vw,14px);font-weight:800;color:var(--text-mute);display:inline-flex;flex-wrap:wrap;gap:4px 10px}
+.bm-hd small em{font-style:normal;display:inline-flex;align-items:center;gap:4px}
+.bm-hd small em::before{content:"";width:.7em;height:.7em;border-radius:50%;background:var(--free)}
+.bm-hd small em[data-lv="1"]::before{background:var(--warn)} .bm-hd small em[data-lv="2"]::before{background:var(--busy)}
+/* ⑦更新が止まって長い札（30分以上）は、ふちがゆっくり明滅する（遠くからでも、どこを確かめるか分かる） */
+@keyframes bt-stale{50%{box-shadow:0 0 0 3px color-mix(in srgb,var(--busy) 45%,transparent),var(--shadow)}}
+.btile[data-fresh="danger"]{animation:bt-stale 2.4s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){
+  .board-grid.turned .btile,.board-grid.turned .bt-legend,.btile[data-fresh="danger"]{animation:none}
+  .bm.pgm .room .fill{transition:none}
+}
 </style>
 </head>
 <body>
@@ -4703,7 +4748,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-14o',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-14p',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -12005,13 +12050,15 @@ function exportReportPng(){
  * 場所と混雑が同時に見えると、係員をどこに回すか即断できる。
  * 大画面に映しっぱなしにする前提なので、操作は付けない。
  */
-function renderBoardMaps(){
+function renderBoardMaps(pageIds){
   const box = $('#board-maps');
   if (!box) return;
   const floors = FLOORS.filter(f => S.booths.some(b => floorOfBooth(b) === f.n));
+  // v231：いまのページに出ているブース（ページが1つなら null。ふちどらない）
+  const pgSet = pageIds ? new Set(pageIds) : null;
   // 並べ方は階の数だけで決まる（画面の向きでは変わらない）ので、指紋には入れない
   const fp = 'bm|' + floors.map(f => f.n).join(',') + '|' +
-             S.booths.map(b => b.id + lvOf(b).lv + b.wait).join(',');
+             S.booths.map(b => b.id + lvOf(b).lv + b.wait).join(',') + '|' + (pageIds ? pageIds.join(',') : '');
   if (renderBoardMaps._fp === fp) return;
   renderBoardMaps._fp = fp;
 
@@ -12040,10 +12087,14 @@ function renderBoardMaps(){
       const L = lvOf(b);
       // ボードの地図は離れた場所から見る。番号を入れても2px程度にしか描けず、
       // 読めないうえに色を濁らせるだけなので、混み具合の色と模様だけにする。
-      h += `<g class="room" data-lv="${L.lv}">
+      h += `<g class="room${pgSet && pgSet.has(b.id) ? ' pg' : ''}" data-lv="${L.lv}" data-id="${esc(b.id)}">
         <rect class="fill" x="${sl.x}" y="${sl.y}" width="${sl.w}" height="${sl.h}" rx="5"/></g>`;
     });
-    return `<div class="bm"><h3>${f.n === 0 ? '屋外' : f.n + '階'}</h3>
+    // v231：見出しに、その階のまとめ（空き・やや混雑・混雑の数。0件の段階は出さない）
+    const cnt = [0, 1, 2].map(lv => here.filter(b => lvOf(b).lv === lv).length);
+    const sum = cnt.map((c, lv) => c ? `<em data-lv="${lv}">${esc(LEVELS[lv].short)} ${c}</em>` : '').join('');
+    const onPg = pgSet && here.some(b => pgSet.has(b.id));
+    return `<div class="bm${pgSet ? ' pgm' : ''}${onPg ? ' on-pg' : ''}"><div class="bm-hd"><h3>${f.n === 0 ? '屋外' : f.n + '階'}</h3>${sum ? `<small>${sum}</small>` : ''}</div>
       <svg viewBox="${planViewBox(f.n)}" role="img" aria-label="${f.n === 0 ? '屋外' : f.n + '階'}の混雑">${h}</svg></div>`;
   }).join('');
 }
@@ -12116,7 +12167,7 @@ function renderBoard(){
         : L.lv === 1 ? w >= S.waitTh.warn && w < S.waitTh.busy
         : L.lv === 2 ? w >= S.waitTh.busy : false;
       const big = fits ? `<b>${w}</b><i>人待ち</i>` : `<b class="tx">${esc(L.short)}</b>`;
-      return `<div class="btile${isChanged(b.id) ? ' changed' : ''}" data-id="${esc(b.id)}" data-lv="${L.lv}" data-fresh="${fresh}">
+      return `<div class="btile${isChanged(b.id) ? ' changed' : ''}" data-id="${esc(b.id)}" data-lv="${L.lv}" data-fresh="${fresh}" style="--i:${shown.indexOf(b)}">
         <span class="bt-no">${S.numbers.get(b.id) || ''}</span>
         <span class="bt-head"><span class="bt-nm">${esc(b.name)}</span>
         <span class="bt-loc">${esc(flLabel(b))}${(() => { const r = roomLabel(b);
@@ -12124,10 +12175,19 @@ function renderBoard(){
         <span class="bt-big">${big}</span>
         <span class="bt-age">${m >= NEVER ? '未更新' : agoMin(m)}</span>
       </div>`;
-    }).join('');
+    }).join('')
+      // v231：最後のページで場所が空いていれば、色の見かた（凡例）の札
+      + (pg === pages - 1 && n % PER !== 0 ? `<div class="bt-legend" role="group" aria-label="色の見かた" style="--i:${n}"><b>色の見かた</b>${LEVELS.map(l =>
+          `<span><i data-lv="${l.lv}" aria-hidden="true"></i>${esc(l.short)}</span>`).join('')}</div>` : '');
+    // v231：ページが替わったときだけ、札が順に入る（20秒ごとの同期では動かさない）
+    if (renderBoard._pg != null && renderBoard._pg !== pg && n){
+      grid.classList.remove('turned'); void grid.offsetWidth; grid.classList.add('turned');
+      clearTimeout(renderBoard._tt); renderBoard._tt = setTimeout(() => grid.classList.remove('turned'), 1800);
+    }
+    renderBoard._pg = pg;
   }
 
-  renderBoardMaps();
+  renderBoardMaps(pages > 1 ? shown.map(b => b.id) : null);
 
   const foot = $('#board-foot');
   foot.innerHTML = S.notice && S.notice.text ? ICON.call + ' ' + esc(S.notice.text) : '';
