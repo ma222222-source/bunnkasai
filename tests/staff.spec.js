@@ -466,3 +466,17 @@ test('司令塔（v232）：文を書く欄は左寄せ（例の文が切れな�
   expect(n.ff).toBe(n.body);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v233：受付のカウンタ ---------------- */
+test('受付のカウンタ（v233）：押すたびに「＋5」が数字の横から浮かんで消える', async ({ page }) => {
+  const errors = watchErrors(page);
+  await login(page);
+  await page.locator('#admtab-recept').click();
+  await page.locator('.vis-btns [data-n="5"]').click();
+  const d = page.locator('.vis-row .vis-delta').last();
+  await expect(d).toHaveText('＋5');
+  await expect(page.locator('.vis-row .vis-delta')).toHaveCount(0, { timeout: 3000 });
+  await page.locator('.vis-btns [data-n="-1"]').click();
+  await expect(page.locator('.vis-row .vis-delta.neg').last()).toHaveText('−1');
+  expect(errors).toEqual([]);
+});
