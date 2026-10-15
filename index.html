@@ -13979,6 +13979,8 @@ function initOwnerLive(){
     const b = e.target.closest('[data-add]'); if (!b) return;
     const inp = document.getElementById(q.dataset.for); if (!inp) return;
     const d = new Date(Math.ceil((nowMs() + Number(b.dataset.add) * 60000) / 60000) * 60000);
+    // 予約は、きょうの時刻だけ。日をまたぐ近道（夜の23時台の「1時間後」など）は入れない
+    if (d.getDate() !== new Date(nowMs()).getDate()){ toast('きょうのうちの時刻にしてください（日をまたぐ予約はできません）'); return; }
     inp.value = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
     inp.dispatchEvent(new Event('input', { bubbles: true }));
   }));
