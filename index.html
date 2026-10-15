@@ -3740,6 +3740,27 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
   .board-grid.turned .btile,.board-grid.turned .bt-legend,.btile[data-fresh="danger"]{animation:none}
   .bm.pgm .room .fill{transition:none}
 }
+/* ==== v232：司令塔の書く欄・予約の時刻の近道と残り・動作チェックの表 ==== */
+/* ②文を書く欄（一斉お知らせの見出し・ひとこと、本部のお知らせ、受け取りの場所、パスキーの名前、係員の名前）は、左寄せ・ふつうの字の間。
+   合言葉の欄の見た目（中央・字の間が広い）のままで、「ひとこと（80文字まで。無くてもよい）」の例の文が途中で切れていた */
+#own-show-title,#own-show-text,#notice-text,#own-draw-place,#own-key-label,#auth-who{text-align:left;letter-spacing:normal;font-weight:700}
+#notice-text{font-family:inherit;line-height:1.6}   /* 書く欄の字は、画面と同じ字の形に（タイプライターのような字になっていた） */
+#own-show-title::placeholder,#own-show-text::placeholder,#notice-text::placeholder,#own-draw-place::placeholder,#own-key-label::placeholder,#auth-who::placeholder{letter-spacing:normal}
+/* ③予約の時刻の近道（10分後・30分後・1時間後）と、⑦入れた時刻までの残り */
+.own-quickat{display:flex;flex-wrap:wrap;gap:6px;flex-basis:100%;width:100%}
+.own-quickat button{min-height:44px;padding:0 14px;border-radius:999px;border:1.5px solid var(--border-strong);background:var(--surface);color:var(--text);
+  font:inherit;font-size:12.5px;font-weight:800;cursor:pointer}
+.own-quickat button:active{transform:scale(.97)}
+.own-at-left{flex-basis:100%;width:100%;margin:0;font-size:12px;font-weight:800;color:var(--text-dim);min-height:1em}
+.own-at-left[data-st="past"]{color:var(--busy-ink)}
+/* ⑥予約の一覧：その時刻まで、あと何分 */
+.own-sched li .sc-left{flex:none;font-size:11px;font-weight:800;color:var(--text-mute);font-variant-numeric:tabular-nums}
+.own-sched li .sc-left[data-soon="1"]{color:var(--busy-ink)}
+/* ④⑤動作チェックの表：見出しの列を広げて折り返さない（「スタンプ（この端末）」）。注意・だめの行は地の色で目立たせる */
+.diag-row{grid-template-columns:1.4em 10.5em 1fr;border-radius:6px}
+.diag-row[data-st="warn"]{background:color-mix(in srgb,var(--warn) 12%,transparent);padding-left:4px;padding-right:4px}
+.diag-row[data-st="ng"]{background:color-mix(in srgb,var(--busy) 10%,transparent);padding-left:4px;padding-right:4px}
+@media (max-width:359px){ .diag-row{grid-template-columns:1.4em 8.5em 1fr} }
 </style>
 </head>
 <body>
@@ -4409,6 +4430,8 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
               <label for="own-show-at">時刻を決めて出す（予約）</label>
               <input class="field" type="time" id="own-show-at" step="60" aria-label="出す時刻">
               <button type="button" class="btn ghost" id="own-show-sched">この時刻に予約</button>
+              <div class="own-quickat" data-for="own-show-at" role="group" aria-label="時刻の近道"><button type="button" data-add="10">10分後</button><button type="button" data-add="30">30分後</button><button type="button" data-add="60">1時間後</button></div>
+              <p class="own-at-left" id="own-show-at-left" aria-live="polite"></p>
               <div class="own-sug hide" id="own-show-tt"></div>
             </div>
             <ul class="own-sched hide" id="own-sched"></ul>
@@ -4436,6 +4459,8 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
               <label for="own-lucky-at">時刻を決めて始める（予約）</label>
               <input class="field" type="time" id="own-lucky-at" step="60" aria-label="始める時刻">
               <button type="button" class="btn ghost" id="own-lucky-schedbtn">この時刻に始める</button>
+              <div class="own-quickat" data-for="own-lucky-at" role="group" aria-label="時刻の近道"><button type="button" data-add="10">10分後</button><button type="button" data-add="30">30分後</button><button type="button" data-add="60">1時間後</button></div>
+              <p class="own-at-left" id="own-lucky-at-left" aria-live="polite"></p>
             </div>
             <ul class="own-sched hide" id="own-lucky-sched"></ul>
           </div>
@@ -4748,7 +4773,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-14p',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-14q',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -12880,6 +12905,8 @@ function switchView(v, fromHistory){
   // 画面を移した＝いま見ている。混雑を見に来たのに20秒前の値を出さない
   markActive();
   if (v === 'map' || v === 'list') syncIfStale(7000);
+  // v232：地図以外の画面から開いた人が、はじめて地図へ来たとき。隠れているあいだは寸法を測れていないので、ここで合わせる
+  if (v === 'map' && !fitMapBox._key) requestAnimationFrame(() => { try{ if (S.view === 'map') fitMapBox(S.floor); }catch(e){} });
 
   // Androidの戻るボタン・iPhoneの横スワイプで、アプリごと閉じずに前の画面へ戻る。
   // 係員の画面も履歴に積む。積んでいなかったため、コンソールやQRシートで
@@ -12921,6 +12948,27 @@ window.addEventListener('popstate', e => {
    入っている印（合言葉）は、このタブの中だけに覚える（sessionStorage。閉じると消える）。パスワードそのものは覚えない
    ===================================================================== */
 const OWN = { state: null, timer: null, info: null, busy: false };
+/** v232：その時刻まで、あと何分（「まもなく」「あと12分」「あと1時間5分」） */
+function ownLeft(at){
+  const m = Math.ceil((Number(at) - nowMs()) / 60000);
+  if (!isFinite(m) || m <= 1) return 'まもなく';
+  return m >= 60 ? `あと${Math.floor(m / 60)}時間${m % 60 ? (m % 60) + '分' : ''}` : `あと${m}分`;
+}
+/** v232：予約の欄に入れた時刻までの残り（過ぎていれば、その場で言う） */
+function ownAtHints(){
+  [['#own-show-at', '#own-show-at-left', 'に出ます'], ['#own-lucky-at', '#own-lucky-at-left', 'に始まります']].forEach(([i, o, verb]) => {
+    const inp = $(i), out = $(o); if (!inp || !out) return;
+    const m = /^(\d{1,2}):(\d{2})/.exec(inp.value || '');
+    let tx = '', st = '';
+    if (m){
+      const d = new Date(nowMs()), at = new Date(d.getFullYear(), d.getMonth(), d.getDate(), Number(m[1]), Number(m[2])).getTime();
+      if (at < nowMs() + 30000){ tx = 'その時刻は過ぎています（きょうの、これからの時刻にしてください）'; st = 'past'; }
+      else tx = `${ownLeft(at)}（${m[1].padStart(2, '0')}:${m[2]} ${verb}）`;
+    }
+    if (out.textContent !== tx) out.textContent = tx;
+    out.dataset.st = st;
+  });
+}
 const OWN_IDLE_MS = 20 * 60000;      // v227：これだけ操作が無ければ、取り直しを止める
 function ownToken(){ try{ return sessionStorage.getItem('kuroko_owner') || ''; }catch(e){ return OWN._t || ''; } }
 function ownTokenSet(t){ OWN._t = t || ''; try{ if (t) sessionStorage.setItem('kuroko_owner', t); else sessionStorage.removeItem('kuroko_owner'); }catch(e){} }
@@ -13672,7 +13720,7 @@ function renderOwnLive(){
     const row = $('#own-lucky-sched-row'); if (row) row.classList.toggle('hide', !canL);
     const ul = $('#own-lucky-sched');
     if (ul){ ul.classList.toggle('hide', !lsched.length);
-      setHtml(ul, lsched.map(x => `<li><b>${hmOf(x.at)}</b><span>${esc(nameOf(x.booth))}（${Math.round((Number(x.until) - Number(x.at)) / 60000)}分）</span><button type="button" data-sched-del="${esc(String(x.id))}">取り消す</button></li>`).join('')); } }
+      setHtml(ul, lsched.map(x => `<li><b>${hmOf(x.at)}</b><small class="sc-left"${Number(x.at) - t < 5 * 60000 ? ' data-soon="1"' : ''}>${ownLeft(x.at)}</small><span>${esc(nameOf(x.booth))}（${Math.round((Number(x.until) - Number(x.at)) / 60000)}分）</span><button type="button" data-sched-del="${esc(String(x.id))}">取り消す</button></li>`).join('')); } }
   setHtml($('#own-now'), now.length ? now.join('') : '<li class="none">いまは、何も出していません</li>');
   // v227：予約した一斉お知らせが出る1分前に知らせる（1件に1回。取り消すなら、いま）
   sched.forEach(x => {
@@ -13683,12 +13731,13 @@ function renderOwnLive(){
     }
   });
   // v224：予約の欄（新しいサーバーだけ。古いサーバーは時刻を知らず、すぐに出してしまう）と、予約の一覧
+  ownAtHints();      // v232
   { const canSched = String(st.sv || '') >= '2026-10-14f';
     const row = $('#own-sched-row'); if (row) row.classList.toggle('hide', !canSched);
     const ul = $('#own-sched');
     if (ul){
       ul.classList.toggle('hide', !sched.length);
-      setHtml(ul, sched.map(x => `<li><b>${hmOf(x.at)}</b><span>${esc(String(x.title || ''))}${x.fx === 'calm' ? '（しずかに）' : ''}</span><button type="button" data-sched-del="${esc(String(x.id))}">取り消す</button></li>`).join(''));
+      setHtml(ul, sched.map(x => `<li><b>${hmOf(x.at)}</b><small class="sc-left"${Number(x.at) - t < 5 * 60000 ? ' data-soon="1"' : ''}>${ownLeft(x.at)}</small><span>${esc(String(x.title || ''))}${x.fx === 'calm' ? '（しずかに）' : ''}</span><button type="button" data-sched-del="${esc(String(x.id))}">取り消す</button></li>`).join(''));
     }
     // タイムテーブルから（きょうの、これからの行。5分前に出す）
     const tbox = $('#own-show-tt');
@@ -13894,6 +13943,17 @@ function initOwnerLive(){
   ['#own-show-title', '#own-show-text'].forEach(sel => $(sel).addEventListener('input', ownShowPrev));
   $('#own-show-fx').addEventListener('click', () => setTimeout(ownShowPrev, 0));
   ownShowPrev();
+  // v232：時刻の近道（いまから10分後・30分後・1時間後。分に切り上げる）と、入れた時刻までの残り
+  $$('.own-quickat').forEach(q => q.addEventListener('click', e => {
+    const b = e.target.closest('[data-add]'); if (!b) return;
+    const inp = document.getElementById(q.dataset.for); if (!inp) return;
+    const d = new Date(Math.ceil((nowMs() + Number(b.dataset.add) * 60000) / 60000) * 60000);
+    // 予約は、きょうの時刻だけ。日をまたぐ近道（夜の23時台の「1時間後」など）は入れない
+    if (d.getDate() !== new Date(nowMs()).getDate()){ toast('きょうのうちの時刻にしてください（日をまたぐ予約はできません）'); return; }
+    inp.value = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+  }));
+  ['#own-show-at', '#own-lucky-at'].forEach(sel => $(sel).addEventListener('input', ownAtHints));
   // v224：時刻を決めて出す（予約）
   $('#own-show-sched').addEventListener('click', async () => {
     const v = showIn(), hm = $('#own-show-at').value;
@@ -13904,7 +13964,7 @@ function initOwnerLive(){
     if (at < nowMs() + 30000){ toast('その時刻は過ぎています（きょうの、これからの時刻にしてください）'); return; }
     if (!confirm(`${m[1].padStart(2, '0')}:${m[2]} に、開いている全員の画面に出します（司令塔を閉じていても出ます）。\n\n「${v.title}」${v.text ? '\n' + v.text : ''}\n\nよろしいですか？`)) return;
     if (await ownLive('owner_show', Object.assign({}, v, { at }), $('#own-show-sched'), `${m[1].padStart(2, '0')}:${m[2]} に予約しました`)){
-      $('#own-show-title').value = ''; $('#own-show-text').value = ''; $('#own-show-at').value = '';
+      $('#own-show-title').value = ''; $('#own-show-text').value = ''; $('#own-show-at').value = ''; ownAtHints();
       if (initOwnerLive._len) initOwnerLive._len();
       ownShowPrev();
     }
@@ -13930,7 +13990,7 @@ function initOwnerLive(){
     if (at < nowMs() + 30000){ toast('その時刻は過ぎています（きょうの、これからの時刻にしてください）'); return; }
     const b = S.booths.find(x => x.id === booth), hh = m[1].padStart(2, '0') + ':' + m[2];
     if (!confirm(`${hh} から ${minutes}分のあいだ、「${b ? b.name : booth}」をラッキーブースにします（司令塔を閉じていても始まります）。よろしいですか？`)) return;
-    if (await ownLive('owner_lucky', { booth, minutes, at }, $('#own-lucky-schedbtn'), `${hh} からのラッキーブースを予約しました`)) $('#own-lucky-at').value = '';
+    if (await ownLive('owner_lucky', { booth, minutes, at }, $('#own-lucky-schedbtn'), `${hh} からのラッキーブースを予約しました`)){ $('#own-lucky-at').value = ''; ownAtHints(); }
   });
   $('#own-lucky-sched').addEventListener('click', e => {
     const b = e.target.closest('[data-sched-del]'); if (!b) return;
@@ -17617,7 +17677,9 @@ function fitMapBox(floorNum){
     const el = $('#plan-' + f.n);
     if (el) el.style.maxHeight = boxH + 'px';
   });
-  fitMapBox._key = key;
+  // v232：地図が隠れている（スタンプ帳などから開いた）ときに測った寸法は、覚えない。
+  // 図面の高さが 0 と測れて倍率が 1 のまま「測り済み」になり、地図へ切り替えても全体の小さい表示のままだった
+  fitMapBox._key = view.offsetWidth > 0 ? key : null;
   zoomMeasure();
   // 図面の高さが箱に足りないぶんを倍率で埋める。等倍のままだと箱の中に
   // 上下の余白ができるだけで、地図は小さいままになる

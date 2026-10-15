@@ -430,3 +430,50 @@ test('係員の画面（v230）：階のボタンが1列・検索欄は左寄せ
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v232：司令塔の書く欄・予約の時刻の近道と残り ---------------- */
+test('司令塔（v232）：文を書く欄は左寄せ（例の文が切れない）・予約の時刻の近道（10分後・30分後・1時間後）・入れた時刻までの残り・過ぎた時刻はその場で言う・予約の一覧の「あと何分」', async ({ page }) => {
+  const errors = watchErrors(page);
+  // 時計は当日の昼に（夜の23時台に動かすと「1時間後」が日をまたぐ）。時計は止めず、時刻だけ決める
+  await page.clock.setFixedTime(new Date('2026-10-24T10:00:00+09:00'));
+  await login(page);
+  await ownerIn(page, 'event');
+  // 画面はサーバーの時計で時刻を補う。模擬のサーバーは本物の今の時刻を返すので、補いを切って上の時刻で見る
+  await page.evaluate(() => { window.clockOffset = () => 0; });
+  // 文を書く欄：左寄せ・ふつうの字の間。例の文がまるごと入る
+  for (const sel of ['#own-show-title', '#own-show-text']) {
+    const r = await page.locator(sel).evaluate(el => ({ ta: getComputedStyle(el).textAlign, ls: getComputedStyle(el).letterSpacing }));
+    expect(r, sel).toEqual({ ta: 'left', ls: 'normal' });
+  }
+  // 古いサーバーのまねなので、予約の欄を出して見る
+  await page.evaluate(() => { document.getElementById('own-sched-row').classList.remove('hide'); document.getElementById('own-lucky-sched-row').classList.remove('hide'); });
+  // 期待する時刻も画面の中で計算する（テストを動かす側の時間帯は、画面の時間帯と違うことがある。GitHub の Linux は世界標準時）
+  const hm = ms => page.evaluate(x => { const d = new Date(Math.ceil(x / 60000) * 60000); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }, ms);
+  const t0 = await page.evaluate(() => nowMs());
+  await page.locator('.own-quickat[data-for="own-show-at"] [data-add="30"]').click();
+  const v = await page.locator('#own-show-at').inputValue();
+  expect([await hm(t0 + 30 * 60000), await hm(t0 + 31 * 60000)]).toContain(v);
+  await expect(page.locator('#own-show-at-left')).toContainText(/あと(30|31)分（.+ に出ます）/);
+  await page.locator('.own-quickat[data-for="own-lucky-at"] [data-add="60"]').click();
+  await expect(page.locator('#own-lucky-at-left')).toContainText(/あと1時間(1分)?（.+ に始まります）|あと60分/);
+  // 過ぎた時刻は、その場で言う（赤）
+  await page.evaluate(() => { const d = new Date(nowMs() - 3 * 60000); const i = document.getElementById('own-show-at'); i.value = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); i.dispatchEvent(new Event('input')); });
+  await expect(page.locator('#own-show-at-left')).toContainText('過ぎています');
+  await expect(page.locator('#own-show-at-left')).toHaveAttribute('data-st', 'past');
+  // 日をまたぐ近道は入れない（夜の23時40分に「1時間後」）
+  await page.clock.setFixedTime(new Date('2026-10-24T23:40:00+09:00'));
+  await page.locator('#own-lucky-at').fill('');
+  await page.locator('.own-quickat[data-for="own-lucky-at"] [data-add="60"]').click();
+  await expect(page.locator('#toast')).toContainText('日をまたぐ予約はできません');
+  await expect(page.locator('#own-lucky-at')).toHaveValue('');
+  await page.clock.setFixedTime(new Date('2026-10-24T10:00:00+09:00'));
+  // 残りの言い方
+  expect(await page.evaluate(() => [ownLeft(nowMs() + 30000), ownLeft(nowMs() + 12 * 60000 - 1000), ownLeft(nowMs() + 65 * 60000 - 1000), ownLeft(nowMs() + 120 * 60000 - 1000)]))
+    .toEqual(['まもなく', 'あと12分', 'あと1時間5分', 'あと2時間']);
+  // 本部のお知らせの欄も左寄せ・画面と同じ字の形
+  await page.locator('#owntab-hq').click();
+  const n = await page.locator('#notice-text').evaluate(el => ({ ta: getComputedStyle(el).textAlign, ff: getComputedStyle(el).fontFamily, body: getComputedStyle(document.body).fontFamily }));
+  expect(n.ta).toBe('left');
+  expect(n.ff).toBe(n.body);
+  expect(errors).toEqual([]);
+});

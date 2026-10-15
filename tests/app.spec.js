@@ -4540,3 +4540,41 @@ test('本部モニタ（v231）：広い画面で名前の字が大きい・ペ�
   expect(lb.y + lb.height).toBeLessThanOrEqual(800 + 1);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v232：地図以外から開いたときの地図の倍率・動作チェックの表 ---------------- */
+test('地図の倍率（v232）：スタンプ帳・一覧・インフォから開いて地図へ来ても、地図から開いたときと同じ倍率（全体の小さい表示のままにしない）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const errors = watchErrors(page);
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  await page.waitForTimeout(400);
+  const want = await page.evaluate(() => ZOOM.k);
+  expect(want).toBeGreaterThan(1.2);
+  for (const tab of ['stamp', 'list', 'info']) {
+    await page.goto('/?tab=' + tab);
+    await ready(page);
+    await page.waitForTimeout(300);
+    await page.locator('#nav button[data-view="map"]').click();
+    // 地図から開いたときとほぼ同じ倍率（上の帯の有無などで少し変わる）。全体の小さい表示（×1）のままにしない
+    await expect.poll(() => page.evaluate(() => ZOOM.k), { message: tab }).toBeGreaterThan(want * 0.9);
+    expect(await page.evaluate(() => ZOOM.base0), tab).toBeGreaterThan(1.2);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('動作チェック（v232）：見出しの列は折り返さない・注意の行は地の色で目立つ', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => { localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-01', '1F-02'])); });
+  await mockGas(page);
+  await page.goto('/?mode=check');
+  await expect(page.locator('#diag-out .diag-row').first()).toBeVisible({ timeout: 15000 });
+  await expect.poll(() => page.locator('#diag-out .diag-row').count()).toBeGreaterThan(8);
+  // 文字そのものの行の数で見る（となりの値が2行になると、見出しの箱も高くなるので、箱の高さでは見ない）
+  const wrapped = await page.evaluate(() => [...document.querySelectorAll('#diag-out .diag-row b')].filter(b => { const r = document.createRange(); r.selectNodeContents(b); return new Set([...r.getClientRects()].map(x => Math.round(x.top))).size > 1; }).map(b => b.textContent));
+  expect(wrapped).toEqual([]);
+  const tint = await page.evaluate(() => [...document.querySelectorAll('#diag-out .diag-row[data-st="warn"],#diag-out .diag-row[data-st="ng"]')].map(r => getComputedStyle(r).backgroundColor));
+  tint.forEach(c => expect(c).not.toBe('rgba(0, 0, 0, 0)'));
+  const okBg = await page.evaluate(() => { const r = document.querySelector('#diag-out .diag-row[data-st="ok"]'); return r ? getComputedStyle(r).backgroundColor : 'rgba(0, 0, 0, 0)'; });
+  expect(okBg).toBe('rgba(0, 0, 0, 0)');
+});
