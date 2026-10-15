@@ -3802,6 +3802,13 @@ html.sheet-open .to-top{opacity:0;visibility:hidden;pointer-events:none}
 .stamp-ring[data-rank="flame"] .rg-fg{stroke:#e0782a}
 .stamp-ring.done .rg-fg{stroke:var(--free)}
 @media (prefers-reduced-motion:reduce){ #stamp-rank.up{animation:none} }
+/* ⑦横向き（高さ 500px 以下）の一覧：絞り込みの2段（種類・並べ方）を横に並べる。どちらも横に送れる。
+   2段のままだと、見出し・検索・2段で 340px を使い、ブースが1件しか見えなかった */
+@media (orientation:landscape) and (max-height:500px){
+  #v-list .list-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:10px;align-items:center}
+  #v-list .list-head > .search,#v-list .list-head > .list-count{grid-column:1 / -1}
+  #v-list .list-head > .chips{flex-wrap:nowrap;min-width:0}
+}
 </style>
 </head>
 <body>
@@ -4816,7 +4823,7 @@ html.sheet-open .to-top{opacity:0;visibility:hidden;pointer-events:none}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-15a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-16a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない

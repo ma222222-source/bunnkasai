@@ -4696,3 +4696,26 @@ test('詳細を開いているあいだ「上へ戻る」は出さない・ス�
   expect(await page.locator('#stamp-ring-box').getAttribute('data-rank')).toBeNull();
   expect(errors).toEqual([]);
 });
+
+test('横向きの一覧（v234）：絞り込みの2段を横に並べて、ブースが見える場所を広げる（横にはみ出さない）', async ({ page }) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  const errors = watchErrors(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  const r = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#v-list .list-head > .chips')].map(c => Math.round(c.getBoundingClientRect().top));
+    return { rows, head: document.querySelector('#v-list .list-head').getBoundingClientRect().height, over: document.documentElement.scrollWidth - innerWidth };
+  });
+  expect(r.rows.length).toBe(2);
+  expect(Math.abs(r.rows[0] - r.rows[1])).toBeLessThanOrEqual(2);
+  expect(r.head).toBeLessThan(140);
+  expect(r.over).toBeLessThanOrEqual(0);
+  // 縦向きに戻すと、今までどおり2段
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(200);
+  const r2 = await page.evaluate(() => [...document.querySelectorAll('#v-list .list-head > .chips')].map(c => Math.round(c.getBoundingClientRect().top)));
+  expect(r2[1]).toBeGreaterThan(r2[0] + 20);
+  expect(errors).toEqual([]);
+});
