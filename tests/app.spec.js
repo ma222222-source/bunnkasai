@@ -4578,3 +4578,48 @@ test('動作チェック（v232）：見出しの列は折り返さない・注�
   const okBg = await page.evaluate(() => { const r = document.querySelector('#diag-out .diag-row[data-st="ok"]'); return r ? getComputedStyle(r).backgroundColor : 'rgba(0, 0, 0, 0)'; });
   expect(okBg).toBe('rgba(0, 0, 0, 0)');
 });
+
+/* ---------------- v233：お菓子の交換の4桁・飛んだ先が見出しに隠れない ---------------- */
+test('お菓子の交換（v233）：全角の数字でも入る・4桁そろうまで「あと◯桁」・そろうと合図・違う番号は欄が揺れる・「交換のしかたを見る」で飛んだ先が見出しに隠れない', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const errors = watchErrors(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await mockGas(page);
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await page.evaluate(() => { S.stamps = new Set(S.booths.slice(0, 6).map(b => b.id)); store('kuroko_stamps_v2', Array.from(S.stamps)); renderStamps(); });
+  // 飛んだ先のカードの見出しが、上の固定の見出しの下に隠れない
+  await page.locator('#prize-go').click();
+  await page.waitForTimeout(900);
+  const pos = await page.evaluate(() => ({ card: document.getElementById('redeem-card').getBoundingClientRect().top, head: document.querySelector('.head').getBoundingClientRect().bottom }));
+  expect(pos.card).toBeGreaterThanOrEqual(pos.head - 1);
+  await page.locator('#redeem-open').click();
+  const input = page.locator('#staff-code');
+  await expect(input).toHaveAttribute('aria-label', /4桁/);
+  // 全角の数字（日本語の入力のまま）でも入る
+  await input.fill('１２');
+  await expect(input).toHaveValue('12');
+  await expect(page.locator('#redeem-left')).toHaveText('あと2桁');
+  await expect(page.locator('#redeem-ok')).toHaveAttribute('data-ready', '0');
+  // 4桁そろう前に押すと、あと何桁かを言う（番号が違う、とは言わない）
+  await page.locator('#redeem-ok').click();
+  await expect(page.locator('#redeem-err')).toContainText('4桁を入れてください（あと2桁）');
+  // そろうと合図（data-ready=1・ぽんと動く）
+  const good = await page.evaluate(() => redeemCode(0));
+  const bad = good === '0000' ? '1111' : '0000';
+  await input.fill(bad);
+  await expect(page.locator('#redeem-ok')).toHaveAttribute('data-ready', '1');
+  await expect(page.locator('#redeem-left')).toHaveText('');
+  // 違う番号：欄がぷるっと揺れて赤い枠。直しはじめたら枠は戻る
+  await page.locator('#redeem-ok').click();
+  await expect(input).toHaveClass(/\bbad\b/);
+  await expect(page.locator('#redeem-err')).toContainText('番号が違います');
+  await input.fill(good.slice(0, 3));
+  await expect(input).not.toHaveClass(/\bbad\b/);
+  // 全角の正しい番号でも交換できる
+  await input.fill(good.replace(/[0-9]/g, c => String.fromCharCode(c.charCodeAt(0) + 0xFEE0)));
+  await expect(input).toHaveValue(good);
+  await page.locator('#redeem-ok').click();
+  await expect(page.locator('#pfx')).toBeVisible({ timeout: 15000 });
+  expect(errors).toEqual([]);
+});

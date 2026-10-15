@@ -3761,6 +3761,24 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 .diag-row[data-st="warn"]{background:color-mix(in srgb,var(--warn) 12%,transparent);padding-left:4px;padding-right:4px}
 .diag-row[data-st="ng"]{background:color-mix(in srgb,var(--busy) 10%,transparent);padding-left:4px;padding-right:4px}
 @media (max-width:359px){ .diag-row{grid-template-columns:1.4em 8.5em 1fr} }
+/* ==== v233：お菓子の交換の4桁・受付のカウンタ・飛んだ先が見出しに隠れない ==== */
+/* ②4桁そろうまで「交換する」を薄く（押せば、あと何桁かを言う）。③そろった瞬間に、ボタンがぽんと合図 */
+#redeem-ok[data-ready="0"]{opacity:.55}
+@keyframes rd-ready{0%{transform:scale(1)}45%{transform:scale(1.08)}100%{transform:scale(1)}}
+#redeem-ok.go{animation:rd-ready .35s var(--ease-out-back,ease-out)}
+.redeem-left{margin:6px 2px 0;font-size:12px;font-weight:800;color:var(--text-dim);min-height:1em}
+/* ⑦番号が違うとき、欄がぷるっと揺れて赤い枠（どこを直すかが分かる） */
+@keyframes rd-shake{20%{transform:translateX(-6px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+#staff-code.bad{border-color:var(--busy);animation:rd-shake .38s ease-in-out}
+/* ⑤受付のカウンタ：押すたびに「＋5」が数字の横から浮かぶ（速く押しても、押した手ごたえが残る） */
+.vis-row{position:relative}
+.vis-delta{position:absolute;left:var(--x,64px);top:-2px;font-size:18px;font-weight:900;color:var(--accent-ink,var(--accent));pointer-events:none;
+  animation:vis-up .8s var(--ease) forwards}
+.vis-delta.neg{color:var(--text-mute)}
+@keyframes vis-up{from{opacity:0;transform:translateY(6px) scale(.9)}20%{opacity:1}to{opacity:0;transform:translateY(-22px) scale(1.05)}}
+/* ⑥「交換のしかたを見る」「地図で見る」などで飛んだ先のカードが、上の見出し（固定）の下に隠れない */
+:where(.card,#map-card){scroll-margin-top:calc(var(--head-h,0px) + 12px)}
+@media (prefers-reduced-motion:reduce){ #redeem-ok.go,#staff-code.bad,.vis-delta{animation:none} .vis-delta{display:none} }
 </style>
 </head>
 <body>
@@ -4017,9 +4035,10 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
             <small style="font-weight:700;color:var(--text-mute)">番号は1分ごとに変わります（少し前のものでも通ります）</small></label>
           <div class="redeem-row">
             <input id="staff-code" class="field" type="text" inputmode="numeric" pattern="[0-9]*"
-                   maxlength="4" autocomplete="off" placeholder="0000">
-            <button class="btn" id="redeem-ok">交換する</button>
+                   maxlength="8" autocomplete="off" placeholder="0000" aria-label="係員の画面に出ている4桁" aria-describedby="redeem-left">
+            <button class="btn" id="redeem-ok" data-ready="0">交換する</button>
           </div>
+          <p class="redeem-left" id="redeem-left" aria-live="polite"></p>
           <p class="redeem-err hide" id="redeem-err"></p>
           <button class="btn ghost" id="redeem-cancel">やめる</button>
         </div>
@@ -4773,7 +4792,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-14q',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-15a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -12313,6 +12332,18 @@ function addVisitors(n){
   q.push({ uid, n, at: Date.now() });
   if (!store('kuroko_vis_q', q)){ toast('この端末に保存できません。プライベートモードを解除してください'); return; }
   renderVisitors();
+  // v233：押すたびに「＋5」が数字の横から浮かぶ
+  try{
+    const row = $('#vis-n') && $('#vis-n').parentElement;
+    if (row && !REDUCE_MOTION.matches && !document.documentElement.classList.contains('lite')){
+      const d = document.createElement('span');
+      d.className = 'vis-delta' + (n < 0 ? ' neg' : ''); d.setAttribute('aria-hidden', 'true');
+      d.textContent = (n > 0 ? '＋' : '−') + Math.abs(n);      // ボタンと同じ字（全角の＋）
+      d.style.setProperty('--x', ($('#vis-n').offsetWidth + 44) + 'px');
+      row.appendChild(d);
+      setTimeout(() => d.remove(), 900);
+    }
+  }catch(e){}
   toast(`来場者 ${n > 0 ? '+' : ''}${n}`, { label:'元に戻す', fn: () => addVisitors(-n) });
   flushVisitors(true);
 }
@@ -13877,7 +13908,8 @@ function ownTrendTile(bs, t){
     bs.forEach(b => {
       let lv = -1;
       if (k === N - 1) lv = lvOf(b).lv;
-      else (Array.isArray(b.history) ? b.history : []).forEach(p => { const pm = min(p && p.t); if (pm >= 0 && pm <= at && pm > at - 180) lv = Number(p.lv); });
+      // v233：0時をまたぐ（いまが 0:10 で、記録が 23:40）ときは、前の日の時刻として数える（以前は「未来」と見て捨て、3時間のグラフが空になっていた）
+      else (Array.isArray(b.history) ? b.history : []).forEach(p => { const raw = min(p && p.t); if (raw < 0) return; const pm = raw > nowM ? raw - 1440 : raw; if (pm <= at && pm > at - 180) lv = Number(p.lv); });
       if (k < N - 1 && lv >= 0) any = true;
       if (lv === 2) busy++; else if (lv === 1) warn++;
     });
@@ -17169,8 +17201,16 @@ function init(){
      ニセのお知らせを出せてしまう。4桁コードなら漏れても
      「自分のスタンプを減らせる」だけで、実害がない。 */
   const rpad = $('#redeem-pad'), rerr = $('#redeem-err'), rin = $('#staff-code');
+  // v233：4桁そろったか（ボタンの見た目と「あと◯桁」）。そろった瞬間だけ、ボタンがぽんと合図
+  const rdReady = () => {
+    const n = rin.value.length, ok = $('#redeem-ok'), was = ok.dataset.ready === '1';
+    ok.dataset.ready = n === 4 ? '1' : '0';
+    const lf = $('#redeem-left');
+    if (lf) lf.textContent = n && n < 4 ? `あと${4 - n}桁` : '';
+    if (n === 4 && !was && !REDUCE_MOTION.matches){ ok.classList.remove('go'); void ok.offsetWidth; ok.classList.add('go'); }
+  };
   const closePad = () => {
-    rpad.classList.add('hide'); rerr.classList.add('hide'); rin.value = '';
+    rpad.classList.add('hide'); rerr.classList.add('hide'); rin.value = ''; rin.classList.remove('bad'); rdReady();
     $('#redeem-open').classList.remove('hide');
   };
   $('#redeem-open').addEventListener('click', () => {
@@ -17181,12 +17221,19 @@ function init(){
   });
   $('#redeem-cancel').addEventListener('click', closePad);
   rin.addEventListener('input', () => {
-    rin.value = rin.value.replace(/[^0-9]/g, '').slice(0, 4);
-    rerr.classList.add('hide');
+    // v233：全角の数字（「１２３４」。日本語の入力のまま打ったとき）も半角にそろえてから数字だけ残す（以前は消えていた）
+    rin.value = rin.value.normalize('NFKC').replace(/[^0-9]/g, '').slice(0, 4);
+    rerr.classList.add('hide'); rin.classList.remove('bad');
+    rdReady();
   });
   rin.addEventListener('keydown', e => { if (e.key === 'Enter') $('#redeem-ok').click(); });
   $('#redeem-ok').addEventListener('click', () => {
+    if (rin.value.length < 4){
+      rerr.classList.remove('hide'); rerr.textContent = `4桁を入れてください（あと${4 - rin.value.length}桁）`;
+      rin.focus(); return;
+    }
     if (!staffCodeOk(rin.value)){
+      rin.classList.remove('bad'); void rin.offsetWidth; rin.classList.add('bad');     // v233：欄がぷるっと揺れる
       const sk = codeSkewMin(rin.value);
       rerr.classList.remove('hide');
       rerr.textContent = sk != null
