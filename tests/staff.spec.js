@@ -430,3 +430,39 @@ test('係員の画面（v230）：階のボタンが1列・検索欄は左寄せ
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v232：司令塔の書く欄・予約の時刻の近道と残り ---------------- */
+test('司令塔（v232）：文を書く欄は左寄せ（例の文が切れない）・予約の時刻の近道（10分後・30分後・1時間後）・入れた時刻までの残り・過ぎた時刻はその場で言う・予約の一覧の「あと何分」', async ({ page }) => {
+  const errors = watchErrors(page);
+  await login(page);
+  await ownerIn(page, 'event');
+  // 文を書く欄：左寄せ・ふつうの字の間。例の文がまるごと入る
+  for (const sel of ['#own-show-title', '#own-show-text']) {
+    const r = await page.locator(sel).evaluate(el => ({ ta: getComputedStyle(el).textAlign, ls: getComputedStyle(el).letterSpacing }));
+    expect(r, sel).toEqual({ ta: 'left', ls: 'normal' });
+  }
+  // 古いサーバーのまねなので、予約の欄を出して見る
+  await page.evaluate(() => { document.getElementById('own-sched-row').classList.remove('hide'); document.getElementById('own-lucky-sched-row').classList.remove('hide'); });
+  const t0 = await page.evaluate(() => nowMs());
+  await page.locator('.own-quick[data-for="own-show-at"] [data-add="30"]').click();
+  const v = await page.locator('#own-show-at').inputValue();
+  const d = new Date(Math.ceil((t0 + 30 * 60000) / 60000) * 60000);
+  const want = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  expect([want, String(new Date(d.getTime() + 60000).getHours()).padStart(2, '0') + ':' + String(new Date(d.getTime() + 60000).getMinutes()).padStart(2, '0')]).toContain(v);
+  await expect(page.locator('#own-show-at-left')).toContainText(/あと(30|31)分（.+ に出ます）/);
+  await page.locator('.own-quick[data-for="own-lucky-at"] [data-add="60"]').click();
+  await expect(page.locator('#own-lucky-at-left')).toContainText(/あと1時間(1分)?（.+ に始まります）|あと60分/);
+  // 過ぎた時刻は、その場で言う（赤）
+  await page.evaluate(() => { const d = new Date(nowMs() - 3 * 60000); const i = document.getElementById('own-show-at'); i.value = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); i.dispatchEvent(new Event('input')); });
+  await expect(page.locator('#own-show-at-left')).toContainText('過ぎています');
+  await expect(page.locator('#own-show-at-left')).toHaveAttribute('data-st', 'past');
+  // 残りの言い方
+  expect(await page.evaluate(() => [ownLeft(nowMs() + 30000), ownLeft(nowMs() + 12 * 60000 - 1000), ownLeft(nowMs() + 65 * 60000 - 1000), ownLeft(nowMs() + 120 * 60000 - 1000)]))
+    .toEqual(['まもなく', 'あと12分', 'あと1時間5分', 'あと2時間']);
+  // 本部のお知らせの欄も左寄せ・画面と同じ字の形
+  await page.locator('#owntab-hq').click();
+  const n = await page.locator('#notice-text').evaluate(el => ({ ta: getComputedStyle(el).textAlign, ff: getComputedStyle(el).fontFamily, body: getComputedStyle(document.body).fontFamily }));
+  expect(n.ta).toBe('left');
+  expect(n.ff).toBe(n.body);
+  expect(errors).toEqual([]);
+});
