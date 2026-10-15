@@ -444,13 +444,13 @@ test('司令塔（v232）：文を書く欄は左寄せ（例の文が切れな�
   // 古いサーバーのまねなので、予約の欄を出して見る
   await page.evaluate(() => { document.getElementById('own-sched-row').classList.remove('hide'); document.getElementById('own-lucky-sched-row').classList.remove('hide'); });
   const t0 = await page.evaluate(() => nowMs());
-  await page.locator('.own-quick[data-for="own-show-at"] [data-add="30"]').click();
+  await page.locator('.own-quickat[data-for="own-show-at"] [data-add="30"]').click();
   const v = await page.locator('#own-show-at').inputValue();
   const d = new Date(Math.ceil((t0 + 30 * 60000) / 60000) * 60000);
   const want = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   expect([want, String(new Date(d.getTime() + 60000).getHours()).padStart(2, '0') + ':' + String(new Date(d.getTime() + 60000).getMinutes()).padStart(2, '0')]).toContain(v);
   await expect(page.locator('#own-show-at-left')).toContainText(/あと(30|31)分（.+ に出ます）/);
-  await page.locator('.own-quick[data-for="own-lucky-at"] [data-add="60"]').click();
+  await page.locator('.own-quickat[data-for="own-lucky-at"] [data-add="60"]').click();
   await expect(page.locator('#own-lucky-at-left')).toContainText(/あと1時間(1分)?（.+ に始まります）|あと60分/);
   // 過ぎた時刻は、その場で言う（赤）
   await page.evaluate(() => { const d = new Date(nowMs() - 3 * 60000); const i = document.getElementById('own-show-at'); i.value = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); i.dispatchEvent(new Event('input')); });

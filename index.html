@@ -3747,10 +3747,10 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 #notice-text{font-family:inherit;line-height:1.6}   /* 書く欄の字は、画面と同じ字の形に（タイプライターのような字になっていた） */
 #own-show-title::placeholder,#own-show-text::placeholder,#notice-text::placeholder,#own-draw-place::placeholder,#own-key-label::placeholder,#auth-who::placeholder{letter-spacing:normal}
 /* ③予約の時刻の近道（10分後・30分後・1時間後）と、⑦入れた時刻までの残り */
-.own-quick{display:flex;flex-wrap:wrap;gap:6px;flex-basis:100%;width:100%}
-.own-quick button{min-height:40px;padding:0 14px;border-radius:999px;border:1.5px solid var(--border-strong);background:var(--surface);color:var(--text);
+.own-quickat{display:flex;flex-wrap:wrap;gap:6px;flex-basis:100%;width:100%}
+.own-quickat button{min-height:44px;padding:0 14px;border-radius:999px;border:1.5px solid var(--border-strong);background:var(--surface);color:var(--text);
   font:inherit;font-size:12.5px;font-weight:800;cursor:pointer}
-.own-quick button:active{transform:scale(.97)}
+.own-quickat button:active{transform:scale(.97)}
 .own-at-left{flex-basis:100%;width:100%;margin:0;font-size:12px;font-weight:800;color:var(--text-dim);min-height:1em}
 .own-at-left[data-st="past"]{color:var(--busy-ink)}
 /* ⑥予約の一覧：その時刻まで、あと何分 */
@@ -4430,7 +4430,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
               <label for="own-show-at">時刻を決めて出す（予約）</label>
               <input class="field" type="time" id="own-show-at" step="60" aria-label="出す時刻">
               <button type="button" class="btn ghost" id="own-show-sched">この時刻に予約</button>
-              <div class="own-quick" data-for="own-show-at" role="group" aria-label="時刻の近道"><button type="button" data-add="10">10分後</button><button type="button" data-add="30">30分後</button><button type="button" data-add="60">1時間後</button></div>
+              <div class="own-quickat" data-for="own-show-at" role="group" aria-label="時刻の近道"><button type="button" data-add="10">10分後</button><button type="button" data-add="30">30分後</button><button type="button" data-add="60">1時間後</button></div>
               <p class="own-at-left" id="own-show-at-left" aria-live="polite"></p>
               <div class="own-sug hide" id="own-show-tt"></div>
             </div>
@@ -4459,7 +4459,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
               <label for="own-lucky-at">時刻を決めて始める（予約）</label>
               <input class="field" type="time" id="own-lucky-at" step="60" aria-label="始める時刻">
               <button type="button" class="btn ghost" id="own-lucky-schedbtn">この時刻に始める</button>
-              <div class="own-quick" data-for="own-lucky-at" role="group" aria-label="時刻の近道"><button type="button" data-add="10">10分後</button><button type="button" data-add="30">30分後</button><button type="button" data-add="60">1時間後</button></div>
+              <div class="own-quickat" data-for="own-lucky-at" role="group" aria-label="時刻の近道"><button type="button" data-add="10">10分後</button><button type="button" data-add="30">30分後</button><button type="button" data-add="60">1時間後</button></div>
               <p class="own-at-left" id="own-lucky-at-left" aria-live="polite"></p>
             </div>
             <ul class="own-sched hide" id="own-lucky-sched"></ul>
@@ -4773,7 +4773,7 @@ button:not(:disabled):active,[role="button"]:active{filter:brightness(.92)}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-14p',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-14q',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -13944,7 +13944,7 @@ function initOwnerLive(){
   $('#own-show-fx').addEventListener('click', () => setTimeout(ownShowPrev, 0));
   ownShowPrev();
   // v232：時刻の近道（いまから10分後・30分後・1時間後。分に切り上げる）と、入れた時刻までの残り
-  $$('.own-quick').forEach(q => q.addEventListener('click', e => {
+  $$('.own-quickat').forEach(q => q.addEventListener('click', e => {
     const b = e.target.closest('[data-add]'); if (!b) return;
     const inp = document.getElementById(q.dataset.for); if (!inp) return;
     const d = new Date(Math.ceil((nowMs() + Number(b.dataset.add) * 60000) / 60000) * 60000);
