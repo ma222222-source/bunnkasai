@@ -13908,7 +13908,8 @@ function ownTrendTile(bs, t){
     bs.forEach(b => {
       let lv = -1;
       if (k === N - 1) lv = lvOf(b).lv;
-      else (Array.isArray(b.history) ? b.history : []).forEach(p => { const pm = min(p && p.t); if (pm >= 0 && pm <= at && pm > at - 180) lv = Number(p.lv); });
+      // v233：0時をまたぐ（いまが 0:10 で、記録が 23:40）ときは、前の日の時刻として数える（以前は「未来」と見て捨て、3時間のグラフが空になっていた）
+      else (Array.isArray(b.history) ? b.history : []).forEach(p => { const raw = min(p && p.t); if (raw < 0) return; const pm = raw > nowM ? raw - 1440 : raw; if (pm <= at && pm > at - 180) lv = Number(p.lv); });
       if (k < N - 1 && lv >= 0) any = true;
       if (lv === 2) busy++; else if (lv === 1) warn++;
     });

@@ -49,6 +49,8 @@ async function ownerLogin(page, origin, tab = 'staff') {
   if (tab) await page.locator('#owntab-' + tab).click();
 }
 const accept = page => page.once('dialog', d => d.accept());
+// 日本時間の0時の前40分か（予約は「きょうの時刻」だけ。そのあいだは、数分後・数十分後の時刻が日をまたぐ。日付の変わり目に流すと落ちていた）
+const nearMidnight = () => { const d = new Date(Date.now() + 9 * 3600000); return 24 * 60 - (d.getUTCHours() * 60 + d.getUTCMinutes()) < 40; };
 
 test('司令塔：持ち主パスワードが決まっていないあいだは入れない（何をすればよいかを出す）。係員の入り方は今までどおり', async ({ page, baseURL }) => {
   const errors = watchErrors(page);
@@ -1185,6 +1187,7 @@ test('イベント（v223）：一斉お知らせを「しずかに」（紙ふ�
 
 /* ---------------- v224：一斉お知らせの予約・タイムテーブルから・入力中の見本 ---------------- */
 test('イベント（v224）：一斉お知らせを時刻で予約できる（ようすにも出て、取り消せる）。時刻が来たら来場者に出る。タイムテーブルから1回で入る。入力中の見本', async ({ page, browser, baseURL }) => {
+  test.skip(nearMidnight(), '日本時間の0時の前40分は、予約の時刻が日をまたぐので飛ばす（予約はきょうの時刻だけ）');
   test.setTimeout(120000);
   const errors = watchErrors(page);
   const { g, origin } = server(baseURL);
@@ -1277,6 +1280,7 @@ test('イベント（v224）：一斉お知らせを時刻で予約できる（�
 
 /* ---------------- v225：ようすの移り変わりと混んでいるブース・数字が動く・取り直す・ラッキーブースの予約・本部モニタの線・振り返り ---------------- */
 test('司令塔（v225）：ようすに「いま混んでいるブース」と「この3時間の混み具合」。数字が動く・取り直すボタン。ラッキーブースを時刻で予約（本部モニタに残りの線）。振り返りに、その日の司令塔の操作', async ({ page, browser, baseURL }) => {
+  test.skip(nearMidnight(), '日本時間の0時の前40分は、予約の時刻が日をまたぐので飛ばす（予約はきょうの時刻だけ）');
   test.setTimeout(120000);
   const errors = watchErrors(page);
   const { g, origin } = server(baseURL);
