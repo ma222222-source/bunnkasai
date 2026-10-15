@@ -4623,3 +4623,76 @@ test('お菓子の交換（v233）：全角の数字でも入る・4桁そろう
   await expect(page.locator('#pfx')).toBeVisible({ timeout: 15000 });
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v234：狭い画面・詳細の奥の「上へ戻る」・スタンプの称号 ---------------- */
+test('幅 320px（v234）：一覧のブース名が番号の下に落ちない（混み具合の札を2行に）・詳細の見出しの最後の行に1文字だけ残さない', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  const errors = watchErrors(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  // 番号の丸と、名前の1行目が同じ高さ（名前だけが次の行に落ちていない）
+  const fell = await page.evaluate(() => [...document.querySelectorAll('#booth-list .booth')].filter(c => {
+    const no = c.querySelector('.booth-nm .no'), nm = c.querySelector('.booth-nm .nm');
+    if (!no || !nm) return false;
+    return nm.getBoundingClientRect().top > no.getBoundingClientRect().bottom - 2;
+  }).map(c => c.id));
+  expect(fell).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  // 詳細の見出し：どのブースでも、最後の行が1文字だけにならない（対応しているブラウザだけ text-wrap:pretty）
+  const supports = await page.evaluate(() => CSS.supports('text-wrap', 'pretty'));
+  const lone = [];
+  for (const id of await page.evaluate(() => S.booths.map(b => b.id))) {
+    await page.evaluate(i => openSheet(i), id);
+    const n = await page.evaluate(() => {
+      const h = document.querySelector('.bsh-head h2'), t = h.firstChild && h.firstChild.nodeType === 3 ? h.firstChild : null;
+      if (!t) return 9;
+      const tops = [];
+      for (let i = 0; i < t.length; i++) { const r = document.createRange(); r.setStart(t, i); r.setEnd(t, i + 1); const rc = r.getClientRects()[0]; if (rc) tops.push(Math.round(rc.top)); }
+      const last = Math.max(...tops);
+      return tops.filter(x => x === last).length;
+    });
+    if (n < 2) lone.push(id);
+  }
+  if (supports) expect(lone).toEqual([]);
+  await page.keyboard.press('Escape');
+  expect(errors).toEqual([]);
+});
+
+test('詳細を開いているあいだ「上へ戻る」は出さない・スタンプ帳の次の称号まで・称号が上がると札が跳ねる・輪の色は称号ごと（v234）', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const errors = watchErrors(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  await page.evaluate(() => window.scrollTo(0, 2400));
+  await expect(page.locator('#to-top')).toBeVisible();
+  await page.evaluate(() => openSheet(S.booths[0].id));
+  await expect(page.locator('#bsh')).toBeVisible();
+  await expect(page.locator('#to-top')).toBeHidden();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#to-top')).toBeVisible();
+  // スタンプ帳：3個（46ブース）→ 次の称号「散策中」（25%＝12か所）まで あと9か所
+  await page.locator('#nav button[data-view="stamp"]').click();
+  await page.evaluate(() => { S.stamps = new Set(S.booths.slice(0, 3).map(b => b.id)); renderStamps(); });
+  await expect(page.locator('#stamp-rank')).toContainText('探検スタート');
+  await expect(page.locator('#stamp-next')).toHaveText('次の称号「散策中」まで あと9か所');
+  expect(await page.locator('#stamp-ring-box').getAttribute('data-rank')).toBe('sprout');
+  const stroke = () => page.locator('#stamp-ring').evaluate(el => getComputedStyle(el).stroke);
+  await expect.poll(stroke).toBe('rgb(63, 157, 91)');                 // 芽の緑（色の切り替えは少しかけて変わる）
+  // 12個 → 称号が上がる（札が跳ねる）。輪の色が変わる
+  await page.evaluate(() => { S.stamps = new Set(S.booths.slice(0, 12).map(b => b.id)); renderStamps(); });
+  await expect(page.locator('#stamp-rank')).toContainText('散策中');
+  await expect(page.locator('#stamp-rank')).toHaveClass(/\bup\b/);
+  await expect(page.locator('#stamp-next')).toHaveText('次の称号「黒工ツウ」まで あと11か所');
+  await expect.poll(stroke).toBe('rgb(47, 127, 191)');                // 散策の青
+  // 「あと少し」（75%）を超えたら、次は全部回ること＝すぐ上の「あと◯か所」と同じなので出さない
+  await page.evaluate(() => { S.stamps = new Set(S.booths.slice(0, 40).map(b => b.id)); renderStamps(); });
+  await expect(page.locator('#stamp-next')).toBeHidden();
+  // 全部回ったら、輪は緑（称号の色をやめる）
+  await page.evaluate(() => { S.stamps = new Set(S.booths.map(b => b.id)); renderStamps(); });
+  expect(await page.locator('#stamp-ring-box').getAttribute('data-rank')).toBeNull();
+  expect(errors).toEqual([]);
+});
