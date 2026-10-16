@@ -4159,7 +4159,7 @@ test('イベント（v222）：見のがした一斉お知らせを、インフ�
   await page.goto('/?tab=map');
   // 一斉お知らせ：読み返せることを言う
   await expect(page.locator('#lfx .lfx-title')).toHaveText('まもなく<b id="x222">開場</b>', { timeout: 15000 });
-  await expect(page.locator('#lfx .sfx-note')).toContainText('インフォの画面で読み返せます');
+  await expect(page.locator('#lfx [data-fx="log"]')).toContainText('インフォの画面で読み返せます');     // v235：押せるボタンに
   await page.locator('#lfx [data-fx="close"]').click();
   await expect(page.locator('#lfx')).toHaveCount(0);
   // 抽選：スタンプ1個（3個以上が対象）→ あと2個。サーバーには聞かない
