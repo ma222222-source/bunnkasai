@@ -6716,15 +6716,6 @@ function markChanges(){
       S.changedAt.set(b.id, Date.now());
       // v237：混み具合の向き（空き0・やや1・混雑2 のあいだで動いたときだけ。準備中・情報なしとの行き来は向きを言わない）
       if (prev >= 0 && prev <= 2 && lv >= 0 && lv <= 2) S.trend.set(b.id, { dir: lv > prev ? 'up' : 'down', at: Date.now() });
-      // v237：★行きたいブースが空いた（まだスタンプが無いとき。同じブースは10分に1回まで）
-      if (lv === 0 && prev >= 1 && prev <= 2 && S.wish.has(b.id) && !S.stamps.has(b.id) && S.view !== 'admin' && S.view !== 'board'){
-        const last = (markChanges._wish || {})[b.id] || 0;
-        if (Date.now() - last > 600000){
-          markChanges._wish = Object.assign(markChanges._wish || {}, { [b.id]: Date.now() });
-          setTimeout(() => toast(`★行きたい「${b.name}」が空きました`, { label: '見る', fn: () => focusBoothOnMap(b.id) }, 8000), 400);
-          try{ buzz([20, 40, 20]); }catch(e){}
-        }
-      }
     }
     S.prevLv.set(b.id, lv);
   });
@@ -12859,8 +12850,12 @@ function notifyWishFree(){
   notifyWishFree._prev = now;
   if (!prev) return;
   const freed = S.booths.filter(b => S.wish.has(b.id) && now[b.id] === 0 && (prev[b.id] === 1 || prev[b.id] === 2) && !S.stamps.has(b.id));
-  if (freed.length) buzz([60, 80, 60]);         // v168
-  if (freed.length) toast(`★「${freed[0].name}」が空きました${freed.length > 1 ? `（ほか${freed.length - 1}件）` : ''}`, null, 6000);
+  if (freed.filter(x => !((notifyWishFree._at || {})[x.id] && Date.now() - notifyWishFree._at[x.id] < 600000)).length) buzz([60, 80, 60]);         // v168
+  // v237：「見る」で地図のその場所へ。同じブースは10分に1回まで（行ったり来たりするたびに知らせない）
+  const t = Date.now(), seen = notifyWishFree._at || (notifyWishFree._at = {});
+  const fresh = freed.filter(x => !(seen[x.id] && t - seen[x.id] < 600000));
+  fresh.forEach(x => { seen[x.id] = t; });
+  if (fresh.length) toast(`★行きたい「${fresh[0].name}」が空きました${fresh.length > 1 ? `（ほか${fresh.length - 1}件）` : ''}`, { label: '見る', fn: () => focusBoothOnMap(fresh[0].id) }, 8000);
 }
 
 /**

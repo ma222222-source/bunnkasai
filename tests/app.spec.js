@@ -4867,9 +4867,10 @@ test('更新の見え方（v237）：混み具合の向きの札（2分）・★
   // ★を付けたブースが「混雑 → 空き」に（スタンプはまだ）
   const id = await page.evaluate(() => {
     const b = S.booths.find(x => !S.stamps.has(x.id) && x.category !== '受付');
-    S.wish.add(b.id); S.prevLv.set(b.id, 2); b.status = '空いています'; b.wait = 0;
+    S.wish.add(b.id); b.status = '混雑しています'; b.wait = 30; markChanges(); notifyWishFree();   // いまは混雑（★の知らせは、前からある notifyWishFree）
+    b.status = '空いています'; b.wait = 0;
     let anim = 0; const o = Element.prototype.animate; Element.prototype.animate = function(){ anim++; return o.apply(this, arguments); }; window.__anim = () => anim;
-    markChanges(); renderList();
+    markChanges(); notifyWishFree(); renderList();
     return b.id;
   });
   const card = page.locator(`[id="booth-${id}"]`);
