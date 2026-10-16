@@ -3809,6 +3809,27 @@ html.sheet-open .to-top{opacity:0;visibility:hidden;pointer-events:none}
   #v-list .list-head > .search,#v-list .list-head > .list-count{grid-column:1 / -1}
   #v-list .list-head > .chips{flex-wrap:nowrap;min-width:0}
 }
+/* ==== v235：演出（スタンプ・一斉お知らせ）とスタンプの称号の仕上げ ==== */
+/* ①演出を開いたとき、指で使う人には、キーボード用の赤い輪を出さない（キーを押したら出る。読み上げ・Esc のためのフォーカスはそのまま） */
+.quiet:focus-visible{outline:none}
+/* ②「次は空いている『…』へ」は、語の切れ目で折る（「電子科／3年」と割れていた） */
+.sfx [data-fx="next"]{word-break:auto-phrase;text-wrap:balance;line-height:1.45;padding-top:10px;padding-bottom:10px}
+/* ④とじたら、紙ふぶきもすっと消す（とじたあとも画面の上を降り続けていた） */
+.confetti{transition:opacity .28s ease}
+.confetti.bye{opacity:0}
+/* ⑤「インフォの画面で読み返せます」を押せるように */
+.sfx-note-go{margin-top:10px;min-height:44px;padding:0 14px;border-radius:999px;border:none;background:none;color:var(--text-dim);
+  font:inherit;font-size:11.5px;font-weight:800;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+@keyframes livelog-hi{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 50%,transparent)}100%{box-shadow:0 0 0 10px transparent}}
+#live-log-card.hi{animation:livelog-hi 1s ease-out 2}
+/* ⑦称号の札を押すと、称号の一覧（いくつで何になるか） */
+button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28px}
+.rank-list{flex-basis:100%;margin:2px 0 0;padding:8px 10px;border-radius:10px;background:var(--surface-2);list-style:none;display:grid;gap:3px;font-size:11.5px;font-weight:800;color:var(--text-dim)}
+.rank-list li{display:flex;justify-content:space-between;gap:10px}
+.rank-list li[aria-current="true"]{color:var(--text)}
+.rank-list li[aria-current="true"]::before{content:"▶";margin-right:4px;color:var(--accent)}
+.rank-list li b{font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){ #live-log-card.hi{animation:none} .confetti{transition:none} }
 </style>
 </head>
 <body>
@@ -4018,7 +4039,8 @@ html.sheet-open .to-top{opacity:0;visibility:hidden;pointer-events:none}
           </div>
           <div class="stamp-count-tx">
             <span class="tot">/ <span id="stamp-total">0</span> ブース</span>
-            <span class="rank-chip hide" id="stamp-rank"></span>
+            <button type="button" class="rank-chip hide" id="stamp-rank" aria-expanded="false" aria-controls="stamp-ranks"></button>
+            <ul class="rank-list hide" id="stamp-ranks" aria-label="称号の一覧"></ul>
             <span id="stamp-msg"></span>
             <small class="stamp-next hide" id="stamp-next"></small>
           </div>
@@ -4823,7 +4845,7 @@ html.sheet-open .to-top{opacity:0;visibility:hidden;pointer-events:none}
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-16a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-16b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -7957,7 +7979,7 @@ function trapTab(e){
 
 /** v218：いまの人がキーボードで動かしているか（Tab・矢印などを押したら入、画面に触ったら切） */
 const KEY_USER = { on: false };
-document.addEventListener('keydown', e => { if (e.key === 'Tab' || e.key === 'Enter' || e.key === ' ' || /^Arrow/.test(e.key || '')){ KEY_USER.on = true; const x = document.getElementById('bsh-x'); if (x) x.classList.remove('quiet'); } }, true);
+document.addEventListener('keydown', e => { if (e.key === 'Tab' || e.key === 'Enter' || e.key === ' ' || /^Arrow/.test(e.key || '')){ KEY_USER.on = true; const x = document.getElementById('bsh-x'); if (x) x.classList.remove('quiet'); document.querySelectorAll('.sfx .quiet').forEach(q => q.classList.remove('quiet')); } }, true);
 document.addEventListener('pointerdown', () => { KEY_USER.on = false; }, true);
 function openSheet(id, fromHistory){
   const b = S.booths.find(x => x.id === id);
@@ -10835,6 +10857,7 @@ function showStampFx(id, fresh){
       : got === 1 ? 'はじめてのスタンプ！'
       : left >= need && left - 1 < need ? 'お菓子と交換できます！'
       : total && got === Math.ceil(total / 2) ? 'ちょうど半分！'
+      : (() => { const a = stampRank(got - 1, total), b2 = stampRank(got, total); return fresh && a && b2 && a.name !== b2.name; })() ? `称号「${stampRank(got, total).name}」になりました！`
       : L.shiny ? 'キラスタンプ！' : 'スタンプ獲得！';
     const goal = done ? 'すべてのブースを回りました。おめでとうございます！'
       : left >= need ? `スタンプ${need}個でお菓子1個と交換できます。受付で係の人に見せてください`
@@ -10898,6 +10921,7 @@ function showStampFx(id, fresh){
     if (!showStampFx._open) return;
     showStampFx._open = null; showStampFx.close = null;
     el.classList.add('out');
+    confettiOff();                                   // v235
     if (reduce) el.style.opacity = '0';
     // 閉じたあとも少しの間は透明なまま指を受け止める。すぐ消すと、続けて押した指が
     // 後ろのスタンプ帳（閉じるときに位置が動く）に当たり、別のブースが開いていた
@@ -10934,7 +10958,7 @@ function showStampFx(id, fresh){
   draw();
   el.addEventListener('click', e => { if (e.target === el) close(); });
   document.addEventListener('keydown', onKey);
-  setTimeout(() => { const b = el.querySelector('[data-fx="book"]'); b && b.focus({ preventScroll:true }); }, 60);
+  setTimeout(() => { const b = el.querySelector('[data-fx="book"]'); if (b){ b.classList.toggle('quiet', !KEY_USER.on); b.focus({ preventScroll:true }); } }, 60);   // v235：指の人には輪を出さない
   if (fresh){
     const total = S.booths.length, got = S.booths.filter(b => S.stamps.has(b.id)).length;
     const left = stampsLeft(), need = Math.max(1, CONFIG.PRIZE_COST | 0);
@@ -11092,6 +11116,13 @@ function renderStamps(){
   { const nm = rk ? rk.name : '';
     if (renderStamps._rank != null && nm && nm !== renderStamps._rank && !REDUCE_MOTION.matches){ chip.classList.remove('up'); void chip.offsetWidth; chip.classList.add('up'); }
     renderStamps._rank = nm; }
+  // v235：称号の一覧（いくつで何になるか）。押すと開く
+  { const ul = $('#stamp-ranks');
+    if (ul && total){
+      const html = RANKS.slice().reverse().map(x => `<li${rk && rk.name === x.name ? ' aria-current="true"' : ''}><span>${esc(x.name)}</span><b>${Math.max(1, Math.ceil(x.at * total - 1e-9))}か所</b></li>`).join('');
+      if (ul.innerHTML !== html) ul.innerHTML = html;
+    }
+    if (!rk && ul){ ul.classList.add('hide'); chip.setAttribute('aria-expanded', 'false'); } }
   // v234：輪の色を称号ごとに
   { const rb = $('#stamp-ring-box'); if (rb){ if (rk && !done) rb.dataset.rank = rk.mark; else rb.removeAttribute('data-rank'); } }
   // v234：次の称号まで、あと何か所
@@ -11100,7 +11131,7 @@ function renderStamps(){
       const next = total && !ws && !done ? RANKS.slice().reverse().find(x => Math.ceil(x.at * total - 1e-9) > got) : null;
       const need = next ? Math.ceil(next.at * total - 1e-9) - got : 0;
       // 「全部回る」はすぐ上の「あと◯か所」と同じなので出さない
-      const show = !!(next && next.at < 1 && need > 0);
+      const show = !!(next && next.at < 1 && need > 0 && got > 0);      // v235：0個のときは「まずは1つ回ってみよう」と同じなので出さない
       nx.classList.toggle('hide', !show);
       const html = show ? `次の称号「${esc(next.name)}」まで あと<b>${need}</b>か所` : '';
       if (nx.innerHTML !== html) nx.innerHTML = html;
@@ -11462,6 +11493,7 @@ function showPrizeFx(n, later){
     if (!document.body.contains(el)) return;
     el.classList.add('out');
     setTimeout(() => el.remove(), 260);
+    confettiOff();                                   // v235
     document.documentElement.classList.remove('sfx-open');
     document.removeEventListener('keydown', onKey);
     try{ if (prev && prev.focus && document.body.contains(prev)) prev.focus({ preventScroll:true }); }catch(e){}
@@ -11474,7 +11506,7 @@ function showPrizeFx(n, later){
   el.querySelector('[data-fx="close"]').addEventListener('click', close);
   el.addEventListener('click', e => { if (e.target === el) close(); });
   document.addEventListener('keydown', onKey);
-  setTimeout(() => { const b = el.querySelector('[data-fx="close"]'); if (b) b.focus({ preventScroll:true }); }, 60);
+  setTimeout(() => { const b = el.querySelector('[data-fx="close"]'); if (b){ b.classList.toggle('quiet', !KEY_USER.on); b.focus({ preventScroll:true }); } }, 60);   // v235
   buzz([18, 40, 70]);
   setTimeout(() => confetti(), 300);
 }
@@ -11482,6 +11514,10 @@ function showPrizeFx(n, later){
  * 全制覇したときだけ降らせる。要素は使い捨てで、終わったら自分で片付ける。
  * 動きを減らす設定のときは何もしない。
  */
+/** v235：降っている紙ふぶきを、すっと消す（演出をとじたとき） */
+function confettiOff(){
+  document.querySelectorAll('.confetti').forEach(w => { w.classList.add('bye'); setTimeout(() => w.remove(), 320); });
+}
 function confetti(){
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   if (document.documentElement.classList.contains('lite')) return;      // v164：力の弱い端末
@@ -13486,6 +13522,13 @@ function renderLive(){
   // 抽選：「聞いた」の印は、答えが返ってから付ける（聞いている途中で画面を開き直しても、もう一度聞く）
   if (L.draw && seen.draw !== L.draw.id && liveDrawCheck._busy !== L.draw.id) liveDrawCheck(L.draw);
 }
+// v235：称号の札を押すと、称号の一覧を開く・とじる
+{ const ch = document.getElementById('stamp-rank');
+  if (ch) ch.addEventListener('click', () => {
+    const ul = document.getElementById('stamp-ranks'); if (!ul) return;
+    const open = ul.classList.contains('hide');
+    ul.classList.toggle('hide', !open); ch.setAttribute('aria-expanded', String(open));
+  }); }
 /** v222：受け取った一斉お知らせ（新しい順に3つ・6時間まで）。15秒で自分でとじるので、見のがした人がインフォで読み返せるようにする */
 function liveLog(){
   const a = load('kuroko_live_log', null), t = nowMs();
@@ -13644,7 +13687,7 @@ function showLiveFx(kind, title, text, preview, fx){
       <div class="sfx-acts"><button class="btn" data-fx="close">とじる</button></div>
       ${kind === 'win' && livePlaceBooth(text) ? `<button type="button" class="lfx-go" data-fx="place">${esc(livePlaceBooth(text).name)}を地図で見る</button>` : ''}
       ${kind === 'win' ? '' : '<span class="lfx-bar" aria-hidden="true"><i></i></span>'}
-      ${kind === 'win' || preview ? '' : '<p class="sfx-note">とじたあとも、インフォの画面で読み返せます</p>'}
+      ${kind === 'win' || preview ? '' : '<button type="button" class="sfx-note-go" data-fx="log">とじたあとも、インフォの画面で読み返せます</button>'}
     </div>`;
   // 本部が打った文字は、文字として入れる（タグにしない）
   el.querySelector('.lfx-title').textContent = title;
@@ -13665,6 +13708,7 @@ function showLiveFx(kind, title, text, preview, fx){
     if (!document.body.contains(el)) return;
     el.classList.add('out');
     setTimeout(() => el.remove(), 260);
+    confettiOff();                                   // v235
     document.documentElement.classList.remove('sfx-open');
     document.removeEventListener('keydown', onKey);
     try{ if (prev && prev.focus && document.body.contains(prev)) prev.focus({ preventScroll:true }); }catch(e){}
@@ -13677,11 +13721,19 @@ function showLiveFx(kind, title, text, preview, fx){
   };
   showLiveFx.close = close;
   el.querySelector('[data-fx="close"]').addEventListener('click', close);
+  // v235：インフォで読み返す（とじて、インフォの「本部からのお知らせ」を光らせる）
+  { const lg = el.querySelector('[data-fx="log"]');
+    if (lg) lg.addEventListener('click', () => {
+      close(); switchView('info');
+      setTimeout(() => { const c = document.getElementById('live-log-card'); if (!c) return;
+        c.scrollIntoView({ block:'start', behavior: smoothBehavior() }); c.classList.remove('hi'); void c.offsetWidth; c.classList.add('hi');
+        setTimeout(() => c.classList.remove('hi'), 2200); }, 120);
+    }); }
   { const pg = el.querySelector('[data-fx="place"]');
     if (pg) pg.addEventListener('click', () => { const b = livePlaceBooth(text); close(); if (b){ switchView('map'); openSheet(b.id); } }); }
   el.addEventListener('click', e => { if (e.target === el) close(); });
   document.addEventListener('keydown', onKey);
-  setTimeout(() => { const b = el.querySelector('[data-fx="close"]'); if (b) b.focus({ preventScroll:true }); }, 60);
+  setTimeout(() => { const b = el.querySelector('[data-fx="close"]'); if (b){ b.classList.toggle('quiet', !KEY_USER.on); b.focus({ preventScroll:true }); } }, 60);   // v235
   buzz(kind === 'win' ? [30, 60, 30, 60, 120] : calm ? [18] : [18, 40, 70]);
   if (!calm){
     try{ if (S.sound) ding(); }catch(e){}
