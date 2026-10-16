@@ -455,7 +455,8 @@ test('起動：GAS がふつうに速いときは、2本目を出さない', asy
   const log = await mockGas(page);
   await page.goto('/?tab=map');
   await ready(page);
-  await page.waitForTimeout(5500);                 // 2本目を出す 5 秒を過ぎても（v236：ふつうの取り直しが7秒（最短 約6秒）になったので、その前に数える）
+  await page.evaluate(() => { clearTimeout(S.timer); S.timer = null; });   // v236：ふつうの取り直し（約6〜8秒）は止めて、2本目（起動のときだけ出す）だけを数える
+  await page.waitForTimeout(6500);                 // 2本目を出す 5 秒を過ぎても
   expect(log.gets.filter(q => !/ledger|report/.test(q)).length).toBe(1);
 });
 
