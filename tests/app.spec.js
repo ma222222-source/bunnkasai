@@ -4719,3 +4719,70 @@ test('横向きの一覧（v234）：絞り込みの2段を横に並べて、ブ
   expect(r2[1]).toBeGreaterThan(r2[0] + 20);
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v235：演出とスタンプの称号 ---------------- */
+test('演出（v235）：指の人には最初のボタンに輪を出さない（キーを押すと出る）・称号が上がったときの見出し・とじたら紙ふぶきも消える・「インフォで読み返せます」を押すとインフォへ', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const errors = watchErrors(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await mockGas(page);
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  // 11個 → 12個目で称号「散策中」（46ブースの25%）
+  await page.evaluate(() => { S.stamps = new Set(S.booths.slice(0, 11).map(b => b.id)); renderStamps(); });
+  await page.mouse.click(5, 300);                                  // 指で触った（キーボードではない）
+  await page.evaluate(() => { const id = S.booths[11].id; S.stamps.add(id); renderStamps(); showStampFx(id, true); });
+  const sfx = page.locator('#sfx');
+  await expect(sfx).toBeVisible();
+  await expect(sfx.locator('.sfx-kicker')).toHaveText('称号「散策中」になりました！');
+  const book = sfx.locator('[data-fx="book"]');
+  await expect(book).toBeFocused();
+  await expect(book).toHaveClass(/\bquiet\b/);
+  expect(await book.evaluate(el => getComputedStyle(el).outlineStyle)).toBe('none');
+  // キーを押したら、輪が出る
+  await page.keyboard.press('Tab');
+  await expect(sfx.locator('.quiet')).toHaveCount(0);
+  // 「次は空いている『…』へ」は語の切れ目で折る
+  const nx = sfx.locator('[data-fx="next"]');
+  if (await nx.count()) expect(await nx.evaluate(el => getComputedStyle(el).textWrap || getComputedStyle(el).textWrapStyle || 'balance')).toMatch(/balance/);
+  await page.evaluate(() => showStampFx.close());
+  await expect(sfx).toHaveCount(0, { timeout: 3000 });
+  // 一斉お知らせ：とじたら紙ふぶきも消える。「インフォで読み返せます」→ インフォの「本部からのお知らせ」が光る
+  await page.evaluate(() => { liveLogAdd({ id: 'sh235', title: 'まもなくステージ', text: '第一体育館へ', at: Date.now() }); showLiveFx('show', 'まもなくステージ', '第一体育館へ', false, 'party'); });
+  await expect(page.locator('#lfx')).toBeVisible();
+  await expect.poll(() => page.locator('.confetti').count()).toBeGreaterThan(0);
+  await page.locator('#lfx [data-fx="log"]').click();
+  await expect(page.locator('#lfx')).toHaveCount(0, { timeout: 3000 });
+  await expect(page.locator('.confetti')).toHaveCount(0, { timeout: 2000 });
+  await expect(page.locator('#v-info')).toBeVisible();
+  await expect(page.locator('#live-log-card')).toHaveClass(/\bhi\b/);
+  await expect(page.locator('#live-log-card')).toContainText('まもなくステージ');
+  expect(errors).toEqual([]);
+});
+
+test('スタンプ帳（v235）：0個のときは「次の称号」を出さない・称号の札を押すと、いくつで何になるかの一覧', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await mockGas(page);
+  await page.goto('/?tab=stamp');
+  await ready(page);
+  await page.evaluate(() => { S.stamps = new Set(); renderStamps(); });
+  await expect(page.locator('#stamp-msg')).toContainText('まずは1つ');
+  await expect(page.locator('#stamp-next')).toBeHidden();
+  await page.evaluate(() => { S.stamps = new Set(S.booths.slice(0, 13).map(b => b.id)); renderStamps(); });
+  const chip = page.locator('#stamp-rank');
+  await expect(chip).toContainText('散策中');
+  await expect(page.locator('#stamp-ranks')).toBeHidden();
+  await chip.click();
+  await expect(chip).toHaveAttribute('aria-expanded', 'true');
+  const li = page.locator('#stamp-ranks li');
+  await expect(li).toHaveCount(5);
+  await expect(li.first()).toContainText('探検スタート');
+  await expect(li.first()).toContainText('1か所');
+  await expect(li.nth(1)).toContainText('12か所');
+  await expect(li.last()).toContainText('46か所');
+  await expect(page.locator('#stamp-ranks li[aria-current="true"]')).toContainText('散策中');
+  await chip.click();
+  await expect(page.locator('#stamp-ranks')).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+});
