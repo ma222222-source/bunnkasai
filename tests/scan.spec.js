@@ -375,6 +375,8 @@ test('交換できる数に届いたスタンプは3音（特別な音）', asyn
   await page.addInitScript(() => { if (!sessionStorage.getItem('x')){ sessionStorage.setItem('x', 1); localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03', '1F-07', '1F-08'])); } });
   await page.goto('/?tab=stamp');
   await ready(page);
+  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
+  await page.evaluate(() => { try{ renderStamps(); }catch(e){} });
   await page.mouse.click(5, 5);                                          // 先に触っておく
   await page.evaluate(() => stampNow('1F-05'));
   await expect.poll(() => page.evaluate(() => window.__notes.length)).toBe(3);

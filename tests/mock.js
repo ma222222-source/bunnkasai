@@ -49,6 +49,10 @@ async function mockGas(page, opt = {}) {
       return route.fulfill({ status: 200, headers, contentType: 'application/json', body: JSON.stringify(ok) });
     }
     log.gets.push(url.search);
+    // v236：変わったかだけを返す（opt.gen を渡したテストだけ。渡さなければ今までどおり本体を返す＝古いサーバーのまね）
+    if (url.searchParams.get('gen') && opt.gen) {
+      return route.fulfill({ status: 200, headers, contentType: 'application/json', body: JSON.stringify({ ok: true, gen: String(opt.gen()), serverVersion: '2026-10-16a' }) });
+    }
     if (url.searchParams.get('ledger')) {
       return route.fulfill({ status: 200, headers, contentType: 'application/json',
         body: JSON.stringify({ ok: true, sv: BASE.serverVersion, cid: url.searchParams.get('ledger'), stamps: [], spent: [] }) });

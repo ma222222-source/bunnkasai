@@ -3830,6 +3830,29 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
 .rank-list li[aria-current="true"]::before{content:"▶";margin-right:4px;color:var(--accent)}
 .rank-list li b{font-variant-numeric:tabular-nums}
 @media (prefers-reduced-motion:reduce){ #live-log-card.hi{animation:none} .confetti{transition:none} }
+/* ==== v236：リアルタイムに近づける（何秒前に確かめたか・取り直すたびの合図）・お菓子までの棒 ==== */
+/* ③見出しの札：何秒前に確かめたか（1秒ごとに進む） */
+.sync-sec{font-variant-numeric:tabular-nums;opacity:.85;white-space:nowrap}
+.sync-sec:empty{display:none}
+/* ④取り直すたびに、点がふわっと光る（いま生きている、が分かる） */
+@keyframes sync-ping{0%{box-shadow:0 0 0 0 rgba(74,222,128,.75)}100%{box-shadow:0 0 0 7px rgba(74,222,128,0)}}
+.dot.ping{animation:sync-ping .9s ease-out}
+/* ⑦お菓子まで：数が多い（8個をこえる）ときは、丸を並べず棒と「◯ / 23」 */
+.prize-meter{display:flex;align-items:center;gap:8px;flex:1 1 160px;min-width:140px}
+.prize-meter i{position:relative;flex:1;height:10px;border-radius:999px;background:var(--surface-3);overflow:hidden}
+.prize-meter i::after{content:"";position:absolute;inset:0 auto 0 0;width:calc(var(--p,0) * 100%);border-radius:inherit;background:var(--accent);transition:width .6s var(--ease)}
+.prize-meter em{font-style:normal;font-size:12.5px;font-weight:900;font-variant-numeric:tabular-nums;color:var(--text-dim);white-space:nowrap}
+@media (prefers-reduced-motion:reduce){ .dot.ping{animation:none} .prize-meter i::after{transition:none} }
+/* ==== v236：三つ折りパンフレットの余白を使い切る（ユーザーの依頼：スタンプラリーの横と、1階のブース名の横に約2cmの空きがある） ====
+   面の左右の余白は、紙の端の側は 6mm（多くのプリンターは端の 3〜5mm が刷れない）、折り目の側は 3.5mm。
+   以前は両側 8.5mm で、折り目をはさんで約 2cm の空きができていた。空いた幅のぶん、中身は自動で大きくなる（pamCheck） */
+.pam-s1 .pam-flap{padding-left:6mm;padding-right:3.5mm}
+.pam-s1 .pam-back{padding-left:3.5mm;padding-right:3.5mm}
+.pam-in1{padding-left:6mm}
+.pam-spread{padding-right:6mm}
+.pam-list1{width:46.5mm}
+/* 1階の一覧のブース名は、行の長さをそろえず、行いっぱいまで使う（そろえると、短い行の右が空いていた）。1文字だけの行は作らない */
+.pam-spread .pam-list span{text-wrap:pretty}
 </style>
 </head>
 <body>
@@ -3853,7 +3876,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
         <button class="icon-btn" id="btn-reload" aria-label="今すぐ更新" title="今すぐ更新"><span class="ib-ic" aria-hidden="true">⟳</span><span class="ib-tx" aria-hidden="true">更新</span></button>
       </div>
     </div>
-    <div class="sync"><span class="dot" id="sync-dot"></span><span id="sync-text">読み込み中…</span></div>
+    <div class="sync"><span class="dot" id="sync-dot"></span><span id="sync-text">読み込み中…</span><span class="sync-sec" id="sync-sec" aria-hidden="true"></span></div>
   </header>
 
   <main id="main-body" tabindex="-1">
@@ -3880,7 +3903,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
         <ol>
           <li>地図の色で、いまの混み具合が分かります（ブースを押すと待ち時間）</li>
           <li>ブース入口のQRを読むとスタンプ（右上の「QR」ボタンで読めます）</li>
-          <li>スタンプ5個でお菓子1個と交換できます</li>
+          <li>スタンプ<span data-prize-n>23</span>個でお菓子1個と交換できます</li>
         </ol>
         <button type="button" class="btn ghost" id="intro-ok">わかった</button>
       </div>
@@ -4212,7 +4235,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
         <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg> この地図について</div>
         <p style="font-size:11.5px;color:var(--text-dim);font-weight:600;line-height:1.7">
           混雑状況は各ブースの係員が手動で更新しています。表示は目安であり、実際の状況と異なる場合があります。<br>
-          データは約20秒ごとに自動更新されます。通信できないときは、最後に取得した内容を表示します。<br>
+          データは約10秒ごとに自動更新されます（見ているあいだ）。通信できないときは、最後に取得した内容を表示します。<br>
           「約◯分」は待っている人数から計算した目安です。列の進み方によって実際とずれます。
         </p>
       </div>
@@ -4845,7 +4868,8 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
 const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
-  BUILD: '2026-10-16b',    // ファイルを更新したらここも変える。画面下部に表示され、
+  SCHOOL_URL: 'https://www2.iwate-ed.jp/kst-h/',   // v236：学校の公式サイト（パンフレットの学校名の下に刷る。表紙のQRは、このマップのまま）
+  BUILD: '2026-10-16c',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4859,12 +4883,19 @@ const CONFIG = {
   // 交換すると、その分のスタンプが「消費済み」になって赤くなる。
   // 残ったスタンプでもう一度交換できるので、何個でも渡せる運用にもできる。
   // ブースの数が決まったら、実際に配れる数に合わせて調整すること。
-  PRIZE_COST: 5,
-  POLL_MS: 20000,          // 通常のポーリング間隔（画面を開いたまま放置しているとき）
+  PRIZE_COST: 23,          // v236：5 → 23（ブース46件のちょうど半分。ユーザーの指定）
+  POLL_MS: 12000,          // 通常のポーリング間隔（画面を開いたまま放置しているとき）。v236：20000 → 12000（リアルタイムに近づける）
   // いま見ている人だけ速くする。ポケットの中の端末は visibilitychange で
   // そもそも止まっているので、全体の通信量はほとんど増えない。
-  // GAS の実行時間が足りなくなったら、まずここを 20000 に戻す。
-  POLL_MS_ACTIVE: 12000,   // 直近に操作した人のポーリング間隔
+  // GAS の実行時間が足りなくなったら、まずここを 12000 に戻す（当日は、スクリプトプロパティ POLL_SEC で全員の間隔を延ばせる）。
+  POLL_MS_ACTIVE: 7000,    // 直近に操作した人のポーリング間隔。v236：12000 → 7000（係の人の更新が、見ている人に早く届く）
+  POLL_MS_BOARD: 6000,     // v236：本部モニタ（1台だけ。ずっと見られている）
+  // v236：「変わったか」だけを聞く間隔（?gen=1。キャッシュを読むだけの軽い返事）。変わったときだけ本体を取る。
+  // 本体の取り直しは、この間は安全のための間隔（POLL_MS_SAFE）に延ばす。本部が POLL_SEC を決めたときは、この仕組みを止めて本体だけにする
+  GEN_MS_ACTIVE: 3000,     // 見ているとき
+  GEN_MS: 6000,            // 開いたまま触っていないとき
+  POLL_MS_SAFE: 25000,     // 「変わったか」を聞けているときの、本体の取り直し（予約したお知らせの時刻など、番号が変わらない変化のため）
+  GEN_SV: '2026-10-16a',   // この版より前のサーバーは ?gen=1 を知らない（本体を返してしまう）ので聞かない
   ACTIVE_WINDOW_MS: 45000, // 最後の操作から何ミリ秒を「見ている」とみなすか
   // GASは同時実行が30本までで、1回の往復に実測1.2〜4.5秒かかる。
   // 間隔を詰めるほど「同時に走っている本数」が増えるので、応答が重く
@@ -5843,6 +5874,10 @@ async function sync(manual){
     const sv = (raw && typeof raw.serverVersion === 'string') ? raw.serverVersion : '';
     if (S.serverVersion !== sv){ S.serverVersion = sv; if (S.isAdmin){ checkServer._done = false; checkServer(); } }
     S.fetchedAt = Date.now();
+    S.gen = (raw && typeof raw.gen === 'string') ? raw.gen : null;     // v236：この中身の番号（?gen=1 の答えと比べる）
+    setTimeout(genSchedule, 0);
+    // v236：取り直すたびに、点がふわっと光る
+    { const d = document.getElementById('sync-dot'); if (d && !REDUCE_MOTION.matches){ d.classList.remove('ping'); void d.offsetWidth; d.classList.add('ping'); setTimeout(() => d.classList.remove('ping'), 950); } }
     if (raw && raw.updatedAt) noteClock(raw.updatedAt);
     S.online = true; S.failures = 0;
     sync._okAt = Date.now();                       // v197：今回の取得が成功した（更新ボタンに「できた」の印を出す）
@@ -5999,7 +6034,11 @@ try{
 function schedule(){
   clearTimeout(S.timer);
   if (document.hidden && CONFIG.POLL_MS_HIDDEN === 0) return;
-  const base = Math.max((isActive() && !serverBusy()) ? CONFIG.POLL_MS_ACTIVE : CONFIG.POLL_MS, S.pollMin || 0)
+  // v236：本部モニタは1台だけで、ずっと見られているので短く（サーバーが重いときは、ほかと同じく延ばす）
+  let b0 = (isActive() && !serverBusy()) ? CONFIG.POLL_MS_ACTIVE : CONFIG.POLL_MS;
+  if (S.view === 'board' && !serverBusy()) b0 = Math.min(b0, CONFIG.POLL_MS_BOARD || b0);
+  if (genOn()) b0 = Math.max(b0, CONFIG.POLL_MS_SAFE);      // v236：変わったときは ?gen=1 で分かるので、本体の取り直しは安全のための間隔だけ
+  const base = Math.max(b0, S.pollMin || 0)
              * (BATT.low ? 2 : 1) * (saveData() ? 2 : 1);
   // ボードは誰も「再試行」を押さないので、待ちの上限を1分にしておく
   // v181：まだ何も出せていない（控えも無い）ときは、やり直しを最長1分に。何も見えない画面で5分待たせない
@@ -6149,6 +6188,49 @@ function renderSyncState(){
     }
   }
 }
+/* ---- v236：変わったかだけを数秒ごとに聞く ---- */
+const GEN = { t: null, fail: 0, slow: 0, at: 0 };
+/** 「変わったか」を聞いてよいか：新しいサーバー・本部が間隔を延ばしていない・見ている画面 */
+function genOn(){
+  return !!(S.serverVersion && S.serverVersion >= CONFIG.GEN_SV && !S.pollMin && S.gen != null
+    && ['map', 'list', 'stamp', 'info', 'board', 'admin'].indexOf(S.view) >= 0);
+}
+function genSchedule(){
+  clearTimeout(GEN.t); GEN.t = null;
+  if (document.hidden || !genOn()) return;
+  const busy = serverBusy() || BATT.low || saveData();
+  const base = (S.view === 'board' || isActive()) ? CONFIG.GEN_MS_ACTIVE : CONFIG.GEN_MS;
+  // 遅い・失敗したら、間隔をのばす（最大8倍）。同じ瞬間に重ならないよう ±15% ずらす
+  const ms = base * (busy ? 2 : 1) * Math.pow(2, Math.min(3, GEN.fail + GEN.slow)) * (0.85 + Math.random() * 0.3);
+  GEN.t = setTimeout(genCheck, Math.round(ms));
+}
+async function genCheck(){
+  GEN.t = null;
+  if (document.hidden || !genOn()) return;
+  if (sync._busy || update._busy){ genSchedule(); return; }
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 4000), t0 = Date.now();
+  try{
+    const u = CONFIG.GAS_URL + (CONFIG.GAS_URL.includes('?') ? '&' : '?') + 'gen=1&_=' + Date.now();
+    const r = await fetch(u, { signal: ctl.signal, mode: 'cors', redirect: 'follow' });
+    const j = await r.json();
+    GEN.fail = 0; GEN.slow = Date.now() - t0 > 2500 ? GEN.slow + 1 : 0; GEN.at = Date.now();
+    if (j && typeof j.gen === 'string' && j.gen !== S.gen && !sync._busy){ sync(false); return; }   // 変わった → 本体を取る（取ったあとで、また聞きはじめる）
+  }catch(e){ GEN.fail++; }
+  finally{ clearTimeout(to); }
+  genSchedule();
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden){ clearTimeout(GEN.t); GEN.t = null; } else genSchedule(); });
+/** v236：見出しの札の「◯秒前に確認」。1秒ごとに進める（文字を書き換えるだけ。通信はしない） */
+function renderSyncSec(){
+  const el = document.getElementById('sync-sec');
+  if (!el) return;
+  const ok = S.online && S.fetchedAt && !(sync._busy && sync._at && Date.now() - sync._at > 1000) && !hoursMessage();
+  const last = Math.max(S.fetchedAt || 0, genOn() ? GEN.at : 0);     // 「変わっていない」と確かめた時刻も、確認した時刻
+  const s = ok ? Math.max(0, Math.floor((Date.now() - last) / 1000)) : -1;
+  const tx = s < 0 || s * 1000 > CONFIG.STALE_MS ? '' : s < 60 ? `・${s}秒前に確認` : `・${Math.floor(s / 60)}分前に確認`;
+  if (el.textContent !== tx) el.textContent = tx;
+}
+setInterval(() => { if (!document.hidden) renderSyncSec(); }, 1000);
 setInterval(() => {
   if (document.hidden) return;          // 見ていない間は描かない（電池）
   renderSyncState();
@@ -7885,6 +7967,8 @@ function foldOut(el, done){
 function renderIntro(){
   const el = $('#intro-card');
   if (!el) return;
+  // v236：交換に要る数は設定（CONFIG.PRIZE_COST）に合わせる
+  $$('[data-prize-n]', el).forEach(x => { const n = String(Math.max(1, CONFIG.PRIZE_COST | 0)); if (x.textContent !== n) x.textContent = n; });
   // スタンプを1つでも持っている人は、もう使い方を知っている
   // v208：ブースが届くのを待たずに出す（中身は決まった文なので待つ理由が無い）。
   // 待っていたときは、届いた瞬間にこのカードが地図の上に割り込み、見はじめた地図が画面の外まで押し下げられていた
@@ -8023,7 +8107,7 @@ function openSheet(id, fromHistory){
   setTimeout(() => { const x = $('#bsh-x'); if (!x) return; x.classList.toggle('quiet', !KEY_USER.on); x.focus({ preventScroll:true }); }, 60);
   if (S.view === 'map') setTimeout(() => revealUnderSheet(id), 380);
   // v165：待ち時間を見て行くか決める場面。古い情報のまま決めさせない（込み合い中・圏外は控える）
-  if (navigator.onLine !== false && !sync._busy && !serverBusy() && S.fetchedAt && Date.now() - S.fetchedAt > 90000){
+  if (navigator.onLine !== false && !sync._busy && !serverBusy() && S.fetchedAt && Date.now() - S.fetchedAt > 20000){   // v236：90秒 → 20秒
     try{ sync(false); }catch(e){}
   }
 }
@@ -10975,6 +11059,11 @@ function showStampFx(id, fresh){
  * スタンプの進み具合につける称号。順位を競わせるのではなく、
  * 「もう少し回ってみようか」と思えるくらいの軽い遊びとして置いている。
  */
+/** v236：お菓子までの目盛り。8個までは丸を並べ、それより多い（23個など）ときは棒と「◯ / ◯」 */
+function prizeMeter(have, need){
+  if (need <= 8) return `<span class="prize-dots" aria-hidden="true">${Array.from({ length: need }, (x, i) => `<i class="${i < have ? 'on' : ''}">${i < have ? '✓' : ''}</i>`).join('')}</span>`;
+  return `<span class="prize-meter" aria-hidden="true"><i style="--p:${Math.max(0, Math.min(1, have / need)).toFixed(3)}"></i><em>${have} / ${need}</em></span>`;
+}
 const RANKS = [
   { at:1.00, mark:'crown',  name:'黒工マスター' },
   { at:0.75, mark:'flame',  name:'あと少し' },
@@ -11035,8 +11124,7 @@ function renderPrize(got, left, need, canGet, ws){
         // v203：一覧が届くまで、いくつ交換できるかは決められない（無くなったブースのスタンプは数えないため）
         box.innerHTML = '<div class="prize-row"><span class="prize-tx">ブースの情報が届くと、交換できる数が出ます</span></div>';
       } else if (canGet){
-        box.innerHTML = `<div class="prize-row"><span class="prize-dots" aria-hidden="true">${
-            Array.from({ length: need }, () => '<i class="on">✓</i>').join('')}</span>
+        box.innerHTML = `<div class="prize-row">${prizeMeter(need, need)}
             <span class="prize-tx">お菓子と交換できます <b>${canGet}個</b></span></div>
           <button type="button" class="prize-go" id="prize-go">交換のしかたを見る</button>`;
         const go = $('#prize-go');
@@ -11048,8 +11136,7 @@ function renderPrize(got, left, need, canGet, ws){
         });
       } else {
         const have = left % need;
-        box.innerHTML = `<div class="prize-row"><span class="prize-dots" aria-hidden="true">${
-            Array.from({ length: need }, (x, i) => `<i class="${i < have ? 'on' : ''}">${i < have ? '✓' : ''}</i>`).join('')}</span>
+        box.innerHTML = `<div class="prize-row">${prizeMeter(have, need)}
             <span class="prize-tx">お菓子まで あと <b>${need - have}個</b></span></div>`;
       }
     }
@@ -13020,6 +13107,7 @@ function switchView(v, fromHistory){
   // 画面を移した＝いま見ている。混雑を見に来たのに20秒前の値を出さない
   markActive();
   if (v === 'map' || v === 'list') syncIfStale(7000);
+  setTimeout(genSchedule, 0);              // v236：見ている画面で、変わったかを聞く間隔が変わる
   // v232：地図以外の画面から開いた人が、はじめて地図へ来たとき。隠れているあいだは寸法を測れていないので、ここで合わせる
   if (v === 'map' && !fitMapBox._key) requestAnimationFrame(() => { try{ if (S.view === 'map') fitMapBox(S.floor); }catch(e){} });
 
@@ -16241,7 +16329,7 @@ function renderPamphlet(){
       ${helpHtml}
       ${opt('アクセス', ed('back.access', P.access || '', 'p', 'pam-small', '最寄り駅・駐車場など（空なら見出しごと出ません）'))}
       ${opt('お問い合わせ', ed('back.contact', P.contact || '', 'p', 'pam-small', '住所・電話番号など（空なら見出しごと出ません）'))}
-      <p class="pam-foot"><b>${esc(P.school || '岩手県立黒沢尻工業高等学校')}</b>${esc(siteShort)}</p>`);
+      <p class="pam-foot"><b>${esc(P.school || '岩手県立黒沢尻工業高等学校')}</b>${esc(String(P.schoolUrl || CONFIG.SCHOOL_URL || site).replace(/^https?:\/\//, '').replace(/\/$/, ''))}</p>`);   // v236：学校名の下は、学校の公式サイト
 
   // ---- 中面・左（表紙を開くと最初に目に入る面）：校長・生徒会長のあいさつ（ユーザーの依頼）。
   // この2つの欄は、文が空でも見出しと空白をそのまま刷る（あとから貼る・手で書く場所として残す）。
