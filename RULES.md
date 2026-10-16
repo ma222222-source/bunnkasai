@@ -65,7 +65,7 @@
 | `Code.gs` | `GAS_VERSION` を変える（`YYYY-MM-DD` ＋ 英小文字）。画面が前提とする最低版は `index.html` の `CONFIG.GAS_MIN` |
 | 納品 | 版番号 vNNN ごとにフォルダを分ける（例：ユーザーのPCの `Downloads\bunnkasai-vNNN-deploy\`）。**一式**を入れる |
 
-版番号の対応（v235 時点）：v235 ＝ `BUILD 2026-10-16b` ／ `CACHE kuroko-map-v235` ／ `GAS_VERSION 2026-10-14h`（v228〜v235 は画面だけ。GAS は v227 のまま／イベントの記憶は LIVE・LIVE_SCHED・LIVE_PAST の3つ／ラッキーブースの予約 `luckySched`／振り返りの `events`／一斉お知らせの予約 `sched`／本部・準備の操作は持ち主だけ／司令塔のイベント `LIVE`／抽選の下見 `dry`・受け取りの場所 `place`／ラッキーブースをのばす `extend`・効果 `stamps`／一斉お知らせの演出 `fx`／操作の記録 `log`）。
+版番号の対応（v236 時点）：v236 ＝ `BUILD 2026-10-16c` ／ `CACHE kuroko-map-v236` ／ `GAS_VERSION 2026-10-16a`（v236：変わったかだけを返す ?gen=1 と、本体の gen／イベントの記憶は LIVE・LIVE_SCHED・LIVE_PAST の3つ／ラッキーブースの予約 `luckySched`／振り返りの `events`／一斉お知らせの予約 `sched`／本部・準備の操作は持ち主だけ／司令塔のイベント `LIVE`／抽選の下見 `dry`・受け取りの場所 `place`／ラッキーブースをのばす `extend`・効果 `stamps`／一斉お知らせの演出 `fx`／操作の記録 `log`）。
 
 ## 5. 反映の手順
 

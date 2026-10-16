@@ -221,6 +221,8 @@ test('スタンプ：0個は手順、3個は「お菓子まであと2個」、6�
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?tab=stamp');
   await ready(page);
+  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
+  await page.evaluate(() => renderStamps());
   await expect(page.locator('#stamp-prize .prize-steps li')).toHaveCount(3);
   await expect(page.locator('#nav .nav-badge')).toHaveCount(0);
 
@@ -453,6 +455,7 @@ test('起動：GAS がふつうに速いときは、2本目を出さない', asy
   const log = await mockGas(page);
   await page.goto('/?tab=map');
   await ready(page);
+  await page.evaluate(() => { clearTimeout(S.timer); S.timer = null; });   // v236：ふつうの取り直し（約6〜8秒）は止めて、2本目（起動のときだけ出す）だけを数える
   await page.waitForTimeout(6500);                 // 2本目を出す 5 秒を過ぎても
   expect(log.gets.filter(q => !/ledger|report/.test(q)).length).toBe(1);
 });
@@ -1105,6 +1108,7 @@ test('QRのカメラの下に、いまのスタンプの数と交換までの残
   });
   await page.goto('/?tab=stamp');
   await ready(page);
+  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
   await page.locator('#stamp-scan').click();
   await expect(page.locator('#scan-count')).toContainText('いまスタンプ 2個');
   await expect(page.locator('#scan-count')).toContainText('あと3個');
@@ -1483,6 +1487,7 @@ test('終わる45分前、交換できるスタンプがあれば一度だけ知
   await page.addInitScript(() => localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03', '1F-05', '1F-07', '1F-08'])));
   await page.goto('/?tab=map');
   await ready(page);
+  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
   const r = await page.evaluate(() => {
     // 開催時間は、画面の時計（端末の時間帯）でいまの1時間前〜30分後にする（GitHub は UTC、iPhone・Android のまねは日本時間）
     const d = new Date(), p2 = n => String(n).padStart(2, '0');
@@ -1584,6 +1589,7 @@ test('スタンプの演出：音の切り替え・続けて読む・交換す�
   });
   await page.goto('/?tab=stamp');
   await ready(page);
+  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
   // 5個目：交換できる → 「お菓子と交換する」
   await page.evaluate(() => stampNow('1F-05'));
   await expect(page.locator('[data-fx="redeem"]')).toBeVisible();
@@ -2149,6 +2155,8 @@ test('スタンプの演出：お菓子までの丸に、いま押した1個が�
   await page.addInitScript(() => { if (!sessionStorage.getItem('x')){ sessionStorage.setItem('x', 1); localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03'])); } });
   await page.goto('/?tab=stamp');
   await ready(page);
+  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
+  await page.evaluate(() => { try{ renderStamps(); }catch(e){} });
   await page.evaluate(() => stampNow('1F-05'));
   await expect(page.locator('#sfx')).toBeVisible();
   let r = await page.evaluate(() => {
@@ -2641,6 +2649,8 @@ test('お菓子と交換：係の人の4桁を入れて交換すると、画面�
   await page.addInitScript(() => { if (!sessionStorage.getItem('x')){ sessionStorage.setItem('x', 1); localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03', '1F-05', '1F-07', '1F-08', '1F-10'])); } });
   await page.goto('/?tab=stamp');
   await ready(page);
+  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
+  await page.evaluate(() => { try{ renderStamps(); }catch(e){} });
   // スタンプを6個にそろえる（5個を使って、1個残る）
   await page.evaluate(() => { S.stamps = new Set(S.booths.slice(0, 6).map(b => b.id)); store('kuroko_stamps_v2', Array.from(S.stamps)); renderStamps(); });
   expect(await page.evaluate(() => stampsLeft())).toBe(6);
@@ -2850,6 +2860,7 @@ test('ブースの一覧が届くまで（はじめて開いた・サーバー�
     localStorage.setItem('kuroko_intro_v1', '1'); localStorage.setItem('kuroko_stamps_v2', JSON.stringify(ids));
     localStorage.setItem('kuroko_cert_at', JSON.stringify('2026-10-24T03:00:00.000Z')); } }, IDS);
   await page.goto('/?tab=list');
+  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; renderStamps._fp = null; try{ renderStamps(); }catch(e){} });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
   // 一覧：探してもいないのに「見つかりませんでした」と言わない
   await expect(page.locator('#booth-list .list-wait')).toContainText('読み込んでいます');
   await expect(page.locator('#booth-list .skel')).toHaveCount(4);
@@ -2885,6 +2896,8 @@ test('ブースの一覧が届くまで（はじめて開いた・サーバー�
   // 届いたら、ふつうの表示に変わる
   release();
   await ready(page);
+  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
+  await page.evaluate(() => { try{ renderStamps(); }catch(e){} });
   await page.locator('#nav button[data-view="stamp"]').click();
   await expect(page.locator('#v-stamp .stamp-count')).not.toHaveClass(/wait/);
   await expect(page.locator('#stamp-total')).toHaveText('46');
@@ -4587,6 +4600,8 @@ test('お菓子の交換（v233）：全角の数字でも入る・4桁そろう
   await mockGas(page);
   await page.goto('/?tab=stamp');
   await ready(page);
+  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
+  await page.evaluate(() => { try{ renderStamps(); }catch(e){} });
   await page.evaluate(() => { S.stamps = new Set(S.booths.slice(0, 6).map(b => b.id)); store('kuroko_stamps_v2', Array.from(S.stamps)); renderStamps(); });
   // 飛んだ先のカードの見出しが、上の固定の見出しの下に隠れない
   await page.locator('#prize-go').click();
@@ -4784,5 +4799,59 @@ test('スタンプ帳（v235）：0個のときは「次の称号」を出さな
   await expect(page.locator('#stamp-ranks li[aria-current="true"]')).toContainText('散策中');
   await chip.click();
   await expect(page.locator('#stamp-ranks')).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+});
+
+/* ---------------- v236：リアルタイムに近づける・お菓子の交換は23個 ---------------- */
+test('リアルタイム（v236）：数秒ごとに「変わったか」だけを聞き、変わったときだけ本体を取る。見出しに「◯秒前に確認」。古いサーバー・本部が間隔をのばしたときは聞かない', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const errors = watchErrors(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  let gen = 'g1', wait = 3;
+  const log = await mockGas(page, { gen: () => gen, mutate: j => { j.serverVersion = '2026-10-16a'; j.gen = gen; const b = j.booths.find(x => x.id === '1F-01'); b.wait = wait; b.status = '空いています'; } });
+  await page.goto('/?tab=list');
+  await ready(page);
+  const full = () => log.gets.filter(q => !/gen=1|ledger|report|win=/.test(q)).length;
+  const gens = () => log.gets.filter(q => /gen=1/.test(q)).length;
+  await page.mouse.move(100, 400);                                  // 見ている（触った）
+  await page.evaluate(() => { window.hoursMessage = () => null; });  // 開催時間のあいだのまね（時間の外では、見出しは「一般公開は◯日です」を出し、秒は出さない）
+  // 変わっていないあいだは、「変わったか」だけを聞く（本体は取りに来ない）
+  const f0 = full();
+  await expect.poll(gens, { timeout: 12000 }).toBeGreaterThanOrEqual(2);
+  expect(full()).toBe(f0);
+  // 見出しの「◯秒前に確認」
+  await expect(page.locator('#sync-sec')).toHaveText(/^・\d+秒前に確認$/);
+  // 変わった → すぐ本体を取りに来て、画面が新しい人数になる
+  const id = '1F-01';
+  gen = 'g2'; wait = 9;
+  await expect.poll(() => page.evaluate(i => S.booths.find(b => b.id === i).wait, id), { timeout: 10000 }).toBe(9);
+  expect(full()).toBeGreaterThan(f0);
+  expect(await page.evaluate(() => S.gen)).toBe('g2');
+  // 本部が POLL_SEC で間隔をのばしたら、「変わったか」は聞かない（本体だけに戻す）
+  await page.evaluate(() => { S.pollMin = 30000; });
+  expect(await page.evaluate(() => genOn())).toBe(false);
+  await page.evaluate(() => { S.pollMin = 0; S.serverVersion = '2026-10-14h'; });
+  expect(await page.evaluate(() => genOn())).toBe(false);          // 古いサーバーは ?gen=1 を知らない
+  expect(errors).toEqual([]);
+});
+
+test('お菓子の交換は23個（v236）：はじめての案内・スタンプ帳は「◯ / 23」の棒（丸を23個並べない）・あと何個', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  expect(await page.evaluate(() => CONFIG.PRIZE_COST)).toBe(23);
+  await expect(page.locator('#intro-card [data-prize-n]')).toHaveText('23');
+  await page.locator('#nav button[data-view="stamp"]').click();
+  await page.evaluate(() => { S.stamps = new Set(S.booths.slice(0, 3).map(b => b.id)); renderStamps(); });
+  const m = page.locator('#stamp-prize .prize-meter');
+  await expect(m).toBeVisible();
+  await expect(m.locator('em')).toHaveText('3 / 23');
+  await expect(page.locator('#stamp-prize .prize-dots')).toHaveCount(0);
+  await expect(page.locator('#stamp-prize')).toContainText('お菓子まで あと 20個');
+  // 23個 → 交換できる
+  await page.evaluate(() => { S.stamps = new Set(S.booths.slice(0, 23).map(b => b.id)); renderStamps(); });
+  await expect(page.locator('#stamp-prize')).toContainText('お菓子と交換できます');
+  await expect(page.locator('#redeem-open')).toBeEnabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
 });

@@ -498,7 +498,7 @@ test('三つ折りパンフレット：ごあいさつは細い列、一覧は�
   expect(r.m3[1]).toBeLessThanOrEqual(98.5);
   expect(r.m2[0]).toBeGreaterThanOrEqual(101.5);
   expect(r.list1[0]).toBeGreaterThanOrEqual(240);
-  expect(r.list1[1]).toBeLessThanOrEqual(289);            // 紙の右の端 8mm には置かない
+  expect(r.list1[1]).toBeLessThanOrEqual(291.5);          // 紙の右の端 5.5mm には置かない（v236：8mm → 6mm。空きを使い切る）
   // 2階の一覧は3段。2段目と3段目の切れ目が、折り目（200mm）
   expect(r.l2.length).toBe(3);
   expect(r.l2[1][1]).toBeLessThanOrEqual(198.5);
@@ -593,4 +593,19 @@ test('三つ折りパンフレット：文は文節で折り返す（1文字だ�
   expect(r.gal).toBe('left');
   expect(r.orphans).toEqual([]);
   expect(r.over).toBe(0);
+});
+
+/* ---------------- v236 ---------------- */
+test('三つ折りパンフレット（v236）：学校名の下は学校の公式サイト。表紙のQRの下は、このマップのアドレスのまま。面の左右の余白は紙の端 6mm・折り目の側 3.5mm', async ({ page }) => {
+  await mockGas(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/?mode=pamphlet');
+  await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
+  await expect(page.locator('#pam .pam-foot')).toContainText('www2.iwate-ed.jp/kst-h');
+  await expect(page.locator('#pam .pam-foot')).not.toContainText('github.io');
+  await page.emulateMedia({ media: 'print' });
+  const pad = await page.evaluate(() => { const mm = 96 / 25.4, p = s => { const c = getComputedStyle(document.querySelector(s)); return [Math.round(parseFloat(c.paddingLeft) / mm * 10) / 10, Math.round(parseFloat(c.paddingRight) / mm * 10) / 10]; };
+    return { flap: p('.pam-s1 .pam-flap'), back: p('.pam-s1 .pam-back') }; });
+  expect(pad.flap).toEqual([6, 3.5]);
+  expect(pad.back).toEqual([3.5, 3.5]);
 });

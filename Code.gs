@@ -47,7 +47,7 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-10-14h';
+var GAS_VERSION = '2026-10-16a';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
@@ -248,7 +248,7 @@ function validate() {
     advice.push(warm ? '先読み（warmCache）：1分ごとに動いています（文化祭が終わったら removeWarmTrigger）'
                      : '先読み（warmCache）：止まっています（当日の前日に installWarmTrigger を1回実行すると、混んだときに速くなります）');
   } catch (eT) {}
-  advice.push('自動更新の間隔（POLL_SEC）：' + (pollSec_() ? pollSec_() + '秒' : '画面の設定のまま（12〜20秒）'));
+  advice.push('自動更新の間隔（POLL_SEC）：' + (pollSec_() ? pollSec_() + '秒' : '画面の設定のまま（変わったかを3〜6秒ごとに確かめ、変わったときだけ取り直す。POLL_SEC を入れると、この確かめを止めて、その秒数ごとの取り直しだけにする）'));
   try {
     var ce = clientErrorsToday_();
     if (ce) advice.push('端末で起きたエラー：今日 ' + ce + '件（「' + SHEET_CLIENT_ERR + '」シート。同じものが多ければ不具合の手がかり）');
@@ -652,6 +652,13 @@ function checkPass_(pass, cid, login, who) {
 function doGet(e) {
   // ?report=1 で当日の振り返りデータを返す（?date=YYYY-MM-DD で日付指定）
   var param = (e && e.parameter) || {};
+  // v236：?gen=1 … 「変わったか」だけを返す（キャッシュの番号を読むだけ。シートもプロパティも読まない）。
+  // 端末は数秒ごとにこれを聞き、番号が変わったときだけ本体を取りに来る（GAS は端末へ送り届けられないので、これでリアルタイムに近づける）
+  if (param.gen) {
+    var gn = '';
+    try { gn = CacheService.getScriptCache().get(CACHE_GEN) || ''; } catch (eG) {}
+    return json_({ ok: true, gen: gn, serverVersion: GAS_VERSION });
+  }
   // ?ledger=端末番号 … その端末のスタンプ記録を返す（別のブラウザ・機種への引き継ぎ用）
   if (param.ledger) {
     try {
@@ -723,6 +730,7 @@ function buildAndCache_(cache, ttl) {
   // 作っている間に係員の更新が入ったら、作った結果はキャッシュに置かない（古い内容を15秒焼き付けない）
   var gen0 = cache.get(CACHE_GEN) || '';
   var data = buildPayload_();
+  data.gen = gen0;                                // v236：この中身を作ったときの番号（端末が ?gen=1 の答えと比べる）
   var payload = JSON.stringify(data);
   // 1件100KB（バイト）を超えると put が失敗する。日本語は1文字3バイトなので文字数では測れない。
   // まず推移を半分の点数に間引き、それでも大きければ推移を外す

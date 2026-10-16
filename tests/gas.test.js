@@ -1239,3 +1239,24 @@ test('v227 イベントの記憶は3つに分けて持つ：長い予約を20件
   assert.strictEqual(JSON.parse(g2.__props.LIVE).sched, undefined, '書いたあとは、予約は LIVE に入れない');
   assert.deepStrictEqual(JSON.parse(g2.__props.LIVE_SCHED).sched.map(x => x.title), ['前の版の予約', 'あたらしい予約']);
 });
+
+/* ---------------- v236：変わったかだけを返す（?gen=1） ---------------- */
+test('v236 ?gen=1 は「変わったか」の番号だけを返す（シートを読まない）。本体にも同じ番号が入る。係員の更新・お知らせで番号が変わる', () => {
+  const g = fresh();
+  const body = g.__get();
+  assert.strictEqual(typeof body.gen, 'string');
+  const a = g.__get({ gen: '1' });
+  assert.strictEqual(a.ok, true);
+  assert.strictEqual(a.gen, body.gen);
+  assert.strictEqual(a.booths, undefined, '本体（ブースの一覧）は返さない');
+  assert.ok(a.serverVersion);
+  // 係員の更新 → 番号が変わる。本体を取り直すと、新しい番号が入っている
+  const id = body.booths[0].id;
+  g.__post({ action: 'update', pass: PASS, cid: 'aaaa1111aaaa', id, wait: 7 });
+  const b = g.__get({ gen: '1' });
+  assert.notStrictEqual(b.gen, a.gen);
+  const body2 = g.__get();
+  assert.strictEqual(body2.gen, b.gen);
+  // 何も書かなければ、番号は変わらない
+  assert.strictEqual(g.__get({ gen: '1' }).gen, b.gen);
+});
