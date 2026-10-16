@@ -12694,6 +12694,7 @@ function hoursMessage(now){
              long: `本日の${nm.replace(/日$/, '')}は ${day.close} で終了しました。${next}` };
   }
   if (st.state === 'open'){
+    if (!day) return null;            // v236：開催日を入れていない（day が無い）ときは何も言わない。以前は day.last を読んで落ちていた（1秒ごとの「◯秒前に確認」で見つかった）
     // 最終入場の30分前から、締め切り後は終了まで知らせる（来てから入れないのを防ぐ）
     const cur = d.getHours() * 60 + d.getMinutes(), last = hmMin(day.last);
     if (last != null && cur >= last) return { short: `最終入場（${day.last}）を過ぎました・${day.close}終了`,
