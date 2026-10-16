@@ -4854,3 +4854,49 @@ test('お菓子の交換は23個（v236）：はじめての案内・スタン�
   await expect(page.locator('#redeem-open')).toBeEnabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
 });
+
+/* ---------------- v237：速くなった更新を、画面で分かるように ---------------- */
+test('更新の見え方（v237）：混み具合の向きの札（2分）・★行きたいブースが空いたら知らせる・詳細の人数がぽんと動く・並びが変わったカードは動く・生きている点', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const errors = watchErrors(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  await mockGas(page);
+  await page.goto('/?tab=list');
+  await ready(page);
+  // ★を付けたブースが「混雑 → 空き」に（スタンプはまだ）
+  const id = await page.evaluate(() => {
+    const b = S.booths.find(x => !S.stamps.has(x.id) && x.category !== '受付');
+    S.wish.add(b.id); S.prevLv.set(b.id, 2); b.status = '空いています'; b.wait = 0;
+    let anim = 0; const o = Element.prototype.animate; Element.prototype.animate = function(){ anim++; return o.apply(this, arguments); }; window.__anim = () => anim;
+    markChanges(); renderList();
+    return b.id;
+  });
+  const card = page.locator(`[id="booth-${id}"]`);
+  await expect(card.locator('.trend')).toHaveText('▼空いてきた');
+  await expect(card.locator('.trend')).toHaveAttribute('data-dir', 'down');
+  await expect(page.locator('#toast')).toContainText('が空きました');
+  await expect(page.locator('#toast .toast-act')).toHaveText('見る');
+  // 並びが変わった（空いている順で上へ）カードは、前の位置から動く
+  await expect.poll(() => page.evaluate(() => window.__anim())).toBeGreaterThan(0);
+  // 混んできた向き
+  await page.evaluate(i => { const b = S.booths.find(x => x.id === i); b.status = '混雑しています'; b.wait = 30; markChanges(); renderList(); }, id);
+  await expect(card.locator('.trend')).toHaveText('▲混んできた');
+  // 2分たったら消える
+  await page.evaluate(i => { S.trend.get(i).at = Date.now() - 121000; renderList(); }, id);
+  await expect(card.locator('.trend')).toHaveCount(0);
+  // 詳細を開いたまま人数が変わると、数字がぽんと動く
+  await page.evaluate(i => { const b = S.booths.find(x => x.id === i); b.status = 'やや混雑'; b.wait = 8; openSheet(i); }, id);
+  await expect(page.locator('#bsh .wt b')).toHaveText('8');
+
+  await page.evaluate(i => { S.booths.find(x => x.id === i).wait = 11; renderSheet(); }, id);
+  await expect(page.locator('#bsh .wt b')).toHaveText('11');
+  await expect(page.locator('#bsh .bsh-st .trend')).toHaveCount(0);      // 人数だけ変わった（段階は同じ）ときは、向きの札は出さない
+  await expect.poll(() => page.evaluate(() => document.querySelector('#bsh .bsh-st').classList.contains('chg'))).toBe(true);   // 前からある「変わった」の動き
+  await page.keyboard.press('Escape');
+  // 「変わったか」を聞いているあいだ、見出しの点は息をする
+  await page.evaluate(() => { window.hoursMessage = () => null; S.serverVersion = '2026-10-16a'; S.gen = 'x'; S.pollMin = 0; S.online = true; renderSyncState(); });   // 開催時間のあいだのまね
+  await expect(page.locator('#sync-dot')).toHaveClass(/\blive\b/, { timeout: 3000 });
+  await page.evaluate(() => { S.pollMin = 30000; });
+  await expect(page.locator('#sync-dot')).not.toHaveClass(/\blive\b/, { timeout: 3000 });
+  expect(errors).toEqual([]);
+});

@@ -491,3 +491,15 @@ test('受付のカウンタ（v233）：押すたびに「＋5」が数字の横
   await expect(page.locator('.vis-row .vis-delta.neg').last()).toHaveText('−1');
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v237：係員の送ったあとの一言 ---------------- */
+test('係員（v237）：新しいサーバーなら、送ったあとに「見ている人には数秒で届きます」', async ({ page }) => {
+  const errors = watchErrors(page);
+  await login(page);
+  await page.evaluate(() => { S.serverVersion = '2026-10-16a'; });
+  const card = page.locator('#admin-list .adm-booth').first();
+  await card.locator('[data-step="1"]').click();
+  await card.locator('.send').click();
+  await expect(page.locator('#toast')).toContainText('見ている人には数秒で届きます');
+  expect(errors).toEqual([]);
+});
