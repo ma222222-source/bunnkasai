@@ -4916,6 +4916,9 @@ test('リアルタイムの見え方（v238）：見出しの札を押すと取�
   const f0 = full();
   await page.locator('#sync-pill').click();
   await expect.poll(full).toBeGreaterThan(f0);
+  await expect.poll(() => page.evaluate(() => !sync._busy)).toBe(true);
+  // ここからは、手で変えた混み具合を、あとの自動の取り直しで元に戻されないよう、取り直しを止めて見る
+  await page.evaluate(() => { clearTimeout(S.timer); S.timer = null; window.schedule = () => {}; });
   // 地図：混み具合が変わった部屋は光の輪
   const id = await page.evaluate(() => {
     const b = S.booths.find(x => x.category !== '受付' && floorOfBooth(x) === S.floor && lvOf(x).lv === 2);
