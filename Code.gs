@@ -47,7 +47,7 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-10-16a';
+var GAS_VERSION = '2026-10-19a';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
@@ -657,7 +657,9 @@ function doGet(e) {
   if (param.gen) {
     var gn = '';
     try { gn = CacheService.getScriptCache().get(CACHE_GEN) || ''; } catch (eG) {}
-    return json_({ ok: true, gen: gn, serverVersion: GAS_VERSION });
+    // v239：新しい画面は手元の番号（since）も送る。変わっていれば、この1往復で本体まで返す。
+    // since の無い従来の画面は、今までどおり番号だけを受け取れる。
+    if (typeof param.since !== 'string' || param.since === gn) return json_({ ok: true, gen: gn, serverVersion: GAS_VERSION });
   }
   // ?ledger=端末番号 … その端末のスタンプ記録を返す（別のブラウザ・機種への引き継ぎ用）
   if (param.ledger) {

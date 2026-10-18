@@ -17,13 +17,13 @@ module.exports = defineConfig({
     timezoneId: 'Asia/Tokyo',
   },
   // v161：来場者の多くは iPhone（Safari）。WebKit（Safari と同じ仕組み）と、指で操作する Android も真似て回す。
-  // 端末ごとに見る中身は来場者の画面（app.spec）と QR（scan.spec）。係員・印刷・サーバーは chromium だけ
+  // 端末ごとに見る中身は来場者の画面（app.spec）・QR（scan.spec）・通信確認（realtime.spec）。係員・印刷・サーバーは chromium だけ
   projects: [
     { name: 'chromium', use: {} },
     { name: 'iphone', use: { ...devices['iPhone 13'], serviceWorkers: 'block', locale: 'ja-JP', timezoneId: 'Asia/Tokyo' },
-      testMatch: /(app|scan)\.spec\.js$/ },
+      testMatch: /(app|scan|realtime)\.spec\.js$/ },
     { name: 'android', use: { ...devices['Pixel 7'], serviceWorkers: 'block', locale: 'ja-JP', timezoneId: 'Asia/Tokyo' },
-      testMatch: /(app|scan)\.spec\.js$/ },
+      testMatch: /(app|scan|realtime)\.spec\.js$/ },
   ],
   webServer: {
     command: `${process.platform === 'win32' ? 'python' : 'python3'} -m http.server ${PORT} --bind 127.0.0.1 --directory ..`,

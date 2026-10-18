@@ -4899,7 +4899,7 @@ const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
   SCHOOL_URL: 'https://www2.iwate-ed.jp/kst-h/',   // v236：学校の公式サイト（パンフレットの学校名の下に刷る。表紙のQRは、このマップのまま）
-  BUILD: '2026-10-18a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-19a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4926,6 +4926,7 @@ const CONFIG = {
   GEN_MS: 6000,            // 開いたまま触っていないとき
   POLL_MS_SAFE: 25000,     // 「変わったか」を聞けているときの、本体の取り直し（予約したお知らせの時刻など、番号が変わらない変化のため）
   GEN_SV: '2026-10-16a',   // この版より前のサーバーは ?gen=1 を知らない（本体を返してしまう）ので聞かない
+  DELTA_SV: '2026-10-19a', // v239：手元の番号も送り、変わっていれば本体まで1往復で受け取る
   ACTIVE_WINDOW_MS: 45000, // 最後の操作から何ミリ秒を「見ている」とみなすか
   // GASは同時実行が30本までで、1回の往復に実測1.2〜4.5秒かかる。
   // 間隔を詰めるほど「同時に走っている本数」が増えるので、応答が重く
@@ -5857,20 +5858,24 @@ function normalize(raw){
   })).sort((a, x) => idCmp(a.id, x.id));
 }
 
-async function sync(manual){
+async function sync(manual, received){
   // 手動更新と自動更新が重ならないようにする
   if (sync._busy){ if (manual) toast('更新中です'); return; }
   // 係員の送信中に取り込むと、送った値が古い値で上書きされて見える
   if (update._busy && !manual){ schedule(); return; }
+  // 自分で取り直す間は、軽い確認の予約・通信を重ねない。
+  if (!received) genStop();
   sync._busy = true;
-  sync._at = Date.now();
+  sync._at = received ? received.at : Date.now();
   { const rb = $('#btn-reload'); if (rb) rb.classList.add('busy'); }      // v183：更新のあいだ印を回す
   // 1秒たっても返ってこなければ「取りに行っています」を出す
   clearTimeout(sync._slow);
   sync._slow = setTimeout(() => { if (sync._busy) renderSyncState(); }, 1100);
   const gen = update._gen || 0;
   try{
-    const raw = await earlyOrApi();
+    const raw = received ? received.data : await earlyOrApi();
+    // v239：圏外の通知より少し遅れて前の通信が終わっても、「つながっています」に戻さない。
+    if (navigator.onLine === false) throw new Error('Failed to fetch');
     // 取得している間に係員が送信した場合、この結果は送信前の古い状態。
     // 取り込むと押したボタンが20秒ほど元に戻って見えるので捨てて、すぐ取り直す
     if ((update._gen || 0) !== gen || update._busy){ sync._again = true; return; }
@@ -6026,12 +6031,19 @@ function serverBusy(){
 function markActive(){
   const was = isActive();
   S.activeAt = Date.now();
-  if (!was) schedule();          // 遅い間隔で待っている最中なら、速い方へ組み直す
+  if (!was){
+    // v239：しばらく触っていなかった人には、その場で確認する。直前に確認できていれば重ねない。
+    if (genOn() && Date.now() - confirmedAt() > CONFIG.GEN_MS_ACTIVE) genCheck();
+    schedule();
+  }
 }
+['pointerdown', 'touchstart', 'keydown', 'wheel'].forEach(t =>
+  addEventListener(t, markActive, { passive: true, capture: true }));
 /** 表示が古ければすぐ取りに行く。新しければ何もしない（無駄打ちを避ける） */
 function syncIfStale(maxAgeMs){
-  if (sync._busy || update._busy) return;
-  if (!S.fetchedAt || Date.now() - S.fetchedAt > maxAgeMs) sync(false);
+  if (sync._busy || update._busy || GEN.busy) return;
+  const last = confirmedAt();
+  if (!last || Date.now() - last > maxAgeMs) sync(false);
 }
 
 /**
@@ -6083,7 +6095,7 @@ function schedule(){
 
 document.addEventListener('visibilitychange', () => {
   // 何度も切り替えるたびに取りに行かない（5秒以内なら次の定期更新に任せる）
-  if (!document.hidden){ markActive(); Date.now() - S.fetchedAt > 5000 ? sync(false) : schedule(); }
+  if (!document.hidden){ markActive(); syncIfStale(5000); schedule(); }
   else { clearTimeout(S.timer); }
 });
 
@@ -6175,10 +6187,12 @@ function lastStaffAt(){
 }
 function renderSyncState(){
   const dot = $('#sync-dot'), txt = $('#sync-text');
+  const pill = $('#sync-pill');
+  if (pill){ pill.removeAttribute('title'); pill.setAttribute('aria-label', 'いますぐ最新の混み具合を取り直す'); }
   const age = Date.now() - S.fetchedAt;
   // GASの応答は実測で1.2〜4.5秒かかる。そのあいだ表示が止まって見えるので、
   // 1秒を超えたら「取りに行っている」ことを出す（黙って固まらせない）
-  if (sync._busy && sync._at && Date.now() - sync._at > 1000){
+  if (navigator.onLine !== false && sync._busy && sync._at && Date.now() - sync._at > 1000){
     dot.className = 'dot syncing';
     txt.textContent = '最新の状況を取りに行っています…';
     return;
@@ -6215,12 +6229,16 @@ function renderSyncState(){
       // v213：「係の人の更新」は、係の人がいちばん最近に更新した時刻で言う。
       // 以前は、サーバーがこの返事を作った時刻（S.updatedAt）を出していたので、だれも更新していなくても、いつも「たった今」だった
       const ls = lastStaffAt();
-      txt.textContent = ls ? `最新の情報です（係の人の更新 ${ago(ls)}）` : '最新の情報です（係の人の更新はまだありません）';
+      txt.textContent = ls ? '最新の混雑状況' : '係の更新待ち';
+      const detail = ls ? `係の人の更新 ${ago(ls)}` : '係の人の更新はまだありません';
+      if (pill){ pill.title = detail; pill.setAttribute('aria-label', `${txt.textContent}。${detail}。いますぐ最新の混み具合を取り直す`); }
     }
   }
 }
 /* ---- v236：変わったかだけを数秒ごとに聞く ---- */
-const GEN = { t: null, fail: 0, slow: 0, at: 0 };
+const GEN = { t: null, fail: 0, slow: 0, at: 0, busy: false, ctl: null, cancelled: false };
+/** 本体の取得、または同じ番号を確かめたうち、新しい時刻。細部を開くたびの無駄な再取得も防ぐ。 */
+function confirmedAt(){ return Math.max(S.fetchedAt || 0, genOn() ? GEN.at : 0); }
 /** 「変わったか」を聞いてよいか：新しいサーバー・本部が間隔を延ばしていない・見ている画面 */
 function genOn(){
   return !!(S.serverVersion && S.serverVersion >= CONFIG.GEN_SV && !S.pollMin && S.gen != null
@@ -6228,7 +6246,7 @@ function genOn(){
 }
 function genSchedule(){
   clearTimeout(GEN.t); GEN.t = null;
-  if (document.hidden || !genOn()) return;
+  if (document.hidden || navigator.onLine === false || GEN.busy || !genOn()) return;
   const busy = serverBusy() || BATT.low || saveData();
   const base = (S.view === 'board' || isActive()) ? CONFIG.GEN_MS_ACTIVE : CONFIG.GEN_MS;
   // 遅い・失敗したら、間隔をのばす（最大8倍）。同じ瞬間に重ならないよう ±15% ずらす
@@ -6236,21 +6254,48 @@ function genSchedule(){
   GEN.t = setTimeout(genCheck, Math.round(ms));
 }
 async function genCheck(){
-  GEN.t = null;
-  if (document.hidden || !genOn()) return;
+  clearTimeout(GEN.t); GEN.t = null;
+  if (document.hidden || navigator.onLine === false || GEN.busy || !genOn()) return;
   if (sync._busy || update._busy){ genSchedule(); return; }
-  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 4000), t0 = Date.now();
+  GEN.busy = true; GEN.cancelled = false;
+  // v239：この問い合わせを出したときの情報。本体の取り直しを追い越して届いた古い返事は使わない。
+  const dataAt = S.fetchedAt, dataGen = S.gen, sendGen = update._gen || 0;
+  const delta = S.serverVersion >= CONFIG.DELTA_SV;
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), delta ? CONFIG.TIMEOUT_MS : 4000), t0 = Date.now();
+  GEN.ctl = ctl;
   try{
-    const u = CONFIG.GAS_URL + (CONFIG.GAS_URL.includes('?') ? '&' : '?') + 'gen=1&_=' + Date.now();
+    const u = CONFIG.GAS_URL + (CONFIG.GAS_URL.includes('?') ? '&' : '?') + 'gen=1'
+      + (delta ? '&since=' + encodeURIComponent(dataGen) : '') + '&_=' + Date.now();
     const r = await fetch(u, { signal: ctl.signal, mode: 'cors', redirect: 'follow' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json();
-    GEN.fail = 0; GEN.slow = Date.now() - t0 > 2500 ? GEN.slow + 1 : 0; GEN.at = Date.now();
-    if (j && typeof j.gen === 'string' && j.gen !== S.gen && !sync._busy){ sync(false); return; }   // 変わった → 本体を取る（取ったあとで、また聞きはじめる）
-  }catch(e){ GEN.fail++; }
-  finally{ clearTimeout(to); }
-  genSchedule();
+    // 番号の空文字は、サーバーのキャッシュが切れたときの正規の返事（Code.gs）。空白だけの番号とは区別する。
+    if (!j || j.ok !== true || typeof j.gen !== 'string' || (j.gen !== '' && !j.gen.trim())) throw new Error('bad gen response');
+    if (document.hidden || navigator.onLine === false || !genOn() || S.fetchedAt !== dataAt || S.gen !== dataGen || update._busy || (update._gen || 0) !== sendGen) return;
+    GEN.fail = 0; GEN.slow = Date.now() - t0 > 2500 ? Math.min(3, GEN.slow + 1) : 0;
+    // v239：新しいGASは、変更があるときだけ本体も返す。その返事を取り込み、2本目の通信を省く。
+    if (Array.isArray(j.booths)){ if (!sync._busy) sync(false, { data: j, at: t0 }); return; }
+    // v239：「変わった」という通知だけでは、表示中の古い情報を「確認0秒前」にしない。
+    // 本体を受け取ったときは S.fetchedAt が進む。同じ情報だと確かめられたときだけ GEN.at を進める。
+    if (j.gen !== S.gen){ if (!sync._busy) sync(false); return; }
+    GEN.at = Date.now();
+  }catch(e){ if (!GEN.cancelled && !document.hidden && navigator.onLine !== false && S.fetchedAt === dataAt && S.gen === dataGen) GEN.fail = Math.min(3, GEN.fail + 1); }
+  finally{
+    clearTimeout(to); GEN.busy = false; GEN.ctl = null; GEN.cancelled = false;
+    genSchedule();
+  }
 }
-document.addEventListener('visibilitychange', () => { if (document.hidden){ clearTimeout(GEN.t); GEN.t = null; } else genSchedule(); });
+/** v239：見ていない画面・圏外では、予約だけでなく確認中の通信も止める。 */
+function genStop(){ clearTimeout(GEN.t); GEN.t = null; if (GEN.ctl){ GEN.cancelled = true; GEN.ctl.abort(); } }
+document.addEventListener('visibilitychange', () => { if (document.hidden) genStop(); else genSchedule(); });
+window.addEventListener('offline', () => {
+  genStop();
+  S.online = false; S.errKind = 'net'; S.failures = Math.max(2, S.failures);
+  // 次の定期更新の失敗を待たずに知らせる。地図・ブース・スタンプはそのまま保つ。
+  renderSyncState(); renderSyncSec(); renderLiveDot();
+  if (S.sheetId){ const c = document.querySelector('#bsh .bsh-upd .chk'); if (c) c.textContent = ''; }
+  if (S.view === 'board') renderBoard();
+});
 // v238：見出しの札を押す（Enter・スペースでも）と、すぐ取り直す
 { const sp = document.getElementById('sync-pill');
   if (sp){
@@ -6259,10 +6304,10 @@ document.addEventListener('visibilitychange', () => { if (document.hidden){ clea
     sp.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } });
   } }
 /** v237：「変わったか」を聞いているあいだ、見出しの点がゆっくり息をする */
-function renderLiveDot(){ const d = document.getElementById('sync-dot'); if (d) d.classList.toggle('live', !!(genOn() && S.online && d.className.indexOf('stale') < 0 && d.className.indexOf('down') < 0)); }
+function renderLiveDot(){ const d = document.getElementById('sync-dot'); if (d) d.classList.toggle('live', !!(genOn() && S.online && navigator.onLine !== false && GEN.fail < 2 && d.className.indexOf('stale') < 0 && d.className.indexOf('down') < 0)); }
 /** v238：本部モニタの「最終同期」。1分までは秒で（「変わったか」を確かめた時刻も数える） */
 function boardAgo(){
-  const last = Math.max(S.fetchedAt || 0, (typeof genOn === 'function' && genOn()) ? GEN.at : 0);
+  const last = confirmedAt();
   if (!last) return ago(S.updatedAt);
   const s = Math.max(0, Math.floor((Date.now() - last) / 1000));
   return s < 60 ? `${s}秒前` : ago(new Date(last).toISOString());
@@ -6272,7 +6317,7 @@ function renderSyncSec(){
   const el = document.getElementById('sync-sec');
   if (!el) return;
   const ok = S.online && S.fetchedAt && !(sync._busy && sync._at && Date.now() - sync._at > 1000) && !hoursMessage();
-  const last = Math.max(S.fetchedAt || 0, genOn() ? GEN.at : 0);     // 「変わっていない」と確かめた時刻も、確認した時刻
+  const last = confirmedAt();
   const s = ok ? Math.max(0, Math.floor((Date.now() - last) / 1000)) : -1;
   const tx = s < 0 || s * 1000 > CONFIG.STALE_MS ? '' : s < 60 ? `・${s}秒前に確認` : `・${Math.floor(s / 60)}分前に確認`;
   if (el.textContent !== tx) el.textContent = tx;
@@ -6286,7 +6331,7 @@ setInterval(() => {
 }, 1000);
 /** v238：詳細の「確認 ◯秒前」（この端末が、いちばん最近サーバーに確かめた時刻） */
 function chkAgo(){
-  const last = Math.max(S.fetchedAt || 0, (typeof genOn === 'function' && genOn()) ? GEN.at : 0);
+  const last = confirmedAt();
   if (!last || !S.online) return '';
   const s = Math.max(0, Math.floor((Date.now() - last) / 1000));
   return s < 60 ? `・確認 ${s}秒前` : `・確認 ${Math.floor(s / 60)}分前`;
@@ -8178,8 +8223,8 @@ function openSheet(id, fromHistory){
   setTimeout(() => { const x = $('#bsh-x'); if (!x) return; x.classList.toggle('quiet', !KEY_USER.on); x.focus({ preventScroll:true }); }, 60);
   if (S.view === 'map') setTimeout(() => revealUnderSheet(id), 380);
   // v165：待ち時間を見て行くか決める場面。古い情報のまま決めさせない（込み合い中・圏外は控える）
-  if (navigator.onLine !== false && !sync._busy && !serverBusy() && S.fetchedAt && Date.now() - S.fetchedAt > 20000){   // v236：90秒 → 20秒
-    try{ sync(false); }catch(e){}
+  if (navigator.onLine !== false && !serverBusy() && S.fetchedAt){
+    try{ syncIfStale(20000); }catch(e){}
   }
 }
 
@@ -10143,7 +10188,6 @@ function renderList(){
     if (hit.length) items = hit.concat(items.filter(b => hit.indexOf(b) < 0));
   }
 
-  renderRecentRow();
   // 何件に絞られたのかを出す。1件しか出ないとき「壊れているのでは」と思わせない
   const cnt = $('#list-count');
   if (cnt){
@@ -15386,6 +15430,7 @@ async function flushUnsent(){
 }
 window.addEventListener('online', () => {
   S.reconnectAt = Date.now();                 // v238：最新にできたら、そのあいだに変わっていた数を知らせる
+  if (sync._busy) sync._again = true;         // v239：圏外になる前の取得がまだ終わっていなくても、復帰後に取り直す
   S.failures = 0; sync(false);
   // v169：圏外から戻ったことを知らせる（古い情報のまま見続けていないか不安にさせない）
   toast('つながりました。最新の情報を取りに行っています');
