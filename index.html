@@ -3853,6 +3853,22 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
 .pam-list1{width:46.5mm}
 /* 1階の一覧のブース名は、行の長さをそろえず、行いっぱいまで使う（そろえると、短い行の右が空いていた）。1文字だけの行は作らない */
 .pam-spread .pam-list span{text-wrap:pretty}
+/* ==== v237：速くなった更新を、画面で分かるように ==== */
+/* ①混み具合の向き（2分のあいだ）：一覧の札・詳細・本部モニタ */
+.trend{display:inline-flex;align-items:center;gap:2px;margin-left:6px;padding:1px 7px;border-radius:999px;font-size:10.5px;font-weight:900;line-height:1.5;vertical-align:1px;white-space:nowrap}
+.trend[data-dir="up"]{background:var(--busy-soft);color:var(--busy-ink)}
+.trend[data-dir="down"]{background:var(--free-soft);color:var(--free)}
+@keyframes trend-in{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.12);opacity:1}100%{transform:none}}
+.trend.new{animation:trend-in .45s var(--ease-out-back,ease-out)}
+.btile .trend{font-size:clamp(9px,.75vw,14px);margin-left:6px}
+/* ③（詳細の人数が変わったときの動きは、前からある .chg と数字の動きを使う） */
+
+
+/* ⑤「変わったか」を聞いているあいだ、見出しの点がゆっくり息をする（生きている印） */
+@keyframes dot-breathe{0%,100%{opacity:1}50%{opacity:.45}}
+.dot.live{animation:dot-breathe 2.6s ease-in-out infinite}
+.dot.live.ping{animation:sync-ping .9s ease-out}
+@media (prefers-reduced-motion:reduce){ .trend.new,.dot.live{animation:none} }
 </style>
 </head>
 <body>
@@ -4869,7 +4885,7 @@ const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
   SCHOOL_URL: 'https://www2.iwate-ed.jp/kst-h/',   // v236：学校の公式サイト（パンフレットの学校名の下に刷る。表紙のQRは、このマップのまま）
-  BUILD: '2026-10-16c',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-16d',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5493,6 +5509,7 @@ const S = {
   report: null,
   prevLv: new Map(),      // 直前の混雑度。変化したブースを光らせるため
   changedAt: new Map(),
+  trend: new Map(),        // v237：混み具合の向き（id → {dir:'up'|'down', at}）
   justStamp: null,
   sound: false,
   notice: null,
@@ -6220,6 +6237,8 @@ async function genCheck(){
   genSchedule();
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden){ clearTimeout(GEN.t); GEN.t = null; } else genSchedule(); });
+/** v237：「変わったか」を聞いているあいだ、見出しの点がゆっくり息をする */
+function renderLiveDot(){ const d = document.getElementById('sync-dot'); if (d) d.classList.toggle('live', !!(genOn() && S.online && d.className.indexOf('stale') < 0 && d.className.indexOf('down') < 0)); }
 /** v236：見出しの札の「◯秒前に確認」。1秒ごとに進める（文字を書き換えるだけ。通信はしない） */
 function renderSyncSec(){
   const el = document.getElementById('sync-sec');
@@ -6230,7 +6249,7 @@ function renderSyncSec(){
   const tx = s < 0 || s * 1000 > CONFIG.STALE_MS ? '' : s < 60 ? `・${s}秒前に確認` : `・${Math.floor(s / 60)}分前に確認`;
   if (el.textContent !== tx) el.textContent = tx;
 }
-setInterval(() => { if (!document.hidden) renderSyncSec(); }, 1000);
+setInterval(() => { if (!document.hidden){ renderSyncSec(); renderLiveDot(); } }, 1000);
 setInterval(() => {
   if (document.hidden) return;          // 見ていない間は描かない（電池）
   renderSyncState();
@@ -6693,9 +6712,20 @@ function markChanges(){
   S.booths.forEach(b => {
     const lv = lvOf(b).lv;
     const prev = S.prevLv.get(b.id);
-    if (prev !== undefined && prev !== lv) S.changedAt.set(b.id, Date.now());
+    if (prev !== undefined && prev !== lv){
+      S.changedAt.set(b.id, Date.now());
+      // v237：混み具合の向き（空き0・やや1・混雑2 のあいだで動いたときだけ。準備中・情報なしとの行き来は向きを言わない）
+      if (prev >= 0 && prev <= 2 && lv >= 0 && lv <= 2) S.trend.set(b.id, { dir: lv > prev ? 'up' : 'down', at: Date.now() });
+    }
     S.prevLv.set(b.id, lv);
   });
+}
+/** v237：混み具合の向きの札（変わってから2分のあいだ）。変わったばかり（3秒）は、ぽんと出る */
+const TREND_MS = 120000;
+function trendTag(id){
+  const t = S.trend.get(id);
+  if (!t || Date.now() - t.at > TREND_MS) return '';
+  return `<span class="trend${Date.now() - t.at < 3000 ? ' new' : ''}" data-dir="${t.dir}">${t.dir === 'up' ? '▲混んできた' : '▼空いてきた'}</span>`;
 }
 
 /**
@@ -8389,7 +8419,7 @@ function renderSheet(){
     </div>
     <div class="bsh-st" data-lv="${L.lv}">
       <span class="ico" aria-hidden="true">${esc(L.icon)}</span>
-      <span class="tx"><b>${esc(L.short)}</b><small>${esc(waitSubText(b, L))}</small></span>
+      <span class="tx"><b>${esc(L.short)}</b>${trendTag(b.id)}<small>${esc(waitSubText(b, L))}</small></span>
       ${showWait ? `<span class="wt"><b>${b.wait}</b>人待ち</span>` : ''}
     </div>
     ${b.image ? (saveData()
@@ -10004,7 +10034,8 @@ function renderList(){
   renderRecentRow();
   const ws = waitState();
   const luckyId = (() => { try{ const L = liveNow().lucky; return L ? String(L.booth) : ''; }catch(e){ return ''; } })();   // v227
-  const fp = fingerprint(`list:${ws}${ws === 'fail' ? S.errKind : ''}:${S.lf}:${S.todoOnly}:${S.cat}:${S.sort}:${S.sort === 'near' ? hereId() : ''}:${S.q}:${S.wishOnly}:${Array.from(S.wish).sort().join(',')}:${luckyId}`);
+  const trendKey = Array.from(S.trend).filter(([, t]) => Date.now() - t.at <= TREND_MS).map(([k, t]) => k + t.dir + (Date.now() - t.at < 3000 ? 'n' : '')).join(',');   // v237
+  const fp = fingerprint(`list:${ws}${ws === 'fail' ? S.errKind : ''}:${S.lf}:${S.todoOnly}:${S.cat}:${S.sort}:${S.sort === 'near' ? hereId() : ''}:${S.q}:${S.wishOnly}:${Array.from(S.wish).sort().join(',')}:${luckyId}:${trendKey}`);
   if (renderList._fp === fp) return;
   renderList._fp = fp;
 
@@ -10125,6 +10156,20 @@ function renderList(){
     return;
   }
 
+  // v237：並びが変わったカードは、前の位置からすっと動く（絞り込みを変えたとき・開いた直後は、今までどおり下からふわっと）
+  const flip = !box.classList.contains('stagger') && !REDUCE_MOTION.matches && !document.documentElement.classList.contains('lite') && S.view === 'list'
+    ? new Map($$('.booth[id]', box).map(el => [el.id, el.getBoundingClientRect().top])) : null;
+  requestAnimationFrame(() => {
+    if (!flip || !flip.size) return;
+    let n = 0;
+    $$('.booth[id]', box).forEach(el => {
+      const y0 = flip.get(el.id); if (y0 == null || n > 40) return;
+      const dy = y0 - el.getBoundingClientRect().top;
+      if (Math.abs(dy) < 2 || Math.abs(dy) > 1600) return;
+      n++;
+      el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    });
+  });
   box.innerHTML = helpHtml + items.map(b => {
     const L = lvOf(b);
     const got = S.stamps.has(b.id);
@@ -10140,7 +10185,7 @@ function renderList(){
             class="nm"><button type="button" class="booth-open"
               aria-label="${S.numbers.get(b.id) ? S.numbers.get(b.id) + '番 ' : ''}${esc(b.name)} ${esc(L.short)}${
               b.wait > 0 && L.lv >= 0 && L.lv < 3 ? ` ${b.wait}人待ち` : ''}${got ? ' スタンプ済' : ''}${S.wish.has(b.id) ? ' 行きたい' : ''} の詳細をひらく"
-              >${S.wish.has(b.id) ? '<span class="wish-mk" aria-hidden="true">★</span>' : ''}${markHit(b.name, S.q)}</button></span></h3>
+              >${S.wish.has(b.id) ? '<span class="wish-mk" aria-hidden="true">★</span>' : ''}${markHit(b.name, S.q)}</button>${trendTag(b.id)}</span></h3>
           <p class="booth-meta"><span class="tag">${esc(b.category)}</span><span
             class="tag">${esc(flLabel(b))}</span>${nearTag(b)}${(() => {
             // 部屋と更新時刻を別々の行に置くと、1枚が高くなって1画面に5件しか入らなかった。
@@ -12388,7 +12433,7 @@ function renderBoard(){
         <span class="bt-loc">${esc(flLabel(b))}${(() => { const r = roomLabel(b);
           return r ? '・' + r : ''; })()}</span></span>
         <span class="bt-big">${big}</span>
-        <span class="bt-age">${m >= NEVER ? '未更新' : agoMin(m)}</span>
+        <span class="bt-age">${m >= NEVER ? '未更新' : agoMin(m)}${trendTag(b.id)}</span>
       </div>`;
     }).join('')
       // v231：最後のページで場所が空いていれば、色の見かた（凡例）の札
@@ -12805,8 +12850,12 @@ function notifyWishFree(){
   notifyWishFree._prev = now;
   if (!prev) return;
   const freed = S.booths.filter(b => S.wish.has(b.id) && now[b.id] === 0 && (prev[b.id] === 1 || prev[b.id] === 2) && !S.stamps.has(b.id));
-  if (freed.length) buzz([60, 80, 60]);         // v168
-  if (freed.length) toast(`★「${freed[0].name}」が空きました${freed.length > 1 ? `（ほか${freed.length - 1}件）` : ''}`, null, 6000);
+  if (freed.filter(x => !((notifyWishFree._at || {})[x.id] && Date.now() - notifyWishFree._at[x.id] < 600000)).length) buzz([60, 80, 60]);         // v168
+  // v237：「見る」で地図のその場所へ。同じブースは10分に1回まで（行ったり来たりするたびに知らせない）
+  const t = Date.now(), seen = notifyWishFree._at || (notifyWishFree._at = {});
+  const fresh = freed.filter(x => !(seen[x.id] && t - seen[x.id] < 600000));
+  fresh.forEach(x => { seen[x.id] = t; });
+  if (fresh.length) toast(`★行きたい「${fresh[0].name}」が空きました${fresh.length > 1 ? `（ほか${fresh.length - 1}件）` : ''}`, { label: '見る', fn: () => focusBoothOnMap(fresh[0].id) }, 8000);
 }
 
 /**
@@ -15133,7 +15182,7 @@ async function update(id, status, wait, retry){
     // 押し間違いをすぐ戻せるようにする
     const canUndo = prev.status && LEVELS.some(l => l.key === prev.status) &&
                     !(prev.status === status && prev.wait === wait);
-    toast(`${b.name} → ${lvOf(status).short}${wait != null ? `（${wait}人）` : ''}`,
+    toast(`${b.name} → ${lvOf(status).short}${wait != null ? `（${wait}人）` : ''}${S.serverVersion && S.serverVersion >= CONFIG.GEN_SV ? '。見ている人には数秒で届きます' : ''}`,
       canUndo ? { label:'元に戻す', fn: () => update(id, prev.status, prev.wait ?? null) } : null);
   }catch(e){
     if (authFailed(e)){
