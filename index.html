@@ -3869,6 +3869,20 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
 .dot.live{animation:dot-breathe 2.6s ease-in-out infinite}
 .dot.live.ping{animation:sync-ping .9s ease-out}
 @media (prefers-reduced-motion:reduce){ .trend.new,.dot.live{animation:none} }
+/* ==== v238：リアルタイムの見え方・2 ==== */
+/* ①地図：混み具合が変わった部屋は、光の輪がふわっと広がる（2回） */
+@keyframes room-glow{0%{filter:drop-shadow(0 0 0 rgba(255,196,0,.95))}100%{filter:drop-shadow(0 0 12px rgba(255,196,0,0))}}
+.room.changed .fill{animation:room-glow 1.3s ease-out 2}
+/* ③見出しの札は押せる（押すと、すぐ取り直す） */
+.sync.tap{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.sync.tap:active{transform:scale(.97)}
+.sync.tap:focus-visible{outline:2px solid #fff;outline-offset:2px}
+/* ⑥一覧の「★行きたい」に、いま空いている数 */
+#wish-only[data-free]:not([data-free="0"])::after{content:"・空き" attr(data-free);margin-left:2px;color:var(--free);font-weight:900}
+#wish-only[aria-pressed="true"][data-free]:not([data-free="0"])::after{color:inherit}
+/* ⑤詳細の「確認 ◯秒前」 */
+.bsh-upd .chk{margin-left:6px;font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){ .room.changed .fill{animation:none} .sync.tap:active{transform:none} }
 </style>
 </head>
 <body>
@@ -3892,7 +3906,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
         <button class="icon-btn" id="btn-reload" aria-label="今すぐ更新" title="今すぐ更新"><span class="ib-ic" aria-hidden="true">⟳</span><span class="ib-tx" aria-hidden="true">更新</span></button>
       </div>
     </div>
-    <div class="sync"><span class="dot" id="sync-dot"></span><span id="sync-text">読み込み中…</span><span class="sync-sec" id="sync-sec" aria-hidden="true"></span></div>
+    <div class="sync tap" id="sync-pill" role="button" tabindex="0" aria-label="いますぐ最新の混み具合を取り直す"><span class="dot" id="sync-dot"></span><span id="sync-text">読み込み中…</span><span class="sync-sec" id="sync-sec" aria-hidden="true"></span></div>
   </header>
 
   <main id="main-body" tabindex="-1">
@@ -4885,7 +4899,7 @@ const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
   SCHOOL_URL: 'https://www2.iwate-ed.jp/kst-h/',   // v236：学校の公式サイト（パンフレットの学校名の下に刷る。表紙のQRは、このマップのまま）
-  BUILD: '2026-10-16d',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-18a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -6237,8 +6251,22 @@ async function genCheck(){
   genSchedule();
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden){ clearTimeout(GEN.t); GEN.t = null; } else genSchedule(); });
+// v238：見出しの札を押す（Enter・スペースでも）と、すぐ取り直す
+{ const sp = document.getElementById('sync-pill');
+  if (sp){
+    const go = () => { if (!sync._busy) sync(true); };
+    sp.addEventListener('click', go);
+    sp.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } });
+  } }
 /** v237：「変わったか」を聞いているあいだ、見出しの点がゆっくり息をする */
 function renderLiveDot(){ const d = document.getElementById('sync-dot'); if (d) d.classList.toggle('live', !!(genOn() && S.online && d.className.indexOf('stale') < 0 && d.className.indexOf('down') < 0)); }
+/** v238：本部モニタの「最終同期」。1分までは秒で（「変わったか」を確かめた時刻も数える） */
+function boardAgo(){
+  const last = Math.max(S.fetchedAt || 0, (typeof genOn === 'function' && genOn()) ? GEN.at : 0);
+  if (!last) return ago(S.updatedAt);
+  const s = Math.max(0, Math.floor((Date.now() - last) / 1000));
+  return s < 60 ? `${s}秒前` : ago(new Date(last).toISOString());
+}
 /** v236：見出しの札の「◯秒前に確認」。1秒ごとに進める（文字を書き換えるだけ。通信はしない） */
 function renderSyncSec(){
   const el = document.getElementById('sync-sec');
@@ -6249,7 +6277,20 @@ function renderSyncSec(){
   const tx = s < 0 || s * 1000 > CONFIG.STALE_MS ? '' : s < 60 ? `・${s}秒前に確認` : `・${Math.floor(s / 60)}分前に確認`;
   if (el.textContent !== tx) el.textContent = tx;
 }
-setInterval(() => { if (!document.hidden){ renderSyncSec(); renderLiveDot(); } }, 1000);
+setInterval(() => {
+  if (document.hidden) return;
+  renderSyncSec(); renderLiveDot();
+  // v238：本部モニタの「最終同期」と、詳細の「確認 ◯秒前」も1秒ごとに
+  if (S.view === 'board' && S.online && waitState() !== 'load'){ const bs = document.getElementById('board-sync'); if (bs){ const t = boardAgo(); if (bs.textContent !== t) bs.textContent = t; } }
+  if (S.sheetId){ const c = document.querySelector('#bsh .bsh-upd .chk'); if (c){ const t = chkAgo(); if (c.textContent !== t) c.textContent = t; } }
+}, 1000);
+/** v238：詳細の「確認 ◯秒前」（この端末が、いちばん最近サーバーに確かめた時刻） */
+function chkAgo(){
+  const last = Math.max(S.fetchedAt || 0, (typeof genOn === 'function' && genOn()) ? GEN.at : 0);
+  if (!last || !S.online) return '';
+  const s = Math.max(0, Math.floor((Date.now() - last) / 1000));
+  return s < 60 ? `・確認 ${s}秒前` : `・確認 ${Math.floor(s / 60)}分前`;
+}
 setInterval(() => {
   if (document.hidden) return;          // 見ていない間は描かない（電池）
   renderSyncState();
@@ -8430,7 +8471,7 @@ function renderSheet(){
     ${routeHint(b)}
     ${altSuggest(b)}
     ${(() => { const sp = sparkline(b.history); return sp ? `<div class="bsh-foot">${sp}</div>` : ''; })()}
-    <p class="bsh-upd">${b.time ? `更新 <span data-ago="${esc(b.time)}">${esc(ago(b.time))}</span>` : 'まだ係の人からの更新がありません'}</p>
+    <p class="bsh-upd">${b.time ? `更新 <span data-ago="${esc(b.time)}">${esc(ago(b.time))}</span>` : 'まだ係の人からの更新がありません'}<span class="chk">${esc(chkAgo())}</span></p>
     <div class="bsh-acts">
       ${got ? `<span class="bsh-got">✓ スタンプ済${(() => { const t = stampAt()[b.id];
           // v162：いつ押したか（同じ日なら時刻だけ）
@@ -8922,7 +8963,7 @@ function recentItems(){
       const b = it.b, L = lvOf(b), no = S.numbers.get(b.id);
       const st = L.lv >= 0 && L.lv < 3 && b.wait != null ? `${L.short}・${b.wait}人` : L.short;
       return `<button type="button" role="option" id="sg-${i}" data-i="${i}"><span class="sg-ic">${no ? esc(String(no)) : '•'}</span>
-        <span class="sg-tx"><b>${esc(b.name)}</b><small>${esc(flLabel(b))}${slotOf(b.id) && slotOf(b.id).nm ? '・' + esc(slotOf(b.id).nm) : ''}</small></span>
+        <span class="sg-tx"><b>${esc(b.name)}</b><small>${esc(flLabel(b))}${slotOf(b.id) && slotOf(b.id).nm ? '・' + esc(slotOf(b.id).nm) : ''}${trendTag(b.id)}</small></span>
         <span class="sg-st" data-lv="${L.lv}">${esc(st)}</span></button>`;
     }).join('') : '<p class="sg-none">' + (waitState() === 'load' ? 'ブースの一覧を読み込んでいます。少し待ってから、もう一度さがしてください'
         : waitState() === 'fail' ? 'ブースの一覧をまだ取れていません。少し待ってから、もう一度さがしてください'
@@ -12367,7 +12408,7 @@ function renderBoard(){
     String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
   animateNumber($('#board-visitors'), S.visitors.today || 0);
   const bws = waitState();
-  $('#board-sync').textContent = bws === 'load' ? '…' : S.online ? ago(S.updatedAt) : '切断';
+  $('#board-sync').textContent = bws === 'load' ? '…' : S.online ? boardAgo() : '切断';
   $('#board-sync').dataset.bad = String(!S.online);
 
   const alertEl = $('#board-alert');
@@ -12901,6 +12942,12 @@ window.addEventListener('resize', () => { clearTimeout(chipFadeAll._t); chipFade
 
 function renderAll(){
   markChanges();
+  // v238：電波が戻ったあとの最初の取り直し：そのあいだに混み具合が変わっていた数
+  if (S.reconnectAt && S.fetchedAt >= S.reconnectAt){
+    const n = Array.from(S.changedAt.values()).filter(t => t >= S.reconnectAt).length;
+    S.reconnectAt = 0;
+    setTimeout(() => toast(n ? `最新にしました（${n}か所の混み具合が変わっていました）` : '最新にしました（混み具合は変わっていません）'), 300);
+  }
   remindPrize();
   notifyWishFree();
   const hadBooths = renderAll._had;
@@ -15338,6 +15385,7 @@ async function flushUnsent(){
   }
 }
 window.addEventListener('online', () => {
+  S.reconnectAt = Date.now();                 // v238：最新にできたら、そのあいだに変わっていた数を知らせる
   S.failures = 0; sync(false);
   // v169：圏外から戻ったことを知らせる（古い情報のまま見続けていないか不安にさせない）
   toast('つながりました。最新の情報を取りに行っています');
@@ -18025,7 +18073,11 @@ function renderTodoChip(){
 }
 function renderWishChip(){
   const el = $('#wish-only');
-  if (el){ el.setAttribute('aria-pressed', String(S.wishOnly)); el.textContent = S.wish.size ? `★ 行きたい ${S.wish.size}` : '★ 行きたい'; }
+  if (el){ el.setAttribute('aria-pressed', String(S.wishOnly)); el.textContent = S.wish.size ? `★ 行きたい ${S.wish.size}` : '★ 行きたい';
+    // v238：そのうち、いま空いている数（まだスタンプが無いもの）。文字は ::after で添える（読み上げは aria-label）
+    const free = S.booths.filter(b => S.wish.has(b.id) && !S.stamps.has(b.id) && lvOf(b).lv === 0).length;
+    el.dataset.free = String(S.wish.size ? free : 0);
+    if (S.wish.size) el.setAttribute('aria-label', `★ 行きたい ${S.wish.size}件${free ? `（いま空いている ${free}件）` : ''}`); else el.removeAttribute('aria-label'); }
   const c = $('#wish-clear');
   if (c) c.classList.toggle('hide', !(S.wishOnly && S.wish.size));
 }

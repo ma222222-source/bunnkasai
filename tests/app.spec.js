@@ -4902,3 +4902,53 @@ test('更新の見え方（v237）：混み具合の向きの札（2分）・★
   await expect(page.locator('#sync-dot')).not.toHaveClass(/\blive\b/, { timeout: 3000 });
   expect(errors).toEqual([]);
 });
+
+/* ---------------- v238：リアルタイムの見え方・2 ---------------- */
+test('リアルタイムの見え方（v238）：見出しの札を押すと取り直す・電波が戻ったら変わっていた数・地図の光の輪・★行きたいの空き数・詳細の「確認 ◯秒前」・検索の候補の向き・本部モニタの秒', async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const errors = watchErrors(page);
+  await page.addInitScript(() => { localStorage.setItem('kuroko_intro_v1', '1'); });
+  const log = await mockGas(page);
+  await page.goto('/?tab=map');
+  await ready(page);
+  const full = () => log.gets.filter(q => !/gen=1|ledger|report|win=/.test(q)).length;
+  // 見出しの札を押す → すぐ取り直す
+  const f0 = full();
+  await page.locator('#sync-pill').click();
+  await expect.poll(full).toBeGreaterThan(f0);
+  await expect.poll(() => page.evaluate(() => !sync._busy)).toBe(true);
+  // ここからは、手で変えた混み具合を、あとの自動の取り直しで元に戻されないよう、取り直しを止めて見る
+  await page.evaluate(() => { clearTimeout(S.timer); S.timer = null; window.schedule = () => {}; });
+  // 地図：混み具合が変わった部屋は光の輪
+  const id = await page.evaluate(() => {
+    const b = S.booths.find(x => x.category !== '受付' && floorOfBooth(x) === S.floor && lvOf(x).lv === 2);
+    b.status = '空いています'; b.wait = 0; markChanges(); drawFloor._fp = null; drawFloor(S.floor); return b.id;
+  });
+  expect(await page.evaluate(i => { const f = document.querySelector(`.room[data-id="${i}"] .fill`); return f ? getComputedStyle(f).animationName : ''; }, id)).toBe('room-glow');
+  // 検索の候補にも向き
+  await page.locator('#map-q').fill(await page.evaluate(i => S.booths.find(x => x.id === i).name.slice(0, 4), id));
+  await expect(page.locator('#map-sug .trend').first()).toHaveText('▼空いてきた');
+  await page.locator('#map-q').fill('');
+  // ★行きたい：そのうち、いま空いている数（文字は ::after、読み上げは aria-label）
+  await page.evaluate(i => { S.wish.add(i); renderWishChip(); }, id);
+  await page.locator('#nav button[data-view="list"]').click();
+  await expect(page.locator('#wish-only')).toHaveText('★ 行きたい 1');
+  await expect(page.locator('#wish-only')).toHaveAttribute('data-free', '1');
+  await expect(page.locator('#wish-only')).toHaveAttribute('aria-label', /いま空いている 1件/);
+  expect(await page.locator('#wish-only').evaluate(el => getComputedStyle(el, '::after').content)).toContain('空き');
+  // 詳細の「確認 ◯秒前」（1秒ごとに進む）
+  await page.evaluate(i => openSheet(i), id);
+  await expect(page.locator('#bsh .bsh-upd .chk')).toHaveText(/^・確認 \d+秒前$/);
+  await page.keyboard.press('Escape');
+  // 電波が戻ったら、最新にしたうえで、変わっていた数を知らせる
+  await context.setOffline(true);
+  await page.evaluate(() => window.dispatchEvent(new Event('offline')));
+  await context.setOffline(false);
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect(page.locator('#toast')).toContainText('最新にしました', { timeout: 10000 });
+  // 本部モニタの「最終同期」は秒で
+  await page.goto('/?mode=board');
+  await ready(page);
+  await expect(page.locator('#board-sync')).toHaveText(/^\d+秒前$/, { timeout: 5000 });
+  expect(errors).toEqual([]);
+});
