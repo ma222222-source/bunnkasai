@@ -363,9 +363,9 @@ test('④準備の画面のボタンは、どれにも絵が付き、間隔が�
   const r = await page.evaluate(() => { const els = [...document.querySelectorAll('#ownpane-setup .own-links > a.btn')];
     const rs = els.map(e => e.getBoundingClientRect());
     const tops = [...new Set(rs.map(x => Math.round(x.top)))].sort((a, b) => a - b);
-    return { n: els.length, icons: els.map(e => !!e.querySelector('svg.ic')), h: rs.map(x => Math.round(x.height)), gaps: tops.slice(1).map((t, i) => t - tops[i]) }; });
-  expect(r.n).toBe(5);
-  expect(r.icons).toEqual([true, true, true, true, true]);
+    return { n: els.length, icons: els.map(e => !!e.querySelector('svg')), h: rs.map(x => Math.round(x.height)), gaps: tops.slice(1).map((t, i) => t - tops[i]) }; });
+  expect(r.n).toBe(6);
+  expect(r.icons).toEqual([true, true, true, true, true, true]);
   expect(Math.min(...r.h)).toBeGreaterThanOrEqual(44);
   expect(new Set(r.gaps).size, JSON.stringify(r)).toBe(1);           // 段の間隔がそろっている（以前は、三つ折りパンフレットの下だけ広かった）
   expect(errors).toEqual([]);

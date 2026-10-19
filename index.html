@@ -3883,6 +3883,48 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
 /* ⑤詳細の「確認 ◯秒前」 */
 .bsh-upd .chk{margin-left:6px;font-variant-numeric:tabular-nums}
 @media (prefers-reduced-motion:reduce){ .room.changed .fill{animation:none} .sync.tap:active{transform:none} }
+
+/* v240：係員向けの紙は、当日の操作順で読む。配色・大きな文字設定に左右されず白黒で刷れる。 */
+.staff-target{padding:12px;border:1px solid var(--border);border-left:4px solid var(--accent-ink);border-radius:8px;text-align:left;font-size:14px;line-height:1.65;font-weight:700;overflow-wrap:anywhere}
+.staff-target b{display:block;font-size:16px}
+.staff-filter-label{display:block;font-size:14px;font-weight:800;margin:14px 0 6px}
+#btn-staff-print{margin-top:12px;width:100%}
+#staff-qr-pages{display:grid;gap:22px}
+.staff-sheet{box-sizing:border-box;width:100%;max-width:190mm;margin:0 auto;background:#fff;color:#111;border:2px solid #222;padding:9mm;font:14px/1.65 "Noto Sans JP","Yu Gothic",Meiryo,sans-serif;overflow-wrap:anywhere}
+.staff-sheet *{box-sizing:border-box}
+.staff-sheet-label{display:flex;justify-content:space-between;gap:10px;border-bottom:3px solid #111;padding-bottom:6px;font-size:13px;font-weight:900;letter-spacing:.03em}
+.staff-sheet h2{font-size:24px;line-height:1.4;margin:10px 0 4px;font-weight:900;text-wrap:pretty}
+.staff-sheet-place{font-size:13px;font-weight:700;margin-bottom:14px}
+.staff-sheet-hero{display:grid;grid-template-columns:1fr 48mm;align-items:center;gap:12px;border:1px solid #bbb;padding:12px;margin:12px 0 18px}
+.staff-sheet-hero h3{font-size:20px;line-height:1.5;margin:0 0 6px}
+.staff-sheet-hero p{font-size:13px;margin:0}
+.staff-sheet-qr{width:48mm;max-width:100%;text-align:center;justify-self:center}
+.staff-sheet-qr svg{display:block;width:100%;height:auto;background:#fff}
+.staff-sheet-qr span{display:block;font-size:11px;font-weight:800;margin-top:2px}
+.staff-sheet h3{font-size:17px;font-weight:900;margin:16px 0 8px}
+.staff-sheet ol{margin:0;padding:0;list-style:none;counter-reset:staff-step}
+.staff-sheet li{position:relative;padding:7px 0 9px 35px;border-bottom:1px solid #ddd;counter-increment:staff-step}
+.staff-sheet li::before{content:counter(staff-step);position:absolute;left:0;top:7px;display:grid;place-items:center;width:25px;height:25px;border:2px solid #111;border-radius:50%;font-size:14px;font-weight:900}
+.staff-sheet li b{font-size:15px}
+.staff-sheet li span{display:block;font-size:12px}
+.staff-sheet-help{border:1px solid #999;padding:11px 13px;margin-top:16px;font-size:12px}
+.staff-sheet-help h3{font-size:15px;margin:0 0 5px}
+.staff-sheet-help p{margin:5px 0}
+.staff-sheet-foot{border-top:2px solid #111;margin-top:17px;padding-top:7px;font-size:11px}
+.staff-sheet-url{display:block;font-size:9px;margin-top:4px;word-break:break-all}
+@media screen and (max-width:600px){
+  .staff-sheet{padding:18px}
+  .staff-sheet-label{font-size:11px}
+  .staff-sheet h2{font-size:21px}
+  .staff-sheet-hero{grid-template-columns:1fr}
+}
+@media print{
+  #staff-qr-pages{display:block}
+  #v-staffqr .staff-sheet{height:274mm;max-width:none;margin:0;border:1px solid #222;padding:8mm;break-after:page;page-break-after:always;break-inside:avoid;page-break-inside:avoid;box-shadow:none;color:#111;background:#fff}
+  #v-staffqr .staff-sheet:last-child{break-after:auto;page-break-after:auto}
+  #v-staffqr .staff-sheet-qr svg{width:48mm;height:48mm}
+}
+
 </style>
 </head>
 <body>
@@ -4288,6 +4330,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
           <h2 style="font-size:15px;font-weight:900"><i data-ic="tool"></i> 係員ログイン</h2>
           <p style="font-size:11px;color:var(--text-mute);font-weight:700;margin-top:4px">パスワードは係員に配布されたものを入力</p>
         </div>
+        <p id="auth-booth" class="staff-target hide" role="status"></p>
         <!-- v214：打った文字を確かめられる「表示する」と、全角が入っているときの知らせ -->
         <div class="pw-row">
           <input class="field" type="password" id="pw" placeholder="パスワード" autocomplete="current-password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false">
@@ -4322,6 +4365,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
       <div class="adm-pane on" id="admpane-update" role="tabpanel" aria-labelledby="admtab-update">
         <div class="card">
           <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5a4.5 4.5 0 0 0 5.6 5.6L11 19.7a2.4 2.4 0 1 1-3.4-3.4z"/><circle cx="18" cy="6" r="1"/></svg> 係員コンソール</div>
+          <p id="adm-booth-target" class="staff-target hide" role="status"></p>
           <input class="field hide" type="search" id="assign-q" placeholder="担当ブースを名前・番号でさがす" autocomplete="off" enterkeyhint="search" aria-label="担当ブースをさがす" style="margin-bottom:8px">
           <div class="chips" id="assign-chips"></div>
           <!-- 選び終わった人にはもう要らない案内。選んでいるあいだだけ出す -->
@@ -4407,6 +4451,26 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
       </div>
       <div id="qr-grid" class="qr-grid"></div>
       <div id="qr-staff"></div>
+    </section>
+
+
+    <!-- v240：係員へ配る、各ブース専用の入口と手順。来場者のスタンプQRとは別の紙。 -->
+    <section class="view" id="v-staffqr">
+      <div class="card no-print">
+        <h2 class="card-t">ブース担当者用QR・操作手順</h2>
+        <p class="adm-hint">1ブースにつきA4・1枚。QRを読むと担当ブースが決まり、ログイン後はそのブースだけが表示されます。係員用の紙なので、来場者には掲示しないでください。</p>
+        <label class="staff-filter-label" for="staff-print-select">印刷するブース</label>
+        <select class="field" id="staff-print-select"><option value="">全ブース</option></select>
+        <p id="staff-print-count" class="adm-hint" role="status"></p>
+        <p class="qr-check" id="staff-qr-check" role="status" aria-live="polite"></p>
+        <ul class="print-tips">
+          <li>A4・縦・片面・倍率100%。ヘッダーとフッターはオフ。白黒印刷でも使えます。</li>
+          <li>係員パスワードは本部から別途伝えてください。紙・QRには含めません。</li>
+          <li>ブース名や場所を変更したときは刷り直してください。</li>
+        </ul>
+        <button class="btn" id="btn-staff-print" type="button" disabled>印刷する</button>
+      </div>
+      <div id="staff-qr-pages"></div>
     </section>
 
     <!-- ============ 三つ折りパンフレット（v178） ============ -->
@@ -4714,6 +4778,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
             <div class="card-t">印刷するもの・見るもの</div>
             <div class="own-links">
       <a class="btn ghost" href="?mode=qr" style="text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg> QRの印刷シート</a>
+      <a class="btn ghost" href="?mode=staffqr" style="text-decoration:none"><i class="ic" data-ic="tool"></i> ブース担当者用QR・手順を印刷</a>
       <a class="btn ghost" href="?mode=pamphlet" style="text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M9 4v16M15 4v16"/></svg> 三つ折りパンフレット</a>
       <a class="btn ghost" href="?mode=print" style="text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg> 配布用の紙マップ</a>
       <a class="btn ghost" href="?mode=report" style="text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M8 17V10M13 17V6M18 17v-4"/></svg> 混雑の振り返り</a>
@@ -4899,7 +4964,7 @@ const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
   SCHOOL_URL: 'https://www2.iwate-ed.jp/kst-h/',   // v236：学校の公式サイト（パンフレットの学校名の下に刷る。表紙のQRは、このマップのまま）
-  BUILD: '2026-10-18a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-19b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -4926,6 +4991,7 @@ const CONFIG = {
   GEN_MS: 6000,            // 開いたまま触っていないとき
   POLL_MS_SAFE: 25000,     // 「変わったか」を聞けているときの、本体の取り直し（予約したお知らせの時刻など、番号が変わらない変化のため）
   GEN_SV: '2026-10-16a',   // この版より前のサーバーは ?gen=1 を知らない（本体を返してしまう）ので聞かない
+  DELTA_SV: '2026-10-19a', // v239：手元の番号も送り、変わっていれば本体まで1往復で受け取る
   ACTIVE_WINDOW_MS: 45000, // 最後の操作から何ミリ秒を「見ている」とみなすか
   // GASは同時実行が30本までで、1回の往復に実測1.2〜4.5秒かかる。
   // 間隔を詰めるほど「同時に走っている本数」が増えるので、応答が重く
@@ -5541,6 +5607,7 @@ const S = {
   stamps: new Set(),
   spent: [],               // お菓子と交換して消費したブースid（取った順に消える）
   assigned: new Set(),
+  staffBooth: '',          // v240：専用QRで選んだ担当。通常の担当選びの保存とは分ける
   wish: new Set(idList('kuroko_wish_v1')),   // 来場者が「行きたい」に★を付けたブース（v150）
   wishOnly: false,      // 一覧を★だけに絞っているか
   todoOnly: false,      // 一覧を「まだ行っていない」に絞っているか（v157）
@@ -5857,20 +5924,24 @@ function normalize(raw){
   })).sort((a, x) => idCmp(a.id, x.id));
 }
 
-async function sync(manual){
+async function sync(manual, received){
   // 手動更新と自動更新が重ならないようにする
   if (sync._busy){ if (manual) toast('更新中です'); return; }
   // 係員の送信中に取り込むと、送った値が古い値で上書きされて見える
   if (update._busy && !manual){ schedule(); return; }
+  // 自分で取り直す間は、軽い確認の予約・通信を重ねない。
+  if (!received) genStop();
   sync._busy = true;
-  sync._at = Date.now();
+  sync._at = received ? received.at : Date.now();
   { const rb = $('#btn-reload'); if (rb) rb.classList.add('busy'); }      // v183：更新のあいだ印を回す
   // 1秒たっても返ってこなければ「取りに行っています」を出す
   clearTimeout(sync._slow);
   sync._slow = setTimeout(() => { if (sync._busy) renderSyncState(); }, 1100);
   const gen = update._gen || 0;
   try{
-    const raw = await earlyOrApi();
+    const raw = received ? received.data : await earlyOrApi();
+    // v239：圏外の通知より少し遅れて前の通信が終わっても、「つながっています」に戻さない。
+    if (navigator.onLine === false) throw new Error('Failed to fetch');
     // 取得している間に係員が送信した場合、この結果は送信前の古い状態。
     // 取り込むと押したボタンが20秒ほど元に戻って見えるので捨てて、すぐ取り直す
     if ((update._gen || 0) !== gen || update._busy){ sync._again = true; return; }
@@ -5950,6 +6021,7 @@ async function sync(manual){
     } else if (S.view === 'qr' && (pw() || ownToken()) && renderQrSheet._n !== S.booths.length){
       renderQrSheet._n = S.booths.length; renderQrSheet();
     }
+    if (S.view === 'staffqr') renderStaffQr();
     // QRで来たが最初の同期に失敗していた場合、ここで拾い直す
     if (S.pendingLink && S.pendingLink()) S.pendingLink = null;
     if (manual) toast('最新の状況に更新しました');
@@ -6026,12 +6098,19 @@ function serverBusy(){
 function markActive(){
   const was = isActive();
   S.activeAt = Date.now();
-  if (!was) schedule();          // 遅い間隔で待っている最中なら、速い方へ組み直す
+  if (!was){
+    // v239：しばらく触っていなかった人には、その場で確認する。直前に確認できていれば重ねない。
+    if (genOn() && Date.now() - confirmedAt() > CONFIG.GEN_MS_ACTIVE) genCheck();
+    schedule();
+  }
 }
+['pointerdown', 'touchstart', 'keydown', 'wheel'].forEach(t =>
+  addEventListener(t, markActive, { passive: true, capture: true }));
 /** 表示が古ければすぐ取りに行く。新しければ何もしない（無駄打ちを避ける） */
 function syncIfStale(maxAgeMs){
-  if (sync._busy || update._busy) return;
-  if (!S.fetchedAt || Date.now() - S.fetchedAt > maxAgeMs) sync(false);
+  if (sync._busy || update._busy || GEN.busy) return;
+  const last = confirmedAt();
+  if (!last || Date.now() - last > maxAgeMs) sync(false);
 }
 
 /**
@@ -6083,7 +6162,7 @@ function schedule(){
 
 document.addEventListener('visibilitychange', () => {
   // 何度も切り替えるたびに取りに行かない（5秒以内なら次の定期更新に任せる）
-  if (!document.hidden){ markActive(); Date.now() - S.fetchedAt > 5000 ? sync(false) : schedule(); }
+  if (!document.hidden){ markActive(); syncIfStale(5000); schedule(); }
   else { clearTimeout(S.timer); }
 });
 
@@ -6175,10 +6254,12 @@ function lastStaffAt(){
 }
 function renderSyncState(){
   const dot = $('#sync-dot'), txt = $('#sync-text');
+  const pill = $('#sync-pill');
+  if (pill){ pill.removeAttribute('title'); pill.setAttribute('aria-label', 'いますぐ最新の混み具合を取り直す'); }
   const age = Date.now() - S.fetchedAt;
   // GASの応答は実測で1.2〜4.5秒かかる。そのあいだ表示が止まって見えるので、
   // 1秒を超えたら「取りに行っている」ことを出す（黙って固まらせない）
-  if (sync._busy && sync._at && Date.now() - sync._at > 1000){
+  if (navigator.onLine !== false && sync._busy && sync._at && Date.now() - sync._at > 1000){
     dot.className = 'dot syncing';
     txt.textContent = '最新の状況を取りに行っています…';
     return;
@@ -6215,12 +6296,16 @@ function renderSyncState(){
       // v213：「係の人の更新」は、係の人がいちばん最近に更新した時刻で言う。
       // 以前は、サーバーがこの返事を作った時刻（S.updatedAt）を出していたので、だれも更新していなくても、いつも「たった今」だった
       const ls = lastStaffAt();
-      txt.textContent = ls ? `最新の情報です（係の人の更新 ${ago(ls)}）` : '最新の情報です（係の人の更新はまだありません）';
+      txt.textContent = ls ? '最新の混雑状況' : '係の更新待ち';
+      const detail = ls ? `係の人の更新 ${ago(ls)}` : '係の人の更新はまだありません';
+      if (pill){ pill.title = detail; pill.setAttribute('aria-label', `${txt.textContent}。${detail}。いますぐ最新の混み具合を取り直す`); }
     }
   }
 }
 /* ---- v236：変わったかだけを数秒ごとに聞く ---- */
-const GEN = { t: null, fail: 0, slow: 0, at: 0 };
+const GEN = { t: null, fail: 0, slow: 0, at: 0, busy: false, ctl: null, cancelled: false };
+/** 本体の取得、または同じ番号を確かめたうち、新しい時刻。細部を開くたびの無駄な再取得も防ぐ。 */
+function confirmedAt(){ return Math.max(S.fetchedAt || 0, genOn() ? GEN.at : 0); }
 /** 「変わったか」を聞いてよいか：新しいサーバー・本部が間隔を延ばしていない・見ている画面 */
 function genOn(){
   return !!(S.serverVersion && S.serverVersion >= CONFIG.GEN_SV && !S.pollMin && S.gen != null
@@ -6228,7 +6313,7 @@ function genOn(){
 }
 function genSchedule(){
   clearTimeout(GEN.t); GEN.t = null;
-  if (document.hidden || !genOn()) return;
+  if (document.hidden || navigator.onLine === false || GEN.busy || !genOn()) return;
   const busy = serverBusy() || BATT.low || saveData();
   const base = (S.view === 'board' || isActive()) ? CONFIG.GEN_MS_ACTIVE : CONFIG.GEN_MS;
   // 遅い・失敗したら、間隔をのばす（最大8倍）。同じ瞬間に重ならないよう ±15% ずらす
@@ -6236,21 +6321,48 @@ function genSchedule(){
   GEN.t = setTimeout(genCheck, Math.round(ms));
 }
 async function genCheck(){
-  GEN.t = null;
-  if (document.hidden || !genOn()) return;
+  clearTimeout(GEN.t); GEN.t = null;
+  if (document.hidden || navigator.onLine === false || GEN.busy || !genOn()) return;
   if (sync._busy || update._busy){ genSchedule(); return; }
-  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 4000), t0 = Date.now();
+  GEN.busy = true; GEN.cancelled = false;
+  // v239：この問い合わせを出したときの情報。本体の取り直しを追い越して届いた古い返事は使わない。
+  const dataAt = S.fetchedAt, dataGen = S.gen, sendGen = update._gen || 0;
+  const delta = S.serverVersion >= CONFIG.DELTA_SV;
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), delta ? CONFIG.TIMEOUT_MS : 4000), t0 = Date.now();
+  GEN.ctl = ctl;
   try{
-    const u = CONFIG.GAS_URL + (CONFIG.GAS_URL.includes('?') ? '&' : '?') + 'gen=1&_=' + Date.now();
+    const u = CONFIG.GAS_URL + (CONFIG.GAS_URL.includes('?') ? '&' : '?') + 'gen=1'
+      + (delta ? '&since=' + encodeURIComponent(dataGen) : '') + '&_=' + Date.now();
     const r = await fetch(u, { signal: ctl.signal, mode: 'cors', redirect: 'follow' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json();
-    GEN.fail = 0; GEN.slow = Date.now() - t0 > 2500 ? GEN.slow + 1 : 0; GEN.at = Date.now();
-    if (j && typeof j.gen === 'string' && j.gen !== S.gen && !sync._busy){ sync(false); return; }   // 変わった → 本体を取る（取ったあとで、また聞きはじめる）
-  }catch(e){ GEN.fail++; }
-  finally{ clearTimeout(to); }
-  genSchedule();
+    // 番号の空文字は、サーバーのキャッシュが切れたときの正規の返事（Code.gs）。空白だけの番号とは区別する。
+    if (!j || j.ok !== true || typeof j.gen !== 'string' || (j.gen !== '' && !j.gen.trim())) throw new Error('bad gen response');
+    if (document.hidden || navigator.onLine === false || !genOn() || S.fetchedAt !== dataAt || S.gen !== dataGen || update._busy || (update._gen || 0) !== sendGen) return;
+    GEN.fail = 0; GEN.slow = Date.now() - t0 > 2500 ? Math.min(3, GEN.slow + 1) : 0;
+    // v239：新しいGASは、変更があるときだけ本体も返す。その返事を取り込み、2本目の通信を省く。
+    if (Array.isArray(j.booths)){ if (!sync._busy) sync(false, { data: j, at: t0 }); return; }
+    // v239：「変わった」という通知だけでは、表示中の古い情報を「確認0秒前」にしない。
+    // 本体を受け取ったときは S.fetchedAt が進む。同じ情報だと確かめられたときだけ GEN.at を進める。
+    if (j.gen !== S.gen){ if (!sync._busy) sync(false); return; }
+    GEN.at = Date.now();
+  }catch(e){ if (!GEN.cancelled && !document.hidden && navigator.onLine !== false && S.fetchedAt === dataAt && S.gen === dataGen) GEN.fail = Math.min(3, GEN.fail + 1); }
+  finally{
+    clearTimeout(to); GEN.busy = false; GEN.ctl = null; GEN.cancelled = false;
+    genSchedule();
+  }
 }
-document.addEventListener('visibilitychange', () => { if (document.hidden){ clearTimeout(GEN.t); GEN.t = null; } else genSchedule(); });
+/** v239：見ていない画面・圏外では、予約だけでなく確認中の通信も止める。 */
+function genStop(){ clearTimeout(GEN.t); GEN.t = null; if (GEN.ctl){ GEN.cancelled = true; GEN.ctl.abort(); } }
+document.addEventListener('visibilitychange', () => { if (document.hidden) genStop(); else genSchedule(); });
+window.addEventListener('offline', () => {
+  genStop();
+  S.online = false; S.errKind = 'net'; S.failures = Math.max(2, S.failures);
+  // 次の定期更新の失敗を待たずに知らせる。地図・ブース・スタンプはそのまま保つ。
+  renderSyncState(); renderSyncSec(); renderLiveDot();
+  if (S.sheetId){ const c = document.querySelector('#bsh .bsh-upd .chk'); if (c) c.textContent = ''; }
+  if (S.view === 'board') renderBoard();
+});
 // v238：見出しの札を押す（Enter・スペースでも）と、すぐ取り直す
 { const sp = document.getElementById('sync-pill');
   if (sp){
@@ -6259,10 +6371,10 @@ document.addEventListener('visibilitychange', () => { if (document.hidden){ clea
     sp.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } });
   } }
 /** v237：「変わったか」を聞いているあいだ、見出しの点がゆっくり息をする */
-function renderLiveDot(){ const d = document.getElementById('sync-dot'); if (d) d.classList.toggle('live', !!(genOn() && S.online && d.className.indexOf('stale') < 0 && d.className.indexOf('down') < 0)); }
+function renderLiveDot(){ const d = document.getElementById('sync-dot'); if (d) d.classList.toggle('live', !!(genOn() && S.online && navigator.onLine !== false && GEN.fail < 2 && d.className.indexOf('stale') < 0 && d.className.indexOf('down') < 0)); }
 /** v238：本部モニタの「最終同期」。1分までは秒で（「変わったか」を確かめた時刻も数える） */
 function boardAgo(){
-  const last = Math.max(S.fetchedAt || 0, (typeof genOn === 'function' && genOn()) ? GEN.at : 0);
+  const last = confirmedAt();
   if (!last) return ago(S.updatedAt);
   const s = Math.max(0, Math.floor((Date.now() - last) / 1000));
   return s < 60 ? `${s}秒前` : ago(new Date(last).toISOString());
@@ -6272,7 +6384,7 @@ function renderSyncSec(){
   const el = document.getElementById('sync-sec');
   if (!el) return;
   const ok = S.online && S.fetchedAt && !(sync._busy && sync._at && Date.now() - sync._at > 1000) && !hoursMessage();
-  const last = Math.max(S.fetchedAt || 0, genOn() ? GEN.at : 0);     // 「変わっていない」と確かめた時刻も、確認した時刻
+  const last = confirmedAt();
   const s = ok ? Math.max(0, Math.floor((Date.now() - last) / 1000)) : -1;
   const tx = s < 0 || s * 1000 > CONFIG.STALE_MS ? '' : s < 60 ? `・${s}秒前に確認` : `・${Math.floor(s / 60)}分前に確認`;
   if (el.textContent !== tx) el.textContent = tx;
@@ -6286,7 +6398,7 @@ setInterval(() => {
 }, 1000);
 /** v238：詳細の「確認 ◯秒前」（この端末が、いちばん最近サーバーに確かめた時刻） */
 function chkAgo(){
-  const last = Math.max(S.fetchedAt || 0, (typeof genOn === 'function' && genOn()) ? GEN.at : 0);
+  const last = confirmedAt();
   if (!last || !S.online) return '';
   const s = Math.max(0, Math.floor((Date.now() - last) / 1000));
   return s < 60 ? `・確認 ${s}秒前` : `・確認 ${Math.floor(s / 60)}分前`;
@@ -8178,8 +8290,8 @@ function openSheet(id, fromHistory){
   setTimeout(() => { const x = $('#bsh-x'); if (!x) return; x.classList.toggle('quiet', !KEY_USER.on); x.focus({ preventScroll:true }); }, 60);
   if (S.view === 'map') setTimeout(() => revealUnderSheet(id), 380);
   // v165：待ち時間を見て行くか決める場面。古い情報のまま決めさせない（込み合い中・圏外は控える）
-  if (navigator.onLine !== false && !sync._busy && !serverBusy() && S.fetchedAt && Date.now() - S.fetchedAt > 20000){   // v236：90秒 → 20秒
-    try{ sync(false); }catch(e){}
+  if (navigator.onLine !== false && !serverBusy() && S.fetchedAt){
+    try{ syncIfStale(20000); }catch(e){}
   }
 }
 
@@ -10143,7 +10255,6 @@ function renderList(){
     if (hit.length) items = hit.concat(items.filter(b => hit.indexOf(b) < 0));
   }
 
-  renderRecentRow();
   // 何件に絞られたのかを出す。1件しか出ないとき「壊れているのでは」と思わせない
   const cnt = $('#list-count');
   if (cnt){
@@ -12766,7 +12877,7 @@ function renderHours(){
 function renderNotice(){
   const el = $('#banner-notice');
   const n = S.notice;
-  if (!n || !n.text || S.view === 'qr' || S.view === 'board'){ el.classList.add('hide'); return; }
+  if (!n || !n.text || S.view === 'qr' || S.view === 'staffqr' || S.view === 'board'){ el.classList.add('hide'); return; }
   // v169：読んだ「お知らせ」は閉じられる。文が変わればまた出す。「注意」は大事なので閉じさせない
   const alert = n.level === 'alert';
   // v177：新しい「注意」は、ふるえ＋知らせで気づかせる（同じ文は1回だけ。開いた最初の表示では知らせない）
@@ -12941,6 +13052,7 @@ document.addEventListener('scroll', e => { const t = e.target; if (t && t.classL
 window.addEventListener('resize', () => { clearTimeout(chipFadeAll._t); chipFadeAll._t = setTimeout(chipFadeAll, 150); });
 
 function renderAll(){
+  renderStaffTarget();
   markChanges();
   // v238：電波が戻ったあとの最初の取り直し：そのあいだに混み具合が変わっていた数
   if (S.reconnectAt && S.fetchedAt >= S.reconnectAt){
@@ -12986,7 +13098,7 @@ function renderAll(){
   if (S.sheetId) renderSheet();
   if (S.isAdmin){
     // ログインがデータ到着より先だと担当ブースの選択肢が空のままになる。数が変わったら作り直す
-    if (renderAssign._n !== S.booths.length) renderAssign();
+    if (renderAssign._n !== S.booths.length || S.staffBooth) renderAssign();
     renderAdmin();
   }
   // 最初にデータが届いたら、地図の箱の高さを図面に合わせ直す
@@ -13067,7 +13179,7 @@ addEventListener('resize', () => { refreshScrollEdges(); measureHead(); });
 /** 下のタブに出る来場者向けの画面 */
 const NAV_VIEWS   = ['map','list','stamp','info'];
 /** 係員向けの画面（下のタブを隠す） */
-const STAFF_VIEWS = ['auth','admin','qr','print','pamphlet','report','board','owner'];
+const STAFF_VIEWS = ['auth','admin','qr','print','pamphlet','report','board','owner','staffqr'];
 /** 履歴に積む画面。係員の画面も積まないと「戻る」で一般の画面へ落ちる */
 const HIST_VIEWS  = NAV_VIEWS.concat(STAFF_VIEWS);
 /** 係員コンソールから開く、行き来する画面 */
@@ -13084,6 +13196,7 @@ const VIEW_SCROLL = {};
 
 const TAB_ORDER = ['map', 'list', 'stamp', 'info'];
 function switchView(v, fromHistory){
+  if (v === 'staffqr' && !(ownToken() && OWN.state)){ openStaffQr(); return; }
   // 一覧を下まで見てから地図を確かめて戻ると、毎回いちばん上に戻されていた。
   // 40ブースあると、さっき見ていた場所まで指でなぞり直すことになる。
   if (S.view && S.view !== v) VIEW_SCROLL[S.view] = window.scrollY;
@@ -13120,7 +13233,7 @@ function switchView(v, fromHistory){
   { const lh = document.querySelector('#v-list .list-head'); if (lh) lh.classList.remove('tuck'); }   // v195：タブを移ったら、段は出しておく
   mapScale._w = 0;                        // 係員の広い画面との行き来で地図の幅が変わる
   if (v === 'stamp'){ pullLedger(5000); renderSyncBadge(); }   // 別のアプリで増えた分を見に行く
-  ['map','list','stamp','info','auth','admin','qr','print','pamphlet','report','board','owner'].forEach(k =>
+  ['map','list','stamp','info','auth','admin','qr','print','pamphlet','report','board','owner','staffqr'].forEach(k =>
     $('#v-' + k).classList.toggle('on', k === v));
   $$('#nav button').forEach(b => {
     b.setAttribute('aria-pressed', String(b.dataset.view === v));
@@ -13177,6 +13290,7 @@ function switchView(v, fromHistory){
   if (v === 'print') setPrintReady('#btn-print2', S.booths.length > 0);
   if (v === 'pamphlet') setPrintReady('#btn-print3', S.booths.length > 0);
   pamPageStyle(v === 'pamphlet');
+  if (v === 'staffqr') renderStaffQr();
   if (v === 'qr')    setPrintReady('#btn-print',  S.booths.length > 0);
   if (v === 'list') renderList();       // 見えていない間は作っていないので、開いたときに描く
   if (v === 'info') renderInfo();       // 「いまのコマ」の印を時刻に合わせる
@@ -13192,7 +13306,7 @@ function switchView(v, fromHistory){
   // 来場者向けの混雑アラートは係員画面では出さない（ノイズになる）
   // 一覧は「空いている順」に並んでいて先頭がその答えなので、同じ内容のバナーは出さない
   $('#banner-alert').classList.toggle('hide', v !== 'map' || !$('#banner-alert-text').textContent);
-  if (v === 'qr' || v === 'board') $('#banner-notice').classList.add('hide'); else renderNotice();
+  if (v === 'qr' || v === 'staffqr' || v === 'board') $('#banner-notice').classList.add('hide'); else renderNotice();
   try{ renderLive(); }catch(e){ console.warn('[renderLive]', e); }
   renderHours();
   renderHere();                  // 現在地の問いかけはマップのときだけ出す
@@ -13453,6 +13567,7 @@ function ownEnter(r){
   // v226：入ったら、フォーカスを選んでいるタブへ（押した「入る」ボタンが消えて、フォーカスが行き先を失っていた）
   setTimeout(() => { const t = $('.own-tabs button[aria-selected="true"]'); if (t) t.focus({ preventScroll: true }); }, 0);
   if (!OWN.state) ownRefresh(false);
+  if (OWN.after === 'staffqr' && OWN.state){ OWN.after = ''; switchView('staffqr'); }
 }
 async function ownLoginPass(){
   const v = $('#own-pw').value;
@@ -14513,7 +14628,7 @@ function loginOk(v){
       try{ if (history.state && history.state.v === 'auth') history.replaceState({ v: dest }, '', '#' + dest); }catch(_){}
       // ?mode=qr から来たときは、ログイン後そのQRシートへ送る
       if (S.afterLogin === 'qr'){ S.afterLogin = ''; switchView('qr'); renderQrSheet(); }
-      else switchView('admin');
+      else { switchView('admin'); if (S.staffBooth) setAdmTab('update'); }
       if (!saved) toast('この端末では設定を保存できません。画面を閉じると入れ直しが必要です');
     }
   }catch(e){ console.warn('[loginOk]', e); }
@@ -14572,7 +14687,29 @@ function admGroups(list, mode){
 /** 係員画面のいまのまとめ方（担当えらびと更新カードで共通） */
 function admGroupMode(){ return S.admMode === 'dept' ? 'dept' : 'floor'; }
 
+
+/** v240：読み込んだ係員QRの担当名を、入口と更新画面で確認できるようにする。 */
+function renderStaffTarget(){
+  const auth = $('#auth-booth'), target = $('#adm-booth-target');
+  if (!auth || !target) return;
+  const id = S.staffBooth;
+  [auth, target].forEach(el => el.classList.toggle('hide', !id));
+  if (!id) return;
+  const b = S.booths.find(x => x.id === id);
+  const text = b ? `<b>担当：${esc(b.name)}</b>${esc(flLabel(b))}・${esc(roomLabel(b) || b.id)}<br>このQRのブースだけを表示します。`
+    : !S.fetchedAt ? '担当ブースの情報を読み込んでいます。通信できる場所でお待ちください。'
+    : 'このQRのブースが見つかりません。本部に紙のブース名と部屋IDを伝え、QRを確認してもらってください。';
+  [auth, target].forEach(el => { if (el.innerHTML !== text) el.innerHTML = text; });
+}
+
 function renderAssign(){
+  renderStaffTarget();
+  if (S.staffBooth){
+    $('#assign-chips').innerHTML = '';
+    $('#assign-note').classList.add('hide');
+    $('#assign-q').classList.add('hide');
+    return;
+  }
   renderAssign._n = S.booths.length;
   const box = $('#assign-chips');
   const picked = S.booths.filter(b => S.assigned.has(b.id));
@@ -14884,7 +15021,9 @@ function renderAdmTabCount(n, overdue){
 
 function renderAdmin(){
   const container = $('#admin-list');
-  let list = S.assigned.size ? S.booths.filter(b => S.assigned.has(b.id)) : S.booths;
+  // 専用QRが不正・廃止済みでも、全ブースへ勝手に広げない。
+  let list = S.staffBooth ? S.booths.filter(b => b.id === S.staffBooth)
+    : S.assigned.size ? S.booths.filter(b => S.assigned.has(b.id)) : S.booths;
 
   const busy = Object.keys(S.draftWait).length > 0 ||
                (Date.now() - S.lastAdminTouch < CONFIG.ADMIN_HOLD_MS);
@@ -15386,6 +15525,7 @@ async function flushUnsent(){
 }
 window.addEventListener('online', () => {
   S.reconnectAt = Date.now();                 // v238：最新にできたら、そのあいだに変わっていた数を知らせる
+  if (sync._busy) sync._again = true;         // v239：圏外になる前の取得がまだ終わっていなくても、復帰後に取り直す
   S.failures = 0; sync(false);
   // v169：圏外から戻ったことを知らせる（古い情報のまま見続けていないか不安にさせない）
   toast('つながりました。最新の情報を取りに行っています');
@@ -16146,13 +16286,14 @@ function planCode(b){
  * 刷ってから「読めない」が分かると貼り直しになるので、刷る画面を開いた時点で知らせる。
  * 1枚ずつ間を空けて読む（47枚で1〜2秒。画面は固まらない）
  */
-function checkQrSheet(expect){
-  const box = $('#qr-check');
+function checkQrSheet(expect, opt){
+  opt = opt || {};
+  const box = $(opt.box || '#qr-check');
   if (!box) return;
-  const key = expect.map(x => x.url).join('|');
-  if (checkQrSheet._key === key) return;
+  const key = (opt.box || '#qr-check') + expect.map(x => x.url + x.name).join('|');
+  if (checkQrSheet._key === key){ if (opt.done && box.dataset.st !== 'run') opt.done(box.dataset.st === 'ok'); return; }
   checkQrSheet._key = key;
-  const svgs = $$('#qr-grid .qr-img svg');
+  const svgs = $$(opt.images || '#qr-grid .qr-img svg');
   if (!svgs.length || svgs.length !== expect.length){ box.textContent = ''; return; }
   box.dataset.st = 'run';
   box.textContent = 'QRが読めるか確かめています…';
@@ -16167,6 +16308,7 @@ function checkQrSheet(expect){
       box.textContent = bad.length
         ? `読めないQRがあります（${bad.length}枚）：${bad.slice(0, 5).join('・')}${bad.length > 5 ? ' ほか' : ''}。刷る前に作り直してください`
         : `✓ ${svgs.length}枚すべて、この端末で読めることを確かめました`;
+      if (opt.done) opt.done(!bad.length);
       return;
     }
     const k = i++, im = new Image();
@@ -16182,6 +16324,65 @@ function checkQrSheet(expect){
     im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgs[k].outerHTML);
   };
   setTimeout(step, 50);
+}
+
+
+/** v240：46枚とも公開先のURLを使う。QRにパスワードや入室済みの印は含めない。 */
+function staffAdminUrl(id){
+  const official = document.querySelector('meta[property="og:url"]');
+  const base = official && official.content ? official.content.replace(/[?#].*$/, '') : publicBase();
+  return `${base}?mode=admin&staffBooth=${encodeURIComponent(id)}&openExternalBrowser=1`;
+}
+async function openStaffQr(){
+  OWN.after = 'staffqr';
+  await openOwner();
+  if (OWN.after === 'staffqr' && ownToken() && OWN.state){ OWN.after = ''; switchView('staffqr'); }
+}
+function renderStaffQr(){
+  if (!(ownToken() && OWN.state)) return;
+  const sel = $('#staff-print-select'), pages = $('#staff-qr-pages'), count = $('#staff-print-count');
+  const fp = JSON.stringify(S.booths.map(b => [b.id, b.name, b.floor, roomLabel(b), planCode(b)]));
+  if (renderStaffQr._data !== fp){
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">全ブース</option>' + S.booths.map(b => `<option value="${esc(b.id)}">${esc(S.numbers.get(b.id) || '')}　${esc(b.name)}（${esc(flLabel(b))}）</option>`).join('');
+    if (S.booths.some(b => b.id === prev)) sel.value = prev;
+    renderStaffQr._data = fp;
+  }
+  const key = fp + '|' + sel.value;
+  if (renderStaffQr._key === key) return;
+  renderStaffQr._key = key;
+  const list = sel.value ? S.booths.filter(b => b.id === sel.value) : S.booths;
+  count.textContent = list.length ? `${list.length}ブース・${list.length}ページ。1枚ずつ各ブースの担当者へ配ってください。` : 'ブースの情報を読み込んでいます。出そろってから印刷してください。';
+  setPrintReady('#btn-staff-print', false);
+  $('#staff-qr-check').textContent = '';
+  pages.innerHTML = list.map(b => {
+    const n = S.numbers.get(b.id) || '', url = staffAdminUrl(b.id);
+    return `<article class="staff-sheet" data-staff-id="${esc(b.id)}">
+      <div class="staff-sheet-label"><span>黒工文化祭 2026｜ブース担当者用</span><span>来場者への掲示はしない</span></div>
+      <h2>${esc(n)}　${esc(b.name)}</h2>
+      <p class="staff-sheet-place">${esc(flLabel(b))}・${esc(roomLabel(b) || b.id)}${planCode(b) ? '｜平面図 ' + esc(planCode(b)) : ''}｜部屋ID ${esc(b.id)}</p>
+      <div class="staff-sheet-hero"><div><h3>このブースの<br>混雑状況を更新する</h3><p>右のQRをスマホのカメラで読み取ります。<br>ログインすると、上のブースだけが表示されます。<br><b>ブースを探す・選ぶ操作は不要です。</b></p></div>
+        <div class="staff-sheet-qr">${QR.svgSafe(url, 200)}<span>係員の管理画面を開く</span></div></div>
+      <h3>当日の操作手順</h3>
+      <ol>
+        <li><b>QRを読み取り、係員パスワードでログイン</b><span>本部から伝えられたパスワードを入力します。すでにログイン済みなら、そのまま更新画面が開きます。</span></li>
+        <li><b>画面のブース名が、この紙と同じか確認</b><span>担当以外の名前なら送信せず、本部に確認してください。「許可を待っています」と出たら、画面の端末番号を本部へ伝えます。許可後は自動で開きます。</span></li>
+        <li><b>待ち列を数え、＋1・＋5／−1・−5で人数を合わせる</b><span>人数が合ったら「送信」を押します。混雑度は人数から自動で決まります。数えられないときは「空き／やや混雑／混雑」を押しても更新できます。</span></li>
+        <li><b>「ブース名 → 空き（5人）」などの送信結果を確認</b><span>押し間違えた直後は「元に戻す」。人数が変わったら更新し、変わらなくても15分に1回は送信してください。</span></li>
+      </ol>
+      <div class="staff-sheet-help"><h3>休止するとき・困ったとき</h3>
+        <p><b>一時休止・終了：</b>「休止中にする」。再開するときは「休止をやめる（再開）」を押し、人数を合わせて送信します。</p>
+        <p><b>電波が弱い：</b>「未送信」はまだ反映されていません。通信できる場所へ移動し、再送されるまで確認してください。長く経ったときは人数を数え直して送信します。</p>
+        <p><b>入れない・名前が違う：</b>本部に、この紙のブース名・部屋IDと画面のメッセージを伝えてください。</p>
+      </div>
+      <footer class="staff-sheet-foot"><b>この紙は係員の手元へ。来場者のスタンプQRとは別です。</b><br>交代した人もこのQRから開けます。共用端末は終了時に「ログアウト」。パスワードは本部から別途伝えます。
+        <span class="staff-sheet-url">QRが読めないときのURL：${esc(url)}</span></footer>
+    </article>`;
+  }).join('');
+  if (list.length) checkQrSheet(list.map(b => ({ name:b.name, url:staffAdminUrl(b.id) })), {
+    box:'#staff-qr-check', images:'#staff-qr-pages .staff-sheet-qr svg',
+    done: ok => { if (renderStaffQr._key === key && ownToken() && OWN.state) setPrintReady('#btn-staff-print', ok); }
+  });
 }
 
 function renderQrSheet(){
@@ -16261,14 +16462,14 @@ function renderQrSheet(){
       </div>
 
       <p class="staff-note" style="margin-bottom:8px">
-        ログインすると、画面の上に <b>更新 ／ 受付 ／ 本部 ／ 準備</b> の4つのボタンが出ます。
+        ログインすると、画面の上に <b>更新 ／ 受付</b> の2つのボタンが出ます。
         自分の役目のボタンを1回おせば、その画面だけが出ます。</p>
 
       <h4 class="staff-h">ブース担当（<b>更新</b>）</h4>
       <ol class="staff-steps">
-        <li>左のQRを読み取り、開いたページをホーム画面に追加する</li>
+        <li>上のQRを読み取り、開いたページをホーム画面に追加する</li>
         <li>配布されたパスワードを入力してログインする</li>
-        <li>初回だけ「担当ブース」から自分の持ち場をタップする</li>
+        <li>専用QR・手順の紙を受け取っている人は、そのQRから開くと担当ブースが自動で決まります。共通QRから開いたときは、初回だけ担当ブースを選びます</li>
         <li>待ち列を数えて <b>＋1 / ＋5</b> で人数を合わせ、<b>送信</b> を押す<br>
             <span class="staff-note">人数から混雑度が自動で決まります：
             0〜${S.waitTh.warn - 1}人＝空き ／ ${S.waitTh.warn}〜${S.waitTh.busy - 1}人＝やや混雑 ／ ${S.waitTh.busy}人〜＝混雑</span></li>
@@ -16285,9 +16486,9 @@ function renderQrSheet(){
             <span class="staff-note">この4桁は来場者に教えないでください</span></li>
       </ol>
 
-      <h4 class="staff-h">本部担当（<b>本部</b>）</h4>
+      <h4 class="staff-h">本部担当（<b>司令塔</b>）</h4>
       <ol class="staff-steps">
-        <li><b>当日の流れ（チェックリスト）</b> で開場前・開場後・閉場後の確認をする</li>
+        <li>司令塔に入り「本部」を開き、<b>当日の流れ（チェックリスト）</b> で開場前・開場後・閉場後の確認をする</li>
         <li>開場したら <b>「開場：全ブースを空いています」</b> を1回押す</li>
         <li>落とし物・ステージ開始などは <b>「お知らせを出す」</b> から。
             来場者全員の画面の上に出ます（「注意（赤）」も選べます）</li>
@@ -17314,6 +17515,9 @@ function init(){
   // 交換済みの印は、スタンプ側が消えても残す（消すと、同じQRを読み直して二重に交換できてしまう）
   S.spent    = idList('kuroko_spent_v1');
   S.assigned = new Set(idList('kuroko_assigned_v2'));
+  { const q = new URLSearchParams(location.search);
+    if (q.get('mode') === 'admin' && q.has('staffBooth')) S.staffBooth = q.get('staffBooth') || 'invalid'; }
+  renderStaffTarget();
   S.admOpen = new Set(strList('kuroko_adm_open'));
   { const m = load('kuroko_adm_mode', 'floor'); S.admMode = ['floor', 'dept', 'flat'].indexOf(m) >= 0 ? m : 'floor'; }
   $$('#adm-mode button').forEach(el => el.addEventListener('click', () => {
@@ -17660,7 +17864,7 @@ function init(){
   // 戻り口が「← マップへもどる」になり、係員が一般の画面へ落とされていた。
   if (pw()) S.isAdmin = true;
   if (mode === 'admin'){
-    if (pw()){ renderAssign(); renderAdmin(); renderChecklist(); switchView('admin'); checkServer(); }
+    if (pw()){ renderAssign(); renderAdmin(); renderChecklist(); switchView('admin'); if (S.staffBooth) setAdmTab('update'); checkServer(); }
     else switchView('auth');
   } else if (mode === 'qr'){
     // 全ブースのQRが1枚に並ぶページ。誰でも開けると、画面のQRを片端から
@@ -17674,6 +17878,8 @@ function init(){
   } else if (mode === 'report'){
     switchView('report');                       // 振り返りはPCで見る画面（switchViewが幅を広げる）
     renderReport();
+  } else if (mode === 'staffqr'){
+    openStaffQr();
   } else if (mode === 'owner'){
     openOwner();                                // v216：司令塔（持ち主だけ）
   } else if (mode === 'board'){
@@ -17778,11 +17984,13 @@ function init(){
     if (mode === 'qr'){ if (pw() || ownToken()) renderQrSheet(); return; }
     if (mode === 'print'){ renderPrintSheet(); return; }
     if (mode === 'pamphlet'){ renderPamphlet(); return; }
-    if (mode === 'report') return;
+    if (mode === 'report' || mode === 'staffqr' || mode === 'admin') return;
     if (mode === 'board'){ renderBoard(); return; }
     if (!applyDeepLink()) S.pendingLink = applyDeepLink;
   });
 
+  $('#staff-print-select').addEventListener('change', renderStaffQr);
+  $('#btn-staff-print').addEventListener('click', () => { if (!$('#btn-staff-print').disabled && ownToken() && OWN.state) window.print(); });
   initOwner();
   { const st = $('#auth-wait-stop'); if (st) st.addEventListener('click', () => authWaitStop()); }
   initLiff();

@@ -3647,19 +3647,22 @@ test('見出しの「係の人の更新 ◯分前」は、係の人がいちば�
   await ready(page);
   const txt = page.locator('#sync-text');
   // 古いサーバー（lastUpdate なし）：ブースの時刻のうち、いちばん新しいもの（37分前）。以前は「たった今」と出ていた
-  await expect(txt).toHaveText('最新の情報です（係の人の更新 37分前）');
+  await expect(txt).toHaveText('最新の混雑状況');
+  await expect(page.locator('#sync-pill')).toHaveAttribute('title', '係の人の更新 37分前');
+  await expect(page.locator('#sync-pill')).toHaveAttribute('aria-label', /係の人の更新 37分前/);
   // 新しいサーバー：lastUpdate（12分前）のほうが新しければ、それを使う
   mode = 'server';
   await page.evaluate(() => sync(true));
-  await expect(txt).toHaveText('最新の情報です（係の人の更新 12分前）');
+  await expect(page.locator('#sync-pill')).toHaveAttribute('title', '係の人の更新 12分前');
   // 5分以上先の時刻（シートの打ち間違い）は数えない
   mode = 'future';
   await page.evaluate(() => sync(true));
-  await expect(txt).toHaveText('最新の情報です（係の人の更新 8分前）');
+  await expect(page.locator('#sync-pill')).toHaveAttribute('title', '係の人の更新 8分前');
   // まだ1件も更新が無い
   mode = 'none';
   await page.evaluate(() => sync(true));
-  await expect(txt).toHaveText('最新の情報です（係の人の更新はまだありません）');
+  await expect(txt).toHaveText('係の更新待ち');
+  await expect(page.locator('#sync-pill')).toHaveAttribute('title', '係の人の更新はまだありません');
   expect(errors).toEqual([]);
 });
 

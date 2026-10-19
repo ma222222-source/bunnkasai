@@ -33,7 +33,8 @@ async function lookAt(page, when) {
     const out = {};
     try {
       const now = new Date().toISOString();
-      S.updatedAt = now; S.fetchedAt = Date.now(); S.booths.forEach(b => { if (b.time) b.time = now; });
+      // サーバーの時刻もこの時刻へそろえているので、起動時に記録した実時間との差は使わない。
+      S.updatedAt = now; S.fetchedAt = Date.now(); S.clockLag = 0; S.booths.forEach(b => { if (b.time) b.time = now; });
       renderAll(); renderInfo(); switchView('info'); switchView('map');
       const vis = id => { const e = document.getElementById(id); return e && !e.classList.contains('hide') ? e.innerText.replace(/\s+/g, ' ').trim() : ''; };
       const hm = hoursMessage();
@@ -81,7 +82,7 @@ test('時刻ごとの案内：前日・開場前・開催中・最終入場の�
   expect(r.state).toBe('open');
   expect(r.short).toBe('');
   expect(r.banner).toBe('');
-  expect(r.sync).toContain('最新の情報');
+  expect(r.sync).toBe('最新の混雑状況');
   expect(r.hero).toBe('開催中');
   expect(r.sub).toBe('14:25 まで');
   r = await lookAt(page, at('2026-10-23T14:10'));               // 終わる30分前から

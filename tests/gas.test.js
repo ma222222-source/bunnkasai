@@ -1260,3 +1260,34 @@ test('v236 ?gen=1 は「変わったか」の番号だけを返す（シート�
   // 何も書かなければ、番号は変わらない
   assert.strictEqual(g.__get({ gen: '1' }).gen, b.gen);
 });
+
+test('v239 ?gen=1&since=手元の番号：変わっていなければ軽い返事、変わっていれば同じ1往復で本体まで返す', () => {
+  const g = fresh();
+  const first = g.__get();
+  const same = g.__get({ gen: '1', since: first.gen });
+  assert.strictEqual(same.gen, first.gen);
+  assert.strictEqual(same.booths, undefined);
+  assert.ok(Buffer.byteLength(JSON.stringify(same)) < 160);
+  g.__post({ action: 'update', pass: PASS, cid: 'aaaa1111aaaa', id: '1F-02', wait: 11 });
+  const changed = g.__get({ gen: '1', since: first.gen });
+  assert.strictEqual(changed.ok, true);
+  assert.strictEqual(changed.booths.length, 46);
+  assert.strictEqual(changed.booths.find(b => b.id === '1F-02').wait, 11);
+  assert.notStrictEqual(changed.gen, first.gen);
+  assert.strictEqual(g.__get({ gen: '1' }).booths, undefined, '従来の画面への返事は番号だけ');
+  // 変わっていない確認ではシートを開かない。キャッシュだけで返せる。
+  g.SpreadsheetApp.getActiveSpreadsheet = () => { throw new Error('シートを読んだ'); };
+  assert.strictEqual(g.__get({ gen: '1', since: changed.gen }).gen, changed.gen);
+});
+
+test('v239 条件つき取得：番号のキャッシュが消えたときも本体へ追いつき、同じ空文字は軽い返事で確認できる', () => {
+  const g = fresh();
+  const first = g.__get();
+  g.__cache.delete(g.CACHE_GEN); g.__cache.delete(g.CACHE_KEY);
+  const changed = g.__get({ gen: '1', since: first.gen });
+  assert.strictEqual(changed.gen, '');
+  assert.strictEqual(changed.booths.length, 46);
+  const same = g.__get({ gen: '1', since: '' });
+  assert.strictEqual(same.gen, '');
+  assert.strictEqual(same.booths, undefined);
+});
