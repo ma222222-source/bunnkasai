@@ -4,8 +4,8 @@
 > 開発ルールは `RULES.md`、いまの進み具合と次の作業は `PROGRESS.md`。
 > 新しいAI（ChatGPT / Claude）は **SPEC.md → RULES.md → PROGRESS.md** の順に読むこと。
 >
-> - 最終更新：2026-10-19（Codex）
-> - 記述の対象：**v240・ローカル確認版**（`BUILD '2026-10-19b'` ／ `sw.js` の `CACHE 'kuroko-map-v240'` ／ Code.gs `GAS_VERSION '2026-10-19a'`）。公開中の画面は v238。
+> - 最終更新：2026-10-20（Codex：v240公開確認）
+> - 記述の対象：**v240・公開済み**（`BUILD '2026-10-19b'` ／ `sw.js` の `CACHE 'kuroko-map-v240'` ／ Code.gs `GAS_VERSION '2026-10-19a'`）。公式URLの画面・SWとGAS版36の反映を確認済み。
 > - 表記の約束：**【確認済み】**＝コード・実機・リポジトリで確かめた事実／**【推測】**＝資料から読み取った解釈／**【未確認】**＝確かめられていない
 
 ---
