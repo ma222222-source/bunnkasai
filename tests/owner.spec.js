@@ -498,10 +498,11 @@ test('司令塔（v219）：5枚のタブ。本部（お知らせ・開場と閉
   await page.locator('#btn-bulk-close').click();
   await expect(page.locator('#toast')).toContainText('準備中', { timeout: 10000 });
   expect(g.__get().booths.every(b => b.status === '準備中')).toBe(true);
-  // 準備：印刷するもの5つ（絵つき）。地図の割り当てに入って、やめると「準備」に戻る
+  // 準備：印刷するもの6つ（絵つき）。地図の割り当てに入って、やめると「準備」に戻る
   await page.locator('#owntab-setup').click();
-  const links = await page.evaluate(() => [...document.querySelectorAll('#ownpane-setup .own-links a.btn')].map(a => ({ href: a.getAttribute('href'), ic: !!a.querySelector('svg.ic') })));
-  expect(links.map(l => l.href)).toEqual(['?mode=qr', '?mode=pamphlet', '?mode=print', '?mode=report', '?mode=board']);
+  // 共用ICONのSVG（ic-svg）と、直接置いたSVG（ic）のどちらも、実際の絵があることを確かめる。
+  const links = await page.evaluate(() => [...document.querySelectorAll('#ownpane-setup .own-links a.btn')].map(a => ({ href: a.getAttribute('href'), ic: !!a.querySelector('svg') })));
+  expect(links.map(l => l.href)).toEqual(['?mode=qr', '?mode=staffqr', '?mode=pamphlet', '?mode=print', '?mode=report', '?mode=board']);
   expect(links.every(l => l.ic)).toBe(true);
   await page.locator('#ownpane-setup .setup-card > summary').click();
   await page.locator('#btn-edit-map').click();
@@ -848,8 +849,8 @@ test('司令塔（v220）：本部は「お知らせ」がいちばん上で、�
     const box = document.querySelector('#ownpane-setup .own-links').getBoundingClientRect();
     return [...document.querySelectorAll('#ownpane-setup .own-links a.btn')].map(a => ({ t: a.textContent.trim(), w: Math.round(a.getBoundingClientRect().width), full: Math.round(box.width), lines: Math.round(a.getBoundingClientRect().height) }));
   });
-  expect(links.map(l => l.t)).toEqual(['QRの印刷シート', '三つ折りパンフレット', '配布用の紙マップ', '混雑の振り返り', '本部モニタ（大画面）']);
-  expect(links[4].w).toBeGreaterThanOrEqual(links[4].full - 2);              // 5枚目は横いっぱい
+  expect(links.map(l => l.t)).toEqual(['QRの印刷シート', 'ブース担当者用QR・手順を印刷', '三つ折りパンフレット', '配布用の紙マップ', '混雑の振り返り', '本部モニタ（大画面）']);
+  expect(links[5].w).toBeLessThan(links[5].full / 2 + 2);                  // v240：6枚なので2列が3段
   expect(links[0].w).toBeLessThan(links[0].full / 2 + 2);
   await expect(page.locator('#ownpane-setup .setup-card > summary')).toHaveText('地図でブースを割り当てる');
   expect(errors).toEqual([]);
