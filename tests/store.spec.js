@@ -1,3 +1,4 @@
+const { fillStaffName } = require('./staff-name-helper');
 // 端末に保存したデータ（localStorage）が変な形のとき（v181）。
 // スタンプ・設定・控えなど、このアプリが端末に保存している値を、でたらめな値（数字だけ・配列のはずがオブジェクト・途中で切れた文字 など）に
 // してから開き、来場者の画面・QR のスタンプ・係員の画面が、エラー・真っ白にならず、QR を読めばスタンプが保存されることを確かめる。
@@ -49,7 +50,7 @@ for (const seed of SEEDS) {
     await page.goto('/?mode=check'); await check('check');
     await page.goto('/?mode=admin'); await check('auth');
     try {
-      await page.locator('#pw').fill('test-password-1234'); await page.locator('#btn-login').click();
+      await page.locator('#pw').fill('test-password-1234'); await fillStaffName(page); await page.locator('#btn-login').click();
       await page.waitForFunction(() => S.view === 'admin', null, { timeout: 10000 });
       for (const t of ['update', 'recept', 'hq', 'prep']) { await page.evaluate(t => { setAdmTab(t); renderAdmin(); }, t); await page.waitForTimeout(250); }
       await check('admin');

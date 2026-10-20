@@ -1,3 +1,4 @@
+const { fillStaffName } = require('./staff-name-helper');
 // 画面の通しテスト（GAS は mock.js で模擬。本番データには触らない）
 const { test, expect } = require('@playwright/test');
 const { mockGas, watchErrors } = require('./mock');
@@ -142,7 +143,7 @@ test('係員ログイン：違うパスワードでは入れない', async ({ pa
   await mockGas(page);
   await page.goto('/?mode=admin');
   await page.locator('#pw').fill('wrong-password');
-  await page.locator('#btn-login').click();
+  await fillStaffName(page); await page.locator('#btn-login').click();
   await expect(page.locator('#auth-err')).not.toBeEmpty({ timeout: 10000 });
   await expect(page.locator('#v-admin')).toBeHidden();
 });
@@ -481,7 +482,7 @@ test('QR印刷シート：開くと全部のQRを読んで「すべて読める�
   await page.setViewportSize({ width: 1000, height: 900 });
   await page.goto('/?mode=qr');
   await page.locator('#pw').fill('test-password-1234');
-  await page.locator('#btn-login').click();
+  await fillStaffName(page); await page.locator('#btn-login').click();
   await expect(page.locator('#qr-check')).toHaveAttribute('data-st', 'ok', { timeout: 30000 });
   await expect(page.locator('#qr-check')).toContainText('47枚すべて');
 });
@@ -491,7 +492,7 @@ test('係員：送信していない人数があるときだけ、画面を離�
   await page.addInitScript(() => localStorage.setItem('kuroko_adm_mode', JSON.stringify('flat')));
   await page.goto('/?mode=admin');
   await page.locator('#pw').fill('test-password-1234');
-  await page.locator('#btn-login').click();
+  await fillStaffName(page); await page.locator('#btn-login').click();
   await expect.poll(() => page.evaluate(() => S.booths.length)).toBe(46);
   const blocked = () => page.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; });
   expect(await blocked()).toBe(false);
@@ -1978,7 +1979,7 @@ test('速さの目安：中身が変わらない同期の描き直しは軽い�
   expect(ms).toBeLessThan(120);
 });
 
-test('地図の高さは、実際のボタンの高さから決める（端末の字の形でボタンが大きくなっても重ならない）', async ({ page }) => {
+test('地図の操作は、ボタンが大きくなっても重ならず、階は図面の外・ズームは図面の中に収まる', async ({ page }) => {
   await mockGas(page);
   await page.addInitScript(() => localStorage.setItem('kuroko_intro_v1', '1'));
   await page.setViewportSize({ width: 360, height: 640 });
@@ -1994,7 +1995,7 @@ test('地図の高さは、実際のボタンの高さから決める（端末�
     const look = () => page.evaluate(() => {
       const f = document.querySelector('#map-card .map-floors').getBoundingClientRect(), z = document.querySelector('#map-card .map-zoom-ctl').getBoundingClientRect();
       const v = document.getElementById('map-view').getBoundingClientRect();
-      return { gap: Math.round(z.top - f.bottom), inside: f.top >= v.top - 1 && z.bottom <= v.bottom + 1 };
+      return { gap: Math.round(z.top - f.bottom), inside: f.bottom <= v.top && z.top >= v.top && z.bottom <= v.bottom + 1 };
     });
     await expect.poll(async () => { const o = await look(); return o.gap >= 4 && o.inside; }, { timeout: 4000 }).toBe(true).catch(() => {});
     const r = await look();

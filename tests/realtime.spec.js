@@ -4,6 +4,121 @@ const { test, expect } = require('@playwright/test');
 const { mockGas, watchErrors } = require('./mock');
 const { loadGas } = require('./gas-mock');
 
+async function openMap(page, mutate) {
+  const errors = watchErrors(page);
+  await mockGas(page, { mutate });
+  await page.addInitScript(() => localStorage.setItem('kuroko_intro_v1', '1'));
+  await page.goto('/?tab=map');
+  await expect.poll(() => page.evaluate(() => typeof S !== 'undefined' && S.booths.length === 46 && !sync._busy)).toBe(true);
+  await page.evaluate(() => {
+    clearTimeout(S.timer); clearTimeout(GEN.t);
+    window.schedule = () => {}; window.genSchedule = () => {};
+  });
+  return errors;
+}
+
+test('地図（v242）：階切替が部屋を覆わず、4つの階を直接選べる', async ({ page }) => {
+  const errors = await openMap(page);
+  await expect.poll(() => page.evaluate(() => document.querySelector('.map-floors').getBoundingClientRect().bottom <= document.getElementById('map-view').getBoundingClientRect().top)).toBe(true);
+  for (const floor of [0, 1, 2, 3]) {
+    const button = page.locator('#fl-' + floor);
+    expect(await button.evaluate(el => el.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+    await button.click();
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#plan-' + floor)).toBeVisible();
+  }
+  expect(await page.evaluate(() => document.getElementById('map-card').compareDocumentPosition(document.getElementById('reco-card')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy();
+  expect(errors).toEqual([]);
+});
+
+test('地図（v242）：検索中も人数と更新時刻が追従し、選択中の候補を保って開ける', async ({ page }) => {
+  let wait = 5, time = new Date(Date.now() - 8 * 60000).toISOString();
+  const errors = await openMap(page, j => {
+    Object.assign(j.booths.find(b => b.id === '1F-02'), { status: 'やや混雑', wait, time });
+  });
+  const input = page.locator('#map-q'), option = page.locator('#map-sug [data-booth="1F-02"]');
+  await input.fill('旋盤');
+  await input.press('ArrowDown');
+  await expect(option.locator('.sg-st')).toContainText('5人');
+  await expect(option.locator('.sg-ago')).toContainText('8分前');
+  const active = await input.getAttribute('aria-activedescendant');
+  expect(active).toBeTruthy();
+  wait = 9; time = new Date().toISOString();
+  await page.evaluate(() => sync(false));
+  await expect(option.locator('.sg-st')).toContainText('9人');
+  await expect(option.locator('.sg-ago')).toContainText('たった今');
+  await expect(input).toHaveValue('旋盤');
+  await expect(input).toBeFocused();
+  await expect(input).toHaveAttribute('aria-activedescendant', active);
+  await expect(option).toHaveAttribute('aria-selected', 'true');
+  await input.press('Enter');
+  await expect(page.locator('#bsh')).toBeVisible();
+  await expect(page.locator('#bsh .wt')).toContainText('9');
+  await expect(input).not.toHaveAttribute('aria-activedescendant');
+  await page.evaluate(() => closeSheet());
+  await input.fill('機械');
+  const scrollY = await page.evaluate(() => window.scrollY);
+  // 下の候補を選んでも、検索欄をページごと上へ送らない。
+  const count = await page.locator('#map-sug [data-i]').count();
+  expect(count).toBeGreaterThan(3);
+  for (let i = 0; i < count; i++) await input.press('ArrowDown');
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrollY);
+  const selectedTitle = await page.locator('#map-sug [aria-selected="true"] .sg-tx b').innerText();
+  const scrollTop = await page.locator('#map-sug').evaluate(el => el.scrollTop);
+  await page.evaluate(() => sync(false));
+  await expect(page.locator('#map-sug [aria-selected="true"] .sg-tx b')).toHaveText(selectedTitle);
+  expect(await page.locator('#map-sug').evaluate(el => el.scrollTop)).toBe(scrollTop);
+  expect(errors).toEqual([]);
+});
+
+test('地図（v242）：候補を押している途中に更新が届いても、選んだ最新のブースを開く', async ({ page }) => {
+  let wait = 5;
+  const errors = await openMap(page, j => {
+    Object.assign(j.booths.find(b => b.id === '1F-02'), { status: 'やや混雑', wait });
+  });
+  await page.locator('#map-q').fill('旋盤');
+  const option = page.locator('#map-sug [data-booth="1F-02"]');
+  await option.scrollIntoViewIfNeeded();
+  const rect = await option.boundingBox();
+  await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);
+  await page.mouse.down();
+  await page.evaluate(() => { window.__pressedOption = document.querySelector('#map-sug [data-booth="1F-02"]'); });
+  wait = 9;
+  await page.evaluate(() => sync(false));
+  expect(await page.evaluate(() => window.__pressedOption === document.querySelector('#map-sug [data-booth="1F-02"]'))).toBe(true);
+  await page.mouse.up();
+  await expect(page.locator('#bsh')).toBeVisible();
+  await expect(page.locator('#bsh .wt')).toContainText('9');
+  expect(errors).toEqual([]);
+});
+
+test('地図（v242）：人数だけの変化も知らせ、拡大位置と変わっていない部屋を保つ', async ({ page }) => {
+  let wait = 5;
+  const errors = await openMap(page, j => {
+    Object.assign(j.booths.find(b => b.id === '1F-02'), { status: 'やや混雑', wait });
+  });
+  await page.locator('#zoom-in').click();
+  await page.waitForTimeout(500);
+  const before = await page.evaluate(() => {
+    window.__keptMapRoom = document.querySelector('#plan-1 .room[data-id="1F-03"]');
+    return { k: ZOOM.k, x: ZOOM.x, y: ZOOM.y, floor: S.floor };
+  });
+  wait = 9;
+  await page.evaluate(() => sync(false));
+  await expect(page.locator('#plan-1 .room[data-id="1F-02"]')).toHaveClass(/\bchanged\b/);
+  expect(await page.evaluate(() => ({ k: ZOOM.k, x: ZOOM.x, y: ZOOM.y, floor: S.floor }))).toEqual(before);
+  expect(await page.evaluate(() => window.__keptMapRoom === document.querySelector('#plan-1 .room[data-id="1F-03"]'))).toBe(true);
+  const changedAt = await page.evaluate(() => S.changedAt.get('1F-02'));
+  expect(await page.evaluate(() => S.trend.get('1F-02').dir)).toBe('up');
+  // 人数が同じ再送は「変わった」に数えず、減ったときだけ向きを反転する。
+  await page.evaluate(() => sync(false));
+  expect(await page.evaluate(() => S.changedAt.get('1F-02'))).toBe(changedAt);
+  wait = 6;
+  await page.evaluate(() => sync(false));
+  expect(await page.evaluate(() => S.trend.get('1F-02').dir)).toBe('down');
+  expect(errors).toEqual([]);
+});
+
 async function openLive(page, getGen = () => 'g1') {
   const errors = watchErrors(page);
   await mockGas(page, { gen: getGen, mutate: j => { j.serverVersion = '2026-10-16a'; j.gen = getGen(); } });

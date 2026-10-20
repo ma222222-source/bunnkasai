@@ -1,3 +1,4 @@
+const { fillStaffName } = require('./staff-name-helper');
 // 司令塔（持ち主だけ）の画面テスト（v216）。
 // サーバーは模擬の返事ではなく、Code.gs をそのまま動かす（tests/gas-mock.js）。画面 → 通信 → Code.gs の確かめ、までを通しで見る。
 // パスキー（顔認証・指紋）は、Chromium の「仮の認証器」（CDP の WebAuthn）で本物と同じ署名を作らせる。
@@ -35,10 +36,10 @@ async function device(browser, g) {
   const page = await ctx.newPage();
   return { ctx, page };
 }
-async function staffLogin(page, origin, pass) {
+async function staffLogin(page, origin, pass, name) {
   await page.goto(origin + '/?mode=admin');
   await page.locator('#pw').fill(pass);
-  await page.locator('#btn-login').click();
+  await fillStaffName(page, name); await page.locator('#btn-login').click();
 }
 /** 司令塔に入る。tab：入ったあとに開く画面（係員＝パスワードと端末。'' なら、はじめの「ようす」のまま） */
 async function ownerLogin(page, origin, tab = 'staff') {
@@ -112,7 +113,7 @@ test('司令塔：持ち主パスワードで入り、係員のパスワード�
   await staffLogin(d.page, origin, PASS);
   await expect(d.page.locator('#auth-err')).toContainText('パスワードが違います');
   await d.page.locator('#pw').fill(NEW);
-  await d.page.locator('#btn-login').click();
+  await fillStaffName(d.page); await d.page.locator('#btn-login').click();
   await expect(d.page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
   await d.ctx.close();
   // 開き直しても、入ったまま（このタブの中だけ覚えている）。出ると、入口に戻る
@@ -156,20 +157,19 @@ test('司令塔：入れる端末を決める。「許可した端末だけ」�
   await expect(A.page.locator('#toast')).toContainText('→');
   // 端末B：パスワードは合っているが、まだ許可されていない → 番号を出して待つ
   const B = await device(browser, g);
-  await staffLogin(B.page, origin, PASS);
+  await staffLogin(B.page, origin, PASS, 'でんしか たろう');
   await expect(B.page.locator('#auth-wait')).toBeVisible({ timeout: 10000 });
   const code = (await B.page.locator('#auth-wait-code').textContent()).trim();
   expect(code).toMatch(/^[0-9A-F]{4}$/);
   await expect(B.page.locator('#v-admin')).toBeHidden();
   await expect(B.page.locator('#btn-login')).toBeHidden();
-  await B.page.locator('#auth-who').fill('でんしか たろう');
   // 持ち主：待っている端末が、同じ番号で一覧の先頭に出る（8秒ごとに取り直す。ここでは待たずに取り直す）
   await page.evaluate(() => ownRefresh(true));
   const waitRow = page.locator('#own-devs .own-dev[data-st="wait"]');
   await expect(waitRow).toHaveCount(1);
   await expect(waitRow.locator('.od-code')).toHaveText(code);
   // v217：開いているあいだに来た「許可待ち」は、知らせが出る（一覧を見張っていなくてよい）。まとめの先頭にも出る
-  await expect(page.locator('#toast')).toHaveText(`端末 ${code} が、許可を待っています`);
+  await expect(page.locator('#toast')).toHaveText(`端末 ${code}（でんしか たろう） が、許可を待っています`);
   await expect(waitRow.locator('.od-when')).toContainText('許可を求めた');           // まだ入っていないので「最後に入った」とは言わない
   await expect(page.locator('#own-dev-sum')).toHaveText('2台：許可を待っています 1・許可しています 1');
   // 同じ端末について、取り直すたびに何度も知らせない
@@ -184,7 +184,7 @@ test('司令塔：入れる端末を決める。「許可した端末だけ」�
   // 持ち主：B を止める → B が次に送ると、ログインの画面に戻されて理由が出る
   await page.evaluate(() => ownRefresh(true));
   const rowB = page.locator('#own-devs .own-dev', { has: page.locator('.od-code', { hasText: code }) });
-  await expect(rowB.locator('.od-label')).toHaveText('でんしか たろう');     // 待っているあいだに書いた名前
+  await expect(rowB.locator('.od-label')).toHaveText('でんしか たろう');     // 初回ログインで登録した名前
   await rowB.locator('[data-dev="no"]').click();
   await expect(rowB.locator('.od-st')).toHaveText('止めています');
   await expect(page.locator('#own-dev-sum')).toHaveText('2台：許可しています 1・止めています 1');
@@ -203,7 +203,7 @@ test('司令塔：入れる端末を決める。「許可した端末だけ」�
   await staffLogin(C.page, origin, PASS);
   await expect(C.page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
   await B.page.locator('#pw').fill(PASS);
-  await B.page.locator('#btn-login').click();
+  await fillStaffName(B.page); await B.page.locator('#btn-login').click();
   await expect(B.page.locator('#auth-err')).toContainText('止められています');
   await A.ctx.close(); await B.ctx.close(); await C.ctx.close();
   expect(errors).toEqual([]);

@@ -2482,7 +2482,7 @@ html.lite #map-card.gmap .map-view::before,html.lite #map-card.gmap .map-view::a
 /* ③小さい画面では「はじめての方へ」を詰める（幅 320px では、カードだけで最初の画面が埋まり、地図が見えなかった） */
 #intro-card ol li{word-break:auto-phrase;text-wrap:pretty}      /* 「…交換できま／す」と1文字だけ落とさない（対応しているブラウザだけ） */
 @media (max-width:350px),(max-height:700px){
-  #intro-card{padding:8px 12px 10px}
+  #intro-card{padding:6px 12px;margin-bottom:6px}
   #intro-card ol{margin:4px 0 7px;gap:3px}
   #intro-card ol li{font-size:12.5px;line-height:1.4;padding-left:26px;min-height:20px}
   #intro-card ol li::before{width:20px;height:20px;font-size:11px}
@@ -3890,6 +3890,29 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
 .bsh-upd .chk{margin-left:6px;font-variant-numeric:tabular-nums}
 @media (prefers-reduced-motion:reduce){ .room.changed .fill{animation:none} .sync.tap:active{transform:none} }
 
+/* v242：階切替は横一列で大きく押せる。地図の文字を覆わない。 */
+#map-card.gmap .map-floors{position:static;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:4px;margin:0 0 8px;padding:3px;backdrop-filter:none}
+#map-card.gmap .map-floors button{min-width:0;min-height:44px;padding:4px 2px;gap:3px;flex-wrap:wrap;font-size:13px}
+#map-card.gmap .map-floors .fl-n{position:static;min-width:15px;height:17px;margin:0;padding:0 3px;font-size:10px}
+.map-sug .sg-ago{display:block;margin-top:2px;color:var(--text-mute);font-variant-numeric:tabular-nums}
+@media (max-width:359px){
+  .map-sug button[data-booth]{display:grid;grid-template-columns:28px minmax(0,1fr);column-gap:10px;row-gap:5px}
+  .map-sug button[data-booth] .sg-ic{grid-column:1;grid-row:1 / span 2}
+  .map-sug button[data-booth] .sg-tx{grid-column:2;min-width:0}
+  .map-sug button[data-booth] .sg-st{grid-column:2;justify-self:start}
+}
+
+/* v243：名前は初回に登録し、同じブラウザでのログインでは聞き直さない。 */
+.auth-name-entry{text-align:left;display:grid;gap:6px}
+.auth-name-entry label{font-size:13px;font-weight:900}
+.auth-name-entry p,.auth-name-saved small{font-size:11px;line-height:1.6;color:var(--text-mute);font-weight:700}
+.auth-name-entry input[aria-invalid="true"]{border-color:var(--busy)}
+.auth-name-saved{text-align:left;padding:10px 12px;background:var(--surface-2);border-radius:10px;font-size:13px;overflow-wrap:anywhere}
+.auth-name-saved small{display:block;margin-top:3px}
+.od-label{font-size:15px;font-weight:900}
+.od-label.unnamed{font-size:12px;font-weight:700;color:var(--text-mute)}
+
 /* v240：係員向けの紙は、当日の操作順で読む。配色・大きな文字設定に左右されず白黒で刷れる。 */
 .staff-target{padding:12px;border:1px solid var(--border);border-left:4px solid var(--accent-ink);border-radius:8px;text-align:left;font-size:14px;line-height:1.65;font-weight:700;overflow-wrap:anywhere}
 .staff-target b{display:block;font-size:16px}
@@ -3979,9 +4002,9 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
       <div class="intro-card hide" id="intro-card" role="note">
         <b>はじめての方へ</b>
         <ol>
-          <li>地図の色で、いまの混み具合が分かります（ブースを押すと待ち時間）</li>
-          <li>ブース入口のQRを読むとスタンプ（右上の「QR」ボタンで読めます）</li>
-          <li>スタンプ<span data-prize-n>23</span>個でお菓子1個と交換できます</li>
+          <li>地図を押すと混雑・待ち時間が分かる</li>
+          <li>入口のQRは「QR」ボタンで読む</li>
+          <li>スタンプ<span data-prize-n>23</span>個でお菓子1個と交換</li>
         </ol>
         <button type="button" class="btn ghost" id="intro-ok">わかった</button>
       </div>
@@ -3995,16 +4018,8 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
 
       <button class="next-ev hide" id="next-ev"></button>
 
-      <div class="card" id="reco-card">
-        <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></svg> いま行くならここ
-          <span class="card-note">空いている順・まだ行っていない順</span></div>
-        <div class="reco-list" id="reco-list"></div>
-      </div>
-
       <div class="card gmap" id="map-card" style="padding:12px 12px 0">
-        <!-- v140：Google マップの配置にそろえた。階は地図の右上、拡大・縮小は右下、
-             「ブースに寄せる／全体」は左下に重ね、科とトイレの絞り込みは地図のすぐ上のチップ。
-             地図の外に操作を並べていたぶん、地図そのものを大きく取れる -->
+        <!-- 検索・科・階は図面の上。拡大・縮小は右下、全体表示は左下に置く。 -->
         <div class="map-wrap">
           <!-- v142：Google マップの検索窓。打つと候補が出て、選ぶとその場所に寄って詳細を開く -->
           <div class="map-search" role="search">
@@ -4016,6 +4031,13 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
             <div class="map-sug hide" id="map-sug" role="listbox" aria-label="候補"></div>
           </div>
           <div class="dept-legend hide" id="dept-legend" aria-label="科・トイレで絞り込む" role="group" tabindex="0"></div>
+          <!-- v242：階切替は図面の外。部屋名や待ち人数を覆わない。 -->
+          <div class="seg map-floors" role="group" aria-label="フロア切替">
+            <button id="fl-0" aria-pressed="false">屋外</button>
+            <button id="fl-1" aria-pressed="true">1階</button>
+            <button id="fl-2" aria-pressed="false">2階</button>
+            <button id="fl-3" aria-pressed="false">3階</button>
+          </div>
           <div class="map-stage">
             <div class="map-flash" id="map-flash" aria-hidden="true"></div>
             <!-- v169：状態で目立たせている間ずっと見える札（トーストは消えるので、なぜ薄いのか分からなくなる） -->
@@ -4031,14 +4053,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
             <svg class="plan hide" id="plan-2" viewBox="0 0 400 500" role="group" aria-label="2階の校内マップ"></svg>
             <svg class="plan hide" id="plan-3" viewBox="0 0 400 500" role="group" aria-label="3階の校内マップ"></svg>
           </div>
-          <p class="map-empty hide" id="map-empty">この階にはブースがありません（右上のボタンで階をえらべます）</p>
-          </div>
-          <!-- 上の階ほど上に並べる（エレベーターの表示と同じ向き） -->
-          <div class="seg map-floors" role="group" aria-label="フロア切替">
-            <button id="fl-3" aria-pressed="false">3階</button>
-            <button id="fl-2" aria-pressed="false">2階</button>
-            <button id="fl-1" aria-pressed="true">1階</button>
-            <button id="fl-0" aria-pressed="false">屋外</button>
+          <p class="map-empty hide" id="map-empty">この階にはブースがありません（上のボタンで階をえらべます）</p>
           </div>
           <div class="map-ctl map-zoom-ctl">
             <!-- v148：Google マップの「現在地」ボタン。いまここ（QRを読んだ場所・えらんだ場所）へ寄せる -->
@@ -4088,6 +4103,12 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
           <button class="chip" data-route="food" aria-pressed="false"><i class="ic" data-ic="food"></i> 食べ歩き</button>
         </div>
       </div>
+      <div class="card" id="reco-card">
+        <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></svg> いま行くならここ
+          <span class="card-note">空いている順・まだ行っていない順</span></div>
+        <div class="reco-list" id="reco-list"></div>
+      </div>
+
     </section>
 
     <!-- ============ 一覧 ============ -->
@@ -4334,23 +4355,28 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
       <div class="card" style="text-align:center;display:flex;flex-direction:column;gap:12px">
         <div>
           <h2 style="font-size:15px;font-weight:900"><i data-ic="tool"></i> 係員ログイン</h2>
-          <p style="font-size:11px;color:var(--text-mute);font-weight:700;margin-top:4px">パスワードは係員に配布されたものを入力</p>
+          <p id="auth-pw-note" style="font-size:11px;color:var(--text-mute);font-weight:700;margin-top:4px">パスワードは係員に配布されたものを入力</p>
         </div>
         <p id="auth-booth" class="staff-target hide" role="status"></p>
+        <div id="auth-name-entry" class="auth-name-entry">
+          <label for="auth-who">お名前・担当（初回のみ）</label>
+          <input class="field" id="auth-who" maxlength="20" placeholder="例：電子科3年 佐藤" autocomplete="nickname" aria-describedby="auth-name-note" required>
+          <p id="auth-name-note">司令塔の端末一覧に表示します。20文字以内で入力してください。</p>
+        </div>
+        <p id="auth-name-saved" class="auth-name-saved hide">登録名：<b id="auth-name-value"></b><small>このブラウザに保存済みです。名前の入力は不要です。</small></p>
         <!-- v214：打った文字を確かめられる「表示する」と、全角が入っているときの知らせ -->
-        <div class="pw-row">
+        <div class="pw-row" id="auth-pw-row">
           <input class="field" type="password" id="pw" placeholder="パスワード" autocomplete="current-password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false">
           <button type="button" class="pw-show" id="pw-show" aria-pressed="false" aria-controls="pw">表示する</button>
         </div>
         <p class="pw-zen hide" id="pw-zen" role="status"><span>全角の文字が入っています（パスワードは半角です）</span><button type="button" id="pw-zen-fix">半角に直す</button></p>
         <button class="btn" id="btn-login">ログイン</button>
-        <p class="stale-warn hide" id="auth-err">パスワードが違います</p>
+        <p class="stale-warn hide" id="auth-err" role="alert">パスワードが違います</p>
         <!-- v216：司令塔で「許可した端末だけ」にしているとき。パスワードは合っているので、許可されるまで待つ -->
         <div class="auth-wait hide" id="auth-wait" role="status">
           <p>この端末は、まだ許可されていません</p>
           <b class="code" id="auth-wait-code">----</b>
           <p>この番号を、本部（持ち主）に伝えてください。<br><span class="dots">許可されると、自動で入ります</span></p>
-          <input class="field" id="auth-who" maxlength="20" placeholder="なまえ・係（書かなくてもよい）" aria-label="なまえ・係（書くと、本部の一覧に出ます）" autocomplete="off">
           <button class="btn ghost" id="auth-wait-stop" type="button">待つのをやめる</button>
         </div>
         <button type="button" class="auth-owner-link" data-open-owner>司令塔（持ち主だけ）</button>
@@ -4980,7 +5006,7 @@ const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
   SCHOOL_URL: 'https://www2.iwate-ed.jp/kst-h/',   // v236：学校の公式サイト（パンフレットの学校名の下に刷る。表紙のQRは、このマップのまま）
-  BUILD: '2026-10-20a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-21a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5603,6 +5629,7 @@ const S = {
   numbers: new Map(),
   visitors: { today: 0, updatedAt: null },
   report: null,
+  prevWait: new Map(),    // v242：混雑区分が同じでも人数の変化を知らせる
   prevLv: new Map(),      // 直前の混雑度。変化したブースを光らせるため
   changedAt: new Map(),
   trend: new Map(),        // v237：混み具合の向き（id → {dir:'up'|'down', at}）
@@ -6210,6 +6237,7 @@ function tickAgo(){
   if (ageStale()){ try{ renderAll(); }catch(e){} }
   if (document.hidden) return;
   $$('[data-ago]').forEach(el => { const t = ago(el.dataset.ago); if (el.textContent !== t) el.textContent = t; });
+  refreshMapSearch();
 }
 setInterval(tickAgo, 30000);
 document.addEventListener('visibilitychange', tickAgo);
@@ -6881,13 +6909,23 @@ function markChanges(){
   S.booths.forEach(b => {
     const lv = lvOf(b).lv;
     const prev = S.prevLv.get(b.id);
-    if (prev !== undefined && prev !== lv){
+    const wait = lv >= 0 && lv < 3 && b.wait != null ? b.wait : null;
+    if (prev !== undefined && (prev !== lv || S.prevWait.get(b.id) !== wait)){
       S.changedAt.set(b.id, Date.now());
       // v237：混み具合の向き（空き0・やや1・混雑2 のあいだで動いたときだけ。準備中・情報なしとの行き来は向きを言わない）
-      if (prev >= 0 && prev <= 2 && lv >= 0 && lv <= 2) S.trend.set(b.id, { dir: lv > prev ? 'up' : 'down', at: Date.now() });
+      if (prev >= 0 && prev <= 2 && lv >= 0 && lv <= 2){
+        const before = S.prevWait.get(b.id);
+        if (prev !== lv || (before != null && wait != null))
+          S.trend.set(b.id, { dir: (prev !== lv ? lv > prev : wait > before) ? 'up' : 'down', at: Date.now() });
+      }
     }
     S.prevLv.set(b.id, lv);
+    S.prevWait.set(b.id, wait);
   });
+  const ids = new Set(S.booths.map(b => b.id));
+  for (const map of [S.prevLv, S.prevWait, S.changedAt, S.trend]){
+    for (const id of map.keys()) if (!ids.has(id)) map.delete(id);
+  }
 }
 /** v237：混み具合の向きの札（変わってから2分のあいだ）。変わったばかり（3秒）は、ぽんと出る */
 const TREND_MS = 120000;
@@ -9034,11 +9072,12 @@ function recentItems(){
     .map(b => ({ kind:'booth', b }));
 }
 
+let refreshMapSearch = () => {};
 (function initMapSearch(){
   const inp = $('#map-q'), box = $('#map-sug'), clr = $('#map-q-x');
   if (!inp || !box) return;
-  let items = [], sel = -1;
-  const close = () => { box.classList.add('hide'); inp.setAttribute('aria-expanded', 'false'); sel = -1; };
+  let items = [], sel = -1, pressing = false, pendingRefresh = false;
+  const close = () => { box.classList.add('hide'); inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); sel = -1; pressing = false; pendingRefresh = false; };
   const pick = i => {
     const it = items[i];
     if (!it) return;
@@ -9065,8 +9104,23 @@ function recentItems(){
       toast(`${title}：${desc}`);
     }
   };
-  const mark = () => $$('button[data-i]', box).forEach((el, i) => el.setAttribute('aria-selected', String(i === sel)));
-  const render = () => {
+  const key = it => it && (it.kind === 'booth' ? it.b.id : it.kind === 'room' ? it.id : it.h[0]);
+  const mark = (scroll) => {
+    const options = $$('button[data-i]', box);
+    options.forEach((el, i) => el.setAttribute('aria-selected', String(i === sel)));
+    if (options[sel]){
+      inp.setAttribute('aria-activedescendant', options[sel].id);
+      // 候補内だけ動かす。scrollIntoView はページまで動かして検索欄を見出しの下へ隠す。
+      if (scroll){
+        const top = options[sel].offsetTop, bottom = top + options[sel].offsetHeight;
+        if (top < box.scrollTop) box.scrollTop = top;
+        else if (bottom > box.scrollTop + box.clientHeight) box.scrollTop = bottom - box.clientHeight;
+      }
+    } else inp.removeAttribute('aria-activedescendant');
+  };
+  const render = (keepSelection = false) => {
+    const selected = keepSelection ? key(items[sel]) : null;
+    const scrollTop = box.scrollTop;
     const q = inp.value;
     clr.classList.toggle('hide', !q);
     items = q.trim() ? mapSuggest(q) : recentItems();
@@ -9090,8 +9144,8 @@ function recentItems(){
       }
       const b = it.b, L = lvOf(b), no = S.numbers.get(b.id);
       const st = L.lv >= 0 && L.lv < 3 && b.wait != null ? `${L.short}・${b.wait}人` : L.short;
-      return `<button type="button" role="option" id="sg-${i}" data-i="${i}"><span class="sg-ic">${no ? esc(String(no)) : '•'}</span>
-        <span class="sg-tx"><b>${esc(b.name)}</b><small>${esc(flLabel(b))}${slotOf(b.id) && slotOf(b.id).nm ? '・' + esc(slotOf(b.id).nm) : ''}${trendTag(b.id)}</small></span>
+      return `<button type="button" role="option" id="sg-${i}" data-i="${i}" data-booth="${esc(b.id)}"><span class="sg-ic">${no ? esc(String(no)) : '•'}</span>
+        <span class="sg-tx"><b>${esc(b.name)}</b><small>${esc(flLabel(b))}${slotOf(b.id) && slotOf(b.id).nm ? '・' + esc(slotOf(b.id).nm) : ''}${trendTag(b.id)}<span class="sg-ago">${b.time ? '更新 ' + esc(ago(b.time)) : 'まだ更新なし'}</span></small></span>
         <span class="sg-st" data-lv="${L.lv}">${esc(st)}</span></button>`;
     }).join('') : '<p class="sg-none">' + (waitState() === 'load' ? 'ブースの一覧を読み込んでいます。少し待ってから、もう一度さがしてください'
         : waitState() === 'fail' ? 'ブースの一覧をまだ取れていません。少し待ってから、もう一度さがしてください'
@@ -9100,6 +9154,9 @@ function recentItems(){
           + MAP_Q_EXAMPLES.map(x => `<button type="button" data-ex="${esc(x)}">${esc(x)}</button>`).join('') + '</div>'));
     box.classList.remove('hide');
     inp.setAttribute('aria-expanded', 'true');
+    if (selected) sel = items.findIndex(it => key(it) === selected);
+    mark(false);
+    if (keepSelection) box.scrollTop = scrollTop;
     $$('button[data-i]', box).forEach(el => {
       // 候補を押した瞬間に入力欄の blur で候補が消えないよう、pointerdown で先に止める
       el.addEventListener('pointerdown', e => e.preventDefault());
@@ -9111,13 +9168,26 @@ function recentItems(){
       el.addEventListener('click', () => { inp.value = el.dataset.ex; render(); try{ inp.focus({ preventScroll:true }); }catch(e){} });
     });
   };
-  inp.addEventListener('input', render);
+  // 更新中も入力文字・選択中の候補・候補内のスクロールを保つ。
+  refreshMapSearch = () => {
+    if (box.classList.contains('hide') || document.activeElement !== inp) return;
+    // タップの途中で候補を差し替えると click が取り消される。離すまで表示だけ待つ。
+    if (pressing){ pendingRefresh = true; return; }
+    render(true);
+  };
+  box.addEventListener('pointerdown', () => { pressing = true; }, true);
+  const release = () => {
+    if (!pressing) return;
+    setTimeout(() => { pressing = false; if (pendingRefresh){ pendingRefresh = false; refreshMapSearch(); } }, 0);
+  };
+  ['pointerup', 'pointercancel', 'blur'].forEach(type => window.addEventListener(type, release));
+  inp.addEventListener('input', () => render());
   inp.addEventListener('focus', () => render());
   inp.addEventListener('blur', () => setTimeout(close, 150));
   inp.addEventListener('keydown', e => {
     const n = $$('button[data-i]', box).length;
-    if (e.key === 'ArrowDown' && n){ e.preventDefault(); sel = (sel + 1) % n; mark(); }
-    else if (e.key === 'ArrowUp' && n){ e.preventDefault(); sel = (sel - 1 + n) % n; mark(); }
+    if (e.key === 'ArrowDown' && n){ e.preventDefault(); sel = (sel + 1) % n; mark(true); }
+    else if (e.key === 'ArrowUp' && n){ e.preventDefault(); sel = (sel - 1 + n) % n; mark(true); }
     else if (e.key === 'Enter'){ e.preventDefault(); if (n) pick(sel >= 0 ? sel : 0); }
     else if (e.key === 'Escape'){ close(); }
   });
@@ -13111,6 +13181,7 @@ function renderAll(){
   renderRouteChips();
   renderRouteSteps();
   renderStamps();
+  refreshMapSearch();
   if (S.sheetId) renderSheet();
   if (S.isAdmin){
     // ログインがデータ到着より先だと担当ブースの選択肢が空のままになる。数が変わったら作り直す
@@ -13299,6 +13370,7 @@ function switchView(v, fromHistory){
   // 係員コンソールは、これまで ?mode=admin で入ったときにしか組み立てていなかった。
   // QRシートから「← 係員画面」で戻ると、担当ブースの選択とチェックリストが
   // 空のままのコンソールが出ていた。どの入口から来ても同じ状態にする。
+  if (v === 'auth') renderStaffName();
   if (v === 'admin' && S.isAdmin){ renderAssign(); renderAdmin(); renderChecklist(); checkConfig(); }
   // 刷る画面は、最初の同期（最大12秒）が返るまで組み立てられない。
   // そのあいだボタンは押せるままだったので、中身が空の紙が刷れてしまっていた。
@@ -13365,9 +13437,9 @@ window.addEventListener('popstate', e => {
     v = STAFF_VIEWS.indexOf(S.view) >= 0 ? (S.isAdmin ? 'admin' : S.view) : 'map';
   }
   // ログインが切れている端末を、パスワードの要る画面へ戻さない
-  if ((v === 'admin' && !pw()) || (v === 'qr' && !pw() && !ownToken())) v = 'auth';
+  if ((v === 'admin' && (!pw() || !staffName())) || (v === 'qr' && !(pw() && staffName()) && !ownToken())) v = 'auth';
   // v180：逆に、ログインしている端末にパスワードの画面は出さない（係員の画面へ）
-  if (v === 'auth' && pw()) v = 'admin';
+  if (v === 'auth' && pw() && staffName()) v = 'admin';
   if (HIST_VIEWS.indexOf(v) >= 0 && v !== S.view) switchView(v, true);
 });
 
@@ -13491,7 +13563,7 @@ function renderOwner(){
   const devHtml = devs.length ? devs.map(d => `
     <li class="own-dev${busy && busy.cid === d.cid ? ' busy' : ''}" data-st="${d.st === 'seen' && st.approval ? 'wait' : esc(d.st)}" data-cid="${esc(d.cid)}">
       <div class="od-main">
-        <div class="od-top"><b class="od-code">${esc(d.code)}</b>${d.label ? `<span class="od-label">${esc(d.label)}</span>` : ''}${d.cid === me ? '<span class="od-me">この端末</span>' : ''}</div>
+        <div class="od-top"><b class="od-code">${esc(d.code)}</b><span class="od-label${d.label ? '' : ' unnamed'}">${d.label ? esc(d.label) : '名前未登録'}</span>${d.cid === me ? '<span class="od-me">この端末</span>' : ''}</div>
         <span class="od-st">${stText(d)}</span>
         <span class="od-when">${d.last ? ((d.st === 'wait' || (d.st === 'seen' && st.approval)) ? '許可を求めた：' : '最後に入った：') + esc(ago(d.last)) : ''}</span>
       </div>
@@ -14558,6 +14630,26 @@ function initOwnerLive(){
 }
 
 /* ---- 係員のログイン：端末の許可を待つ（司令塔で「許可した端末だけ」にしているとき） ---- */
+function staffName(){ return (loadStr('kuroko_staff_name') || '').trim().slice(0, 20); }
+function staffLoginName(){ return staffName() || ($('#auth-who').value || '').trim().slice(0, 20); }
+function renderStaffName(){
+  const name = staffName();
+  const onlyName = !!pw() && !name;
+  $('#auth-name-entry').classList.toggle('hide', !!name);
+  $('#auth-name-saved').classList.toggle('hide', !name);
+  $('#auth-name-value').textContent = name;
+  $('#auth-pw-row').classList.toggle('hide', onlyName);
+  $('#auth-pw-note').textContent = onlyName ? '司令塔で誰の端末か分かるように、名前を登録してください' : 'パスワードは係員に配布されたものを入力';
+  $('#btn-login').textContent = onlyName ? '名前を登録して入る' : 'ログイン';
+}
+function rememberStaffName(name){
+  const saved = store('kuroko_staff_name', name);
+  renderStaffName();
+  if (!saved) toast('このブラウザでは名前を保存できません。次回も入力してください', null, 6000);
+}
+renderStaffName();
+$('#auth-who').addEventListener('input', () => $('#auth-who').removeAttribute('aria-invalid'));
+
 const AUTH_WAIT = { t: null, pass: '', until: 0 };
 function authWaitStop(){
   clearTimeout(AUTH_WAIT.t); AUTH_WAIT.t = null; AUTH_WAIT.pass = '';
@@ -14577,7 +14669,7 @@ function authWaitStart(pass, code){
     if (!AUTH_WAIT.pass || S.view !== 'auth') { authWaitStop(); return; }
     if (Date.now() > AUTH_WAIT.until){ authWaitStop(); $('#auth-err').textContent = '時間がたったので、待つのをやめました。もう一度ログインを押してください'; $('#auth-err').classList.remove('hide'); return; }
     try{
-      const r = await api({ body: { action: 'verify', pass: AUTH_WAIT.pass, who: ($('#auth-who').value || '').trim().slice(0, 20) } });
+      const r = await api({ body: { action: 'verify', pass: AUTH_WAIT.pass, who: staffLoginName() } });
       if (r && r.ok){ const p = AUTH_WAIT.pass; authWaitStop(); loginOk(p); toast('許可されました'); return; }
     }catch(e){
       const m = String(e && e.message || e);
@@ -14597,22 +14689,30 @@ function authWaitStart(pass, code){
 function pw(){ try{ return sessionStorage.getItem('kuroko_pw') || ''; }catch(e){ return ''; } }
 
 async function login(){
-  const v = $('#pw').value.trim();
+  const v = pw() || $('#pw').value.trim();
   if (!v) return;
+  const who = staffLoginName();
+  if (!who){
+    $('#auth-err').textContent = '司令塔で誰の端末か分かるように、お名前・担当を入力してください';
+    $('#auth-err').classList.remove('hide');
+    $('#auth-who').setAttribute('aria-invalid', 'true');
+    $('#auth-who').focus();
+    return;
+  }
   $('#btn-login').disabled = true;
   try{
     // 電波が細いと数秒かかる。黙っていると押せていないと思われて二度押しされる
     const lb = $('#btn-login').textContent;
     $('#btn-login').textContent = '確認中…';
-    const r = await api({ body:{ action:'verify', pass:v, who: ($('#auth-who') ? $('#auth-who').value : '').trim().slice(0, 20) } })
+    const r = await api({ body:{ action:'verify', pass:v, who } })
       .finally(() => { $('#btn-login').textContent = lb; });
-    if (r && r.ok) loginOk(v);
+    if (r && r.ok){ rememberStaffName(who); loginOk(v); }
     else throw new Error('bad');
   }catch(e){
     const m = String(e && e.message || e);
     // v216：パスワードは合っているが、この端末がまだ許可されていない（司令塔で「許可した端末だけ」）→ 番号を出して待つ
     { const pm = /^pending:([0-9A-F]{4})/.exec(m);
-      if (pm){ authWaitStart(v, pm[1]); return; } }
+      if (pm){ rememberStaffName(who); authWaitStart(v, pm[1]); return; } }
     $('#auth-err').classList.remove('hide');
     $('#auth-err').textContent =
       /^denied/.test(m) ? srvMsg(m) + '。本部に確かめてください'
@@ -16381,7 +16481,7 @@ function renderStaffQr(){
         <div class="staff-sheet-qr">${QR.svgSafe(url, 200)}<span>係員の管理画面を開く</span></div></div>
       <h3>当日の操作手順</h3>
       <ol>
-        <li><b>QRを読み取り、係員パスワードでログイン</b><span>本部から伝えられたパスワードを入力します。すでにログイン済みなら、そのまま更新画面が開きます。</span></li>
+        <li><b>QRを読み取り、係員パスワードでログイン</b><span>初回は名前・担当と、本部から伝えられたパスワードを入力します。同じブラウザは次回から名前の入力が不要です。</span></li>
         <li><b>画面のブース名が、この紙と同じか確認</b><span>担当以外の名前なら送信せず、本部に確認してください。「許可を待っています」と出たら、画面の端末番号を本部へ伝えます。許可後は自動で開きます。</span></li>
         <li><b>待ち列を数え、＋1・＋5／−1・−5で人数を合わせる</b><span>人数が合ったら「送信」を押します。混雑度は人数から自動で決まります。数えられないときは「空き／やや混雑／混雑」を押しても更新できます。</span></li>
         <li><b>「ブース名 → 空き（5人）」などの送信結果を確認</b><span>押し間違えた直後は「元に戻す」。人数が変わったら更新し、変わらなくても15分に1回は送信してください。</span></li>
@@ -16484,7 +16584,7 @@ function renderQrSheet(){
       <h4 class="staff-h">ブース担当（<b>更新</b>）</h4>
       <ol class="staff-steps">
         <li>上のQRを読み取り、開いたページをホーム画面に追加する</li>
-        <li>配布されたパスワードを入力してログインする</li>
+        <li>初回は名前・担当も入力し、配布されたパスワードでログインする</li>
         <li>専用QR・手順の紙を受け取っている人は、そのQRから開くと担当ブースが自動で決まります。共通QRから開いたときは、初回だけ担当ブースを選びます</li>
         <li>待ち列を数えて <b>＋1 / ＋5</b> で人数を合わせ、<b>送信</b> を押す<br>
             <span class="staff-note">人数から混雑度が自動で決まります：
@@ -17878,14 +17978,14 @@ function init(){
   // パスワードが入っている端末は、どの入口から来ても係員として扱う。
   // ?mode=qr などで直接開いたときに S.isAdmin を立てていなかったため、
   // 戻り口が「← マップへもどる」になり、係員が一般の画面へ落とされていた。
-  if (pw()) S.isAdmin = true;
+  if (pw() && staffName()) S.isAdmin = true;
   if (mode === 'admin'){
-    if (pw()){ renderAssign(); renderAdmin(); renderChecklist(); switchView('admin'); if (S.staffBooth) setAdmTab('update'); checkServer(); }
+    if (pw() && staffName()){ renderAssign(); renderAdmin(); renderChecklist(); switchView('admin'); if (S.staffBooth) setAdmTab('update'); checkServer(); }
     else switchView('auth');
   } else if (mode === 'qr'){
     // 全ブースのQRが1枚に並ぶページ。誰でも開けると、画面のQRを片端から
     // 読むだけでスタンプラリーが成立してしまう。係員コンソールと同じ扱いにする
-    if (pw() || ownToken()) switchView('qr');
+    if ((pw() && staffName()) || ownToken()) switchView('qr');
     else { S.afterLogin = 'qr'; switchView('auth'); }
   } else if (mode === 'pamphlet'){
     switchView('pamphlet');
@@ -18211,17 +18311,10 @@ function fitMapBox(floorNum){
   // v169：縦向きは、図面が横長で低くなっても下限（階の切り替え＋現在地・＋−が重ならない高さ）を守る。
   // 下限を maxH にしか効かせていなかったので、幅 320px では箱が約330px になり「屋外」が現在地のボタンに隠れていた。
   // 文字「特大」はボタンが大きい（v167）ので下限も上げる
-  // v179：決め打ち（特大 470px）だけに頼らず、その端末で実際に出ているボタンの高さから要る高さを出す。
-  // ボタンの高さは端末の字の形で少し変わる（Linux の WebKit では 470px でも「屋外」と現在地が重なった）。
-  // 右上の階の切り替えと、右下の現在地・＋−は同じ右端に縦に並ぶ（横向きでは横一列ずつ）ので、
-  // 「上の余白＋階の高さ＋すき間＋右下の高さ＋下の余白」が箱の最低の高さ
+  // v242：階ボタンは図面の外。図面内のズーム操作の高さだけ確保する。
   const ctlNeed = (() => {
-    try{
-      const fEl = document.querySelector('#map-card .map-floors'), zEl = document.querySelector('#map-card .map-zoom-ctl');
-      if (!fEl || !zEl || !fEl.offsetHeight || !zEl.offsetHeight) return 0;
-      const ft = parseFloat(getComputedStyle(fEl).top) || 8, zb = parseFloat(getComputedStyle(zEl).bottom) || 8;
-      return Math.ceil(ft + fEl.offsetHeight + 10 + zEl.offsetHeight + zb);
-    }catch(e){ return 0; }
+    const el = document.querySelector('#map-card .map-zoom-ctl');
+    return el ? el.offsetHeight + 24 : 0;
   })();
   const ctlMin = Math.max(ctlNeed, land ? 0 : (document.documentElement.getAttribute('data-fs') === 'xl' ? 470 : floorH));
   const boxH = Math.max(ctlMin, Math.min(190, maxH), Math.min(maxH, Math.round(nat * FILL)));

@@ -1,3 +1,4 @@
+const { fillStaffName } = require('./staff-name-helper');
 // v240：ブース専用QR → ログイン → そのブースだけを更新。印刷物も実際に読んで確かめる。
 const { test, expect } = require('@playwright/test');
 const { mockGas, watchErrors } = require('./mock');
@@ -18,7 +19,7 @@ async function bridge(page, props = {}) {
 }
 async function login(page) {
   await page.locator('#pw').fill(PASS);
-  await page.locator('#btn-login').click();
+  await fillStaffName(page); await page.locator('#btn-login').click();
   await expect(page.locator('#v-admin')).toBeVisible();
 }
 async function ownerPrint(page) {
@@ -109,7 +110,7 @@ test('専用QR：端末の許可待ちから本部が許可したあとも、自
   expect(call({ action: 'owner_mode', token, on: true }).ok).toBe(true);
   await page.goto('/?mode=admin&staffBooth=1F-02');
   await page.locator('#pw').fill(PASS);
-  await page.locator('#btn-login').click();
+  await fillStaffName(page); await page.locator('#btn-login').click();
   await expect(page.locator('#auth-wait')).toBeVisible();
   const state = call({ action: 'owner_state', token });
   const pending = state.devices.find(d => d.st === 'wait');
