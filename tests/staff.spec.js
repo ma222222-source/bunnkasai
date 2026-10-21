@@ -1,3 +1,4 @@
+const { fillStaffName } = require('./staff-name-helper');
 // 係員コンソール：少ない操作で更新でき、送ったものが正しい形で GAS に届く。送れなかったら端末に残して再送する
 const { test, expect } = require('@playwright/test');
 const { mockGas, watchErrors } = require('./mock');
@@ -9,7 +10,7 @@ async function login(page, opt = {}) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?mode=admin');
   await page.locator('#pw').fill('test-password-1234');
-  await page.locator('#btn-login').click();
+  await fillStaffName(page); await page.locator('#btn-login').click();
   await expect(page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
   await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
   return log;
@@ -187,7 +188,7 @@ test('ログインしたあとブラウザの「戻る」を押しても、パ�
   await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
   await page.goto('/?mode=admin');
   await page.locator('#pw').fill('test-password-1234');
-  await page.locator('#btn-login').click();
+  await fillStaffName(page); await page.locator('#btn-login').click();
   await expect(page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
   await page.evaluate(() => history.back());
   await page.waitForTimeout(500);
@@ -310,7 +311,7 @@ test('①②ログイン：「表示する」で打った字を見られる。�
   // ログインできたら、欄は空・隠す状態に戻る
   await pwEl.fill('test-password-1234');
   await show.click();
-  await page.locator('#btn-login').click();
+  await fillStaffName(page); await page.locator('#btn-login').click();
   await expect(page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
   expect(await page.evaluate(() => ({ v: document.getElementById('pw').value, t: document.getElementById('pw').type, s: document.getElementById('pw-show').getAttribute('aria-pressed') }))).toEqual({ v: '', t: 'password', s: 'false' });
   expect(errors).toEqual([]);
@@ -325,7 +326,7 @@ test('①ログイン：パスワードが違うときは、確かめる点（�
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?mode=admin');
   await page.locator('#pw').fill('chigau-pass-0000');
-  await page.locator('#btn-login').click();
+  await fillStaffName(page); await page.locator('#btn-login').click();
   await expect(page.locator('#auth-err')).toContainText('パスワードが違います');
   await expect(page.locator('#auth-err')).toContainText('表示する');
   await expect(page.locator('#auth-err')).toContainText('全角');

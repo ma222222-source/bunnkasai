@@ -1,3 +1,4 @@
+const { fillStaffName } = require('./staff-name-helper');
 // 本番の事故を防ぐためのテスト：悪い文字列（XSS）、小さいブースの押しやすさ、電波が切れたとき
 const { test, expect } = require('@playwright/test');
 const { mockGas, watchErrors } = require('./mock');
@@ -53,7 +54,7 @@ test('XSS：係員コンソール（ログイン後）でも動かない', async
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?mode=admin');
   await page.locator('#pw').fill('test-password-1234');
-  await page.locator('#btn-login').click();
+  await fillStaffName(page); await page.locator('#btn-login').click();
   await expect(page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
   await ready(page);
   for (const tab of ['update', 'recept']) {
