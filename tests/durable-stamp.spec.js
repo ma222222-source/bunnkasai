@@ -112,6 +112,20 @@ test('LINE入口：ブースQRを先に付け、通信できない間は外部�
  await expect(page.locator('#line-continue')).toBeHidden();await expect(page.locator('#line-prepare')).toBeVisible();expect(await page.locator('#line-continue').getAttribute('href')).toBeNull();
 });
 
+test('LINE入口：番号だけ残り復元待ちの0個でも、先に通常ブラウザへ同じ番号を渡す',async({page,context,browser})=>{
+ const g=server();const ids=g.R8_BOOTHS.slice(0,7).map(b=>b[0]);g.__post({action:'ledger',cid:SID,ev:ids.map(id=>({t:'s',id}))});await bridge(context,g);
+ let release;const hold=new Promise(r=>release=r);
+ await context.route(/script\.google(usercontent)?\.com\//,async r=>{if(r.request().method()==='GET'&&new URL(r.request().url()).searchParams.has('ledger'))await hold;return r.fallback();});
+ await context.addInitScript(sid=>{Object.defineProperty(navigator,'userAgent',{value:navigator.userAgent+' Line/15.0.0'});localStorage.setItem('kuroko_sid',JSON.stringify(sid));},SID);
+ let nextCtx;
+ try{
+  await ready(page);expect(await page.evaluate(()=>S.stamps.size)).toBe(0);await expect(page.locator('#line-continue')).toBeVisible();
+  const href=await page.locator('#line-continue').getAttribute('href');expect(new URL(href).searchParams.get('restore')).toBe(SID);
+  nextCtx=await browser.newContext({serviceWorkers:'block'});await bridge(nextCtx,g);const next=await nextCtx.newPage();await next.goto(href);
+  await expect.poll(()=>next.evaluate(()=>window.__booted===true&&S.stamps.size)).toBe(7);expect(await next.evaluate(()=>stampId())).toBe(SID);
+ }finally{release();if(nextCtx)await nextCtx.close();}
+});
+
 
 test('容量不足で古い値が読めるままでも、新しいスタンプと番号を控えから復元する',async({page,context})=>{
  const g=server(),log={};await bridge(context,g,log);
