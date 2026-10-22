@@ -30,15 +30,17 @@ async function open(page,baseURL){await page.goto(baseURL+'/?tab=stamp');await e
 async function draw(page){await expect(page.locator('#rally-draw')).toBeEnabled();await page.locator('#rally-draw').click();await expect.poll(()=>page.evaluate(()=>RALLY.busy)).toBe(false);await expect.poll(()=>page.evaluate(()=>rallyDraws().length)).toBeGreaterThan(0);}
 
 test('7個の抽選：6個では参加できず、7個で当たり。再読込後も券が残り、4桁で1回だけ交換',async({page,context,baseURL})=>{
- const g=server(),errors=watchErrors(page);await bridge(context,g);await seed(context,g,6);await open(page,baseURL);
+ const g=server(),errors=[watchErrors(page)];await bridge(context,g);await seed(context,g,6);await open(page,baseURL);
+ // 前の文書のGETを中止せず、同じ保存領域を使う新しい文書で再開を検証する。
+ const reopen=async()=>{page=await context.newPage();errors.push(watchErrors(page));await page.goto(baseURL+'/?tab=stamp');};
  await expect(page.locator('#rally-draw')).toBeDisabled();await expect(page.locator('#rally-result')).toContainText('あと1個');
  await page.evaluate(id=>{S.stamps.add(id);store('kuroko_stamps_v2',[...S.stamps]);renderStamps();},g.R8_BOOTHS[6][0]);
  await draw(page);await expect(page.locator('#rally-result')).toContainText('お菓子1個を確保');
- expect(g.rallyStock_().issued).toBe(1);await page.reload();await expect(page.locator('#rally-result')).toContainText('お菓子1個を確保');
+ expect(g.rallyStock_().issued).toBe(1);await reopen();await expect(page.locator('#rally-result')).toContainText('お菓子1個を確保');
  await page.locator('#redeem-open').click();await page.locator('#staff-code').fill(await page.evaluate(()=>redeemCode()));await page.locator('#redeem-ok').click();
  await expect(page.locator('#pfx')).toContainText('お菓子を1個');await expect(page.locator('#pfx')).toContainText('スタンプと記念カードはそのまま');
  expect(await page.evaluate(()=>S.stamps.size)).toBe(7);expect(await page.evaluate(()=>S.spent.length)).toBe(0);
- expect(g.rallyStock_().given).toBe(1);await page.keyboard.press('Escape');await page.reload();await expect(page.locator('#rally-result')).toContainText('交換済み');expect(errors).toEqual([]);
+ expect(g.rallyStock_().given).toBe(1);await page.keyboard.press('Escape');await reopen();await expect(page.locator('#rally-result')).toContainText('交換済み');expect(errors.flat()).toEqual([]);
 });
 
 

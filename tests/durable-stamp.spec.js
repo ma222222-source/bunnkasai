@@ -11,7 +11,36 @@ async function bridge(context,g,log={}){
 }
 async function ready(p,url='/?tab=stamp'){await p.goto(url);await expect.poll(()=>p.evaluate(()=>window.__booted===true&&S.booths.length),{timeout:15000}).toBe(46);}
 async function offline(p,yes=true){await p.evaluate(yes=>Object.defineProperty(navigator,'onLine',{value:!yes,configurable:true}),yes);}
-async function dbSaved(p){await expect.poll(()=>p.evaluate(()=>checkpointStamps())).toBe(true);}
+async function dbSaved(p){await expect.poll(()=>p.evaluate(async()=>({saved:await checkpointStamps(),db:!!STAMP_VAULT.db,queued:!!STAMP_VAULT.queued,stamps:S.stamps.size}))).toMatchObject({saved:true});}
+async function delayVaultOpen(context){
+ await context.addInitScript(()=>{
+  const open=indexedDB.open.bind(indexedDB);window.__nativeVaultOpen=open;
+  Object.defineProperty(indexedDB,'open',{configurable:true,value:(...args)=>{
+   const request=open(...args);
+   return new Proxy(request,{get(target,key){return Reflect.get(target,key,target);},set(target,key,value){
+    if(key==='onsuccess'&&value){target.onsuccess=event=>setTimeout(()=>value.call(target,event),1800);return true;}
+    return Reflect.set(target,key,value,target);
+   }});
+  }});
+ });
+}
+
+test('遅いDB起動：画面の起動期限を過ぎても予備保存へ復帰し、通常保存が拒否された記録を再読込できる',async({page,context})=>{
+ const g=server();await bridge(context,g);await delayVaultOpen(context);
+ await context.addInitScript(()=>{const get=Storage.prototype.getItem,set=Storage.prototype.setItem;Storage.prototype.getItem=function(k){if(this===localStorage)throw new Error('storage denied');return get.call(this,k);};Storage.prototype.setItem=function(k,v){if(this===localStorage)throw new Error('storage denied');return set.call(this,k,v);};});
+ await ready(page);await offline(page);await page.evaluate(()=>earnStamp('1F-02'));await dbSaved(page);
+ const sid=await page.evaluate(()=>stampId());await page.reload();await expect.poll(()=>page.evaluate(()=>window.__booted===true&&S.stamps.has('1F-02')),{timeout:10000}).toBe(true);
+ expect(await page.evaluate(()=>stampId())).toBe(sid);
+});
+
+test('遅いDB起動：別の参加番号に切替後は、前の記録を混ぜず新しい番号を保存する',async({page,context})=>{
+ await mockGas(context);await ready(page);await offline(page);await page.evaluate(()=>earnStamp('1F-02'));await dbSaved(page);
+ const old=await page.evaluate(()=>stampId());await page.evaluate(()=>{localStorage.setItem('kuroko_sid',JSON.stringify('WXYZ6789'));localStorage.setItem('kuroko_stamps_v2',JSON.stringify(['1F-03']));});
+ await delayVaultOpen(context);await ready(page);await page.waitForTimeout(2200);
+ expect(await page.evaluate(()=>({sid:stampId(),stamps:[...S.stamps]}))).toEqual({sid:'WXYZ6789',stamps:['1F-03']});
+ const backup=await page.evaluate(()=>new Promise((resolve,reject)=>{const request=__nativeVaultOpen('kuroko-stamp-vault:/',1);request.onerror=()=>reject(request.error);request.onsuccess=()=>{const db=request.result,get=db.transaction('backup','readonly').objectStore('backup').get('current');get.onsuccess=()=>{db.close();resolve(get.result);};get.onerror=()=>{db.close();reject(get.error);};};}));
+ expect(backup.kuroko_sid).toBe('WXYZ6789');expect(backup.kuroko_stamps_v2).toEqual(['1F-03']);expect(backup.kuroko_sid).not.toBe(old);
+});
 
 test('番号だけ残った0個でも台帳から自動復元し、来場者自身が引くまで抽選しない',async({page,context})=>{
  const g=server(),log={posts:[]};const ids=g.R8_BOOTHS.slice(0,14).map(b=>b[0]);g.__post({action:'ledger',cid:SID,ev:ids.map(id=>({t:'s',id}))});await bridge(context,g,log);

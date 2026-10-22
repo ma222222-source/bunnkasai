@@ -5240,7 +5240,7 @@ const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
   SCHOOL_URL: 'https://www2.iwate-ed.jp/kst-h/',   // v236：学校の公式サイト（パンフレットの学校名の下に刷る。表紙のQRは、このマップのまま）
-  BUILD: '2026-10-22e',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-22f',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5891,6 +5891,7 @@ function mergeStampValues(a,b){
 async function initStampVault(){
   let disk={};for(const k of STAMP_KEYS){try{const v=localStorage.getItem(k);if(v!==null)disk[k]=JSON.parse(v);}catch(e){}}
   disk=cleanStampValues(disk);STAMP_VAULT.values=disk;
+  const initialSid=disk.kuroko_sid||readStampCookie();
   // DBが壊れた・開かれない場合でも起動を止めない。遅い返事で初期化後の番号を差し替えない。
   const backup=await new Promise(resolve=>{
     let done=false;const end=v=>{if(done)return;done=true;clearTimeout(timer);resolve(v);};
@@ -5898,7 +5899,7 @@ async function initStampVault(){
     try{const req=indexedDB.open('kuroko-stamp-vault:'+location.pathname.replace(/[^/]*$/,''),1);
       req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('backup'))req.result.createObjectStore('backup');};
       req.onerror=()=>end(null);req.onblocked=()=>end(null);
-      req.onsuccess=()=>{if(done){req.result.close();return;}const db=req.result;STAMP_VAULT.db=db;db.onversionchange=()=>{db.close();STAMP_VAULT.db=null;};
+      req.onsuccess=()=>{if(done){recoverLateStampVault(req.result,initialSid);return;}const db=req.result;STAMP_VAULT.db=db;db.onversionchange=()=>{db.close();STAMP_VAULT.db=null;};
         try{const tx=db.transaction('backup','readonly'),get=tx.objectStore('backup').get('current');get.onsuccess=()=>end(get.result);get.onerror=()=>end(null);tx.onabort=()=>end(null);}catch(e){end(null);}};
     }catch(e){end(null);}
   });
@@ -5914,6 +5915,33 @@ async function initStampVault(){
   for(const k of Object.keys(values)){try{localStorage.setItem(k,JSON.stringify(values[k]));}catch(e){STAMP_VAULT.failed.add(k);}}
   if(values.kuroko_sid)stampCookie(values.kuroko_sid);
   checkpointStamps();
+}
+// 起動の待ち時間を過ぎたDBも、現在の参加番号を守って予備保存へ復帰させる。
+function recoverLateStampVault(db,initialSid){
+  if(STAMP_VAULT.db){if(STAMP_VAULT.db!==db)db.close();return;}
+  let get,tx,done=false;
+  const finish=ok=>{if(done)return;done=true;clearTimeout(timer);if(get)get.onsuccess=get.onerror=null;if(tx)tx.onabort=tx.onerror=null;if(!ok){try{if(tx)tx.abort();}catch(e){}db.close();}};
+  const timer=setTimeout(()=>finish(false),3500);
+  try{
+    tx=db.transaction('backup','readonly');get=tx.objectStore('backup').get('current');
+    get.onerror=tx.onabort=tx.onerror=()=>finish(false);
+    get.onsuccess=()=>{
+      if(done)return;
+      try{
+        const old=cleanStampValues(get.result),current=stampVaultValues();
+        // 元の番号を確認できないまま新しい番号で操作済みなら、古い控えを上書きしない。
+        const foreign=old.kuroko_sid&&current.kuroko_sid&&old.kuroko_sid!==current.kuroko_sid;
+        if(foreign&&!initialSid){finish(false);return;}
+        const same=!foreign&&(!old.kuroko_sid||!current.kuroko_sid||old.kuroko_sid===current.kuroko_sid);
+        const values=same?mergeStampValues(old,current):current;
+        STAMP_VAULT.db=db;db.onversionchange=()=>{db.close();if(STAMP_VAULT.db===db)STAMP_VAULT.db=null;};
+        // 現在の端末番号は維持し、同じ参加番号の未送信・交換済みも取り込む。
+        for(const k of Object.keys(values))store(k,values[k]);
+        if(window.__booted===true)refreshStampsFromDisk();else pullStamps();
+        finish(true);queueStampVault();
+      }catch(e){if(STAMP_VAULT.db===db)STAMP_VAULT.db=null;finish(false);}
+    };
+  }catch(e){finish(false);}
 }
 function queueStampVault(){clearTimeout(STAMP_VAULT.timer);STAMP_VAULT.timer=setTimeout(checkpointStamps,0);}
 function checkpointStamps(){
