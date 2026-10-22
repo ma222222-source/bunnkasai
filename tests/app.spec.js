@@ -3339,6 +3339,13 @@ test('④⑤ブースが届いたら「読み込み中」の札はすっと消�
 
 test('⑥読み込み中の骨組みは、本物の形（一覧＝帯・番号の丸・名前の線・札／スタンプ帳＝丸・名前の線）', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
+  // 通常表示の動きを調べる。実行PCの残り電池で軽い表示に変わる条件は別のケースで検証済み。
+  await page.emulateMedia({ reducedMotion:'no-preference' });
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator,'deviceMemory',{value:8,configurable:true});
+    Object.defineProperty(navigator,'hardwareConcurrency',{value:8,configurable:true});
+    navigator.getBattery=async()=>({level:1,charging:true,addEventListener(){}});
+  });
   const errors = watchErrors(page);
   await mockGas(page);
   let open; let hold = new Promise(r => { open = r; });
