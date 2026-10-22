@@ -47,7 +47,7 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-10-22b';
+var GAS_VERSION = '2026-10-23a';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
@@ -1822,9 +1822,9 @@ var RALLY_PRIZES = [
   {id:'normal',label:'当たり',limit:200},
   {id:'participation',label:'参加賞',limit:200}
 ];
-// 1500人が平均3回なら約216個の当たりを見込む。実際の上限は213個で必ず止める。
+// 参加者500人が平均3回なら約212.64個の当たりを見込む。実際の上限は213個で必ず止める。
 // 当選済みは交換前でも当選回数ごとに1/4。参加賞は確率抽選には混ぜない。
-function rallyChance_(wins) { return 0.05*Math.pow(0.25,Math.max(0,wins)); }
+function rallyChance_(wins) { return 0.16*Math.pow(0.25,Math.max(0,wins)); }
 function rallyPrize_(r) {
   if(r.result==='candy') return r.art==='prize:super'?'super':r.art==='prize:big'?'big':'normal';
   return r.result==='miss'&&r.art==='prize:participation'?'participation':'';

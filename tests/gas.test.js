@@ -1349,16 +1349,16 @@ test('ラリー：作成途中で空になった台帳は見出しから回復�
 });
 
 test('景品抽選：当選済みは未交換でも確率が下がり、送信された確率や当選数を信用しない',()=>{
- const g=fresh();forceRally(g,0.03);
+ const g=fresh();forceRally(g,0.08);
  assert.strictEqual(g.__post({...rallyPlayer(g,'ODDS0001'),chance:1,wins:999}).rally.entries[0].result,'candy');
  const after=g.__post({...rallyPlayer(g,'ODDS0001',14,2),chance:1,wins:0});
- assert.strictEqual(after.rally.entries[1].result,'miss');assert.strictEqual(after.rally.odds.chance,0.0125);
+ assert.strictEqual(after.rally.entries[1].result,'miss');assert.strictEqual(after.rally.odds.chance,0.04);
  assert.strictEqual(g.__post(rallyPlayer(g,'ODDS0002')).rally.entries[0].result,'candy');
- forceRally(g,0);g.__post(rallyPlayer(g,'ODDS0001',21,3));forceRally(g,0.005);
- const twice=g.__post(rallyPlayer(g,'ODDS0001',28,4));assert.strictEqual(twice.rally.entries[3].result,'miss');assert.strictEqual(twice.rally.odds.chance,0.003125);
+ forceRally(g,0);g.__post(rallyPlayer(g,'ODDS0001',21,3));forceRally(g,0.02);
+ const twice=g.__post(rallyPlayer(g,'ODDS0001',28,4));assert.strictEqual(twice.rally.entries[3].result,'miss');assert.strictEqual(twice.rally.odds.chance,0.01);
  const ticket=twice.rally.entries[0].ticket;g.__post({action:'rally_redeem',policy:g.RALLY_POLICY,cid:'ODDS0001',ticket,code:g.rallyCode_(0)});
  g.__post({action:'ledger',cid:'ODDS0003',from:'ODDS0001',ev:[]});
- assert.strictEqual(g.rallyState_('ODDS0003').odds.chance,0.003125,'交換と番号の統合でも当選回数を失わない');
+ assert.strictEqual(g.rallyState_('ODDS0003').odds.chance,0.01,'交換と番号の統合でも当選回数を失わない');
 });
 
 test('景品抽選：実際の抽選で超大1・大12・当たり200を超えず、参加賞を混ぜない',()=>{

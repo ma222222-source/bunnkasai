@@ -26,7 +26,7 @@ async function seed(ctx,g,count=7,cid=CID){
  g.__post({action:'ledger',cid,ev:ids.map(id=>({t:'s',id}))});
  await ctx.addInitScript(({ids,cid})=>{localStorage.setItem('kuroko_sid',JSON.stringify(cid));localStorage.setItem('kuroko_stamps_v2',JSON.stringify(ids));},{ids,cid});
 }
-async function open(page,baseURL){await page.goto(baseURL+'/?tab=stamp');await expect(page.locator('#rally-card')).toBeVisible();await expect.poll(()=>page.evaluate(()=>S.serverVersion)).toBe('2026-10-22b');}
+async function open(page,baseURL){await page.goto(baseURL+'/?tab=stamp');await expect(page.locator('#rally-card')).toBeVisible();await expect.poll(()=>page.evaluate(()=>S.serverVersion)).toBe('2026-10-23a');}
 async function draw(page){await expect(page.locator('#rally-draw')).toBeEnabled();await page.locator('#rally-draw').click();await expect.poll(()=>page.evaluate(()=>RALLY.busy)).toBe(false);await expect.poll(()=>page.evaluate(()=>rallyDraws().length)).toBeGreaterThan(0);}
 
 test('7個の抽選：6個では参加できず、7個で当たり。再読込後も券が残り、4桁で1回だけ交換',async({page,context,baseURL})=>{
@@ -45,11 +45,11 @@ test('7個の抽選：6個では参加できず、7個で当たり。再読込�
 
 test('新景品：超大当たり・大当たりの券と当選後の確率、電子科塔で種類別に交換',async({page,context,baseURL},info)=>{
  const g=server(),errors=watchErrors(page);await bridge(context,g);await seed(context,g,21);await open(page,baseURL);
- await expect(page.locator('#rally-odds')).toContainText('5％');await draw(page);
- await expect(page.locator('#rally-result .rally-ticket-list')).toContainText('超大当たり × 1');await expect(page.locator('#rally-odds')).toContainText('1.25％');
- g.Math.random=()=>0.03;await page.locator('#rally-draw').click();await expect.poll(()=>page.evaluate(()=>rallyDraws().length)).toBe(2);expect(g.rallyStock_(true).issued).toBe(1);
+ await expect(page.locator('#rally-odds')).toContainText('16％');await draw(page);
+ await expect(page.locator('#rally-result .rally-ticket-list')).toContainText('超大当たり × 1');await expect(page.locator('#rally-odds')).toContainText('4％');
+ g.Math.random=()=>0.08;await page.locator('#rally-draw').click();await expect.poll(()=>page.evaluate(()=>rallyDraws().length)).toBe(2);expect(g.rallyStock_(true).issued).toBe(1);
  g.Math.random=()=>0;await page.locator('#rally-draw').click();await expect.poll(()=>page.evaluate(()=>rallyDraws().length)).toBe(3);
- await expect(page.locator('#rally-result .rally-ticket-list li')).toHaveCount(2);await expect(page.locator('#rally-odds')).toContainText('0.3125％');
+ await expect(page.locator('#rally-result .rally-ticket-list li')).toHaveCount(2);await expect(page.locator('#rally-odds')).toContainText('1％');
  await expect(page.locator('#redeem-msg')).toContainText('電子科塔');await expect(page.locator('#redeem-msg')).toContainText('超大当たり');
  await page.locator('#rally-card').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(ART,info.project.name+'-tiered-tickets.png')});
  await page.locator('#redeem-open').click();await page.locator('#staff-code').fill(g.rallyCode_(0));await expect(page.locator('#redeem-ok')).toHaveText('超大当たりを交換する');await page.locator('#redeem-ok').click();
@@ -250,6 +250,43 @@ test('プリクラのタイマー：最後の1秒も中止でき、撮影・閉�
  await expect.poll(()=>page.evaluate(()=>latePhotoStream.getTracks()[0].readyState)).toBe('ended');await expect(page.locator('#rally-photo-start')).toBeVisible();await expect(page.locator('#rally-photo-capture')).toBeHidden();
  await page.evaluate(()=>{const c=document.createElement('canvas');c.width=300;c.height=400;c.getContext('2d').fillRect(0,0,300,400);window.failedPlayStream=c.captureStream(5);Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,value:async()=>failedPlayStream});$('#rally-photo-video').play=async()=>{throw new DOMException('cannot play','NotSupportedError');};});
  await page.locator('#rally-photo-start').click();await expect(page.locator('#rally-photo-error')).toContainText('写真を1枚選んで作る');await expect(page.locator('#rally-photo-start')).toBeEnabled();expect(await page.evaluate(()=>failedPlayStream.getTracks()[0].readyState)).toBe('ended');
+});
+
+test('写真加工：4種のフィルター・明るさ・ひとことが保存画像に反映し、加工の控えを再利用・解放する',async({page,context,baseURL},info)=>{
+ test.setTimeout(90000);const g=server(),errors=watchErrors(page),posts=[];await bridge(context,g,{posts});await seed(context,g,46);await open(page,baseURL);await page.locator('#rally-complete').click();await page.locator('#rally-photo-file').setInputFiles(await samplePhoto(page));await expect(page.locator('#photo-adjust')).toBeVisible();await page.locator('#photo-edit summary').click();
+ const images=[];for(const filter of ['natural','soft','vivid','mono']){await page.locator(`[data-photo-filter="${filter}"]`).click();await expect.poll(()=>page.evaluate(()=>RALLY_PHOTO.raf)).toBe(0);images.push(await page.locator('#rally-photo-canvas').evaluate(c=>c.toDataURL()));}expect(new Set(images).size).toBe(4);
+ const gray=await page.locator('#rally-photo-canvas').evaluate(c=>Array.from(c.getContext('2d').getImageData(540,700,1,1).data));expect(gray[0]).toBe(gray[1]);expect(gray[1]).toBe(gray[2]);
+ await page.evaluate(()=>window.previousFiltered=RALLY_PHOTO.filtered);await page.locator('#photo-pan-x').focus();await page.keyboard.press('ArrowRight');await expect.poll(()=>page.evaluate(()=>RALLY_PHOTO.raf)).toBe(0);expect(await page.evaluate(()=>RALLY_PHOTO.filtered===previousFiltered)).toBe(true);
+ await page.locator('#photo-bright').focus();await page.keyboard.press('ArrowRight');await expect(page.locator('#photo-bright-value')).toHaveText('101%');await page.locator('#photo-caption').fill('黒工祭、最高！！');await expect.poll(()=>page.evaluate(()=>RALLY_PHOTO.raf)).toBe(0);const edited=await page.locator('#rally-photo-canvas').evaluate(c=>c.toDataURL());expect(edited).not.toBe(images[3]);await page.screenshot({path:path.join(ART,info.project.name+'-photo-edit-controls.png')});
+ const download=page.waitForEvent('download');await page.locator('#rally-photo-save').click();const file=await download;expect(fs.readFileSync(await file.path()).toString('base64')).toBe(edited.split(',')[1]);
+ await page.locator('#photo-edit-reset').click();await expect(page.locator('#photo-bright-value')).toHaveText('100%');await expect(page.locator('#photo-caption')).toHaveValue('');expect(await page.evaluate(()=>RALLY_PHOTO.filtered)).toBe(null);await page.locator('[data-photo-filter="vivid"]').click();await expect.poll(()=>page.evaluate(()=>!!RALLY_PHOTO.filtered)).toBe(true);await page.locator('#rally-photo-close').click();
+ expect(await page.evaluate(()=>({source:!!RALLY_PHOTO.source,filtered:!!RALLY_PHOTO.filtered,caption:RALLY_PHOTO.caption}))).toEqual({source:false,filtered:false,caption:''});expect(posts.some(p=>p.image||p.photo||p.consent)).toBe(false);expect(errors).toEqual([]);
+});
+
+test('写真の任意協力：同意なしでも保存でき、現在の画像と2項目の同意だけがLINEの下書きを解放する',async({page,context,baseURL},info)=>{
+ test.setTimeout(90000);const g=server(),errors=watchErrors(page);await bridge(context,g);await seed(context,g,46);await open(page,baseURL);await page.locator('#rally-complete').click();await page.locator('#rally-photo-file').setInputFiles(await samplePhoto(page));await expect(page.locator('#photo-consent-use')).not.toBeChecked();await expect(page.locator('#photo-consent-people')).not.toBeChecked();
+ const d=page.waitForEvent('download');await page.locator('#rally-photo-save').click();await d;await expect(page.locator('#photo-contribute')).toHaveAttribute('open','');await expect(page.locator('#photo-submit-line')).toHaveAttribute('aria-disabled','true');await expect(page.locator('#photo-submit-line')).not.toHaveAttribute('href');
+ await page.locator('#photo-consent-use').check();await expect(page.locator('#photo-submit-line')).toHaveAttribute('aria-disabled','true');await page.locator('#photo-consent-people').check();await expect(page.locator('#photo-submit-line')).toHaveAttribute('aria-disabled','false');const href=await page.locator('#photo-submit-line').getAttribute('href');expect(href).toContain('https://line.me/R/oaMessage/%40210ukaob/?');const text=decodeURIComponent(href.split('/?')[1]);expect(text).toContain('記念番号：');expect(text).toContain('WebやSNSでの公開');expect(text).toContain('kuroko-movie-2026-v1');expect(text).not.toContain('data:image');
+ // 外部アプリを開かず、リンクの操作と案内の更新を確認する。
+ await page.evaluate(()=>document.querySelector('#photo-submit-line').addEventListener('click',e=>e.preventDefault(),{capture:true}));await page.locator('#photo-submit-line').click();await expect(page.locator('#photo-status')).toContainText('画像を添付');
+ await page.locator('#photo-edit summary').click();await page.locator('#photo-caption').fill('また来年！');await expect(page.locator('#photo-consent-use')).not.toBeChecked();await expect(page.locator('#photo-consent-people')).not.toBeChecked();await expect(page.locator('#photo-submit-line')).not.toHaveAttribute('href');await page.locator('#photo-consent-use').check();await page.locator('#photo-consent-people').check();await expect(page.locator('#photo-submit-line')).toHaveAttribute('aria-disabled','true');
+ await page.locator('#rally-photo-close').click();await page.locator('#rally-save').click();await expect(page.locator('#photo-consent-use')).not.toBeChecked();await expect(page.locator('#photo-consent-text')).toHaveValue('');expect(errors).toEqual([]);
+});
+
+test('写真保存の競合：PNG準備中の変更から古い画像の保存済み扱いや利用許可を引き継がない',async({page,context,baseURL})=>{
+ const g=server();await bridge(context,g);await seed(context,g,46);await open(page,baseURL);await page.locator('#rally-complete').click();await page.locator('#rally-photo-file').setInputFiles(await samplePhoto(page));await page.locator('#photo-edit summary').click();const downloads=[];page.on('download',d=>downloads.push(d.suggestedFilename()));
+ await page.evaluate(()=>{const original=HTMLCanvasElement.prototype.toBlob;HTMLCanvasElement.prototype.toBlob=function(cb,...args){return original.call(this,blob=>{window.releasePhotoBlob=()=>cb(blob);},...args);};});await page.locator('#rally-photo-save').click();await expect.poll(()=>page.evaluate(()=>typeof releasePhotoBlob)).toBe('function');await page.locator('#photo-caption').fill('保存の前に調整');await page.evaluate(()=>releasePhotoBlob());await expect.poll(()=>page.evaluate(()=>saveRallyPhoto.busy)).toBe(false);expect(downloads).toEqual([]);expect(await page.evaluate(()=>RALLY_PHOTO.savedRevision)).toBe(-1);await expect(page.locator('#photo-status')).toContainText('写真が変わった');await expect(page.locator('#photo-submit-line')).not.toHaveAttribute('href');
+});
+
+test('写真協力の表示：320・390・1280pxで同意文と操作がはみ出さず、読み上げとコントラストを保つ',async({page,context,baseURL},info)=>{
+ test.setTimeout(90000);const g=server();await bridge(context,g);await seed(context,g,46);await open(page,baseURL);await page.locator('#rally-complete').click();await page.locator('#rally-photo-file').setInputFiles(await samplePhoto(page));const d=page.waitForEvent('download');await page.locator('#rally-photo-save').click();await d;await page.locator('#photo-consent-use').check();await page.locator('#photo-consent-people').check();
+ for(const width of [320,390,1280]){await page.setViewportSize({width,height:900});await page.locator('#photo-contribute').scrollIntoViewIfNeeded();expect(await page.locator('#rally-photo').evaluate(el=>el.scrollWidth-el.clientWidth)).toBeLessThanOrEqual(1);await page.screenshot({path:path.join(ART,info.project.name+'-photo-permission-'+width+'.png')});}
+ const AxeBuilder=require('@axe-core/playwright').default;const a=await new AxeBuilder({page}).include('#rally-photo').withTags(['wcag2a','wcag2aa']).analyze();expect(a.violations.filter(v=>v.impact==='critical'||v.impact==='serious')).toEqual([]);
+});
+
+test('写真協力の見本：司令塔で加工・保存しても利用許可やLINEの送信リンクを発行しない',async({page,context,baseURL})=>{
+ const g=server(),posts=[];await bridge(context,g,{posts});await page.goto(baseURL+'/?mode=owner');await page.locator('#own-pw').fill('owner-himitsu-123456');await page.locator('#own-login').click();await page.locator('#own-main').waitFor({state:'visible'});await page.locator('#owntab-event').click();await page.locator('[data-effect-test="photo"]').click();await page.locator('#rally-photo-file').setInputFiles(await samplePhoto(page));
+ const d=page.waitForEvent('download');await page.locator('#rally-photo-save').click();expect((await d).suggestedFilename()).toBe('kuroko-preview.png');await page.locator('#photo-contribute summary').click();await page.locator('#photo-consent-use').check();await page.locator('#photo-consent-people').check();await expect(page.locator('#photo-submit-line')).not.toHaveAttribute('href');await expect(page.locator('#photo-submit-note')).toContainText('テスト表示');await expect(page.locator('#photo-consent-text')).toHaveValue('');expect(g.rallyStock_(true).issued).toBe(0);expect(posts.some(p=>p.action==='rally_complete'||p.action==='rally_draw'||p.photo||p.image)).toBe(false);
 });
 
 test('プリクラの見た目：狭い画面・横向き・特大文字・暗い配色と動きを減らす設定で操作できる',async({page,context,baseURL},info)=>{
