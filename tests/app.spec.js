@@ -4570,25 +4570,27 @@ test('本部モニタ（v231）：広い画面で名前の字が大きい・ペ�
 });
 
 /* ---------------- v232：地図以外から開いたときの地図の倍率・動作チェックの表 ---------------- */
-test('地図の倍率（v232）：スタンプ帳・一覧・インフォから開いて地図へ来ても、地図から開いたときと同じ倍率（全体の小さい表示のままにしない）', async ({ page }) => {
+test('地図の倍率（v232）：スタンプ帳・一覧・インフォから開いて地図へ来ても、地図から開いたときと同じ倍率（全体の小さい表示のままにしない）', async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const errors = watchErrors(page);
-  await mockGas(page);
+  await mockGas(context);
   await page.goto('/?tab=map');
   await ready(page);
   await page.waitForTimeout(400);
   const want = await page.evaluate(() => ZOOM.k);
   expect(want).toBeGreaterThan(1.2);
   for (const tab of ['stamp', 'list', 'info']) {
-    // 前の文書で復元中の台帳取得を終えてから遷移する（WebKitの取り消し時のCORS通知と区別）。
-    await page.waitForLoadState('networkidle');
-    await page.goto('/?tab=' + tab);
-    await ready(page);
-    await page.waitForTimeout(300);
-    await page.locator('#nav button[data-view="map"]').click();
+    // 入口ごとに新しいページで確認。前文書の定期取得を遷移で中止するWebKitの通知を混ぜない。
+    const entry = await context.newPage(), entryErrors = watchErrors(entry);
+    await entry.setViewportSize({ width: 390, height: 844 });
+    await entry.goto('/?tab=' + tab);
+    await ready(entry);
+    await entry.waitForTimeout(300);
+    await entry.locator('#nav button[data-view="map"]').click();
     // 地図から開いたときとほぼ同じ倍率（上の帯の有無などで少し変わる）。全体の小さい表示（×1）のままにしない
-    await expect.poll(() => page.evaluate(() => ZOOM.k), { message: tab }).toBeGreaterThan(want * 0.9);
-    expect(await page.evaluate(() => ZOOM.base0), tab).toBeGreaterThan(1.2);
+    await expect.poll(() => entry.evaluate(() => ZOOM.k), { message: tab }).toBeGreaterThan(want * 0.9);
+    expect(await entry.evaluate(() => ZOOM.base0), tab).toBeGreaterThan(1.2);
+    expect(entryErrors, tab).toEqual([]);
   }
   expect(errors).toEqual([]);
 });
