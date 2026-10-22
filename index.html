@@ -5125,7 +5125,7 @@ const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
   SCHOOL_URL: 'https://www2.iwate-ed.jp/kst-h/',   // v236：学校の公式サイト（パンフレットの学校名の下に刷る。表紙のQRは、このマップのまま）
-  BUILD: '2026-10-22b',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-22c',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5809,11 +5809,13 @@ function checkpointStamps(){
   const fp=JSON.stringify(data);if(STAMP_VAULT.queued===fp)return STAMP_VAULT.writes;
   STAMP_VAULT.queued=fp; // 同じ内容の再描画ではDBへ書かず、進行中の保存を待つ。
   STAMP_VAULT.writes=STAMP_VAULT.writes.catch(()=>false).then(()=>new Promise(resolve=>{
-    let tx,merged=data,done=false;const finish=ok=>{if(done)return;done=true;clearTimeout(timer);if(tx)tx.oncomplete=tx.onerror=tx.onabort=null;if(!ok&&STAMP_VAULT.queued===fp)STAMP_VAULT.queued=null;if(ok){STAMP_VAULT.committed=merged;try{if(window.__booted===true)renderSyncBadge();}catch(e){}}resolve(ok);};
-    const timer=setTimeout(()=>{try{tx.abort();}catch(e){}finish(false);},1200);
+    let tx,get,merged=data,done=false;const finish=ok=>{if(done)return;done=true;clearTimeout(timer);if(get)get.onsuccess=get.onerror=null;if(tx){tx.oncomplete=tx.onerror=tx.onabort=null;if(!ok)try{tx.abort();}catch(e){}}if(!ok&&STAMP_VAULT.queued===fp)STAMP_VAULT.queued=null;if(ok){STAMP_VAULT.committed=merged;try{if(window.__booted===true)renderSyncBadge();}catch(e){}}resolve(ok);};
+    const timer=setTimeout(()=>finish(false),1200);
     try{const current=loadStr('kuroko_sid')||readStampCookie();if(current&&current!==data.kuroko_sid){finish(false);return;}
-      tx=STAMP_VAULT.db.transaction('backup','readwrite');const box=tx.objectStore('backup'),get=box.get('current');
-      get.onsuccess=()=>{const old=cleanStampValues(get.result);if(data.kuroko_sid&&old.kuroko_sid===data.kuroko_sid)merged=mergeStampValues(old,data);merged._localPending=data._localPending;box.put(merged,'current');};
+      tx=STAMP_VAULT.db.transaction('backup','readwrite');const box=tx.objectStore('backup');get=box.get('current');
+      // Safariで一度終了した取引の返事が遅れて来ても、控えの再保存を未処理の例外にしない。
+      get.onsuccess=()=>{if(done)return;try{const old=cleanStampValues(get.result);if(data.kuroko_sid&&old.kuroko_sid===data.kuroko_sid)merged=mergeStampValues(old,data);merged._localPending=data._localPending;box.put(merged,'current');}catch(e){finish(false);}};
+      get.onerror=()=>finish(false);
       tx.oncomplete=()=>finish(true);tx.onerror=tx.onabort=()=>finish(false);
     }catch(e){finish(false);}
   }));return STAMP_VAULT.writes;

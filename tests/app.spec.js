@@ -368,6 +368,9 @@ test('振り返りレポート：本物の Code.gs が作った集計を、画�
 
 /* ---------------- v153 の6つ ---------------- */
 test('起動：混雑データは1回だけ取りに行く（見出しで先に取った結果を使う）', async ({ page }) => {
+  // このケースは通信がすぐ成功する入口を調べる。CIの描画待ちを「5秒の通信停滞」に数えない。
+  // 本当に返事が遅いときの予備取得は、v155の別ケースで実時間を使って検証する。
+  await page.addInitScript(() => { const now=Date.now();Date.now=()=>now; });
   const log = await mockGas(page);
   await page.goto('/?tab=map');
   await ready(page);
@@ -4570,6 +4573,8 @@ test('地図の倍率（v232）：スタンプ帳・一覧・インフォから�
   const want = await page.evaluate(() => ZOOM.k);
   expect(want).toBeGreaterThan(1.2);
   for (const tab of ['stamp', 'list', 'info']) {
+    // 前の文書で復元中の台帳取得を終えてから遷移する（WebKitの取り消し時のCORS通知と区別）。
+    await page.waitForLoadState('networkidle');
     await page.goto('/?tab=' + tab);
     await ready(page);
     await page.waitForTimeout(300);

@@ -75,6 +75,22 @@ test('IndexedDBが応答しなくても起動を止めない',async({page,contex
  await mockGas(context);await context.addInitScript(()=>Object.defineProperty(window,'indexedDB',{value:{open(){return {};}}}));await ready(page);expect(await page.evaluate(()=>window.__booted)).toBe(true);await page.evaluate(()=>earnStamp('1F-02'));expect(await page.evaluate(()=>S.stamps.size)).toBe(1);
 });
 
+test('保存のタイムアウト後の返事と終了済みのDBでも例外を出さず、次の保存で回復する',async({page,context})=>{
+ await mockGas(context);await ready(page);await offline(page);const errors=watchErrors(page);
+ await page.evaluate(()=>earnStamp('1F-02'));await dbSaved(page);
+ for(const mode of ['late','inactive']){
+  const result=await page.evaluate(async mode=>{
+   await checkpointStamps();const real=STAMP_VAULT.db;let puts=0;
+   STAMP_VAULT.db={transaction(){const tx={abort(){},objectStore(){return {get(){const request={result:{}};setTimeout(()=>{if(request.onsuccess)request.onsuccess();},mode==='late'?1600:0);return request;},put(){puts++;throw new DOMException('The transaction is inactive or finished.','TransactionInactiveError');}};}};return tx;}};
+   STAMP_VAULT.queued=null;const saved=await checkpointStamps();await new Promise(r=>setTimeout(r,1800));
+   STAMP_VAULT.db=real;STAMP_VAULT.queued=null;const recovered=await checkpointStamps();
+   return {saved,recovered,puts,stamps:[...S.stamps]};
+  },mode);
+  expect(result.saved).toBe(false);expect(result.recovered).toBe(true);expect(result.puts).toBe(mode==='late'?0:1);expect(result.stamps).toContain('1F-02');
+ }
+ expect(errors).toEqual([]);await page.reload();await expect.poll(()=>page.evaluate(()=>window.__booted===true&&S.stamps.has('1F-02'))).toBe(true);
+});
+
 test('別番号の新しい記録に、古い番号のIndexedDB控えを混ぜない',async({page,context})=>{
  await mockGas(context);await ready(page);await page.evaluate(()=>earnStamp('1F-02'));await dbSaved(page);
  await page.evaluate(()=>{localStorage.setItem('kuroko_sid',JSON.stringify('WXYZ6789'));localStorage.setItem('kuroko_stamps_v2',JSON.stringify(['1F-03']));});
