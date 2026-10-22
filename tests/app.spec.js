@@ -153,8 +153,7 @@ test('紙マップ：46件がそろう', async ({ page }) => {
   await mockGas(page);
   await page.goto('/?mode=print');
   await expect(page.locator('#print-sheet')).toBeVisible({ timeout: 15000 });
-  const text = await page.locator('#print-sheet').innerText();
-  expect(text).toContain('受付');
+  await expect(page.locator('#print-sheet')).toContainText('受付', { timeout: 15000 });
 });
 
 test('動作チェック：サーバーの版が表示される', async ({ page }) => {
