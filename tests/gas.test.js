@@ -171,22 +171,11 @@ test('スタンプの控え：追記・同じ獲得は1回・読み出し', () =
   assert.strictEqual(g.__post({ action: 'ledger', cid, ev: [{ t: 's', id: '=HACK()' }] }).added, 0, 'ブースidの形でなければ入れない');
 });
 
-test('お菓子の交換：同じスタンプでの二重交換を断る（別の端末・つないだ番号でも）', () => {
+test('旧交換APIは抽選を経由しない交換を断る（500個の上限を回避させない）', () => {
   const g = fresh();
-  const a = 'AAAA1111', b = 'BBBB2222';
-  g.__post({ action: 'ledger', cid: a, ev: ['1F-02', '1F-03', '1F-05', '1F-07', '1F-08'].map(id => ({ t: 's', id })) });
-  const ok = g.__post({ action: 'redeem', cid: a, ids: ['1F-02', '1F-03', '1F-05', '1F-07', '1F-08'] });
-  assert.strictEqual(ok.ok, true);
-  const again = g.__post({ action: 'redeem', cid: a, ids: ['1F-02', '1F-03', '1F-05', '1F-07', '1F-08'] });
-  assert.strictEqual(again.ok, false);
-  assert.strictEqual(again.error, 'already');
-  // 別の番号 b から a へ「つなぐ」と、b で交換しようとしても a の交換済みが見える
-  g.__post({ action: 'ledger', cid: b, from: a, ev: [] });
-  const viaB = g.__post({ action: 'redeem', cid: a, ids: ['1F-02'] });
-  assert.strictEqual(viaB.error, 'already');
-  const lb = g.__get({ ledger: b });
-  assert.ok(lb.spent.includes('1F-02'), 'つないだ先にも交換済みが写っている');
-  assert.strictEqual(g.__post({ action: 'redeem', cid: a, ids: [] }).ok, false);
+  const r = g.__post({action:'redeem',cid:'AAAA1111',ids:['1F-02']});
+  assert.strictEqual(r.ok,false); assert.match(r.error,/raffle_required/);
+  assert.strictEqual(g.rallyStock_().issued,0);
 });
 
 test('見出しの大文字・小文字は区別しない（「ID」と書かれても読める）', () => {
@@ -516,7 +505,7 @@ test('⑤エラーの文：先頭の合図（英語）はそのまま、うし�
   assert.match(err({ action: 'visitor', pass: PASS, cid: 'c1', n: 0 }), /^bad count: /);
   assert.match(err({ action: 'なにか', pass: PASS }), /^unknown action: .*2026-/);
   assert.match(err({ action: 'ledger', cid: '!!', ev: [] }), /^bad cid: /);
-  assert.match(err({ action: 'redeem', cid: 'abcd1234', ids: [] }), /^bad request: /);
+  assert.match(err({ action: 'redeem', cid: 'abcd1234', ids: [] }), /^raffle_required: /);
   // 画面が見分けに使っている合図は変わっていない
   assert.strictEqual(err({ action: 'update', pass: 'ちがう', cid: 'c9', id: '1F-03', wait: 1 }), 'unauthorized');
   assert.strictEqual(JSON.parse(g.doPost({ postData: { contents: '{壊れた' } }).getContent()).error, 'invalid json');
@@ -1290,4 +1279,67 @@ test('v239 条件つき取得：番号のキャッシュが消えたときも本
   const same = g.__get({ gen: '1', since: '' });
   assert.strictEqual(same.gen, '');
   assert.strictEqual(same.booths, undefined);
+});
+
+
+/* v245：7個ごとの抽選・在庫・46個の写真枠。 */
+function rallyPlayer(g,cid,count=7,attempt=1){return {action:'rally_draw',cid,attempt,ev:g.R8_BOOTHS.slice(0,count).map(b=>({t:'s',id:b[0]}))};}
+function forceRally(g,value){g.Math=Object.create(Math);g.Math.random=()=>value;}
+test('ラリー：7個ごとに最大6回、再送は同じ回の結果。スタンプは減らない',()=>{
+ const g=fresh();forceRally(g,0);
+ assert.match(g.__post(rallyPlayer(g,'RALLY001',6)).error,/not_enough/);
+ const a=g.__post(rallyPlayer(g,'RALLY001'));assert.strictEqual(a.rally.entries[0].result,'candy');
+ assert.strictEqual(g.__post(rallyPlayer(g,'RALLY001',14)).duplicate,true);
+ for(let attempt=2;attempt<=6;attempt++)assert.strictEqual(g.__post(rallyPlayer(g,'RALLY001',attempt*7,attempt)).ok,true);
+ assert.strictEqual(g.rallyStock_(true).issued,6);assert.strictEqual(g.__post(rallyPlayer(g,'RALLY001',46,7)).ok,false);
+ assert.strictEqual(g.__get({ledger:'RALLY001'}).spent.length,0);
+});
+test('ラリー：実在しないID、回数飛ばし、次の7個が無い送信は断る',()=>{
+ const g=fresh();forceRally(g,0.9);
+ assert.strictEqual(g.__post({...rallyPlayer(g,'RALLY002'),ev:Array.from({length:7},(_,i)=>({t:'s',id:'fake'+i}))}).ok,false);
+ assert.strictEqual(g.__post(rallyPlayer(g,'RALLY002',7,2)).ok,false);
+ assert.strictEqual(g.__post(rallyPlayer(g,'RALLY002')).rally.entries[0].result,'miss');
+ assert.strictEqual(g.__post(rallyPlayer(g,'RALLY002',13,2)).ok,false);
+});
+test('ラリー：500個目の確保で抽選終了。未交換の当たりはその後も受け取れる',()=>{
+ const g=fresh();forceRally(g,0);const sh=g.sheetOrCreate_(g.SHEET_RALLY,g.RALLY_HEAD,[]);
+ for(let i=0;i<499;i++)sh.appendRow([new Date(),'SEED'+String(i).padStart(4,'0'),'candy','seed'+i,'']);
+ const last=g.__post(rallyPlayer(g,'LAST0500'));assert.strictEqual(last.rally.entries[0].result,'candy');
+ const end=g.__post(rallyPlayer(g,'AFTER500'));assert.strictEqual(end.ended,true);assert.strictEqual(end.rally.entries.length,0);
+ const claim=g.__post({action:'rally_redeem',cid:'LAST0500',ticket:last.rally.entries[0].ticket,code:g.rallyCode_(0)});
+ assert.strictEqual(claim.ok,true);const stock=g.rallyStock_(true);assert.strictEqual(stock.issued,500);assert.strictEqual(stock.given,1);assert.strictEqual(stock.held,499);assert.strictEqual(stock.remaining,0);
+});
+test('ラリー：4桁と本人の当たり券が必要。番号統合・再送でも二重交換しない',()=>{
+ const g=fresh();forceRally(g,0);const a=g.__post(rallyPlayer(g,'BEFORE01')),ticket=a.rally.entries[0].ticket;
+ assert.strictEqual(g.__post({action:'rally_redeem',cid:'BEFORE01',ticket,code:'bad'}).ok,false);
+ assert.strictEqual(g.__post({action:'rally_redeem',cid:'OTHER001',ticket,code:g.rallyCode_(0)}).ok,false);
+ g.__post({action:'ledger',cid:'AFTER001',from:'BEFORE01',ev:[]});
+ const body={action:'rally_redeem',cid:'BEFORE01',ticket,code:g.rallyCode_(0)};
+ assert.strictEqual(g.__post(body).ok,true);assert.strictEqual(g.__post({...body,cid:'AFTER001'}).duplicate,true);
+ assert.strictEqual(g.rallyStock_(true).given,1);assert.strictEqual(g.__post(rallyPlayer(g,'AFTER001')).duplicate,true);
+});
+test('全制覇：45個では写真枠を解放せず、46個で固有番号・絵柄を保存。再送と番号統合でも同じ枠',()=>{
+ const g=fresh();const full=(cid,n)=>({...rallyPlayer(g,cid,n),action:'rally_complete'});
+ assert.strictEqual(g.__post(full('ART00001',45)).ok,false);
+ const a=g.__post(full('ART00001',46)).rally.entries.find(e=>e.result==='complete');
+ const b=g.__post(full('ART00002',46)).rally.entries.find(e=>e.result==='complete');
+ assert.notStrictEqual(a.serial,b.serial);assert.notStrictEqual(a.art,b.art);assert.notStrictEqual(a.art,a.ticket);assert.strictEqual(a.stamps.length,46);
+ assert.strictEqual(g.__post(full('ART00001',46)).duplicate,true);
+ const joined=g.__post({action:'ledger',cid:'ART00003',from:'ART00001',ev:[]});
+ assert.strictEqual(joined.rally.entries[0].serial,a.serial);assert.strictEqual(joined.rally.entries[0].art,a.art);
+ assert.strictEqual(g.rallyStock_(true).issued,0,'無料報酬はお菓子在庫を使わない');
+});
+test('ラリー：全制覇と6回の抽選は両立し、外れに記念画像を混ぜない',()=>{
+ const g=fresh();forceRally(g,0.9);
+ for(let i=1;i<=6;i++){const r=g.__post(rallyPlayer(g,'FULL0001',i*7,i));assert.strictEqual(r.rally.entries[i-1].result,'miss');}
+ const r=g.__post({...rallyPlayer(g,'FULL0001',46),action:'rally_complete'});
+ assert.strictEqual(r.rally.entries.length,7);assert.strictEqual(r.rally.entries[6].result,'complete');
+});
+
+test('ラリー：作成途中で空になった台帳は見出しから回復し、壊れた台帳では上限計算を続けない',()=>{
+ const g=fresh();forceRally(g,0);g.__ss.insertSheet(g.SHEET_RALLY);
+ assert.strictEqual(g.__post(rallyPlayer(g,'RECOVER1')).ok,true);
+ assert.strictEqual(g.rallyStock_(true).issued,1);
+ g.rallySheet_().getRange(1,1).setValue('broken');g.__cache.delete('rally_stock_v245');
+ assert.strictEqual(g.__post(rallyPlayer(g,'RECOVER2')).ok,false);
 });

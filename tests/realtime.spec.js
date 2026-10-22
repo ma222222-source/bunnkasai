@@ -22,7 +22,7 @@ test('地図（v242）：階切替が部屋を覆わず、4つの階を直接選
   await expect.poll(() => page.evaluate(() => document.querySelector('.map-floors').getBoundingClientRect().bottom <= document.getElementById('map-view').getBoundingClientRect().top)).toBe(true);
   for (const floor of [0, 1, 2, 3]) {
     const button = page.locator('#fl-' + floor);
-    expect(await button.evaluate(el => el.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+    expect(await button.evaluate(el => Math.round(el.getBoundingClientRect().height * 100) / 100)).toBeGreaterThanOrEqual(44); // WebKitの44px未満の丸め誤差を除く
     await button.click();
     await expect(button).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#plan-' + floor)).toBeVisible();

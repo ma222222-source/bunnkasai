@@ -96,9 +96,7 @@ for (let i = 0; i < N; i++) {
       const ids = []; const n = 1 + rnd(4);
       for (let k = 0; k < n; k++) { const id = IDS[rnd(IDS.length)]; if (ids.indexOf(id) < 0) ids.push(id); }
       const r = g.__post({ action: 'redeem', cid, ids });
-      const to = res(cid); const used = ids.filter(x => of(to).r.has(x));
-      if (used.length) { if (r.ok !== false || r.error !== 'already') add('二重交換が通った', `#${i} ${to} ${ids} 交換済み=${used} → ${JSON.stringify(r).slice(0, 100)}`); }
-      else { if (r.ok !== true) add('交換が断られた', `#${i} ${to} ${ids} → ${JSON.stringify(r).slice(0, 100)}`); ids.forEach(x => { of(to).s.add(x); of(to).r.add(x); }); }
+      if (r.ok !== false || !/raffle_required/.test(r.error)) add('旧APIが上限を回避した', JSON.stringify(r).slice(0,100));
     } else {
       const r = g.__get({ ledger: cid }); const to = res(cid);
       if (!r.ok) { add('読み出しが断られた', cid + ' → ' + JSON.stringify(r).slice(0, 100)); continue; }

@@ -196,7 +196,7 @@ test('三つ折りパンフレット：そのまま刷れる（仮の文字・�
   expect(r.ui).toBe(0);
   expect(r.outline).toBe(0);
   // 載せるもの：表紙（題・日にち・QR）、スタンプラリー、混み具合の見かた、タイムテーブル、来場の案内、地図と番号
-  for (const s of ['黒工', '文化祭', 'KUROKO FESTIVAL', '10/23', '10/24', 'スタンプラリー', '個でお菓子と交換', '空き', 'タイムテーブル', 'ご来場のみなさまへ', '校内マップ', '1階'])
+  for (const s of ['黒工', '文化祭', 'KUROKO FESTIVAL', '10/23', '10/24', 'スタンプラリー', '7個ごとにお菓子抽選', '空き', 'タイムテーブル', 'ご来場のみなさまへ', '校内マップ', '1階'])
     expect(r.text.replace(/\s+/g, ''), s).toContain(s.replace(/\s+/g, ''));
   expect(await page.locator('.pam-cover .pam-qr-img svg').count()).toBe(1);
 });

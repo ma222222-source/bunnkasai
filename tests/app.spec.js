@@ -114,12 +114,13 @@ test('QR（署名が違う）ではスタンプがたまらない', async ({ pag
   expect(st).not.toContain('1F-02');
 });
 
-test('スタンプが5個でお菓子交換の案内が出る', async ({ page }) => {
+test('旧表示互換：スタンプが5個でお菓子交換の案内が出る', async ({ page }) => {
   await mockGas(page);
   const ids = ['1F-02', '1F-03', '1F-05', '1F-07', '1F-08'];
   await page.addInitScript(ids => { if (!localStorage.getItem('kuroko_stamps_v2')) localStorage.setItem('kuroko_stamps_v2', JSON.stringify(ids)); }, ids);
   await page.goto('/?tab=stamp');
   await ready(page);
+  await page.evaluate(()=>{CONFIG.RALLY_ENABLED=false;renderStamps();});
   await expect(page.locator('#redeem-open')).toBeVisible();
 });
 
@@ -222,7 +223,7 @@ test('スタンプ：0個は手順、3個は「お菓子まであと2個」、6�
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?tab=stamp');
   await ready(page);
-  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
+  await page.evaluate(() => { CONFIG.RALLY_ENABLED = false; CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは互換モードの5個設定で旧表示を検証（新しい抽選はrally.spec.js）
   await page.evaluate(() => renderStamps());
   await expect(page.locator('#stamp-prize .prize-steps li')).toHaveCount(3);
   await expect(page.locator('#nav .nav-badge')).toHaveCount(0);
@@ -367,6 +368,9 @@ test('振り返りレポート：本物の Code.gs が作った集計を、画�
 
 /* ---------------- v153 の6つ ---------------- */
 test('起動：混雑データは1回だけ取りに行く（見出しで先に取った結果を使う）', async ({ page }) => {
+  // このケースは通信がすぐ成功する入口を調べる。CIの描画待ちを「5秒の通信停滞」に数えない。
+  // 本当に返事が遅いときの予備取得は、v155の別ケースで実時間を使って検証する。
+  await page.addInitScript(() => { const now=Date.now();Date.now=()=>now; });
   const log = await mockGas(page);
   await page.goto('/?tab=map');
   await ready(page);
@@ -1109,7 +1113,7 @@ test('QRのカメラの下に、いまのスタンプの数と交換までの残
   });
   await page.goto('/?tab=stamp');
   await ready(page);
-  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
+  await page.evaluate(() => { CONFIG.RALLY_ENABLED = false; CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは互換モードの5個設定で旧表示を検証（新しい抽選はrally.spec.js）
   await page.locator('#stamp-scan').click();
   await expect(page.locator('#scan-count')).toContainText('いまスタンプ 2個');
   await expect(page.locator('#scan-count')).toContainText('あと3個');
@@ -1488,7 +1492,7 @@ test('終わる45分前、交換できるスタンプがあれば一度だけ知
   await page.addInitScript(() => localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03', '1F-05', '1F-07', '1F-08'])));
   await page.goto('/?tab=map');
   await ready(page);
-  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
+  await page.evaluate(() => { CONFIG.RALLY_ENABLED = false; CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは互換モードの5個設定で旧表示を検証（新しい抽選はrally.spec.js）
   const r = await page.evaluate(() => {
     // 開催時間は、画面の時計（端末の時間帯）でいまの1時間前〜30分後にする（GitHub は UTC、iPhone・Android のまねは日本時間）
     const d = new Date(), p2 = n => String(n).padStart(2, '0');
@@ -1590,7 +1594,7 @@ test('スタンプの演出：音の切り替え・続けて読む・交換す�
   });
   await page.goto('/?tab=stamp');
   await ready(page);
-  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
+  await page.evaluate(() => { CONFIG.RALLY_ENABLED = false; CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは互換モードの5個設定で旧表示を検証（新しい抽選はrally.spec.js）
   // 5個目：交換できる → 「お菓子と交換する」
   await page.evaluate(() => stampNow('1F-05'));
   await expect(page.locator('[data-fx="redeem"]')).toBeVisible();
@@ -2156,7 +2160,7 @@ test('スタンプの演出：お菓子までの丸に、いま押した1個が�
   await page.addInitScript(() => { if (!sessionStorage.getItem('x')){ sessionStorage.setItem('x', 1); localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03'])); } });
   await page.goto('/?tab=stamp');
   await ready(page);
-  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
+  await page.evaluate(() => { CONFIG.RALLY_ENABLED = false; CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは互換モードの5個設定で旧表示を検証（新しい抽選はrally.spec.js）
   await page.evaluate(() => { try{ renderStamps(); }catch(e){} });
   await page.evaluate(() => stampNow('1F-05'));
   await expect(page.locator('#sfx')).toBeVisible();
@@ -2650,7 +2654,7 @@ test('お菓子と交換：係の人の4桁を入れて交換すると、画面�
   await page.addInitScript(() => { if (!sessionStorage.getItem('x')){ sessionStorage.setItem('x', 1); localStorage.setItem('kuroko_stamps_v2', JSON.stringify(['1F-02', '1F-03', '1F-05', '1F-07', '1F-08', '1F-10'])); } });
   await page.goto('/?tab=stamp');
   await ready(page);
-  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
+  await page.evaluate(() => { CONFIG.RALLY_ENABLED = false; CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは互換モードの5個設定で旧表示を検証（新しい抽選はrally.spec.js）
   await page.evaluate(() => { try{ renderStamps(); }catch(e){} });
   // スタンプを6個にそろえる（5個を使って、1個残る）
   await page.evaluate(() => { S.stamps = new Set(S.booths.slice(0, 6).map(b => b.id)); store('kuroko_stamps_v2', Array.from(S.stamps)); renderStamps(); });
@@ -2861,7 +2865,7 @@ test('ブースの一覧が届くまで（はじめて開いた・サーバー�
     localStorage.setItem('kuroko_intro_v1', '1'); localStorage.setItem('kuroko_stamps_v2', JSON.stringify(ids));
     localStorage.setItem('kuroko_cert_at', JSON.stringify('2026-10-24T03:00:00.000Z')); } }, IDS);
   await page.goto('/?tab=list');
-  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; renderStamps._fp = null; try{ renderStamps(); }catch(e){} });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
+  await page.evaluate(() => { CONFIG.RALLY_ENABLED = false; CONFIG.PRIZE_COST = 5; renderStamps._fp = null; try{ renderStamps(); }catch(e){} });                 // v236：交換の数は設定（本番は23）。ここでは互換モードの5個設定で旧表示を検証（新しい抽選はrally.spec.js）
   // 一覧：探してもいないのに「見つかりませんでした」と言わない
   await expect(page.locator('#booth-list .list-wait')).toContainText('読み込んでいます');
   await expect(page.locator('#booth-list .skel')).toHaveCount(4);
@@ -2897,7 +2901,7 @@ test('ブースの一覧が届くまで（はじめて開いた・サーバー�
   // 届いたら、ふつうの表示に変わる
   release();
   await ready(page);
-  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
+  await page.evaluate(() => { CONFIG.RALLY_ENABLED = false; CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは互換モードの5個設定で旧表示を検証（新しい抽選はrally.spec.js）
   await page.evaluate(() => { try{ renderStamps(); }catch(e){} });
   await page.locator('#nav button[data-view="stamp"]').click();
   await expect(page.locator('#v-stamp .stamp-count')).not.toHaveClass(/wait/);
@@ -3335,6 +3339,13 @@ test('④⑤ブースが届いたら「読み込み中」の札はすっと消�
 
 test('⑥読み込み中の骨組みは、本物の形（一覧＝帯・番号の丸・名前の線・札／スタンプ帳＝丸・名前の線）', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
+  // 通常表示の動きを調べる。実行PCの残り電池で軽い表示に変わる条件は別のケースで検証済み。
+  await page.emulateMedia({ reducedMotion:'no-preference' });
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator,'deviceMemory',{value:8,configurable:true});
+    Object.defineProperty(navigator,'hardwareConcurrency',{value:8,configurable:true});
+    navigator.getBattery=async()=>({level:1,charging:true,addEventListener(){}});
+  });
   const errors = watchErrors(page);
   await mockGas(page);
   let open; let hold = new Promise(r => { open = r; });
@@ -3959,7 +3970,7 @@ test('文字の大きさ（v218）：どの文字も「標準 ≦ 大きく ≦ 
       const bad = [], pick = {};
       els.forEach((e, i) => {
         if (lg[i] < n[i] - 0.01 || xl[i] < lg[i] - 0.01) bad.push(`${key(e)} ${n[i]}/${lg[i]}/${xl[i]} 「${(e.textContent || e.placeholder || '').trim().slice(0, 12)}」`);
-        for (const sel of ['.chip', '.stamp .lb', '.sum span', '.search input', '#zoom-in', '#v-stamp .card > p', '#stamp-todo', '#fs-n', '.redeem-msg', '.sid-sync', '.diag > summary', '.next-ev .tx'])
+        for (const sel of ['.chip', '.stamp .lb', '.sum span', '.search input', '#zoom-in', '#v-stamp .card > p', '#stamp-todo', '#fs-n', '.rally-foot', '.sid-sync', '.diag > summary', '.next-ev .tx'])
           if (!pick[sel] && e.matches(sel)) pick[sel] = [n[i], lg[i], xl[i]];
       });
       return { bad, pick, count: els.length };
@@ -3969,7 +3980,7 @@ test('文字の大きさ（v218）：どの文字も「標準 ≦ 大きく ≦ 
     Object.assign(grow, r.pick);
   }
   // 小さくならないだけでなく、ちゃんと大きくなる（「特大」は「大きく」より大きい）
-  for (const sel of ['.chip', '.stamp .lb', '.sum span', '.search input', '#v-stamp .card > p', '#stamp-todo', '#fs-n', '.redeem-msg', '.sid-sync', '.diag > summary']) {
+  for (const sel of ['.chip', '.stamp .lb', '.sum span', '.search input', '#v-stamp .card > p', '#stamp-todo', '#fs-n', '.rally-foot', '.sid-sync', '.diag > summary']) {
     expect(grow[sel], sel).toBeTruthy();
     expect(grow[sel][1], sel + ' ' + grow[sel]).toBeGreaterThan(grow[sel][0]);
     expect(grow[sel][2], sel + ' ' + grow[sel]).toBeGreaterThan(grow[sel][1]);
@@ -4569,6 +4580,8 @@ test('地図の倍率（v232）：スタンプ帳・一覧・インフォから�
   const want = await page.evaluate(() => ZOOM.k);
   expect(want).toBeGreaterThan(1.2);
   for (const tab of ['stamp', 'list', 'info']) {
+    // 前の文書で復元中の台帳取得を終えてから遷移する（WebKitの取り消し時のCORS通知と区別）。
+    await page.waitForLoadState('networkidle');
     await page.goto('/?tab=' + tab);
     await ready(page);
     await page.waitForTimeout(300);
@@ -4604,7 +4617,7 @@ test('お菓子の交換（v233）：全角の数字でも入る・4桁そろう
   await mockGas(page);
   await page.goto('/?tab=stamp');
   await ready(page);
-  await page.evaluate(() => { CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは5の設定で、交換の流れを見る
+  await page.evaluate(() => { CONFIG.RALLY_ENABLED = false; CONFIG.PRIZE_COST = 5; });                 // v236：交換の数は設定（本番は23）。ここでは互換モードの5個設定で旧表示を検証（新しい抽選はrally.spec.js）
   await page.evaluate(() => { try{ renderStamps(); }catch(e){} });
   await page.evaluate(() => { S.stamps = new Set(S.booths.slice(0, 6).map(b => b.id)); store('kuroko_stamps_v2', Array.from(S.stamps)); renderStamps(); });
   // 飛んだ先のカードの見出しが、上の固定の見出しの下に隠れない
@@ -4839,25 +4852,20 @@ test('リアルタイム（v236）：数秒ごとに「変わったか」だけ�
   expect(errors).toEqual([]);
 });
 
-test('お菓子の交換は23個（v236）：はじめての案内・スタンプ帳は「◯ / 23」の棒（丸を23個並べない）・あと何個', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await mockGas(page);
-  await page.goto('/?tab=map');
-  await ready(page);
-  expect(await page.evaluate(() => CONFIG.PRIZE_COST)).toBe(23);
-  await expect(page.locator('#intro-card [data-prize-n]')).toHaveText('23');
+test('お菓子抽選は7個（v245）：はじめての案内・スタンプ帳に7個の目盛りと抽選への入口が出る', async ({ page }) => {
+  await page.setViewportSize({ width:390,height:844 });
+  await mockGas(page,{mutate:j=>{j.serverVersion='2026-10-22a';}});
+  await page.goto('/?tab=map');await ready(page);
+  expect(await page.evaluate(()=>CONFIG.PRIZE_COST)).toBe(7);
+  await expect(page.locator('#intro-card [data-prize-n]')).toHaveText('7');
   await page.locator('#nav button[data-view="stamp"]').click();
-  await page.evaluate(() => { S.stamps = new Set(S.booths.slice(0, 3).map(b => b.id)); renderStamps(); });
-  const m = page.locator('#stamp-prize .prize-meter');
-  await expect(m).toBeVisible();
-  await expect(m.locator('em')).toHaveText('3 / 23');
-  await expect(page.locator('#stamp-prize .prize-dots')).toHaveCount(0);
-  await expect(page.locator('#stamp-prize')).toContainText('お菓子まで あと 20個');
-  // 23個 → 交換できる
-  await page.evaluate(() => { S.stamps = new Set(S.booths.slice(0, 23).map(b => b.id)); renderStamps(); });
-  await expect(page.locator('#stamp-prize')).toContainText('お菓子と交換できます');
-  await expect(page.locator('#redeem-open')).toBeEnabled();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  await page.evaluate(()=>{S.stamps=new Set(S.booths.slice(0,3).map(b=>b.id));renderStamps();});
+  await expect(page.locator('#stamp-prize .prize-dots i')).toHaveCount(7);
+  await expect(page.locator('#stamp-prize')).toContainText('あと 4個');
+  await page.evaluate(()=>{S.stamps=new Set(S.booths.slice(0,7).map(b=>b.id));renderStamps();});
+  await expect(page.locator('#rally-draw')).toBeEnabled();
+  await expect(page.locator('#redeem-card')).toBeHidden();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)).toBeLessThanOrEqual(0);
 });
 
 /* ---------------- v237：速くなった更新を、画面で分かるように ---------------- */

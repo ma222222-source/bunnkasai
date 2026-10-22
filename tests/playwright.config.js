@@ -21,9 +21,9 @@ module.exports = defineConfig({
   projects: [
     { name: 'chromium', use: {} },
     { name: 'iphone', use: { ...devices['iPhone 13'], serviceWorkers: 'block', locale: 'ja-JP', timezoneId: 'Asia/Tokyo' },
-      testMatch: /(app|scan|realtime|staff-qr|staff-name)\.spec\.js$/ },
+      testMatch: /(app|scan|realtime|staff-qr|staff-name|rally|durable-stamp)\.spec\.js$/ },
     { name: 'android', use: { ...devices['Pixel 7'], serviceWorkers: 'block', locale: 'ja-JP', timezoneId: 'Asia/Tokyo' },
-      testMatch: /(app|scan|realtime|staff-qr|staff-name)\.spec\.js$/ },
+      testMatch: /(app|scan|realtime|staff-qr|staff-name|rally|durable-stamp)\.spec\.js$/ },
   ],
   webServer: {
     command: `${process.platform === 'win32' ? 'python' : 'python3'} -m http.server ${PORT} --bind 127.0.0.1 --directory ..`,
