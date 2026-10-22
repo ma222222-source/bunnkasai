@@ -171,7 +171,7 @@ test('スタンプの控え：追記・同じ獲得は1回・読み出し', () =
   assert.strictEqual(g.__post({ action: 'ledger', cid, ev: [{ t: 's', id: '=HACK()' }] }).added, 0, 'ブースidの形でなければ入れない');
 });
 
-test('旧交換APIは抽選を経由しない交換を断る（500個の上限を回避させない）', () => {
+test('旧交換APIは抽選を経由しない交換を断る（景品数の上限を回避させない）', () => {
   const g = fresh();
   const r = g.__post({action:'redeem',cid:'AAAA1111',ids:['1F-02']});
   assert.strictEqual(r.ok,false); assert.match(r.error,/raffle_required/);
@@ -1283,7 +1283,7 @@ test('v239 条件つき取得：番号のキャッシュが消えたときも本
 
 
 /* v245：7個ごとの抽選・在庫・46個の写真枠。 */
-function rallyPlayer(g,cid,count=7,attempt=1){return {action:'rally_draw',cid,attempt,ev:g.R8_BOOTHS.slice(0,count).map(b=>({t:'s',id:b[0]}))};}
+function rallyPlayer(g,cid,count=7,attempt=1){return {action:'rally_draw',policy:g.RALLY_POLICY,cid,attempt,ev:g.R8_BOOTHS.slice(0,count).map(b=>({t:'s',id:b[0]}))};}
 function forceRally(g,value){g.Math=Object.create(Math);g.Math.random=()=>value;}
 test('ラリー：7個ごとに最大6回、再送は同じ回の結果。スタンプは減らない',()=>{
  const g=fresh();forceRally(g,0);
@@ -1301,20 +1301,21 @@ test('ラリー：実在しないID、回数飛ばし、次の7個が無い送�
  assert.strictEqual(g.__post(rallyPlayer(g,'RALLY002')).rally.entries[0].result,'miss');
  assert.strictEqual(g.__post(rallyPlayer(g,'RALLY002',13,2)).ok,false);
 });
-test('ラリー：500個目の確保で抽選終了。未交換の当たりはその後も受け取れる',()=>{
+test('ラリー：413個目の確保で発行終了。種類ごとの上限と発行済みの券を守る',()=>{
  const g=fresh();forceRally(g,0);const sh=g.sheetOrCreate_(g.SHEET_RALLY,g.RALLY_HEAD,[]);
- for(let i=0;i<499;i++)sh.appendRow([new Date(),'SEED'+String(i).padStart(4,'0'),'candy','seed'+i,'']);
+ for(const p of g.RALLY_PRIZES)for(let i=0;i<p.limit-(p.id==='normal'?1:0);i++)sh.appendRow([new Date(),'SEED'+p.id+i,p.id==='participation'?'miss':'candy','seed-'+p.id+i,'','prize:'+p.id,'']);
  const last=g.__post(rallyPlayer(g,'LAST0500'));assert.strictEqual(last.rally.entries[0].result,'candy');
  const end=g.__post(rallyPlayer(g,'AFTER500'));assert.strictEqual(end.ended,true);assert.strictEqual(end.rally.entries.length,0);
- const claim=g.__post({action:'rally_redeem',cid:'LAST0500',ticket:last.rally.entries[0].ticket,code:g.rallyCode_(0)});
- assert.strictEqual(claim.ok,true);const stock=g.rallyStock_(true);assert.strictEqual(stock.issued,500);assert.strictEqual(stock.given,1);assert.strictEqual(stock.held,499);assert.strictEqual(stock.remaining,0);
+ const claim=g.__post({action:'rally_redeem',policy:g.RALLY_POLICY,cid:'LAST0500',ticket:last.rally.entries[0].ticket,code:g.rallyCode_(0)});
+ assert.strictEqual(claim.ok,true);const stock=g.rallyStock_(true);assert.strictEqual(stock.issued,413);assert.strictEqual(stock.given,1);assert.strictEqual(stock.held,412);assert.strictEqual(stock.remaining,0);
+ assert.deepStrictEqual(Array.from(stock.prizes,p=>p.issued),[1,12,200,200]);
 });
 test('ラリー：4桁と本人の当たり券が必要。番号統合・再送でも二重交換しない',()=>{
  const g=fresh();forceRally(g,0);const a=g.__post(rallyPlayer(g,'BEFORE01')),ticket=a.rally.entries[0].ticket;
- assert.strictEqual(g.__post({action:'rally_redeem',cid:'BEFORE01',ticket,code:'bad'}).ok,false);
- assert.strictEqual(g.__post({action:'rally_redeem',cid:'OTHER001',ticket,code:g.rallyCode_(0)}).ok,false);
+ assert.strictEqual(g.__post({action:'rally_redeem',policy:g.RALLY_POLICY,cid:'BEFORE01',ticket,code:'bad'}).ok,false);
+ assert.strictEqual(g.__post({action:'rally_redeem',policy:g.RALLY_POLICY,cid:'OTHER001',ticket,code:g.rallyCode_(0)}).ok,false);
  g.__post({action:'ledger',cid:'AFTER001',from:'BEFORE01',ev:[]});
- const body={action:'rally_redeem',cid:'BEFORE01',ticket,code:g.rallyCode_(0)};
+ const body={action:'rally_redeem',policy:g.RALLY_POLICY,cid:'BEFORE01',ticket,code:g.rallyCode_(0)};
  assert.strictEqual(g.__post(body).ok,true);assert.strictEqual(g.__post({...body,cid:'AFTER001'}).duplicate,true);
  assert.strictEqual(g.rallyStock_(true).given,1);assert.strictEqual(g.__post(rallyPlayer(g,'AFTER001')).duplicate,true);
 });
@@ -1340,6 +1341,73 @@ test('ラリー：作成途中で空になった台帳は見出しから回復�
  const g=fresh();forceRally(g,0);g.__ss.insertSheet(g.SHEET_RALLY);
  assert.strictEqual(g.__post(rallyPlayer(g,'RECOVER1')).ok,true);
  assert.strictEqual(g.rallyStock_(true).issued,1);
- g.rallySheet_().getRange(1,1).setValue('broken');g.__cache.delete('rally_stock_v245');
+ g.rallySheet_().getRange(1,1).setValue('broken');g.__cache.delete('rally_stock_v251');
  assert.strictEqual(g.__post(rallyPlayer(g,'RECOVER2')).ok,false);
+ g.__ss.getSheetByName(g.SHEET_RALLY).getRange(1,1).setValue(g.RALLY_HEAD[0]);
+ g.__ss.getSheetByName(g.SHEET_RALLY).getRange(1,6).setValue('moved-art');
+ assert.match(g.__post(rallyPlayer(g,'RECOVER3')).error,/rally_header/,'景品の種類の列がずれた場合も上限計算を続けない');
+});
+
+test('景品抽選：当選済みは未交換でも確率が下がり、送信された確率や当選数を信用しない',()=>{
+ const g=fresh();forceRally(g,0.03);
+ assert.strictEqual(g.__post({...rallyPlayer(g,'ODDS0001'),chance:1,wins:999}).rally.entries[0].result,'candy');
+ const after=g.__post({...rallyPlayer(g,'ODDS0001',14,2),chance:1,wins:0});
+ assert.strictEqual(after.rally.entries[1].result,'miss');assert.strictEqual(after.rally.odds.chance,0.0125);
+ assert.strictEqual(g.__post(rallyPlayer(g,'ODDS0002')).rally.entries[0].result,'candy');
+ forceRally(g,0);g.__post(rallyPlayer(g,'ODDS0001',21,3));forceRally(g,0.005);
+ const twice=g.__post(rallyPlayer(g,'ODDS0001',28,4));assert.strictEqual(twice.rally.entries[3].result,'miss');assert.strictEqual(twice.rally.odds.chance,0.003125);
+ const ticket=twice.rally.entries[0].ticket;g.__post({action:'rally_redeem',policy:g.RALLY_POLICY,cid:'ODDS0001',ticket,code:g.rallyCode_(0)});
+ g.__post({action:'ledger',cid:'ODDS0003',from:'ODDS0001',ev:[]});
+ assert.strictEqual(g.rallyState_('ODDS0003').odds.chance,0.003125,'交換と番号の統合でも当選回数を失わない');
+});
+
+test('景品抽選：実際の抽選で超大1・大12・当たり200を超えず、参加賞を混ぜない',()=>{
+ const g=fresh();forceRally(g,0);
+ for(let i=0;i<213;i++)assert.strictEqual(g.__post(rallyPlayer(g,'CAP'+String(i).padStart(5,'0'))).ok,true);
+ const stock=g.rallyStock_(true);assert.deepStrictEqual(Array.from(stock.prizes,p=>p.issued),[1,12,200,0]);assert.strictEqual(stock.drawRemaining,0);assert.strictEqual(stock.remaining,200);
+ const extra=g.__post(rallyPlayer(g,'CAPEXTRA'));assert.strictEqual(extra.rally.entries[0].result,'miss');assert.strictEqual(extra.rally.odds.chance,0);
+});
+
+test('参加賞：6回すべて外れた同じ行に1券、再送・交換・全制覇でも重複しない',()=>{
+ const g=fresh();forceRally(g,0.9);
+ for(let i=1;i<=5;i++)assert.strictEqual(g.__post(rallyPlayer(g,'PART0001',i*7,i)).rally.entries.filter(e=>e.prize).length,0);
+ const sixth=g.__post(rallyPlayer(g,'PART0001',42,6));assert.strictEqual(sixth.rally.entries.length,6);
+ const entry=sixth.rally.entries[5];assert.strictEqual(entry.result,'miss');assert.strictEqual(entry.prize,'participation');
+ assert.strictEqual(g.__post(rallyPlayer(g,'PART0001',42,6)).duplicate,true);assert.strictEqual(g.rallyStock_(true).issued,1);
+ const claim={action:'rally_redeem',policy:g.RALLY_POLICY,cid:'PART0001',ticket:entry.ticket,code:g.rallyCode_(0)};
+ assert.strictEqual(g.__post(claim).ok,true);assert.strictEqual(g.__post(claim).duplicate,true);assert.strictEqual(g.rallyStock_(true).given,1);
+ const full=g.__post({...rallyPlayer(g,'PART0001',46),action:'rally_complete'});assert.strictEqual(full.rally.entries.length,7);assert.strictEqual(full.rally.entries[6].result,'complete');
+ assert.strictEqual(g.__get({ledger:'PART0001'}).spent.length,0);
+});
+
+test('参加賞：先着200人で止め、すでに当選した人には発行しない',()=>{
+ const g=fresh();const sh=g.rallyWriteSheet_();
+ for(let i=0;i<199;i++)sh.appendRow([new Date(),'SEEDPART'+i,'miss','part-'+i,'','prize:participation','']);
+ forceRally(g,0.9);
+ for(const cid of ['PART0200','PART0201'])for(let i=1;i<=6;i++)g.__post(rallyPlayer(g,cid,i*7,i));
+ assert.strictEqual(g.rallyState_('PART0200').entries[5].prize,'participation');assert.strictEqual(g.rallyState_('PART0201').entries[5].prize,'');
+ assert.strictEqual(g.rallyStock_(true).prizes[3].issued,200);
+ const h=fresh();forceRally(h,0);h.__post(rallyPlayer(h,'WONONCE1'));forceRally(h,0.9);
+ for(let i=2;i<=6;i++)h.__post(rallyPlayer(h,'WONONCE1',i*7,i));
+ assert.strictEqual(h.rallyStock_(true).prizes[3].issued,0);
+});
+
+test('参加賞：6回目の書込後に返事が失われても、再送は同じ券で在庫を使い直さない',()=>{
+ const g=fresh();forceRally(g,0.9);for(let i=1;i<=5;i++)g.__post(rallyPlayer(g,'PARTFAIL',i*7,i));
+ const sh=g.rallyWriteSheet_(),append=sh.appendRow.bind(sh);sh.appendRow=row=>{append(row);throw new Error('reply lost after write');};
+ assert.strictEqual(g.__post(rallyPlayer(g,'PARTFAIL',42,6)).ok,false);sh.appendRow=append;
+ const retry=g.__post(rallyPlayer(g,'PARTFAIL',42,6));assert.strictEqual(retry.duplicate,true);assert.strictEqual(retry.rally.entries.length,6);
+ assert.strictEqual(retry.rally.entries[5].prize,'participation');assert.strictEqual(g.rallyStock_(true).prizes[3].issued,1);
+});
+
+test('互換性：旧6回はずれは参加賞を一度だけ確認でき、旧当たり券は通常景品として交換可能',()=>{
+ const g=fresh(),sh=g.rallyWriteSheet_();
+ for(let i=1;i<=6;i++)sh.appendRow([new Date(),'OLDMISS1','miss','old-miss-'+i,'','','']);
+ const body=rallyPlayer(g,'OLDMISS1',42,6);assert.strictEqual(g.__post(body).rally.entries[5].prize,'participation');
+ g.__post(body);assert.strictEqual(g.rallyStock_(true).prizes[3].issued,1);
+ sh.appendRow([new Date(),'OLDWIN01','candy','legacy-normal','','','']);
+ assert.strictEqual(g.__post({action:'rally_redeem',cid:'OLDWIN01',ticket:'legacy-normal',code:g.rallyCode_(0)}).ok,true);
+ const old=rallyPlayer(g,'OLDPAGE1');delete old.policy;assert.match(g.__post(old).error,/rally_update/);
+ forceRally(g,0);const special=g.__post(rallyPlayer(g,'NEWPAGE1')).rally.entries[0];
+ assert.strictEqual(special.prize,'super');assert.match(g.__post({action:'rally_redeem',cid:'NEWPAGE1',ticket:special.ticket,code:g.rallyCode_(0)}).error,/rally_update/);
 });

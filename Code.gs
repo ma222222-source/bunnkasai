@@ -47,7 +47,7 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-10-22a';
+var GAS_VERSION = '2026-10-22b';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
@@ -1808,16 +1808,32 @@ function appendEvents_(cid, ev, fresh) {
   // cid は統合後の番号（旧番号で送ってきた端末は、これを見て乗り換える）
   return { ok: true, cid: cid, added: added, stamps: have.stamps, spent: have.spent };
 }
-/* v245：当たりを出した時点で在庫を確保する。交換の遅い人の分も残し、全期間で500個を超えない。
+/* v251：当たりと参加賞を発行した時点で種類別に確保する。交換の遅い人の分も残す。
  * カウンタと券を別々に保存すると途中の障害でずれるため、この追記台帳だけを正とする。
  * 既存のスタンプ記録・QR・番号は変えない。抽選と交換はオフライン確定しない。 */
 var SHEET_RALLY = 'ラリー抽選';
 var RALLY_HEAD = ['timestamp', 'cid', 'result', 'ticket', 'claimedAt', 'art', 'stamps'];
 var RALLY_NEED = 7;
-var RALLY_LIMIT = 500;
+var RALLY_POLICY = 'tiered-v251';
+var RALLY_LIMIT = 413;
+var RALLY_PRIZES = [
+  {id:'super',label:'超大当たり',limit:1},
+  {id:'big',label:'大当たり',limit:12},
+  {id:'normal',label:'当たり',limit:200},
+  {id:'participation',label:'参加賞',limit:200}
+];
+// 1500人が平均3回なら約216個の当たりを見込む。実際の上限は213個で必ず止める。
+// 当選済みは交換前でも当選回数ごとに1/4。参加賞は確率抽選には混ぜない。
+function rallyChance_(wins) { return 0.05*Math.pow(0.25,Math.max(0,wins)); }
+function rallyPrize_(r) {
+  if(r.result==='candy') return r.art==='prize:super'?'super':r.art==='prize:big'?'big':'normal';
+  return r.result==='miss'&&r.art==='prize:participation'?'participation':'';
+}
+function clearRallyStock_(){var c=CacheService.getScriptCache();c.remove('rally_stock_v251');c.remove('rally_stock_v245');}
 function rallySheet_() {
   var sh=ss_().getSheetByName(SHEET_RALLY);
-  if(sh&&sh.getLastRow()>0){var head=sh.getRange(1,1,1,5).getValues()[0];if(!RALLY_HEAD.slice(0,5).every(function(v,i){return String(head[i])===v;}))throw new Error('rally_header: ラリー抽選の見出しを確認してください');}
+  // 種類は既存のart列に保存するため、この列も含めて照合し、在庫を誤分類しない。
+  if(sh&&sh.getLastRow()>0){var head=sh.getRange(1,1,1,RALLY_HEAD.length).getValues()[0];if(!RALLY_HEAD.every(function(v,i){return String(head[i])===v;}))throw new Error('rally_header: ラリー抽選の見出しを確認してください');}
   return sh;
 }
 function rallyWriteSheet_(){
@@ -1835,21 +1851,31 @@ function rallyEntries_(cid) {
   });
 }
 function rallyState_(cid) {
-  return { need:RALLY_NEED, limit:RALLY_LIMIT, stock:rallyStock_(), entries:rallyEntries_(cid).map(function(r) {
-    return { result:r.result, ticket:r.ticket, claimedAt:r.claimedAt, art:r.art, serial:r.serial, stamps:r.stamps };
-  }) };
+  var entries=rallyEntries_(cid), stock=rallyStock_(), wins=entries.filter(function(r){return r.result==='candy';}).length;
+  return { policy:RALLY_POLICY, need:RALLY_NEED, limit:RALLY_LIMIT, stock:stock,
+    odds:{wins:wins,chance:stock.drawRemaining?rallyChance_(wins):0},
+    entries:entries.map(function(r) {
+      return { result:r.result, prize:rallyPrize_(r), ticket:r.ticket, claimedAt:r.claimedAt, art:r.art, serial:r.serial, stamps:r.stamps };
+    }) };
 }
 function rallyStock_(fresh) {
-  var cache=CacheService.getScriptCache(), cached=cache.get('rally_stock_v245');
+  var cache=CacheService.getScriptCache(), cached=cache.get('rally_stock_v251');
   if (!fresh && cached) { try { return JSON.parse(cached); } catch(e) {} }
   var sh = rallySheet_(), won=0, given=0, players=0;
+  var prizes=RALLY_PRIZES.map(function(p){return {id:p.id,label:p.label,limit:p.limit,issued:0,given:0,held:0,remaining:p.limit};});
   if (sh && sh.getLastRow() >= 2) {
-    sh.getRange(2, 3, sh.getLastRow()-1, 3).getValues().forEach(function(r) {
-      if (String(r[0])!=='complete') players++; if (String(r[0]) === 'candy') { won++; if (r[2]) given++; }
+    sh.getRange(2, 3, sh.getLastRow()-1, 4).getValues().forEach(function(r) {
+      if (String(r[0])!=='complete') players++;
+      var prize=rallyPrize_({result:String(r[0]),art:String(r[3]||'')});
+      if(prize){var p=prizes.filter(function(p){return p.id===prize;})[0];p.issued++;won++;if(r[2]){p.given++;given++;}}
     });
   }
-  var stock={ limit:RALLY_LIMIT, issued:won, given:given, held:won-given, remaining:Math.max(0,RALLY_LIMIT-won), players:players };
-  try { cache.put('rally_stock_v245',JSON.stringify(stock),10); } catch(e) {}
+  prizes.forEach(function(p){p.held=p.issued-p.given;p.remaining=Math.max(0,p.limit-p.issued);});
+  // 旧版の当たりは通常の「当たり」として引き継ぎ、発行済みの券を取り消さない。
+  var stock={limit:RALLY_LIMIT,issued:won,given:given,held:won-given,players:players,prizes:prizes,
+    remaining:prizes.reduce(function(n,p){return n+p.remaining;},0),
+    drawRemaining:prizes.filter(function(p){return p.id!=='participation';}).reduce(function(n,p){return n+p.remaining;},0)};
+  try { cache.put('rally_stock_v251',JSON.stringify(stock),10); } catch(e) {}
   return stock;
 }
 // 番号をつなぐ操作と同じロック内で券も移す。新しい番号で引き直せず、未交換の券も失わない。
@@ -1859,6 +1885,7 @@ function rallyMerge_(from, to) {
   SpreadsheetApp.flush();
 }
 function rallyDraw_(body) {
+  if(body.policy!==RALLY_POLICY) throw new Error('rally_update: マップを更新して新しい抽選画面から参加してください');
   var sync=appendLedger_(body);
   return withLock_(function() {
     var cid=resolveCid_(cleanCid_(sync.cid)), existing=rallyState_(cid);
@@ -1866,16 +1893,33 @@ function rallyDraw_(body) {
     // 何回目かを明示させる。返事が消えた再送を、次の抽選として消費しない。
     if (!Number.isInteger(attempt) || attempt<1 || attempt>Math.floor(R8_BOOTHS.length/RALLY_NEED))
       throw new Error('bad_attempt: 抽選の回数を確認してください');
-    if (attempt<=draws.length) return { ok:true, cid:cid, duplicate:true, rally:existing };
+    if (attempt<=draws.length) {
+      // 旧版ですでに6回外れた人にも、6回目の再確認で参加賞を一度だけ確保する。
+      if(attempt===6&&draws.length===6&&draws.every(function(r){return r.result==='miss'&&!r.prize;})){
+        var part=rallyStock_(true).prizes.filter(function(p){return p.id==='participation';})[0];
+        if(part.remaining){var last=rallyEntries_(cid).filter(function(r){return r.result!=='complete';}).slice(-1)[0];clearRallyStock_();rallySheet_().getRange(last.row,6).setValue('prize:participation');SpreadsheetApp.flush();clearRallyStock_();}
+      }
+      return { ok:true, cid:cid, duplicate:true, rally:rallyState_(cid) };
+    }
     if (attempt!==draws.length+1) throw new Error('stale_attempt: スタンプ帳を更新してからお試しください');
     var have=ledgerOf_(cid,true), valid={};R8_BOOTHS.forEach(function(b) { valid[b[0]]=true; });
     if (have.stamps.filter(function(id) { return valid[id]; }).length<attempt*RALLY_NEED)
       throw new Error('not_enough: 次の抽選には新しく7個集めてください');
     var stock=rallyStock_(true);
     if(stock.remaining===0) return {ok:true,cid:cid,ended:true,rally:rallyState_(cid)};
-    var result=Math.random()<1/3?'candy':'miss', ticket=Utilities.getUuid().replace(/-/g,'');
-    rallyWriteSheet_().appendRow([new Date(),cid,result,ticket,'','','']);
-    SpreadsheetApp.flush();CacheService.getScriptCache().remove('rally_stock_v245');
+    var wins=draws.filter(function(r){return r.result==='candy';}).length;
+    var result='miss', prize='', ticket=Utilities.getUuid().replace(/-/g,'');
+    if(stock.drawRemaining>0&&Math.random()<rallyChance_(wins)){
+      var pick=Math.random()*stock.drawRemaining;
+      stock.prizes.filter(function(p){return p.id!=='participation';}).some(function(p){
+        if(pick<p.remaining){prize=p.id;return true;}pick-=p.remaining;return false;
+      });
+      if(prize)result='candy';
+    }
+    if(result==='miss'&&attempt===6&&wins===0&&stock.prizes[3].remaining>0)prize='participation';
+    // 6回目の外れと参加賞は同じ1行。途中で返事が消えても二重発行しない。
+    clearRallyStock_();rallyWriteSheet_().appendRow([new Date(),cid,result,ticket,'',prize?'prize:'+prize:'','']);
+    SpreadsheetApp.flush();clearRallyStock_();
     return {ok:true,cid:cid,rally:rallyState_(cid)};
   });
 }
@@ -1904,11 +1948,12 @@ function rallyRedeem_(body) {
   return withLock_(function() {
     // 番号統合と競合しても、ロックを取った後の行き先で確かめる。
     var cid=resolveCid_(cleanCid_(body.cid)), ticket=String(body.ticket||'');
-    var entry=rallyEntries_(cid).filter(function(r) { return r.ticket===ticket && r.result==='candy'; })[0];
+    var entry=rallyEntries_(cid).filter(function(r) { return r.ticket===ticket && !!rallyPrize_(r); })[0];
     if (!entry) throw new Error('no_ticket: お菓子の当たり券が見つかりません');
+    if(rallyPrize_(entry)!=='normal'&&body.policy!==RALLY_POLICY)throw new Error('rally_update: マップを更新し、景品の種類を確認して交換してください');
     if (entry.claimedAt) return { ok:true, cid:cid, duplicate:true, rally:rallyState_(cid) };
-    rallySheet_().getRange(entry.row,5).setValue(new Date());
-    SpreadsheetApp.flush();CacheService.getScriptCache().remove('rally_stock_v245');
+    clearRallyStock_();rallySheet_().getRange(entry.row,5).setValue(new Date());
+    SpreadsheetApp.flush();clearRallyStock_();
     return { ok:true, cid:cid, rally:rallyState_(cid) };
   });
 }

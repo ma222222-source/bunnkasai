@@ -69,7 +69,7 @@ test('ローカル保存が消えてもIndexedDBから未送信・交換済み�
 });
 
 test('Cookieに残った番号から台帳の当たり券・交換済み・全制覇の枠も戻す',async({page,context})=>{
- const g=server();await bridge(context,g);const ids=g.R8_BOOTHS.map(b=>b[0]);g.__post({action:'rally_draw',cid:SID,attempt:1,ev:ids.map(id=>({t:'s',id}))});g.__post({action:'rally_complete',cid:SID,ev:ids.map(id=>({t:'s',id}))});
+ const g=server();await bridge(context,g);const ids=g.R8_BOOTHS.map(b=>b[0]);g.__post({action:'rally_draw',policy:g.RALLY_POLICY,cid:SID,attempt:1,ev:ids.map(id=>({t:'s',id}))});g.__post({action:'rally_complete',cid:SID,ev:ids.map(id=>({t:'s',id}))});
  await context.addCookies([{name:'kuroko_sid_backup',value:SID,url:'http://127.0.0.1:8732/'}]);await ready(page);
  await expect.poll(()=>page.evaluate(()=>S.stamps.size)).toBe(46);await expect(page.locator('#rally-result')).toContainText('お菓子1個を確保');await expect(page.locator('#rally-save')).toBeVisible();expect(await page.evaluate(()=>stampId())).toBe(SID);
 });
