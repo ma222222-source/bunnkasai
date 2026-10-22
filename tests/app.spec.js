@@ -3262,6 +3262,9 @@ test('①地図の端の影：左右に地図が続いているほうの端に�
 });
 
 test('②③「はじめての方へ」：「わかった」で、すっと畳まれてから消える（地図が一気に跳ね上がらない）。小さい画面では詰めて、下の地図が見える', async ({ page }) => {
+  // 通常の案内カードの寸法。実行日が開催日の開場前になると、別の開場案内が増える。
+  // このケースの入力日を固定し、開場前・当日の案内は日時指定の専用ケースで確かめる。
+  await page.clock.setFixedTime(new Date('2026-10-22T11:20:00+09:00'));
   await page.setViewportSize({ width: 320, height: 640 });
   const errors = watchErrors(page);
   await mockGas(page);
@@ -4450,6 +4453,8 @@ test('来場者の画面（v229）：見つからない検索の例・ラッキ�
   await page.goto('/?tab=map');
   await ready(page);
   // ②見つからない検索：押せる例。押すと、その言葉で見つかる
+  // 開場前の案内や初回カードがある日も、利用者が検索欄までスクロールした位置から操作する。
+  await page.locator('#map-q').evaluate(el => el.scrollIntoView({ block:'center', behavior:'instant' }));
   await page.locator('#map-q').fill('ぜったいに無い名前');
   await expect(page.locator('#map-sug')).toContainText('見つかりませんでした');
   const ex = page.locator('#map-sug .sg-ex button');
@@ -4480,11 +4485,11 @@ test('来場者の画面（v229）：見つからない検索の例・ラッキ�
   await expect(page.locator('.bsh-head h2')).toContainText('溶接', { timeout: 10000 });
   expect(await page.evaluate(() => ZOOM.k)).toBeGreaterThan(k0);
   // ④前・次：進んだ向きからすっと入る
-  await page.locator('#bsh-body [data-nav="1"]').click();
-  await expect(page.locator('#bsh-body')).toHaveClass(/step-r/);
+  // 短い開始クラスは操作の同じタスク内で観測する。外から待ち始める頃には終了する場合がある。
+  expect(await page.locator('#bsh-body [data-nav="1"]').evaluate(el => { el.click(); return document.getElementById('bsh-body').className; })).toMatch(/step-r/);
   await expect(page.locator('#bsh-body')).not.toHaveClass(/step-r/);
-  await page.locator('#bsh-body [data-nav="-1"]').click();
-  await expect(page.locator('#bsh-body')).toHaveClass(/step-l/);
+  expect(await page.locator('#bsh-body [data-nav="-1"]').evaluate(el => { el.click(); return document.getElementById('bsh-body').className; })).toMatch(/step-l/);
+  await expect(page.locator('#bsh-body')).not.toHaveClass(/step-l/);
   await page.keyboard.press('Escape');
   // ⑥待ち時間の目安：「1人待ち」の横に「15分以上待ち」と出さない
   await page.evaluate(() => openSheet('3F-01'));
