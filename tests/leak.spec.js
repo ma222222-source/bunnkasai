@@ -22,8 +22,15 @@ test('2時間ぶん開きっぱなしでも、画面の部品・メモリ・保�
   await page.clock.install({ time: new Date('2026-10-24T09:30:00+09:00') });
   await page.goto('/?tab=' + (process.env.TAB || 'map'));
   await page.waitForFunction(() => typeof S !== 'undefined' && S.booths.length > 0);
+  // 最初に4画面を作り、初回だけ増えるDOMを測定から分離する。
+  // 以前は1時間目が地図だけ、2時間目が一覧だけで、初めて作った一覧の分まで増え続けるメモリと扱っていた。
+  for(const view of ['list','stamp','info','map']){
+    await page.evaluate(view=>switchView(view),view);await page.clock.runFor(1000);
+  }
   const c = await context.newCDPSession(page);
   const measure = async label => {
+    await page.evaluate(()=>switchView('map'));await page.clock.runFor(100); // 同じ表示状態で比較する
+    await new Promise(resolve=>setTimeout(resolve,1800)); // 早送り時計とは別に、実時間で動く描画・アニメーションの終了を待つ
     await c.send('HeapProfiler.collectGarbage'); await c.send('HeapProfiler.collectGarbage');
     const dom = await c.send('Memory.getDOMCounters');
     const heap = await c.send('Runtime.getHeapUsage');

@@ -26,8 +26,8 @@
 (function(){
   try{
     var u = new URL(location.href), q = u.searchParams;
-    // LINEのアプリ内ブラウザは保存が消えやすく、SafariやChromeとも別の保存先。外部ブラウザで開き直す
-    if (/\bLine\//i.test(navigator.userAgent) && q.get('openExternalBrowser') !== '1'){
+    // 来場者は本体で保存・番号の引き継ぎを先に行う。保存前に外部へ移すと、LINE内で集めた分が残らない。
+    if (/\bLine\//i.test(navigator.userAgent) && q.get('mode') && q.get('openExternalBrowser') !== '1'){
       q.set('openExternalBrowser', '1'); location.replace(u.toString()); return;
     }
     // 公式アドレス（og:url）以外で開かれたら公式へ寄せる（Cloudflareの別アドレス等）。
@@ -1504,6 +1504,12 @@ text.util:not([font-size]){font-size:7.5px}
 #banner-notice-text{min-width:0;overflow-wrap:anywhere;word-break:break-word}
 #banner-notice-text a{color:inherit;text-decoration:underline;font-weight:900}
 .sid-card{padding-top:12px;padding-bottom:12px}
+.line-entry h2{font-size:1.05em;margin:0 0 6px}.line-entry p{margin:6px 0;line-height:1.65}.line-entry .btn{display:flex;justify-content:center;text-decoration:none;margin:8px 0}.line-entry .btn.hide{display:none}
+#v-stamp .sid-save-note,#v-stamp .sid-file-status,#line-entry .small-note{font-size:13px}
+html[data-fs="lg"] #v-stamp .sid-save-note,html[data-fs="lg"] #v-stamp .sid-file-status,html[data-fs="lg"] #line-entry .small-note{font-size:14.5px}
+html[data-fs="xl"] #v-stamp .sid-save-note,html[data-fs="xl"] #v-stamp .sid-file-status,html[data-fs="xl"] #line-entry .small-note{font-size:16px}
+.line-entry{font-size:14px}html[data-fs="lg"] .line-entry{font-size:16px}html[data-fs="xl"] .line-entry{font-size:18px}
+.sid-save-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.sid-save-actions .btn{flex:1 1 160px}.sid-save-note{margin-top:8px;line-height:1.7}.sid-file-status{overflow-wrap:anywhere}
 .sid-row{display:flex;align-items:center;gap:10px}
 .sid-main{display:flex;flex-direction:column;min-width:0;flex:1 1 auto}
 .sid-cap{font-size:11px;font-weight:800;color:var(--text-mute)}
@@ -3954,6 +3960,49 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
   #v-staffqr .staff-sheet-qr svg{width:48mm;height:48mm}
 }
 
+/* v245：結果は色だけに頼らず見出しと操作で区別する。券は画像に書き出さない。 */
+.rally-card{border:2px solid var(--accent);scroll-margin-top:90px}
+.rally-card p{font-size:14px;line-height:1.8}
+.rally-result{margin:14px 0;padding:18px 14px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-2)}
+.rally-result h3{font-size:21px;line-height:1.5;margin:8px 0}
+.rally-result .rally-kicker{font-size:12px;font-weight:900;letter-spacing:.12em;margin:0;color:var(--text-dim)}
+.rally-result .rally-emblem{display:flex;justify-content:center;margin:10px auto;color:var(--accent)}
+.rally-emblem svg{width:64px;height:64px}
+.rally-result[data-result="candy"]{border:2px solid var(--accent)}
+.rally-card .btn{min-height:48px;width:100%;margin-top:8px;white-space:normal}
+.rally-foot{color:var(--text-dim);font-size:12px;margin-top:12px}
+.rally-error{color:var(--busy-ink);font-size:14px;line-height:1.7;font-weight:800}
+#own-rally-stock b{font-size:24px}
+
+
+.rally-photo{padding:20px;max-width:520px;width:calc(100% - 24px);max-height:calc(100dvh - 24px);overflow:auto;border:0;border-radius:20px;background:var(--surface);color:var(--text);box-shadow:0 24px 80px #0005}
+.rally-photo::backdrop{background:#111827b8}
+.rally-photo h2{font-size:22px;margin:0 34px 8px 0}
+.rally-photo p{font-size:14px;line-height:1.7}
+.rally-photo .btn{min-height:48px;width:100%;margin-top:8px;white-space:normal}
+.rally-photo-view{position:relative;background:#101828;border-radius:12px;overflow:hidden;aspect-ratio:3/4;width:min(100%,39dvh);margin:12px auto}
+.rally-photo-view video{position:absolute;left:7.037%;top:18.472%;width:85.926%;height:63.889%;object-fit:cover;transform:scaleX(-1);z-index:1;border-radius:7px}
+.rally-photo-view canvas{width:100%;height:100%;object-fit:contain;display:block}
+.rally-photo-hint{color:#fff;padding:30px;text-align:center;position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.rally-photo-view .hide{display:none}
+.rally-photo-file{display:block;position:relative;overflow:hidden;text-align:center;cursor:pointer}
+.rally-photo-file input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.rally-photo-file:focus-within{outline:3px solid var(--accent);outline-offset:3px}
+
+.effect-tests{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.effect-tests .btn{min-height:48px;padding:10px 8px;white-space:normal;margin:0!important}.effect-test-banner{padding:10px 12px;border:2px solid #a16207;background:#fef3c7;color:#713f12;font-size:14px;font-weight:900;line-height:1.6;border-radius:10px;margin:0 0 12px}
+.own-rally-tools{display:grid;gap:12px;grid-template-columns:minmax(0,1fr);grid-column:1 / -1;align-items:start}@media(min-width:960px){.own-rally-tools{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.rally-photo h2.quiet:focus-visible{outline:none}
+
+.rally-card .rally-foot{font-size:12px}
+[data-fs="lg"] .rally-card p,[data-fs="lg"] .rally-photo p{font-size:15.5px}
+[data-fs="xl"] .rally-card p,[data-fs="xl"] .rally-photo p{font-size:17px}
+[data-fs="lg"] .rally-card .rally-foot{font-size:14px}
+[data-fs="xl"] .rally-card .rally-foot{font-size:16px}
+[data-fs="lg"] .rally-result h3{font-size:23px}
+[data-fs="xl"] .rally-result h3{font-size:25px}
+[data-fs="lg"] .rally-photo h2{font-size:24px}
+[data-fs="xl"] .rally-photo h2{font-size:26px}
+
 </style>
 </head>
 <body>
@@ -3981,6 +4030,13 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
   </header>
 
   <main id="main-body" tabindex="-1">
+    <aside class="card line-entry hide no-print" id="line-entry" aria-labelledby="line-entry-title">
+      <h2 id="line-entry-title">スタンプはSafari・Chromeで続けよう！</h2>
+      <p id="line-entry-note">LINE内と通常ブラウザは保存先が別です。記録を引き継いで、いつものブラウザで集められます。</p>
+      <a class="btn hide" id="line-continue" referrerpolicy="no-referrer">Safari・Chromeで続ける</a>
+      <button class="btn" id="line-prepare" type="button">スタンプを保存して引き継ぐ</button>
+      <p class="small-note">切り替わらない場合は、LINEのメニューから「ブラウザで開く」を選び、スタンプ番号でつないでください。</p>
+    </aside>
     <!-- 係員の画面（QR・紙マップ・振り返り・ボード）は下のタブを隠すので、
          戻り口が無いとURLを打ち直すしかなくなる。画面の上に貼りつけて、
          戻る先と、ほかの係員画面への行き先をいつでも出しておく。 -->
@@ -4004,7 +4060,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
         <ol>
           <li>地図を押すと混雑・待ち時間が分かる</li>
           <li>入口のQRは「QR」ボタンで読む</li>
-          <li>スタンプ<span data-prize-n>23</span>個でお菓子1個と交換</li>
+          <li>スタンプ<span data-prize-n>7</span>個ごとにお菓子抽選！</li>
         </ol>
         <button type="button" class="btn ghost" id="intro-ok">わかった</button>
       </div>
@@ -4175,29 +4231,15 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
         <button class="btn ghost" id="stamp-todo" type="button" style="width:100%;margin-top:10px;min-height:48px">まだ行っていないブースを見る</button>
       </div>
 
-      <!-- スタンプ番号：サーバーの台帳の鍵。別のアプリ・別の端末で開いても、この番号で同じ記録につながる -->
-      <div class="card sid-card" id="sid-card">
-        <div class="sid-row">
-          <div class="sid-main">
-            <span class="sid-cap">あなたのスタンプ番号</span>
-            <b class="sid-no" id="sid-no">----</b>
-          </div>
-          <button class="btn ghost sid-copy" id="sid-copy" type="button">コピー</button>
-        </div>
-        <p class="sid-sync" id="sid-sync" data-st="none" role="status" aria-live="polite"></p>
-        <p class="sid-env hide" id="sid-env"></p>
-        <details class="sid-join" id="sid-join-box">
-          <summary>別のアプリで集めたスタンプとつなぐ</summary>
-          <p class="small-note">LINE・Safari・Chrome・ホーム画面のアイコンは、同じスマホでも保存場所が別々です。
-            先に集めていた画面に出ている<b>スタンプ番号</b>を入れると、両方のスタンプが1つにまとまります（どちらも消えません）。
-            プライベートブラウズ（シークレット）では、QRを読むたびに別の保存場所になります。通常のタブで開いてください。</p>
-          <div class="redeem-row">
-            <input id="sid-in" class="field" type="text" autocomplete="off" autocapitalize="characters"
-                   spellcheck="false" maxlength="300" placeholder="XXXX-XXXX" aria-label="スタンプ番号">
-            <button class="btn" id="sid-join" type="button">つなぐ</button>
-          </div>
-          <p class="sid-err hide" id="sid-err" role="alert"></p>
-        </details>
+      <div class="card rally-card" id="rally-card">
+        <div class="card-t">7個集めて、お楽しみ抽選！</div>
+        <p>まずは7個！ たまったら下のボタンで、自分で抽選を引けます。係員の操作は不要です。<br>46個コンプリートで、自分だけの「全制覇プリクラ」を解放！</p>
+        <div class="rally-result" id="rally-result" tabindex="-1" aria-live="polite"></div>
+        <button class="btn" id="rally-draw" type="button">7個集めて抽選する</button>
+        <button class="btn ghost hide" id="rally-complete" type="button">46個達成！ 全制覇プリクラを解放</button>
+        <button class="btn ghost hide" id="rally-save" type="button">自分だけの全制覇プリクラを撮る</button>
+        <p class="rally-error hide" id="rally-error" role="alert"></p>
+        <p class="rally-foot">抽選は7個ごとに1回、最大6回。スタンプは減りません。お菓子は全期間で合計500個、当たり分の確保を含め上限に達したら抽選終了です。当たり券は終了後も交換できます。46個で全制覇プリクラ。抽選・交換・全制覇の確認にはインターネット接続が必要です。</p>
       </div>
 
       <div class="card" id="redeem-card">
@@ -4218,6 +4260,39 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
           <button class="btn ghost" id="redeem-cancel">やめる</button>
         </div>
         <p class="redeem-log hide" id="redeem-log"></p>
+      </div>
+
+      <!-- スタンプ番号：サーバーの台帳の鍵。別のアプリ・別の端末で開いても、この番号で同じ記録につながる -->
+      <div class="card sid-card" id="sid-card">
+        <div class="sid-row">
+          <div class="sid-main">
+            <span class="sid-cap">あなたのスタンプ番号</span>
+            <b class="sid-no" id="sid-no">----</b>
+          </div>
+          <button class="btn ghost sid-copy" id="sid-copy" type="button">コピー</button>
+        </div>
+        <p class="sid-sync" id="sid-sync" data-st="none" role="status" aria-live="polite"></p>
+        <div class="sid-save-actions">
+          <button class="btn ghost" id="sid-save" type="button">復元用ファイルを保存</button>
+          <button class="btn ghost" id="sid-check" type="button">保存を確認する</button>
+        </div>
+        <p class="small-note sid-save-note">通常のSafari・Chromeなら、閉じても自動で続きから。アプリや保存データを消す前に、復元用ファイルを「ファイル」など端末内へ保存してください。番号だけでなく、通信前のスタンプも戻せます。自分用に保管してください。</p>
+        <p class="sid-file-status small-note hide" id="sid-file-status" role="status"></p>
+        <p class="sid-env hide" id="sid-env"></p>
+        <details class="sid-join" id="sid-join-box">
+          <summary>消えた記録を戻す・別のアプリとつなぐ</summary>
+          <p class="small-note">LINE・Safari・Chrome・ホーム画面のアイコンは、同じスマホでも保存場所が別々です。
+            先に集めていた画面に出ている<b>スタンプ番号</b>を入れると、両方のスタンプが1つにまとまります（どちらも消えません）。
+            プライベートブラウズ（シークレット）は、閉じると記録が消えることがあります。通常のタブで開いてください。</p>
+          <div class="redeem-row">
+            <input id="sid-in" class="field" type="text" autocomplete="off" autocapitalize="characters"
+                   spellcheck="false" maxlength="300" placeholder="XXXX-XXXX" aria-label="スタンプ番号">
+            <button class="btn" id="sid-join" type="button">つなぐ</button>
+          </div>
+          <p class="sid-err hide" id="sid-err" role="alert"></p>
+          <button class="btn ghost" id="sid-import" type="button">復元用ファイルから戻す</button>
+          <input id="sid-file" type="file" accept="application/json,.json" hidden>
+        </details>
       </div>
 
       <div class="card cert hide" id="stamp-cert">
@@ -4614,6 +4689,31 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
             <button type="button" data-ev="lucky">ラッキーブース</button>
             <button type="button" data-ev="draw">抽選</button>
           </div>
+          <div class="own-rally-tools">
+          <div class="card own-rally-card" id="own-effects">
+            <div class="card-t">演出だけ試す（条件なし）</div>
+            <p class="own-note">当日の前に、ここから何度でも確認できます。スタンプ0個でも、500個の枠が終了していても試せます。実際の抽選・在庫・スタンプ・交換記録は変わりません。音は端末の効果音設定に従います。プリクラは46個集めずに撮影まで試せます。保存画像にも見本と入ります。</p>
+            <div class="effect-tests">
+              <button type="button" class="btn ghost" data-effect-test="win">お菓子の当たり</button>
+              <button type="button" class="btn ghost" data-effect-test="miss">抽選のはずれ</button>
+              <button type="button" class="btn ghost" data-effect-test="end">500個で抽選終了</button>
+              <button type="button" class="btn ghost" data-effect-test="redeem">お菓子の交換完了</button>
+              <button type="button" class="btn ghost" data-effect-test="stamp">スタンプ獲得</button>
+              <button type="button" class="btn ghost" data-effect-test="shiny">キラスタンプ</button>
+              <button type="button" class="btn ghost" data-effect-test="complete">全ブース制覇</button>
+              <button type="button" class="btn ghost" data-effect-test="photo">全制覇プリクラ撮影</button>
+              <button type="button" class="btn ghost" data-effect-test="lucky">ラッキーブース</button>
+              <button type="button" class="btn ghost" data-effect-test="party">お祝いのお知らせ</button>
+              <button type="button" class="btn ghost" data-effect-test="calm">しずかなお知らせ</button>
+            </div>
+          </div>
+          <div class="card own-rally-card" id="own-rally">
+            <div class="card-t">7個ごとにお菓子抽選・残り</div>
+            <p class="own-note">来場者が7個ごとに1回、最大6回参加できます。お菓子の当選確率は約3分の1、当たりは全期間で合計500個まで。46個制覇で専用のプリクラ画像を作れます。</p>
+            <p id="own-rally-stock" class="own-state" aria-live="polite">読み込み中…</p>
+            <p class="own-note">未交換の当たりも1個ずつ確保しています。係員は来場者の当たり画面を開き、いつもの4桁を入力し、「交換しました」を確認してから1個渡してください。画像・スクリーンショットだけでは交換しません。</p>
+          </div>
+          </div>
           <div class="card own-ev" id="own-ev-show">
             <div class="card-t">演出つきの一斉お知らせ</div>
             <p class="own-note">全員の画面に、大きな見出しが1回だけ出ます（出してから3分のあいだに開いた人にも出ます）。</p>
@@ -4686,7 +4786,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
             <ul class="own-sched hide" id="own-lucky-sched"></ul>
           </div>
           <div class="card own-ev" id="own-ev-draw">
-            <div class="card-t">スタンプの抽選</div>
+            <div class="card-t">イベント用の抽選（7個の抽選とは別）</div>
             <p class="own-note">きょうスタンプをあつめた人の中から、当たりを引きます。当たった人の画面にだけ「当たり」と、受け取りの場所が出ます（30分）。その画面のスタンプ番号と、下の番号を見くらべてください。</p>
             <!-- v223：受け取りの場所（当たった人の画面に出る。「本部」では、来場者にはどこか分からない） -->
             <div class="own-opt"><span>受け取りは</span><input class="field" id="own-draw-place" maxlength="20" value="受付（南棟昇降口）" aria-label="受け取りの場所（20文字まで）" autocomplete="off"></div>
@@ -4996,6 +5096,25 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
   <p class="scan-count" id="scan-count" aria-live="polite"></p>
 </div>
 
+<dialog class="rally-photo" id="rally-photo" aria-labelledby="rally-photo-title">
+  <button id="rally-photo-x" type="button" aria-label="撮影画面をとじる" style="position:absolute;right:8px;top:8px;width:44px;height:44px;border:0;background:transparent;color:inherit;font-size:25px;cursor:pointer">×</button>
+  <h2 id="rally-photo-title" tabindex="-1" autofocus>全制覇プリクラ！</h2>
+  <p>全46ブース制覇、おめでとう！！<br>あなた専用の枠で、今日の1枚を残そう。</p>
+  <button class="btn" id="rally-photo-start" type="button">カメラを起動する</button>
+  <button class="btn hide" id="rally-photo-capture" type="button">この写真で撮る！</button>
+  <label class="btn ghost rally-photo-file">写真を1枚選んで作る<input id="rally-photo-file" type="file" accept="image/*" aria-label="記念写真を選ぶ"></label>
+  <button class="btn hide" id="rally-photo-save" type="button">全制覇プリクラを画像で保存</button>
+  <div class="rally-photo-view">
+    <div class="rally-photo-hint" id="rally-photo-hint">カメラを起動するか、写真を1枚選んでね！</div>
+    <video id="rally-photo-video" class="hide" autoplay playsinline muted></video>
+    <canvas id="rally-photo-canvas" class="hide" width="1080" height="1440" aria-label="全制覇の記念写真プレビュー"></canvas>
+  </div>
+  <p class="rally-error hide" id="rally-photo-error" role="alert"></p>
+  <button class="btn ghost hide" id="rally-photo-retake" type="button">撮り直す・写真を選び直す</button>
+  <p>写真はこの端末の中だけで合成します。サーバーへ送信しません。保存するまでは撮り直せます。<br>記念画像ではお菓子と交換できません。</p>
+  <button class="btn ghost" id="rally-photo-close" type="button">とじる</button>
+</dialog>
+
 <script>
 "use strict";
 
@@ -5006,7 +5125,7 @@ const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
   SCHOOL_URL: 'https://www2.iwate-ed.jp/kst-h/',   // v236：学校の公式サイト（パンフレットの学校名の下に刷る。表紙のQRは、このマップのまま）
-  BUILD: '2026-10-21b',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-22b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5020,7 +5139,9 @@ const CONFIG = {
   // 交換すると、その分のスタンプが「消費済み」になって赤くなる。
   // 残ったスタンプでもう一度交換できるので、何個でも渡せる運用にもできる。
   // ブースの数が決まったら、実際に配れる数に合わせて調整すること。
-  PRIZE_COST: 23,          // v236：5 → 23（ブース46件のちょうど半分。ユーザーの指定）
+  PRIZE_COST: 7,           // v245：7個ごとに1回、最大6回。スタンプは消費しない
+  RALLY_ENABLED: true,
+  RALLY_MIN: '2026-10-22a',
   POLL_MS: 12000,          // 通常のポーリング間隔（画面を開いたまま放置しているとき）。v236：20000 → 12000（リアルタイムに近づける）
   // いま見ている人だけ速くする。ポケットの中の端末は visibilitychange で
   // そもそも止まっているので、全体の通信量はほとんど増えない。
@@ -5622,6 +5743,87 @@ const ICON_ALERT = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill=
 const ICON_WIFI  = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8.5a16 16 0 0 1 20 0M5 12.5a11 11 0 0 1 14 0M8.5 16.3a6 6 0 0 1 7 0"/><path d="M12 20h.01"/></svg>`;
 const ICON_WRENCH= `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5a4.5 4.5 0 0 0 5.6 5.6L11 19.7a2.4 2.4 0 1 1-3.4-3.4z"/></svg>`;
 
+/* v246：通常保存・IndexedDBの控え・番号のCookie。認証情報や写真は控えへ入れない。 */
+const STAMP_KEYS = ['kuroko_sid','kuroko_cid','kuroko_stamps_v2','kuroko_spent_v1','kuroko_stamp_at','kuroko_join_from','kuroko_joined','kuroko_migrated','kuroko_cert_at'];
+const STAMP_VAULT = { values:{}, db:null, committed:null, queued:null, failed:new Set(), hadIdentity:false, timer:null, writes:Promise.resolve() };
+function cleanStampValues(raw){
+  const out={};if(!raw||typeof raw!=='object'||Array.isArray(raw))return out;
+  for(const k of ['kuroko_sid','kuroko_join_from'])if(typeof raw[k]==='string'&&/^[0-9A-Za-z]{6,40}$/.test(raw[k]))out[k]=raw[k];
+  if(typeof raw.kuroko_cid==='string'&&/^[0-9A-Za-z]{12,40}$/.test(raw.kuroko_cid))out.kuroko_cid=raw.kuroko_cid;
+  for(const k of ['kuroko_stamps_v2','kuroko_spent_v1'])if(Array.isArray(raw[k]))out[k]=Array.from(new Set(raw[k].filter(x=>typeof x==='string'&&/^[0-9A-Za-z_-]{1,24}$/.test(x)))).slice(0,300);
+  if(raw.kuroko_stamp_at&&typeof raw.kuroko_stamp_at==='object'&&!Array.isArray(raw.kuroko_stamp_at)){
+    out.kuroko_stamp_at={};Object.keys(raw.kuroko_stamp_at).slice(0,300).forEach(k=>{const v=raw.kuroko_stamp_at[k];if(/^[0-9A-Za-z_-]{1,24}$/.test(k)&&typeof v==='number'&&isFinite(v)&&v>0)out.kuroko_stamp_at[k]=v;});
+  }
+  for(const k of ['kuroko_joined','kuroko_migrated'])if(raw[k]===1||raw[k]===true)out[k]=raw[k];
+  if(typeof raw.kuroko_cert_at==='string'&&/^\d{4}-\d\d-\d\dT/.test(raw.kuroko_cert_at)&&raw.kuroko_cert_at.length<40)out.kuroko_cert_at=raw.kuroko_cert_at;
+  return out;
+}
+function stampCookie(sid){
+  try{document.cookie='kuroko_sid_backup='+encodeURIComponent(sid||'')+'; Path='+location.pathname.replace(/[^/]*$/,'')+'; Max-Age='+(sid?31536000:0)+'; SameSite=Strict'+(location.protocol==='https:'?'; Secure':'');}catch(e){}
+}
+function readStampCookie(){try{const m=document.cookie.match(/(?:^|;\s*)kuroko_sid_backup=([0-9A-Za-z]{6,40})(?:;|$)/);return m?m[1]:'';}catch(e){return '';}}
+function stampVaultValues(){
+  const raw=Object.assign({},STAMP_VAULT.values);
+  for(const k of STAMP_KEYS){if(STAMP_VAULT.failed.has(k))continue;try{const v=localStorage.getItem(k);if(v!==null)raw[k]=JSON.parse(v);}catch(e){}}
+  return cleanStampValues(raw);
+}
+function mergeStampValues(a,b){
+  const out=Object.assign({},a,b);
+  for(const k of ['kuroko_stamps_v2','kuroko_spent_v1'])out[k]=Array.from(new Set([...(a[k]||[]),...(b[k]||[])]));
+  out.kuroko_stamp_at=Object.assign({},a.kuroko_stamp_at,b.kuroko_stamp_at);
+  return cleanStampValues(out);
+}
+async function initStampVault(){
+  let disk={};for(const k of STAMP_KEYS){try{const v=localStorage.getItem(k);if(v!==null)disk[k]=JSON.parse(v);}catch(e){}}
+  disk=cleanStampValues(disk);STAMP_VAULT.values=disk;
+  // DBが壊れた・開かれない場合でも起動を止めない。遅い返事で初期化後の番号を差し替えない。
+  const backup=await new Promise(resolve=>{
+    let done=false;const end=v=>{if(done)return;done=true;clearTimeout(timer);resolve(v);};
+    const timer=setTimeout(()=>end(null),1200);
+    try{const req=indexedDB.open('kuroko-stamp-vault:'+location.pathname.replace(/[^/]*$/,''),1);
+      req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('backup'))req.result.createObjectStore('backup');};
+      req.onerror=()=>end(null);req.onblocked=()=>end(null);
+      req.onsuccess=()=>{if(done){req.result.close();return;}const db=req.result;STAMP_VAULT.db=db;db.onversionchange=()=>{db.close();STAMP_VAULT.db=null;};
+        try{const tx=db.transaction('backup','readonly'),get=tx.objectStore('backup').get('current');get.onsuccess=()=>end(get.result);get.onerror=()=>end(null);tx.onabort=()=>end(null);}catch(e){end(null);}};
+    }catch(e){end(null);}
+  });
+  const saved=cleanStampValues(backup);
+  // 容量不足で通常保存だけ古い番号のままなら、保存に失敗した印とCookieが一致する控えを使う。
+  const pending=backup&&Array.isArray(backup._localPending)?backup._localPending:[];
+  if(pending.includes('kuroko_sid')&&saved.kuroko_sid&&readStampCookie()===saved.kuroko_sid){disk.kuroko_sid=saved.kuroko_sid;if(pending.includes('kuroko_cid')&&saved.kuroko_cid)disk.kuroko_cid=saved.kuroko_cid;}
+  const same=(!disk.kuroko_sid||disk.kuroko_sid===saved.kuroko_sid)&&(!disk.kuroko_cid||!saved.kuroko_cid||disk.kuroko_cid===saved.kuroko_cid);
+  const values=same?mergeStampValues(saved,disk):disk;
+  if(!values.kuroko_sid&&!values.kuroko_cid){const sid=readStampCookie();if(sid)values.kuroko_sid=sid;}
+  STAMP_VAULT.hadIdentity=!!(values.kuroko_sid||values.kuroko_cid);
+  STAMP_VAULT.values=values;
+  for(const k of Object.keys(values)){try{localStorage.setItem(k,JSON.stringify(values[k]));}catch(e){STAMP_VAULT.failed.add(k);}}
+  if(values.kuroko_sid)stampCookie(values.kuroko_sid);
+  checkpointStamps();
+}
+function queueStampVault(){clearTimeout(STAMP_VAULT.timer);STAMP_VAULT.timer=setTimeout(checkpointStamps,0);}
+function checkpointStamps(){
+  clearTimeout(STAMP_VAULT.timer);
+  const data=stampVaultValues();
+  if(!STAMP_VAULT.db)return Promise.resolve(false);
+  data._localPending=Array.from(STAMP_VAULT.failed).sort();
+  const fp=JSON.stringify(data);if(STAMP_VAULT.queued===fp)return STAMP_VAULT.writes;
+  STAMP_VAULT.queued=fp; // 同じ内容の再描画ではDBへ書かず、進行中の保存を待つ。
+  STAMP_VAULT.writes=STAMP_VAULT.writes.catch(()=>false).then(()=>new Promise(resolve=>{
+    let tx,merged=data,done=false;const finish=ok=>{if(done)return;done=true;clearTimeout(timer);if(tx)tx.oncomplete=tx.onerror=tx.onabort=null;if(!ok&&STAMP_VAULT.queued===fp)STAMP_VAULT.queued=null;if(ok){STAMP_VAULT.committed=merged;try{if(window.__booted===true)renderSyncBadge();}catch(e){}}resolve(ok);};
+    const timer=setTimeout(()=>{try{tx.abort();}catch(e){}finish(false);},1200);
+    try{const current=loadStr('kuroko_sid')||readStampCookie();if(current&&current!==data.kuroko_sid){finish(false);return;}
+      tx=STAMP_VAULT.db.transaction('backup','readwrite');const box=tx.objectStore('backup'),get=box.get('current');
+      get.onsuccess=()=>{const old=cleanStampValues(get.result);if(data.kuroko_sid&&old.kuroko_sid===data.kuroko_sid)merged=mergeStampValues(old,data);merged._localPending=data._localPending;box.put(merged,'current');};
+      tx.oncomplete=()=>finish(true);tx.onerror=tx.onabort=()=>finish(false);
+    }catch(e){finish(false);}
+  }));return STAMP_VAULT.writes;
+}
+function stampsSavedLocally(){
+  const sid=stampId(),has=values=>values&&values.kuroko_sid===sid&&Array.from(S.stamps).every(id=>(values.kuroko_stamps_v2||[]).includes(id))&&S.spent.every(id=>(values.kuroko_spent_v1||[]).includes(id));
+  try{if(has({kuroko_sid:JSON.parse(localStorage.getItem('kuroko_sid')),kuroko_stamps_v2:JSON.parse(localStorage.getItem('kuroko_stamps_v2')),kuroko_spent_v1:JSON.parse(localStorage.getItem('kuroko_spent_v1'))}))return true;}catch(e){}
+  return has(STAMP_VAULT.committed);
+}
+
 const S = {
   sheetId: null, sheetFrom: null, sheetFromKey: null, dept: null, spot: null, dupIds: [], routeAll: false,
   pendingLink: null,      // QRで来たがデータ未着のときの保留処理
@@ -5772,7 +5974,11 @@ function safeImg(u){
   return v;                                                  // 相対パス（同じサイトの画像）
 }
 // 保存できたかを返す。プライベートモードや容量不足では false（スタンプの保存で使う）
-function store(k, v){ try{ v===undefined ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
+function store(k, v){
+  const critical=STAMP_KEYS.includes(k);
+  if(critical){if(v===undefined)delete STAMP_VAULT.values[k];else STAMP_VAULT.values[k]=v;if(k==='kuroko_sid')stampCookie(v);queueStampVault();}
+  try{v===undefined?localStorage.removeItem(k):localStorage.setItem(k,JSON.stringify(v));if(critical)STAMP_VAULT.failed.delete(k);return true;}catch(e){if(critical)STAMP_VAULT.failed.add(k);return false;}
+}
 /** この端末を表すランダムな文字列。個人情報は含まない */
 function deviceId(){
   if (deviceId._v) return deviceId._v;
@@ -5799,7 +6005,8 @@ function deviceId(){
  */
 function load(k, d){
   try{
-    const raw = localStorage.getItem(k);
+    let raw = STAMP_KEYS.includes(k)&&STAMP_VAULT.failed.has(k)?(Object.prototype.hasOwnProperty.call(STAMP_VAULT.values,k)?JSON.stringify(STAMP_VAULT.values[k]):null):localStorage.getItem(k);
+    if (!raw && STAMP_KEYS.includes(k) && Object.prototype.hasOwnProperty.call(STAMP_VAULT.values,k)) raw=JSON.stringify(STAMP_VAULT.values[k]);
     if (!raw) return d;
     const v = JSON.parse(raw);
     if (d !== null && d !== undefined){
@@ -5809,7 +6016,7 @@ function load(k, d){
       if (typeof d === 'number' && !isFinite(v)) return d;
     }
     return v;
-  }catch(e){ return d; }
+  }catch(e){ if(STAMP_KEYS.includes(k)&&Object.prototype.hasOwnProperty.call(STAMP_VAULT.values,k)){const v=STAMP_VAULT.values[k];if(d==null||Array.isArray(d)&&Array.isArray(v)||typeof d===typeof v)return v;}return d; }
 }
 /** 文字として保存した値（番号・設定の名前・日付など）。文字でなければ null（長すぎるものも捨てる） */
 function loadStr(k){
@@ -5888,6 +6095,7 @@ async function api(opts){
       // cid は端末の識別子。パスワードの失敗回数を端末ごとに数えるために使う
       // （全員で1つのカウンタだと、数人の打ち間違いで全係員が締め出される）
       init.body = JSON.stringify(Object.assign({ cid: deviceId() }, opts.body));
+      if(opts.body.action==='ledger')init.keepalive=true; // タスク終了でも、送信中のスタンプ控えを完了させる
     } else {
       url += (url.includes('?') ? '&' : '?') + '_=' + Date.now();
     }
@@ -8767,6 +8975,7 @@ function renderScanCount(){
   if (!el) return;
   const got = S.booths.filter(b => S.stamps.has(b.id)).length;
   const left = stampsLeft(), need = Math.max(1, CONFIG.PRIZE_COST | 0);
+  if(CONFIG.RALLY_ENABLED){ el.textContent=`いまスタンプ ${got}個・`+(got>=46 ? '全制覇プリクラを解放！' : got>=7 ? '7個ごとにお菓子抽選！' : `あと${7-got}個で抽選！`); return; }
   el.textContent = !S.booths.length ? '' : `いまスタンプ ${got}個・` + (left >= need ? 'お菓子と交換できます' : `あと${need - left}個でお菓子1個`);
 }
 
@@ -10408,6 +10617,8 @@ function renderList(){
       el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' });
     });
   });
+  // 差し替えた一覧の古いカードを、並べ替えのアニメーションが保持し続けないよう止める。
+  if(box.getAnimations)box.getAnimations({subtree:true}).forEach(animation=>animation.cancel());
   box.innerHTML = helpHtml + items.map(b => {
     const L = lvOf(b);
     const got = S.stamps.has(b.id);
@@ -10699,6 +10910,7 @@ window.addEventListener('online', () => {
  * @returns {boolean} 端末の中身が増えたか
  */
 function absorbLedger(l, sent){
+  if (CONFIG.RALLY_ENABLED && l && l.rally) takeRally(l.rally, l.cid);
   pullStamps();
   const ls = (l && l.stamps) || [], lr = (l && l.spent) || [];
   let changed = false;
@@ -10730,7 +10942,9 @@ async function pullLedger(gap){
   if (Date.now() - (pullLedger._at || 0) < min) return false;
   const sid = loadStr('kuroko_sid');
   pullStamps();
-  if (!sid || (!S.stamps.size && !S.spent.length)) return false;   // まだ1つも集めていない人は見に行かない
+  if (!sid) return false;
+  const empty=!S.stamps.size&&!S.spent.length;
+  if(empty && gap!==true && (!STAMP_VAULT.hadIdentity || pullLedger._emptySid===sid))return false; // 初参加の0個では通信を増やさず、保存番号のある再起動は自動復元する
   if (flushLedger._old) return false;                               // サーバーが旧版のあいだは読みに行かない
   pullLedger._on = true; pullLedger._at = Date.now();
   let changed = false;
@@ -10740,6 +10954,7 @@ async function pullLedger(gap){
       adoptServerCid(l);
       changed = absorbLedger(l);
       store('kuroko_pulled_at', Date.now());
+      if(empty)pullLedger._emptySid=sid;
     }
   }catch(e){ /* 次の機会に */ }
   finally{ pullLedger._on = false; renderSyncBadge(); }
@@ -10763,10 +10978,28 @@ async function migrateLegacy(){
     store('kuroko_migrated', 1);
   }catch(e){ /* サーバーが旧版・電波なし。次に開いたとき */ }
 }
+/** LINEを離れる前に控えを確認。移動先は番号でサーバーから戻す（写真や認証情報はURLへ入れない）。 */
+function lineContinueUrl(){
+  const u=new URL(publicBase()),q=new URLSearchParams(location.search);
+  for(const k of ['booth','qr','k','tab','scan'])if(q.has(k))u.searchParams.set(k,q.get(k));
+  u.searchParams.set('openExternalBrowser','1');
+  if(S.stamps.size||S.spent.length){u.searchParams.set('restore',stampId());u.searchParams.set('tab','stamp');}
+  return u.toString();
+}
+function renderLineEntry(){
+  const box=$('#line-entry');if(!box)return;
+  const show=openedIn()==='LINE'&&!new URLSearchParams(location.search).get('mode');box.classList.toggle('hide',!show);if(!show)return;
+  const has=!!(S.stamps.size||S.spent.length),saved=!has||load('kuroko_pushed_fp','')===ledgerFp();
+  const a=$('#line-continue'),button=$('#line-prepare');a.classList.toggle('hide',!saved);button.classList.toggle('hide',saved);
+  if(saved)a.href=lineContinueUrl();else a.removeAttribute('href');
+  $('#line-entry-note').textContent=has?(saved?'いまのスタンプをサーバーに保存しました。同じ番号で引き継いで開きます。':'LINE内のスタンプを保存してから引き継ぎます。通信できない場合はスタンプ画面で復元用ファイルを保存してください。'):'LINE内と通常ブラウザは保存先が別です。最初からいつものブラウザで集めると、開き方が変わっても続けやすくなります。';
+}
 /** スタンプ画面・獲得演出の「保存の状態」表示 */
 function renderSyncBadge(state){
+  renderLineEntry();
   const pushed = load('kuroko_pushed_fp', '') === ledgerFp();
   const nothing = !S.stamps.size && !S.spent.length;
+  const localSafe=nothing||stampsSavedLocally();
   const st = state === 'sending' || flushLedger._on ? 'sending' : nothing ? 'none' : pushed ? 'ok' : 'wait';
   const el = $('#sid-sync');
   if (el){
@@ -10775,6 +11008,7 @@ function renderSyncBadge(state){
     const txt = st === 'sending' ? 'サーバーに保存しています…'
       : st === 'none' ? 'まだスタンプはありません。QRを読むと自動でサーバーにも保存されます'
       : st === 'ok' ? 'サーバーに保存済み。別のアプリで開いても、この番号で戻せます'
+      : !localSafe ? '端末への保存を確認できません。下の復元用ファイルを保存してください。通信が戻るとサーバーへも保存します'
       : navigator.onLine === false ? '電波待ち：この端末には保存済み。つながったら自動でサーバーにも保存します'
       : flushLedger._old ? 'この端末に保存済み（サーバーの準備ができしだい自動で保存します）'
       : flushLedger._fail ? 'この端末に保存済み。サーバーが混み合っているため、少しあとで自動で保存します'
@@ -10793,7 +11027,7 @@ function renderSyncBadge(state){
     fx.dataset.st = st;
     const ft = st === 'ok' ? `サーバーに保存しました（スタンプ番号 ${sidLabel().replace('-', '\u2011')}）`
       : st === 'sending' ? 'サーバーに保存しています…'
-      : 'この端末に保存しました。電波がつながったらサーバーにも保存します';
+      : localSafe ? 'この端末に保存しました。電波がつながったらサーバーにも保存します' : '端末への保存を確認できません。復元用ファイルを保存してください';
     if (fx.textContent !== ft) fx.textContent = ft;
   }
 }
@@ -10930,6 +11164,37 @@ async function restoreFrom(sid){
     toast(String(e.message || e), null, 8000);
   }
 }
+/** 復元ファイルはオフラインの未送信分も含む。写真・パスワード・端末の認証情報は含めない。 */
+function stampBackup(){
+  pullStamps();return {format:'kuroko-stamp-backup',version:1,sid:stampId(),stamps:Array.from(S.stamps),spent:S.spent.slice(),at:stampAt(),savedAt:new Date().toISOString()};
+}
+async function saveStampBackup(){
+  const button=$('#sid-save');if(button.disabled)return;button.disabled=true;
+  try{
+    const data=stampBackup(),blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),file=new File([blob],'kuroko-stamps-'+data.sid+'.json',{type:blob.type});
+    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+      try{await navigator.share({files:[file],title:'自分のスタンプ復元用ファイル'});}catch(e){if(e.name==='AbortError')return;throw e;}
+    }else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);}
+    const el=$('#sid-file-status');el.classList.remove('hide');el.textContent='保存したファイルは、この下の「消えた記録を戻す」から選べます。共有画面では「ファイルに保存」を選んでください。';
+    checkpointStamps();flushLedger(true);
+  }catch(e){toast('ファイルを保存できませんでした。もう一度試すか、スタンプ番号を控えてください',null,7000);}
+  finally{button.disabled=false;}
+}
+async function importStampBackup(file){
+  if(!file||file.size>65536)throw new Error('黒工祭の復元用ファイル（64KB以下）を選んでください');
+  let data;try{data=JSON.parse(await file.text());}catch(e){throw new Error('復元用ファイルを読めませんでした');}
+  if(!data||data.format!=='kuroko-stamp-backup'||data.version!==1||typeof data.sid!=='string'||!/^[0-9A-Za-z]{6,40}$/.test(data.sid)||!Array.isArray(data.stamps)||!Array.isArray(data.spent))throw new Error('黒工祭の復元用ファイルではありません');
+  for(const list of [data.stamps,data.spent])if(list.length>300||list.some(id=>typeof id!=='string'||!/^[0-9A-Za-z_-]{1,24}$/.test(id)))throw new Error('復元用ファイルのスタンプ情報が正しくありません');
+  pullStamps();const prev=loadStr('kuroko_sid');
+  if(prev&&prev!==data.sid&&(S.stamps.size||S.spent.length))store('kuroko_join_from',prev);
+  store('kuroko_sid',data.sid);STAMP_VAULT.hadIdentity=true;pullLedger._emptySid=null;
+  const clean=cleanStampValues({kuroko_stamp_at:data.at});store('kuroko_stamp_at',Object.assign({},clean.kuroko_stamp_at,stampAt()));
+  absorbLedger({cid:data.sid,stamps:data.stamps,spent:data.spent});
+  store('kuroko_stamps_v2',Array.from(S.stamps));store('kuroko_spent_v1',S.spent);store('kuroko_migrated',1);store('kuroko_pushed_fp','');
+  await checkpointStamps();renderAll();scheduleLedgerPush(0);pullLedger(true);
+  return `スタンプ${S.stamps.size}個を戻しました（番号 ${sidLabel()}）。当たり券・交換状況は通信で確認します。`;
+}
+
 /** サーバーの台帳を読む */
 async function fetchLedger(sid){
   const url = CONFIG.GAS_URL + (CONFIG.GAS_URL.includes('?') ? '&' : '?') + 'ledger=' + encodeURIComponent(sid) + '&_=' + Date.now();
@@ -11039,9 +11304,9 @@ window.addEventListener('pageshow', () => { refreshStampsFromDisk(); if (pullWis
 window.addEventListener('focus', () => { refreshStampsFromDisk(); if (pullWish()) renderWishAll(); pullLedger(3000); });
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden){ beaconLedger._sent = false; refreshStampsFromDisk(); pullLedger(3000); return; }
-  beaconLedger();
+  checkpointStamps();beaconLedger();
 });
-window.addEventListener('pagehide', beaconLedger);
+window.addEventListener('pagehide', () => {checkpointStamps();beaconLedger();});
 /**
  * 画面を閉じる・アプリを切り替える瞬間に、まだ送れていない分を送る。
  * QRを読んで数秒で閉じる人が多い。fetch は閉じると打ち切られるので sendBeacon を使う
@@ -11050,7 +11315,7 @@ window.addEventListener('pagehide', beaconLedger);
 function beaconLedger(){
   try{
     if (document.hidden && beaconLedger._sent) return;              // 隠れるたびに1回まで
-    if (flushLedger._on || flushLedger._old || Date.now() < (flushLedger._nextAt || 0)) return;
+    if (flushLedger._old || Date.now() < (flushLedger._nextAt || 0)) return; // 通信中でも閉じる直前は控えを送る。台帳は重複を除く
     pullStamps();
     if (!S.stamps.size && !S.spent.length) return;
     if (load('kuroko_pushed_fp', '') === ledgerFp()) return;
@@ -11082,7 +11347,7 @@ function earnStamp(id){
   if (S.stamps.has(id)) return false;
   // 端末の空き容量が減ったときに、ブラウザがこのサイトの保存を勝手に消さないよう頼んでおく
   // （対応していない端末では何も起きない。許可を求める画面も出ない）
-  try{ if (navigator.storage && navigator.storage.persist && !earnStamp._p){ earnStamp._p = 1; navigator.storage.persist(); } }catch(e){}
+  try{ if (navigator.storage && navigator.storage.persist && !earnStamp._p){ earnStamp._p = 1; navigator.storage.persist().catch(()=>{}); } }catch(e){}
   S.justStamp = id;
   setTimeout(() => { S.justStamp = null; }, 1200);
   S.stamps.add(id);
@@ -11090,7 +11355,7 @@ function earnStamp(id){
   scheduleLedgerPush(250);                       // サーバーの台帳にもすぐ送る（別のアプリで開いても残る）
   if (!store('kuroko_stamps_v2', Array.from(S.stamps))){
     // 画面を開いている間は有効。閉じると消えることを正直に伝える
-    setTimeout(() => toast('この端末に保存できません（プライベートモードか空き容量不足）。画面を閉じるとスタンプが消えます'), 1800);
+    checkpointStamps().then(ok=>{if(!ok)setTimeout(()=>toast('端末への保存を確認できません。復元用ファイルを保存し、通常のSafari・Chromeで開いてください',null,8000),1800);});
   }
   renderList(); renderStamps(); recommend(); drawFloor(S.floor);
   if (S.sheetId) renderSheet();
@@ -11222,11 +11487,11 @@ function showStampFx(id, fresh){
     const kicker = !fresh ? 'このブースはスタンプ済みです'
       : done ? '全ブース制覇！'
       : got === 1 ? 'はじめてのスタンプ！'
-      : left >= need && left - 1 < need ? 'お菓子と交換できます！'
+      : left >= need && left - 1 < need ? (CONFIG.RALLY_ENABLED ? 'お楽しみ抽選に参加できます！' : 'お菓子と交換できます！')
       : total && got === Math.ceil(total / 2) ? 'ちょうど半分！'
       : (() => { const a = stampRank(got - 1, total), b2 = stampRank(got, total); return fresh && a && b2 && a.name !== b2.name; })() ? `称号「${stampRank(got, total).name}」になりました！`
       : L.shiny ? 'キラスタンプ！' : 'スタンプ獲得！';
-    const goal = done ? 'すべてのブースを回りました。おめでとうございます！'
+    const goal = CONFIG.RALLY_ENABLED ? (got>=46 ? '全46ブース制覇！ スタンプ画面で自分だけのプリクラを撮れます。' : `7個ごとにお菓子抽選！ スタンプ画面から挑戦できます。`) : done ? 'すべてのブースを回りました。おめでとうございます！'
       : left >= need ? `スタンプ${need}個でお菓子1個と交換できます。受付で係の人に見せてください`
       : `あと${need - left}個でお菓子と交換できます`;
     // 次に行く先：まだ行っていない空いているブースのうち、ここからいちばん近いもの（v158：同じ階の先頭から距離順へ）
@@ -11250,7 +11515,7 @@ function showStampFx(id, fresh){
         ${luckyHere ? '<p class="sfx-lucky">ラッキーブースでスタンプ！</p>' : ''}
         ${!fresh && stampAt()[id] ? `<p class="sfx-note">${new Date(stampAt()[id]).toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' })} に押しています</p>` : ''}
         <div class="sfx-acts">
-          ${left >= need && !done ? '<button class="btn" data-fx="redeem">お菓子と交換する</button>' : ''}
+          ${left >= need && !done ? `<button class="btn" data-fx="redeem">${CONFIG.RALLY_ENABLED ? '抽選・報酬を見る' : 'お菓子と交換する'}</button>` : ''}
           <button class="btn${left >= need && !done ? ' ghost' : ''}" data-fx="book">スタンプ帳を見る</button>
           <button class="btn ghost" data-fx="scan">続けてQRを読む</button>
           ${fresh && got <= 2 && window.__bip ? '<button class="btn ghost" data-fx="a2hs">ホーム画面に追加する（次からすぐ開ける）</button>' : ''}
@@ -11273,7 +11538,7 @@ function showStampFx(id, fresh){
     if (sc) sc.addEventListener('click', () => { close(); setTimeout(() => openScanner(), 60); });
     // v172：交換できるなら、その場で交換の画面へ
     const rd = el.querySelector('[data-fx="redeem"]');
-    if (rd) rd.addEventListener('click', () => { close(); switchView('stamp'); setTimeout(() => { const o = $('#redeem-open'); if (o && !o.classList.contains('hide')) o.click(); }, 120); });
+    if (rd) rd.addEventListener('click', () => { close(); switchView('stamp'); setTimeout(() => { if(CONFIG.RALLY_ENABLED){ $('#rally-card').scrollIntoView({behavior:smoothBehavior(),block:'start'}); return; } const o = $('#redeem-open'); if (o && !o.classList.contains('hide')) o.click(); }, 120); });
     // v172：静かな場所ではその場で音を止められる（インフォの設定と同じ）
     const sd = el.querySelector('[data-fx="snd"]');
     if (sd) sd.addEventListener('click', () => {
@@ -11360,6 +11625,213 @@ function stampRank(got, total){
   return RANKS.find(x => r >= x.at - 1e-9) || null;
 }
 
+
+/* v245：抽選結果・当たり券はサーバーを正とする。端末の保存やスクショだけでは交換を確定しない。 */
+const RALLY = { cid:'', state:null, busy:false, error:'' };
+const RALLY_CARDS = {
+  complete:{ title:'黒工マスター' ,mark:'crown', text:'全46ブース制覇、おめでとう！！',color:'#991b1b' },
+  miss:{ title:'次の7個で、また挑戦！',mark:'walk',text:'まだまだ文化祭を楽しもう！',color:'#1e3a8a' },
+  candy:{ title:'黒工祭ラリー達成', mark:'pack', text:'7つの出会いを集めた、今日の記念に。', color:'#991b1b' },
+  explorer:{ title:'黒工探検隊', mark:'walk', text:'気になる場所へ、一歩ずつ。', color:'#14532d' },
+  maker:{ title:'ものづくり発見隊', mark:'star', text:'ひらめきと技術に出会った一日。', color:'#1e3a8a' },
+  festival:{ title:'文化祭エンジョイ隊', mark:'flame', text:'今日の「楽しかった！」を持ち帰ろう。', color:'#7c2d12' }
+};
+function rallyEntries(){ return RALLY.cid === stampId() && RALLY.state ? RALLY.state.entries : []; }
+function rallyTicket(){ return rallyEntries().find(e => e.result === 'candy' && !e.claimedAt); }
+function takeRally(state, cid){
+  cid = cid || stampId();
+  if (cid !== stampId() || !state || !Array.isArray(state.entries)) return;
+  const prev = RALLY.cid === cid && RALLY.state ? RALLY.state.entries : [];
+  const all = new Map(prev.map(e => [e.ticket, e]));
+  state.entries.forEach(e => {
+    if (!e || typeof e.ticket !== 'string' || !RALLY_CARDS[e.result]) return;
+    const old=all.get(e.ticket);
+    all.set(e.ticket, { ticket:e.ticket, result:e.result, claimedAt:old && old.claimedAt || e.claimedAt || '', art:String(e.art||''), serial:Number(e.serial)||0, stamps:Array.isArray(e.stamps)?e.stamps.filter(id=>typeof id==='string'):[] });
+  });
+  RALLY.cid=cid; RALLY.state={ entries:Array.from(all.values()), stock:state.stock || (RALLY.state && RALLY.state.stock) };
+  renderRally();
+}
+function rallyReady(){ return !!(S.serverVersion && S.serverVersion >= CONFIG.RALLY_MIN); }
+function rallyGot(){ return S.booths.filter(b => S.stamps.has(b.id)).length; }
+function rallyDraws(){return rallyEntries().filter(e=>e.result!=='complete');}
+function rallyComplete(){return rallyEntries().find(e=>e.result==='complete');}
+function renderRally(){
+  if(!CONFIG.RALLY_ENABLED){$('#rally-card').classList.add('hide');return;}
+  $('#rally-card').classList.remove('hide');
+  const got=rallyGot(), draws=rallyDraws(), ticket=rallyTicket(), completed=rallyComplete();
+  const tickets=rallyEntries().filter(e=>e.result==='candy'&&!e.claimedAt), given=rallyEntries().filter(e=>e.result==='candy'&&e.claimedAt).length;
+  const ended=RALLY.cid===stampId()&&RALLY.state&&RALLY.state.stock&&RALLY.state.stock.remaining===0;
+  const next=(draws.length+1)*7, ready=rallyReady(), box=$('#rally-result'), draw=$('#rally-draw'), save=$('#rally-save'), complete=$('#rally-complete');
+  let html;
+  if(ticket) html=`<p class="rally-kicker">お菓子の当たり！</p><span class="rally-emblem">${mark('pack')}</span><h3>お菓子${tickets.length}個を確保しています！</h3><p>受付の係員にこの画面を見せて、下のボタンから交換してください。${ended?'お菓子抽選は終了しましたが、この当たり券は交換できます。':''}</p>`;
+  else if(ended) html='<p class="rally-kicker">お菓子抽選は終了しました</p><h3>500個の当たりが出ました！</h3><p>たくさん遊んでくれてありがとう！！ 46個制覇のプリクラには引き続き挑戦できます。</p>';
+  else if(draws.length) html=`<p class="rally-kicker">${draws.slice(-1)[0].result==='miss'?'今回は、はずれ！':'お菓子は交換済みです'}</p><h3>${draws.length>=6?'6回すべて参加しました！':got>=next?'次のお菓子抽選に挑戦できます！':`次の抽選まで あと${next-got}個`}</h3><p>抽選 ${draws.length} / 6回。${got<46?'46個制覇で、自分だけの全制覇プリクラも作れます！':'全46ブース制覇、おめでとう！！'}</p>`;
+  else html=`<p class="rally-kicker">7個ごとにお菓子抽選！</p><h3>${got>=7?'抽選に参加できます！':`抽選まで あと${7-got}個`}</h3><p>お菓子の当たりは合計500個まで。はずれても次の7個で再挑戦！</p>`;
+  if(box.innerHTML!==html) box.innerHTML=html;
+  box.dataset.result=ticket?'candy':ended?'ended':draws.length?'miss':'ready';
+  draw.disabled=RALLY.busy||got<next||!ready||navigator.onLine===false||ended||draws.length>=6;
+  draw.textContent=RALLY.busy?'確認しています…':ended?'お菓子抽選は終了しました':draws.length>=6?'6回すべて参加しました':navigator.onLine===false?'つながってから抽選できます':!ready?'抽選サーバーの準備を確認中…':got<next?`あと${next-got}個で次の抽選！`:`お菓子抽選をする！（${draws.length+1}回目）`;
+  complete.classList.toggle('hide',got<46||!!completed);complete.disabled=RALLY.busy||!ready||navigator.onLine===false;
+  save.classList.toggle('hide',!completed);save.disabled=RALLY.busy;
+  const er=$('#rally-error');er.classList.toggle('hide',!RALLY.error);er.textContent=RALLY.error;
+  $('#redeem-card').classList.toggle('hide',!ticket&&!given);$('#stamp-tally').classList.add('hide');
+  $('#redeem-msg').textContent=ticket?'係員に今の4桁を入力してもらって、当たり券1枚をお菓子1個と交換してください。':'お菓子を受け取りました。ありがとうございました！';
+  const open=$('#redeem-open');open.disabled=!ticket||RALLY.busy||!ready||navigator.onLine===false;
+  open.textContent=navigator.onLine===false?'交換にはインターネット接続が必要です':'お菓子と交換する';
+  open.classList.toggle('hide',!ticket||!$('#redeem-pad').classList.contains('hide'));
+  const log=$('#redeem-log');log.classList.toggle('hide',!given);log.textContent=`お菓子${given}個を交換済みです`;
+  if(!ticket){$('#redeem-pad').classList.add('hide');$('#staff-code').value='';}
+}
+function renderRallySummary(got,ws){
+  renderRally();const pending=rallyTicket(),next=(rallyDraws().length+1)*7;
+  const ended=RALLY.cid===stampId()&&RALLY.state&&RALLY.state.stock&&RALLY.state.stock.remaining===0;
+  const ready=!ws&&got>=next&&next<=42&&!ended;
+  const box=$('#stamp-prize');
+  let html=`<div class="prize-row">${prizeMeter(Math.min(got%7||got&&7,7),7)}<span class="prize-tx">${pending?'お菓子の当たりがあります！':got>=46?'全46ブース制覇！ 自分だけのプリクラへ':ended?'お菓子抽選は終了しました':ready?'7個達成！ お菓子抽選へ':next>42?'全制覇プリクラまで あと'+(46-got)+'個':`次の抽選まで あと <b>${next-got}個</b>`}</span></div><button type="button" class="prize-go" id="rally-prize-go">抽選・全制覇プリクラを見る</button>`;
+  if(got===0)html='<ol class="prize-steps"><li>ブース入口のQRを読む</li><li>7個ごとにお菓子抽選に参加する</li><li>46個集めて全制覇プリクラを撮る</li></ol>'+html;
+  if(box.innerHTML!==html){box.innerHTML=html;$('#rally-prize-go').addEventListener('click',()=>{$('#rally-card').scrollIntoView({behavior:smoothBehavior(),block:'start'});$('#rally-result').focus({preventScroll:true});});}
+  box.classList.toggle('ready',!!pending||ready||got>=46);
+  const tab=$('#nav button[data-view="stamp"]');let bd=tab.querySelector('.nav-badge');
+  if((pending||ready)&&!bd){bd=document.createElement('span');bd.className='nav-badge';tab.appendChild(bd);}
+  if(bd){if(pending||ready)bd.textContent='1';else bd.remove();}
+  tab.setAttribute('aria-label',pending?'スタンプ（お菓子の当たりがあります）':ready?'スタンプ（抽選できます）':'スタンプ');
+}
+async function completeRally(){
+  if(RALLY.busy||rallyGot()<46||!rallyReady())return;
+  const cid=stampId();RALLY.busy=true;RALLY.error='';renderRally();
+  try{
+    const body={action:'rally_complete',cid,ev:ledgerEvents()},from=loadStr('kuroko_join_from');if(from&&from!==cid)body.from=from;
+    const r=await api({body,timeout:20000});if(stampId()!==cid)throw new Error('changed');
+    adoptServerCid(r);takeRally(r.rally,r.cid);if(!rallyComplete())throw new Error('not complete');
+  }catch(e){RALLY.error='全制覇を確認できませんでした。通信を確認して、もう一度お試しください。';}
+  finally{RALLY.busy=false;renderStamps();}
+  if(rallyComplete())openRallyPhoto();
+}
+async function drawRally(){
+  pullStamps();
+  const done=rallyDraws().length,ended=RALLY.cid===stampId()&&RALLY.state&&RALLY.state.stock&&RALLY.state.stock.remaining===0;
+  if(RALLY.busy || done>=6 || rallyGot()<(done+1)*7 || !rallyReady() || navigator.onLine===false || ended) return;
+  RALLY.busy=true; RALLY.error=''; renderRally();
+  const cid=stampId();
+  try{
+    if(!store('kuroko_sid',cid)&&!await checkpointStamps()) throw new Error('この端末に保存できません。通常のブラウザで開いてください');
+    const body={action:'rally_draw',cid,attempt:rallyDraws().length+1,ev:ledgerEvents()};
+    const from=loadStr('kuroko_join_from'); if(from && from!==cid) body.from=from;
+    const r=await api({body,timeout:20000});
+    if(stampId()!==cid) throw new Error('スタンプ番号が変わりました。もう一度お試しください');
+    if(!r || !r.rally || !Array.isArray(r.rally.entries) || (!r.rally.entries.length&&!r.ended)) throw new Error('結果を受け取れませんでした');
+    adoptServerCid(r); takeRally(r.rally,r.cid);
+    if(!r.ended&&!r.duplicate){ const win=rallyDraws().slice(-1)[0]; ding(win&&win.result==='candy'?'prize':'stamp'); if(win&&win.result==='candy'&&!REDUCE_MOTION.matches)confetti(); }
+  }catch(e){ RALLY.error='結果を確認できませんでした。通信を確認して、もう一度お試しください。同じ番号で押し直しても引き直しにはなりません。'; }
+  finally{ RALLY.busy=false; renderStamps(); }
+  if(rallyEntries().length) $('#rally-result').focus({preventScroll:false});
+}
+async function redeemRally(){
+  if(RALLY.busy) return;
+  const ticket=rallyTicket(); if(!ticket) return;
+  const cid=stampId(), button=$('#redeem-ok'), err=$('#redeem-err');
+  RALLY.busy=true; const label=button.textContent; button.disabled=true; button.textContent='確認中…'; err.classList.add('hide');
+  try{
+    const r=await api({body:{action:'rally_redeem',cid,ticket:ticket.ticket,code:$('#staff-code').value},timeout:20000});
+    if(stampId()!==cid) throw new Error('スタンプ番号が変わりました');
+    if(!r || !r.rally || !r.rally.entries.some(e=>e.ticket===ticket.ticket && e.claimedAt)) throw new Error('交換の確認ができませんでした');
+    takeRally(r.rally,r.cid); $('#redeem-pad').classList.add('hide'); $('#staff-code').value='';
+    renderStamps();
+    if(r.duplicate) toast('この当たり券には交換の記録があります。係員はお渡し済みか確認し、重ねて渡さないでください',{},8000);
+    else { ding('done'); showPrizeFx(1,false); }
+  }catch(e){ err.textContent='交換を確認できませんでした。お菓子はまだ渡さず、通信を確認してもう一度押してください。'; err.classList.remove('hide'); }
+  finally{ RALLY.busy=false; button.disabled=false; button.textContent=label; renderRally(); }
+}
+
+
+/* 全制覇の確認後だけ開く。写真・動画は端末内のCanvasへ描き、通信するのは獲得記録だけ。 */
+const RALLY_PHOTO={stream:null,entry:null,ready:false,starting:false};
+function stopRallyCamera(){
+  if(RALLY_PHOTO.stream){RALLY_PHOTO.stream.getTracks().forEach(t=>t.stop());RALLY_PHOTO.stream=null;}
+  const v=$('#rally-photo-video');if(v){v.pause();v.srcObject=null;v.classList.add('hide');}
+}
+function openRallyPhoto(demo){
+  const preview=demo===true&&ownToken()&&OWN.state;
+  const entry=preview?{demo:true,result:'complete',art:'preview-'+Date.now(),serial:0,stamps:S.booths.map(b=>b.id)}:rallyComplete();if(!entry)return;
+  $('#rally-photo-title').textContent=preview?'全制覇プリクラ（テスト表示）':'全制覇プリクラ！';
+  stopRallyCamera();
+  RALLY_PHOTO.entry=entry;RALLY_PHOTO.ready=false;
+  $('#rally-photo-hint').classList.remove('hide');$('#rally-photo-canvas').classList.add('hide');
+  ['capture','save','retake','error'].forEach(k=>$('#rally-photo-'+k).classList.add('hide'));
+  $('#rally-photo-start').classList.remove('hide');$('#rally-photo-file').value='';
+  if(!$('#rally-photo').open)$('#rally-photo').showModal();$('#rally-photo').scrollTop=0;$('#rally-photo-title').classList.toggle('quiet',!KEY_USER.on);$('#rally-photo-title').focus({preventScroll:true});
+}
+async function startRallyCamera(){
+  if(!RALLY_PHOTO.entry||RALLY_PHOTO.starting)return;
+  const btn=$('#rally-photo-start'),err=$('#rally-photo-error');RALLY_PHOTO.starting=true;btn.disabled=true;btn.textContent='カメラを確認しています…';err.classList.add('hide');
+  try{
+    stopRallyCamera();
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('camera');
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:1280}},audio:false});
+    if(!$('#rally-photo').open){stream.getTracks().forEach(t=>t.stop());return;}
+    RALLY_PHOTO.stream=stream;const v=$('#rally-photo-video');v.srcObject=stream;await v.play();
+    const blank=document.createElement('canvas');blank.width=blank.height=2;const frame=rallyPhotoCanvas(RALLY_PHOTO.entry,blank,false);$('#rally-photo-canvas').getContext('2d').drawImage(frame,0,0);$('#rally-photo-canvas').classList.remove('hide');
+    v.classList.remove('hide');$('#rally-photo-hint').classList.add('hide');
+    $('#rally-photo-capture').classList.remove('hide');$('#rally-photo-save').classList.add('hide');btn.classList.add('hide');
+  }catch(e){err.textContent='カメラを使えませんでした。カメラの許可を確認するか、「写真を1枚選んで作る」を使ってね。';err.classList.remove('hide');}
+  finally{RALLY_PHOTO.starting=false;btn.disabled=false;btn.textContent='カメラを起動する';}
+}
+function rallyPhotoCanvas(entry,source,mirror){
+  const cv=document.createElement('canvas');cv.width=1080;cv.height=1440;
+  const g=cv.getContext('2d'),F=(px,w=800)=>`${w} ${px}px "Hiragino Kaku Gothic ProN","Noto Sans CJK JP",sans-serif`;
+  let n=hash32(entry.art+'|'+entry.serial);const random=()=>{n=(Math.imul(n,1664525)+1013904223)>>>0;return n/4294967296;};
+  const hue=Math.floor(random()*360),accent=`hsl(${hue} 65% 27%)`,pale=`hsl(${hue} 55% 94%)`;
+  g.fillStyle=pale;g.fillRect(0,0,1080,1440);g.fillStyle=accent;g.fillRect(0,0,1080,218);
+  g.fillStyle='#fff';g.font=F(30);g.fillText('KUROKO FESTIVAL 2026',64,76);g.font=F(78,900);g.fillText('全46ブース制覇！',64,176);
+  const x=76,y=266,w=928,height=920,sw=source.videoWidth||source.naturalWidth||source.width,sh=source.videoHeight||source.naturalHeight||source.height;
+  if(!sw||!sh)throw new Error('写真をまだ読み込めていません');
+  const scale=Math.max(w/sw,height/sh),cw=w/scale,ch=height/scale;
+  g.save();g.beginPath();g.roundRect(x,y,w,height,22);g.clip();
+  if(mirror){g.translate(x+w,y);g.scale(-1,1);}else g.translate(x,y);
+  g.drawImage(source,(sw-cw)/2,(sh-ch)/2,cw,ch,0,0,w,height);g.restore();
+  // 46個の回路模様。位置とつながりは一人ごとの種から決め、顔に重ならない枠の中に描く。
+  g.strokeStyle=accent;g.fillStyle=accent;g.lineWidth=3;
+  for(let i=0;i<46;i++){
+    const left=i<23,yy=284+(i%23)*39,xx=left?32+random()*24:1024+random()*24;
+    g.beginPath();g.arc(xx,yy,3+random()*3,0,Math.PI*2);g.fill();
+    g.beginPath();g.moveTo(xx,yy);g.lineTo(left?64:1016,yy);g.lineTo(left?64:1016,yy+12+random()*18);g.stroke();
+  }
+  g.fillStyle=accent;g.textAlign='center';g.font=F(46,900);g.fillText('黒工マスター',540,1264);
+  g.font=F(29);g.fillText('最高の1日をありがとう！！',540,1320);
+  g.fillStyle='#344054';g.font=F(24,700);g.fillText(entry.demo?'TEST PREVIEW / 記念撮影の見本':`MEMORY No. ${String(entry.serial).padStart(6,'0')}  /  ONLY YOUR FESTIVAL`,540,1372);
+  g.font=F(17,600);g.fillText('記念用の画像です。お菓子の当たり券には使えません。',540,1410);
+  return cv;
+}
+function frameRallyPhoto(source,mirror){
+  const photo=rallyPhotoCanvas(RALLY_PHOTO.entry,source,mirror),cv=$('#rally-photo-canvas');
+  cv.getContext('2d').drawImage(photo,0,0);RALLY_PHOTO.ready=true;
+  stopRallyCamera();$('#rally-photo-hint').classList.add('hide');cv.classList.remove('hide');
+  $('#rally-photo-capture').classList.add('hide');$('#rally-photo-start').classList.add('hide');
+  $('#rally-photo-save').classList.remove('hide');$('#rally-photo-retake').classList.remove('hide');
+}
+async function chooseRallyPhoto(){
+  const file=$('#rally-photo-file').files[0];if(!file||!RALLY_PHOTO.entry)return;
+  const err=$('#rally-photo-error');err.classList.add('hide');
+  if(file.size>20*1024*1024){err.textContent='20MB以下の写真を選んでね。';err.classList.remove('hide');return;}
+  try{
+    // 写真選択後のblob URLが読めないWebKit環境でも、端末内のFileReaderで読み込めるようにする。
+    const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reader.onabort=reject;reader.readAsDataURL(file);});
+    const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=data;});
+    if($('#rally-photo').open)frameRallyPhoto(img,false);
+  }catch(e){err.textContent='写真を読み込めませんでした。JPEGまたはPNGの写真で試してね。';err.classList.remove('hide');}
+}
+async function saveRallyPhoto(){
+  if(!RALLY_PHOTO.ready||saveRallyPhoto.busy)return;
+  saveRallyPhoto.busy=true;const button=$('#rally-photo-save');button.disabled=true;
+  try{
+    const blob=await new Promise(resolve=>$('#rally-photo-canvas').toBlob(resolve,'image/png'));if(!blob)throw new Error('image');
+    const file=new File([blob],RALLY_PHOTO.entry.demo?'kuroko-preview.png':`kuroko-complete-${String(RALLY_PHOTO.entry.serial).padStart(6,'0')}.png`,{type:'image/png'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:'全46ブース制覇！'});return;}catch(e){if(e.name==='AbortError')return;}}
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);toast('全制覇プリクラを保存しました！');
+  }catch(e){$('#rally-photo-error').textContent='保存できませんでした。もう一度お試しください。';$('#rally-photo-error').classList.remove('hide');}
+  finally{saveRallyPhoto.busy=false;button.disabled=false;}
+}
+
 /**
  * 引換確認コードの表示だけを更新する。
  * 一覧を描き直すとスクロールとフォーカスが飛ぶので、数字だけ差し替える。
@@ -11391,6 +11863,7 @@ function codeClock(){
  * 交換の条件（PRIZE_COST・消費方式）は変えない。表示だけ
  */
 function renderPrize(got, left, need, canGet, ws){
+  if (CONFIG.RALLY_ENABLED) return renderRallySummary(got, ws);
   const box = $('#stamp-prize');
   if (box){
     const fp = [got, left, need, canGet, ws || ''].join('|');
@@ -11459,6 +11932,7 @@ function renderStampLog(){
 }
 
 function renderStamps(){
+  if(!CONFIG.RALLY_ENABLED){$('#rally-card').classList.add('hide');$('#stamp-tally').classList.remove('hide');$('#redeem-card').classList.remove('hide');$('#redeem-open').classList.toggle('hide',!$('#redeem-pad').classList.contains('hide'));}
   const total = S.booths.length;
   // v203：ブースの一覧がまだ届いていないあいだ（はじめて開いた・電波が弱い）。持っているスタンプの数はこの端末にあるので、それを出す。
   // 以前は、一覧が届くまで「0 / 0 ブース」と空の枠が出ていた
@@ -11522,20 +11996,15 @@ function renderStamps(){
   const spentN = S.spent.length;
   const left = ws ? (() => { const sp = new Set(S.spent); return Array.from(S.stamps).filter(id => !sp.has(id)).length; })() : stampsLeft();
   const tally = $('#stamp-tally');
+  if (CONFIG.RALLY_ENABLED){
+    renderRallySummary(got,ws);
+  } else {
   if (tally) tally.innerHTML =
     `<div class="${left >= need ? 'ok' : ''}"><b>${left}</b><span>使えるスタンプ</span></div>` +
     `<div class="${spentN ? 'used' : ''}"><b>${spentN}</b><span>交換済み</span></div>`;
 
   const canGet = ws ? 0 : Math.floor(left / need);        // 一覧が届くまでは交換に進ませない（どのスタンプを使うかを決められない）
   renderPrize(got, left, need, canGet, ws);
-  // v159：★行きたい のうち何件回ったか
-  const wp = $('#stamp-wish');
-  if (wp){
-    const ws = S.booths.filter(b => S.wish.has(b.id));
-    const wd = ws.filter(b => S.stamps.has(b.id)).length;
-    wp.classList.toggle('hide', !ws.length);
-    wp.textContent = ws.length ? (wd >= ws.length ? `★行きたい ${ws.length}件 ぜんぶ回りました！` : `★行きたい ${ws.length}件のうち ${wd}件回りました`) : '';
-  }
   const msg = $('#redeem-msg'), open = $('#redeem-open'), log = $('#redeem-log');
   // 「あと◯個」は下のボタンにも出る。説明文とボタンで同じことを二度言わない
   if (msg){
@@ -11559,6 +12028,17 @@ function renderStamps(){
   if (log){
     log.classList.toggle('hide', !spentN);
     log.textContent = `これまでにスタンプ${spentN}個分（お菓子${Math.floor(spentN / need)}個）を交換しました`;
+  }
+
+  }
+
+  // v159：★行きたい のうち何件回ったか
+  const wp = $('#stamp-wish');
+  if (wp){
+    const ws = S.booths.filter(b => S.wish.has(b.id));
+    const wd = ws.filter(b => S.stamps.has(b.id)).length;
+    wp.classList.toggle('hide', !ws.length);
+    wp.textContent = ws.length ? (wd >= ws.length ? `★行きたい ${ws.length}件 ぜんぶ回りました！` : `★行きたい ${ws.length}件のうち ${wd}件回りました`) : '';
   }
 
   const spentSet = new Set(S.spent);
@@ -11838,21 +12318,21 @@ window.addEventListener('pagehide', () => {
  * @param {number} n 使ったスタンプの数
  * @param {boolean} later 通信できなかったので、控えはあとでサーバーへ送る
  */
-function showPrizeFx(n, later){
+function showPrizeFx(n, later, preview){
   const old = $('#pfx'); if (old) old.remove();
   const el = document.createElement('div');
   el.id = 'pfx'; el.className = 'sfx pfx first fresh';
-  el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'お菓子と交換しました');
+  el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', preview ? '交換完了のテスト表示' : 'お菓子と交換しました');
   const left = stampsLeft(), need = Math.max(1, CONFIG.PRIZE_COST | 0);
   const at = new Date().toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' });
   el.innerHTML = `
     <div class="sfx-card pfx-card">
-      <p class="sfx-kicker">交換しました</p>
+      <p class="sfx-kicker">${preview ? 'テスト表示・交換は行っていません' : '交換しました'}</p>
       <div class="pfx-gift" aria-hidden="true"><svg viewBox="0 0 96 96" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
         <rect x="14" y="40" width="68" height="42" rx="6"/><rect x="9" y="27" width="78" height="15" rx="5"/><path d="M48 27v55"/>
         <path d="M48 27c-6-14-24-14-22-3 1 5 9 5 22 3zM48 27c6-14 24-14 22-3-1 5-9 5-22 3z"/></svg><i></i></div>
-      <h2 class="sfx-name">お菓子を1個 受け取ってください</h2>
-      <p class="sfx-goal">スタンプ${n}個分を使いました（${esc(at)}）。<br>${left >= need ? `まだ ${Math.floor(left / need)}個 交換できます` : `次のお菓子まで あと${need - left % need}個です`}</p>
+      <h2 class="sfx-name">${preview ? '交換完了の演出です（見本）' : 'お菓子を1個 受け取ってください'}</h2>
+      <p class="sfx-goal">${CONFIG.RALLY_ENABLED ? `当たり券1枚を交換済みにしました（${esc(at)}）。<br>スタンプと記念カードはそのまま残ります。` : `スタンプ${n}個分を使いました（${esc(at)}）。<br>${left >= need ? `まだ ${Math.floor(left / need)}個 交換できます` : `次のお菓子まで あと${need - left % need}個です`}`}</p>
       ${later ? '<p class="sfx-note">通信できなかったので、この端末に記録しました。つながったときに自動で送ります</p>' : ''}
       <div class="sfx-acts"><button class="btn" data-fx="close">とじる</button></div>
     </div>`;
@@ -13106,10 +13586,10 @@ function remindPrize(){
     const d = new Date(), cur = d.getHours() * 60 + d.getMinutes(), close = hmMin(st.day.close);
     if (close == null || close - cur > 45 || close - cur < 0) return;
     const need = Math.max(1, CONFIG.PRIZE_COST | 0);
-    if (stampsLeft() < need) return;
+    if (CONFIG.RALLY_ENABLED ? !rallyTicket() : stampsLeft() < need) return;
     if (loadStr('kuroko_prize_remind') === ymd(d)) return;
     store('kuroko_prize_remind', ymd(d));
-    toast(`本日は ${st.day.close} までです。お菓子と交換できるスタンプがあります（スタンプ画面の「お菓子と交換する」）`,
+    toast(CONFIG.RALLY_ENABLED ? `本日は ${st.day.close} までです。お菓子の当たり券があります。受付で交換をお願いします！` : `本日は ${st.day.close} までです。お菓子と交換できるスタンプがあります（スタンプ画面の「お菓子と交換する」）`,
       { label:'スタンプを見る', fn: () => switchView('stamp') }, 10000);
   }catch(e){}
 }
@@ -13520,6 +14000,23 @@ function ownDropIfExpired(e){
 }
 
 /** 司令塔の画面を描く（入口か、中か） */
+
+function previewOwnerEffect(kind){
+  if(!(ownToken()&&OWN.state))return;
+  if(kind==='photo'){openRallyPhoto(true);return;}
+  if(kind==='redeem'){showPrizeFx(1,false,true);return;}
+  const titles={win:'お菓子の当たり！',miss:'今回は、はずれ！',end:'お菓子抽選は終了しました',stamp:'スタンプ獲得！',shiny:'キラスタンプ！',complete:'全46ブース制覇！',lucky:'ラッキーブースでスタンプ！',party:'黒工祭へようこそ！！',calm:'本部からのお知らせ'};
+  const notes={win:'当たり券を受付でお菓子1個と交換します。',miss:'新しく7個集めると、次の抽選に挑戦できます。',end:'500個の当たりが出ました。発行済みの券は交換できます。',complete:'全制覇プリクラが解放されます。',lucky:'いまおすすめのブースでスタンプを集めました。'};
+  showLiveFx(kind==='win'?'win':'show',titles[kind]||'演出の確認',(notes[kind]||'当日の画面・動きの見本です。')+'（テスト表示：実際の記録・在庫は変わりません）',true,['miss','end','calm'].includes(kind)?'calm':'party');
+  const fx=$('#lfx');if(!fx)return;
+  const banner=document.createElement('p');banner.className='effect-test-banner';banner.textContent='テスト表示・この端末だけの見本です';fx.querySelector('.lfx-card').prepend(banner);
+  if(kind==='stamp'||kind==='shiny'){
+    const booth=S.booths.find(b=>kind!=='shiny'||stampLook(b.id).shiny)||S.booths[0];
+    if(booth){const burst=fx.querySelector('.lfx-burst');burst.innerHTML=stampArt(booth.id,160);burst.classList.add('sfx-stamp','slam');}
+  }
+  if(kind==='complete'){fx.querySelector('.lfx-burst').innerHTML=mark('crown');confetti();}
+}
+
 function renderOwner(){
   const gate = $('#own-gate'), main = $('#own-main');
   if (!gate || !main) return;
@@ -13529,6 +14026,8 @@ function renderOwner(){
   clearTimeout(OWN.timer);
   if (!inside){ OWN._wait = null; OWN._st = null; OWN._devHtml = OWN._keyHtml = null; OWN.tab = null; renderOwnerGate(); return; }
   const st = OWN.state;
+  const rs=$('#own-rally-stock'), stock=st.rally;
+  if(rs) rs.textContent=stock ? `あと ${stock.remaining}個 当たりを出せます ／ 上限${stock.limit}個（未交換の当たり${stock.held}個・交換済み${stock.given}個）` : '抽選サーバーの更新後に残りを表示します';
   // v219：5枚のタブ。前に開いていた所から（このタブの中だけ覚える）
   if (!OWN.tab){ let t0 = 'home'; try{ t0 = sessionStorage.getItem('kuroko_own_tab') || 'home'; }catch(e){} setOwnTab(t0, true); }
   // 係員のパスワード（中身は出さない。長さと、いつ変えたかだけ）
@@ -14071,7 +14570,7 @@ function showLiveFx(kind, title, text, preview, fx){
       <div class="lfx-burst" aria-hidden="true">${kind === 'win' ? LIVE_IC.win : LIVE_IC.show}</div>
       <h2 class="lfx-title"></h2>
       <p class="lfx-text"></p>
-      ${kind === 'win' ? `<div class="lfx-sid"><small>あなたのスタンプ番号</small><b>${esc(sidLabel())}</b></div>` : ''}
+      ${kind === 'win' && !preview ? `<div class="lfx-sid"><small>あなたのスタンプ番号</small><b>${esc(sidLabel())}</b></div>` : ''}
       <div class="sfx-acts"><button class="btn" data-fx="close">とじる</button></div>
       ${kind === 'win' && livePlaceBooth(text) ? `<button type="button" class="lfx-go" data-fx="place">${esc(livePlaceBooth(text).name)}を地図で見る</button>` : ''}
       ${kind === 'win' ? '' : '<span class="lfx-bar" aria-hidden="true"><i></i></span>'}
@@ -16603,7 +17102,7 @@ function renderQrSheet(){
       <h4 class="staff-h">受付担当（<b>受付</b>）</h4>
       <ol class="staff-steps">
         <li><b>来場者カウンタ</b> で入場者数を記録する（押し間違えは −1 で戻す）</li>
-        <li>お菓子を渡すときは、来場者のスタンプ画面で「お菓子と交換する」を押してもらい、
+        <li>お菓子を渡すときは、来場者のスタンプ画面に「お菓子の当たり」があることを確かめて「お菓子と交換する」を押してもらい、
             同じ画面に出ている <b>4桁の交換コード</b> を係員が入力する<br>
             <span class="staff-note">この4桁は来場者に教えないでください</span></li>
       </ol>
@@ -16733,7 +17232,7 @@ function renderPamphlet(){
       <ol class="pam-steps">
         <li><b>入口のQRを読む</b>各ブースの入口のQRを、スマホのカメラで読みます。アプリを入れる必要はありません</li>
         <li><b>スタンプがたまる</b>読むたびに1個。スタンプ帳で、回った所が分かります</li>
-        <li><b>${need}個でお菓子と交換</b>スタンプの画面を、受付の係の人に見せてください</li>
+        <li><b>7個ごとにお菓子抽選！</b>合計500個限定。当たりは受付で係員と交換。46個制覇で、全制覇プリクラを保存！</li>
       </ol>
       ${opt('', ed('flap.note', P.stampNote || '', 'p', 'pam-small', '交換できる場所・時間など（空なら出ません）'))}
       <h3 class="pam-h3">スマホで混み具合が分かります</h3>
@@ -17745,6 +18244,24 @@ function init(){
   { const t = $('#todo-only'); if (t) t.addEventListener('click', () => setTodoOnly(!S.todoOnly)); }
   { const t = $('#stamp-todo'); if (t) t.addEventListener('click', () => showTodo()); }
   $('#stamp-share').addEventListener('click', shareStamps);
+  $('#rally-draw').addEventListener('click',drawRally);
+  $('#rally-save').addEventListener('click',openRallyPhoto);
+  $('#rally-complete').addEventListener('click',completeRally);
+  $('#own-effects').addEventListener('click',e=>{const b=e.target.closest('[data-effect-test]');if(b)previewOwnerEffect(b.dataset.effectTest);});
+  $('#rally-photo-start').addEventListener('click',startRallyCamera);
+  $('#rally-photo-capture').addEventListener('click',()=>{
+    try{frameRallyPhoto($('#rally-photo-video'),true);}catch(e){$('#rally-photo-error').textContent='カメラの準備を待って、もう一度押してください。';$('#rally-photo-error').classList.remove('hide');}
+  });
+  $('#rally-photo-file').addEventListener('change',chooseRallyPhoto);
+  $('#rally-photo-save').addEventListener('click',saveRallyPhoto);
+  $('#rally-photo-retake').addEventListener('click',()=>{const demo=!!(RALLY_PHOTO.entry&&RALLY_PHOTO.entry.demo);stopRallyCamera();openRallyPhoto(demo);});
+  $('#rally-photo-close').addEventListener('click',()=>$('#rally-photo').close());
+  $('#rally-photo-x').addEventListener('click',()=>$('#rally-photo').close());
+  $('#rally-photo').addEventListener('close',()=>{stopRallyCamera();if(!$('#rally-save').classList.contains('hide'))$('#rally-save').focus({preventScroll:true});});
+  window.addEventListener('pagehide',stopRallyCamera);
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){stopRallyCamera();if($('#rally-photo').open&&!RALLY_PHOTO.ready){$('#rally-photo-start').classList.remove('hide');$('#rally-photo-capture').classList.add('hide');$('#rally-photo-hint').classList.remove('hide');}}});
+
+  ['online','offline'].forEach(event=>window.addEventListener(event,()=>{ if(CONFIG.RALLY_ENABLED) renderRally(); }));
   // 記録のリセットは係員の試し用だけ。来場者が押せると、交換したあとに消して
   // 同じQRを読み直せば、お菓子をもう一度もらえてしまう（押し間違いで全部消える危険もある）
   // 引き継ぎ用のリンクとQR。開いたときにだけ作る（端末番号を画面に出しっぱなしにしない）
@@ -17758,6 +18275,28 @@ function init(){
     flushLedger(true);
     try{ await copyText(handoffUrl()); toast('リンクをコピーしました。引き継ぎ先のブラウザで開いてください'); }
     catch(e){ prompt('このリンクを引き継ぎ先で開いてください', handoffUrl()); }
+  });
+  $('#line-prepare').addEventListener('click',async()=>{
+    const button=$('#line-prepare');button.disabled=true;button.textContent='保存を確認中…';
+    try{
+      await checkpointStamps();await flushLedger(true);renderLineEntry();
+      if(load('kuroko_pushed_fp','')!==ledgerFp()){
+        switchView('stamp');$('#sid-card').scrollIntoView({block:'center',behavior:smoothBehavior()});
+        toast('まだサーバーへの保存を確認できません。ここで復元用ファイルを保存してください',null,7000);
+      }
+    }finally{button.disabled=false;button.textContent='スタンプを保存して引き継ぐ';}
+  });
+  $('#sid-save').addEventListener('click',saveStampBackup);
+  $('#sid-import').addEventListener('click',()=>$('#sid-file').click());
+  $('#sid-file').addEventListener('change',async()=>{
+    const input=$('#sid-file'),el=$('#sid-file-status');if(!input.files[0])return;
+    try{el.textContent=await importStampBackup(input.files[0]);$('#sid-join-box').open=false;}
+    catch(e){el.textContent=String(e.message||e);}finally{input.value='';el.classList.remove('hide');}
+  });
+  $('#sid-check').addEventListener('click',async()=>{
+    const button=$('#sid-check');button.disabled=true;button.textContent='確認中…';
+    try{await checkpointStamps();await flushLedger(true);await pullLedger(true);renderSyncBadge();}
+    finally{button.disabled=false;button.textContent='保存を確認する';}
   });
   // スタンプ番号：コピー・つなぐ
   $('#sid-copy').addEventListener('click', async () => {
@@ -17826,7 +18365,7 @@ function init(){
     $('#redeem-open').classList.remove('hide');
   };
   $('#redeem-open').addEventListener('click', () => {
-    if (stampsLeft() < Math.max(1, CONFIG.PRIZE_COST | 0)) return;
+    if (CONFIG.RALLY_ENABLED ? !rallyTicket() : stampsLeft() < Math.max(1, CONFIG.PRIZE_COST | 0)) return;
     rpad.classList.remove('hide');
     $('#redeem-open').classList.add('hide');
     rin.focus();
@@ -17855,7 +18394,7 @@ function init(){
       rin.select();
       return;
     }
-    redeemWithServer();
+    if (CONFIG.RALLY_ENABLED) redeemRally(); else redeemWithServer();
   });
   /**
    * 交換の確定。サーバーの控えで「別のブラウザ・機種で同じスタンプをもう使っていないか」を確かめる。
@@ -18473,7 +19012,8 @@ function repairAndReload(){
 }
 
 // 何かの拍子に初期化が失敗しても真っ白にはせず、状況と復旧手段を出す
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await initStampVault();
   try{ init(); window.__booted = true; }
   catch(e){
     window.__booted = 'failed';            // 下の案内を出すので、最後の砦（boot-rescue）は出さない
