@@ -153,8 +153,7 @@ test('紙マップ：46件がそろう', async ({ page }) => {
   await mockGas(page);
   await page.goto('/?mode=print');
   await expect(page.locator('#print-sheet')).toBeVisible({ timeout: 15000 });
-  const text = await page.locator('#print-sheet').innerText();
-  expect(text).toContain('受付');
+  await expect(page.locator('#print-sheet')).toContainText('受付', { timeout: 15000 });
 });
 
 test('動作チェック：サーバーの版が表示される', async ({ page }) => {
@@ -393,6 +392,8 @@ test('地図の検索：何も打たずに押すと「最近見たブース」�
   // 候補を押すと、地図をその部屋へ寄せる動きのあとで詳細が開く。PC が重いと WebKit では 5秒をこえることがあった（v227 の手元の全件で1回）
   await expect(page.locator('#bsh')).toBeVisible({ timeout: 10000 });
   await page.evaluate(() => closeSheet());
+  await expect(page.locator('#bsh')).toBeHidden();
+  await expect.poll(()=>page.evaluate(()=>!!history.state?.sheet)).toBe(false);
   await page.locator('#map-q').fill('');
   await page.locator('#map-q').blur();
   await page.locator('#map-q').focus();
