@@ -149,3 +149,75 @@ test('司令塔：全11種の演出を試しても実際の抽選・在庫・交
   expect(a.violations.filter(v=>v.impact==='critical'||v.impact==='serious')).toEqual([]);
  }
 });
+
+test('プリクラ調整：3種類の枠と拡大・位置・反転が保存PNGへ反映され、リセットしても記念番号を保つ',async({page,context,baseURL},info)=>{
+ const g=server(),errors=watchErrors(page);await bridge(context,g);await seed(context,g,46);await open(page,baseURL);await page.locator('#rally-complete').click();
+ await page.locator('#rally-photo-file').setInputFiles(await samplePhoto(page));await expect(page.locator('#photo-adjust')).toBeVisible();
+ const serial=await page.evaluate(()=>RALLY_PHOTO.entry.serial),images=[];
+ for(const style of ['holo','neon','pop']){
+  await page.locator(`[data-photo-style="${style}"]`).click();await expect(page.locator(`[data-photo-style="${style}"]`)).toHaveAttribute('aria-pressed','true');
+  images.push(await page.evaluate(()=>$('#rally-photo-canvas').toDataURL()));
+ }
+ expect(new Set(images).size).toBe(3);
+ await page.locator('#photo-zoom').fill('170');await page.locator('#photo-pan-x').fill('60');await page.locator('#photo-pan-y').fill('-40');await page.locator('#photo-mirror').click();
+ await expect.poll(()=>page.evaluate(()=>RALLY_PHOTO.raf)).toBe(0);
+ const edited=await page.evaluate(()=>$('#rally-photo-canvas').toDataURL());expect(edited).not.toBe(images[2]);
+ const download=page.waitForEvent('download');await page.locator('#rally-photo-save').click();const file=await download;
+ expect(fs.readFileSync(await file.path()).toString('base64')).toBe(edited.split(',')[1]);await expect(page.locator('#photo-step-3')).toHaveAttribute('aria-current','step');
+ await page.locator('#photo-reset').click();await expect(page.locator('#photo-zoom')).toHaveValue('100');await expect(page.locator('#photo-pan-x')).toHaveValue('0');expect(await page.evaluate(()=>RALLY_PHOTO.entry.serial)).toBe(serial);
+ expect(errors).toEqual([]);
+});
+
+test('プリクラ選択：壊れた写真は元の画像を保ち、共有の取消しは保存成功と表示しない',async({page,context,baseURL})=>{
+ const g=server();await bridge(context,g);await seed(context,g,46);await open(page,baseURL);await page.locator('#rally-complete').click();
+ await page.locator('#rally-photo-file').setInputFiles(await samplePhoto(page));await expect(page.locator('#rally-photo-save')).toBeVisible();const original=await page.evaluate(()=>$('#rally-photo-canvas').toDataURL());
+ await page.locator('#rally-photo-file').setInputFiles({name:'broken.png',mimeType:'image/png',buffer:Buffer.from('not an image')});await expect(page.locator('#rally-photo-error')).toContainText('読み込めません');
+ expect(await page.evaluate(()=>$('#rally-photo-canvas').toDataURL())).toBe(original);
+ await page.evaluate(()=>{Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>true});Object.defineProperty(navigator,'share',{configurable:true,value:async()=>{throw new DOMException('cancel','AbortError');}});updatePhotoControls();});
+ await page.locator('#photo-share').click();await expect(page.locator('#photo-status')).toContainText('共有をとじました');await expect(page.locator('#photo-step-3')).not.toHaveAttribute('aria-current','step');await expect(page.locator('#rally-photo-save')).toBeEnabled();
+ await page.locator('#rally-photo-close').click();expect(await page.evaluate(()=>({source:!!RALLY_PHOTO.source,entry:!!RALLY_PHOTO.entry}))).toEqual({source:false,entry:false});
+});
+
+test('プリクラの遅い写真：閉じて開き直した後に、前の選択結果が混入しない',async({page,context,baseURL})=>{
+ const g=server();await bridge(context,g);await seed(context,g,46);await open(page,baseURL);await page.locator('#rally-complete').click();const fixture=await samplePhoto(page);
+ await page.evaluate(()=>{window.realPhotoReader=FileReader;window.pendingPhotoReader=[];window.FileReader=class{readAsDataURL(file){const reader=new realPhotoReader();reader.onload=()=>{this.result=reader.result;pendingPhotoReader.push(()=>this.onload());};reader.readAsDataURL(file);}};});
+ await page.locator('#rally-photo-file').setInputFiles(fixture);await expect.poll(()=>page.evaluate(()=>pendingPhotoReader.length)).toBe(1);
+ await page.locator('#rally-photo-close').click();await page.locator('#rally-save').click();await page.evaluate(()=>pendingPhotoReader.shift()());
+ await expect(page.locator('#rally-photo-save')).toBeHidden();expect(await page.evaluate(()=>RALLY_PHOTO.ready)).toBe(false);
+ await page.evaluate(()=>window.FileReader=realPhotoReader);await page.locator('#rally-photo-file').setInputFiles(fixture);await expect(page.locator('#rally-photo-save')).toBeVisible();
+});
+
+test('プリクラのタイマー：最後の1秒も中止でき、撮影・閉じる・遅い許可の後にカメラが残らない',async({page,context,baseURL},info)=>{
+ test.skip(info.project.name!=='chromium','動画の模擬ストリームはChromiumで確認');
+ const g=server();await bridge(context,g);await seed(context,g,46);await open(page,baseURL);await page.locator('#rally-complete').click();
+ await page.evaluate(()=>{window.photoStreams=[];Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,value:async()=>{const c=document.createElement('canvas');c.width=600;c.height=800;c.getContext('2d').fillRect(0,0,600,800);const s=c.captureStream(5);photoStreams.push(s);return s;}});});
+ await page.locator('#rally-photo-start').click();await expect(page.locator('#rally-photo-capture')).toBeVisible();await page.locator('#photo-timer').check();await page.clock.install();
+ await page.locator('#rally-photo-capture').click();await page.clock.runFor(2100);await expect(page.locator('#photo-countdown')).toHaveText('1');await page.locator('#rally-photo-capture').click();await page.clock.runFor(1500);
+ await expect(page.locator('#rally-photo-save')).toBeHidden();await expect(page.locator('#photo-countdown')).toBeHidden();
+ await page.locator('#rally-photo-capture').click();await page.clock.runFor(3100);await expect(page.locator('#rally-photo-save')).toBeVisible();expect(await page.evaluate(()=>photoStreams[0].getTracks()[0].readyState)).toBe('ended');
+ await page.locator('#rally-photo-retake').click();await page.evaluate(()=>Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,value:()=>new Promise(resolve=>{window.finishPhotoPermission=resolve;})}));
+ await page.locator('#rally-photo-start').click();await page.locator('#rally-photo-close').click();await page.locator('#rally-save').click();
+ await page.evaluate(()=>{const c=document.createElement('canvas');c.width=300;c.height=400;window.latePhotoStream=c.captureStream(5);finishPhotoPermission(latePhotoStream);});
+ await expect.poll(()=>page.evaluate(()=>latePhotoStream.getTracks()[0].readyState)).toBe('ended');await expect(page.locator('#rally-photo-start')).toBeVisible();await expect(page.locator('#rally-photo-capture')).toBeHidden();
+ await page.evaluate(()=>{const c=document.createElement('canvas');c.width=300;c.height=400;c.getContext('2d').fillRect(0,0,300,400);window.failedPlayStream=c.captureStream(5);Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,value:async()=>failedPlayStream});$('#rally-photo-video').play=async()=>{throw new DOMException('cannot play','NotSupportedError');};});
+ await page.locator('#rally-photo-start').click();await expect(page.locator('#rally-photo-error')).toContainText('写真を1枚選んで作る');await expect(page.locator('#rally-photo-start')).toBeEnabled();expect(await page.evaluate(()=>failedPlayStream.getTracks()[0].readyState)).toBe('ended');
+});
+
+test('プリクラの見た目：狭い画面・横向き・特大文字・暗い配色と動きを減らす設定で操作できる',async({page,context,baseURL},info)=>{
+ test.setTimeout(90000);const g=server(),errors=watchErrors(page);await bridge(context,g);await seed(context,g,46);await open(page,baseURL);await page.locator('#rally-complete').click();
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ const entryOpacity=await page.evaluate(()=>{const d=$('#rally-photo');d.style.animation='none';const rule=[...document.styleSheets].flatMap(s=>[...s.cssRules]).find(r=>r.name==='photo-studio-in');if(!rule)throw new Error('入口のキーフレームがありません');const frames=[...rule.cssRules].map(r=>Object.fromEntries([...r.style].map(k=>[k,r.style.getPropertyValue(k)])));const a=d.animate(frames,{duration:320,fill:'both'});a.pause();const values=[0,80,160,240,320].map(ms=>{a.currentTime=ms;return Number(getComputedStyle(d).opacity);});a.cancel();d.style.animation='';return values;});
+ expect(entryOpacity).toEqual([1,1,1,1,1]);
+ await page.emulateMedia({reducedMotion:'reduce'});await page.locator('#rally-photo-file').setInputFiles(await samplePhoto(page));await expect(page.locator('#rally-photo-save')).toBeVisible();
+ expect(await page.locator('#photo-stage .photo-spark').count()).toBe(0);
+ const AxeBuilder=require('@axe-core/playwright').default;fs.mkdirSync(ART,{recursive:true});
+ for(const [width,height]of [[320,780],[375,812],[390,844],[844,390],[1440,960]]){
+  await page.setViewportSize({width,height});await page.evaluate(()=>document.documentElement.dataset.fs='xl');
+  const geometry=await page.locator('#rally-photo').evaluate(el=>({overflow:el.scrollWidth-el.clientWidth,left:el.getBoundingClientRect().left,right:el.getBoundingClientRect().right,viewport:innerWidth}));
+  expect(geometry.overflow).toBeLessThanOrEqual(1);expect(geometry.left).toBeGreaterThanOrEqual(0);expect(geometry.right).toBeLessThanOrEqual(geometry.viewport);
+  await page.locator('#rally-photo-save').scrollIntoViewIfNeeded();await expect(page.locator('#rally-photo-save')).toBeInViewport();
+  await page.screenshot({path:path.join(ART,`${info.project.name}-studio-${width}x${height}.png`)});
+ }
+ for(const theme of ['paper','heavy']){await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);const a=await new AxeBuilder({page}).include('#rally-photo').withTags(['wcag2a','wcag2aa']).analyze();expect(a.violations.filter(v=>v.impact==='critical'||v.impact==='serious')).toEqual([]);}
+ expect(errors).toEqual([]);
+});

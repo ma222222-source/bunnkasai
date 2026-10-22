@@ -3975,19 +3975,87 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
 #own-rally-stock b{font-size:24px}
 
 
-.rally-photo{padding:20px;max-width:520px;width:calc(100% - 24px);max-height:calc(100dvh - 24px);overflow:auto;border:0;border-radius:20px;background:var(--surface);color:var(--text);box-shadow:0 24px 80px #0005}
-.rally-photo::backdrop{background:#111827b8}
-.rally-photo h2{font-size:22px;margin:0 34px 8px 0}
-.rally-photo p{font-size:14px;line-height:1.7}
-.rally-photo .btn{min-height:48px;width:100%;margin-top:8px;white-space:normal}
-.rally-photo-view{position:relative;background:#101828;border-radius:12px;overflow:hidden;aspect-ratio:3/4;width:min(100%,39dvh);margin:12px auto}
+.rally-photo{--studio-bg:#101322;--studio-panel:#1c2034;--studio-text:#f8f8ff;--studio-muted:#bfc6dd;--studio-edge:#454b67;--studio-accent:#bff5ed;padding:0;max-width:990px;width:calc(100% - 24px);max-height:calc(100dvh - 24px);overflow:auto;border:1px solid #69708e;border-radius:24px;background:var(--studio-bg);color:var(--studio-text);box-shadow:0 32px 100px #0009;overscroll-behavior:contain}
+.rally-photo::backdrop{background:#080b18d9}
+.rally-photo[open]{animation:photo-studio-in .32s cubic-bezier(.2,.75,.2,1)}
+.photo-head{position:relative;padding:22px 64px 18px 24px;border-bottom:1px solid var(--studio-edge);background:radial-gradient(ellipse at 80% 0,#473a7055,transparent 65%)}
+.photo-eyebrow{font:800 11px/1.4 ui-monospace,monospace;letter-spacing:.16em;color:var(--studio-accent);margin:0 0 6px}
+.rally-photo h2{font-size:clamp(23px,4vw,32px);line-height:1.35;margin:0;font-weight:900;letter-spacing:.02em}
+.rally-photo p{font-size:14px;line-height:1.65}
+.photo-head p:last-child{margin:6px 0 0;color:var(--studio-muted)}
+.photo-x{position:absolute;right:12px;top:12px;width:44px;height:44px;border:1px solid var(--studio-edge);border-radius:50%;background:var(--studio-panel);color:var(--studio-text);font-size:26px;cursor:pointer}
+.photo-steps{display:flex;list-style:none;margin:0;padding:12px 24px;gap:8px;border-bottom:1px solid var(--studio-edge);font-size:12px;color:var(--studio-muted)}
+.photo-steps li{flex:1;display:flex;gap:7px;align-items:center}
+.photo-steps b{display:grid;place-items:center;border:1px solid var(--studio-edge);border-radius:50%;width:24px;height:24px;flex:none;font:800 11px ui-monospace,monospace}
+.photo-steps [aria-current=step]{color:var(--studio-accent);font-weight:800}
+.photo-steps [aria-current=step] b{background:var(--studio-accent);color:#101322;border-color:var(--studio-accent)}
+.photo-layout{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,1fr);align-items:start;gap:24px;padding:24px}
+.photo-stage{position:relative;min-width:0;text-align:center;padding:16px 12px 10px;border:1px solid var(--studio-edge);border-radius:18px;background:radial-gradient(ellipse at 10% 20%,#3b386c88,transparent 70%),linear-gradient(140deg,#192738,#171524);overflow:hidden}
+.photo-stage-tag{display:flex;align-items:center;justify-content:space-between;color:#d8dff7;font:700 10px ui-monospace,monospace;letter-spacing:.12em;margin-bottom:14px;gap:8px}
+.photo-stage-tag b{color:var(--studio-accent);font-size:12px}
+.rally-photo-view{position:relative;background:#111525;border-radius:8px;aspect-ratio:3/4;width:min(100%,360px);margin:0 auto;isolation:isolate;box-shadow:0 16px 32px #0007;overflow:hidden;transform:rotate(-1.2deg);transition:transform .25s}
 .rally-photo-view video{position:absolute;left:7.037%;top:18.472%;width:85.926%;height:63.889%;object-fit:cover;transform:scaleX(-1);z-index:1;border-radius:7px}
-.rally-photo-view canvas{width:100%;height:100%;object-fit:contain;display:block}
-.rally-photo-hint{color:#fff;padding:30px;text-align:center;position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
-.rally-photo-view .hide{display:none}
-.rally-photo-file{display:block;position:relative;overflow:hidden;text-align:center;cursor:pointer}
+.rally-photo-view canvas{position:relative;z-index:2;width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
+.rally-photo-view[data-editable=true]{cursor:grab;touch-action:none;transform:rotate(0)}
+.rally-photo-view[data-editable=true]:active{cursor:grabbing}
+.photo-sheen{position:absolute;inset:-60%;z-index:3;pointer-events:none;background:linear-gradient(115deg,transparent 40%,#fff7 49%,transparent 58%);transform:translateX(-80%) rotate(-8deg);opacity:0}
+.photo-stage.reveal .photo-sheen{animation:photo-sheen 1s .1s ease-out both}
+.photo-stage.reveal .rally-photo-view{animation:photo-print .55s cubic-bezier(.2,.8,.2,1)}
+.photo-stage.reveal::after{content:'COMPLETE!';position:absolute;right:12px;bottom:48px;z-index:4;border:2px solid #effff5;border-radius:8px;padding:8px 12px;background:#bff5ed;color:#132c29;font:900 17px ui-monospace,monospace;transform:rotate(-8deg);animation:photo-sticker .45s both;pointer-events:none}
+.photo-spark{position:absolute;left:50%;top:50%;width:7px;height:7px;background:var(--spark);z-index:5;pointer-events:none;animation:photo-spark .8s ease-out both}
+.photo-countdown{position:absolute;inset:0;z-index:6;display:grid;place-items:center;background:#0d102838;color:white;font:900 104px/1 ui-monospace,monospace;text-shadow:0 6px 24px #000;pointer-events:none}
+.photo-countdown:not(.hide){animation:photo-count .28s ease-out}
+.photo-flash{position:absolute;inset:0;z-index:5;background:#fff;pointer-events:none;animation:photo-flash .23s ease-out both}
+.photo-stage-note{color:var(--studio-muted);font-size:12px!important;margin:14px 0 0;min-height:20px}
+.photo-controls{min-width:0}
+.photo-controls fieldset{border:0;padding:0;margin:0 0 18px;min-width:0}
+.photo-controls legend,.photo-control-title{font-weight:800;font-size:14px;margin:0 0 10px;padding:0;color:var(--studio-text)}
+.photo-styles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.photo-style{min-height:76px;border:1px solid var(--studio-edge);border-radius:12px;background:var(--studio-panel);color:var(--studio-text);padding:8px 3px;cursor:pointer;font:inherit;font-size:12px;font-weight:700;line-height:1.4;position:relative;transition:border-color .18s,background .18s}
+.photo-style::before{content:'';display:block;width:36px;height:25px;border:3px solid #edf2ff;border-radius:4px;box-sizing:border-box;margin:0 auto 7px;background:linear-gradient(125deg,#a7e7ed,#d1b6ed,#f4d3cf)}
+.photo-style[data-photo-style=neon]::before{border-color:#f17be0;background:linear-gradient(120deg,#16234d,#6bc9db)}
+.photo-style[data-photo-style=pop]::before{border-color:#f6bf61;background:linear-gradient(125deg,#e861a8,#896ad8)}
+.photo-style[aria-pressed=true]{border:2px solid var(--studio-accent);background:#293e49;padding:7px 2px}
+.photo-style[aria-pressed=true]::after{content:'✓';position:absolute;right:5px;top:3px;color:var(--studio-accent);font-size:13px}
+.rally-photo .btn{min-height:48px;width:100%;margin:0;white-space:normal;border-radius:12px;line-height:1.5;touch-action:manipulation}
+.rally-photo .btn:not(.ghost){background:var(--studio-accent);color:#142a2c;border-color:var(--studio-accent);font-weight:850}
+.rally-photo .btn.ghost{color:var(--studio-text);background:var(--studio-panel);border:1px solid var(--studio-edge)}
+.rally-photo .btn:disabled{opacity:.55;cursor:wait}
+.photo-actions{display:grid;gap:8px}
+.rally-photo-file{display:block;position:relative;overflow:hidden;text-align:center;cursor:pointer;box-sizing:border-box;padding:12px}
 .rally-photo-file input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
-.rally-photo-file:focus-within{outline:3px solid var(--accent);outline-offset:3px}
+.photo-camera-options{display:flex;gap:8px;align-items:center;justify-content:space-between;margin:10px 0 16px;flex-wrap:wrap}
+.photo-camera-options label{display:flex;gap:8px;align-items:center;min-height:44px;font-size:13px;cursor:pointer}
+.photo-camera-options input{accent-color:var(--studio-accent);width:18px;height:18px}
+.photo-camera-options .btn{width:auto;min-height:44px;font-size:12px;padding:8px 12px}
+.photo-adjust{border-top:1px solid var(--studio-edge);padding-top:16px;margin-top:18px}
+.photo-adjust label{display:grid;grid-template-columns:60px minmax(0,1fr) 44px;gap:8px;align-items:center;font-size:13px;min-height:44px;color:var(--studio-muted)}
+.photo-adjust output{color:var(--studio-text);text-align:right;font:700 12px ui-monospace,monospace}
+.photo-adjust input[type=range]{width:100%;min-width:0;height:40px;accent-color:#bff5ed;background:transparent;cursor:pointer}
+.photo-adjust-buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+.photo-adjust-buttons .btn{min-height:44px;font-size:12px}
+.photo-finish{margin-top:18px;padding-top:18px;border-top:1px solid var(--studio-edge);display:grid;gap:8px}
+.photo-status{font-size:13px!important;color:var(--studio-accent);margin:10px 0!important;min-height:22px}
+.photo-privacy{font-size:12px!important;color:var(--studio-muted);margin:14px 0 0!important}
+.rally-photo .rally-error{color:#ffe3e8;background:#522137;border:1px solid #ba6d8f;border-radius:10px;padding:10px;margin:10px 0}
+.photo-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--studio-edge);padding:12px 24px;color:var(--studio-muted);font-size:11px}
+.photo-footer .btn{width:auto;min-width:100px;min-height:44px;padding:8px 16px}
+.rally-photo .hide{display:none!important}
+.rally-photo :is(button,input):focus-visible,.rally-photo-file:focus-within{outline:3px solid #fff;outline-offset:3px}
+.rally-photo h2.quiet:focus-visible{outline:none}
+@keyframes photo-studio-in{from{transform:translateY(14px) scale(.98)}to{transform:none}}
+@keyframes photo-sheen{0%{opacity:0;transform:translateX(-70%) rotate(-8deg)}20%{opacity:.7}100%{opacity:0;transform:translateX(70%) rotate(-8deg)}}
+@keyframes photo-print{from{opacity:.3;transform:translateY(-12px) rotate(2deg) scale(.96)}to{opacity:1;transform:rotate(0) scale(1)}}
+@keyframes photo-sticker{from{opacity:0;transform:rotate(-14deg) scale(1.35)}to{opacity:1;transform:rotate(-8deg) scale(1)}}
+@keyframes photo-spark{from{opacity:1;transform:translate(-50%,-50%) scale(1)}to{opacity:0;transform:translate(var(--dx),var(--dy)) rotate(180deg) scale(.3)}}
+@keyframes photo-count{from{opacity:.7;transform:scale(1.1)}to{opacity:1;transform:scale(1)}}
+@keyframes photo-flash{from{opacity:.55}to{opacity:0}}
+@media(max-width:640px){.rally-photo{width:calc(100% - 12px);max-height:calc(100dvh - 12px);border-radius:20px}.photo-head{padding:18px 60px 14px 16px}.photo-head p:last-child{font-size:12px}.photo-layout{grid-template-columns:minmax(0,1fr);gap:18px;padding:16px}.photo-steps{padding:10px 16px}.photo-stage{padding:12px}.rally-photo-view{width:min(100%,37dvh)}.photo-stage-tag{margin-bottom:8px}.photo-stage-note{margin-top:10px}.photo-footer{padding:12px 16px}.photo-controls fieldset{margin-bottom:14px}.photo-style{min-height:68px}}
+@media(max-width:640px){.rally-photo[data-photo-state=ready] .photo-stage{position:sticky;top:0;z-index:7;background:#1c2034;box-shadow:0 8px 20px #080b1866}.rally-photo[data-photo-state=ready] .rally-photo-view{width:min(100%,25dvh)}.rally-photo[data-photo-state=ready] .photo-stage-note{font-size:11px!important;margin-top:7px}}
+@media(max-height:520px) and (min-width:641px){.rally-photo-view{width:min(100%,64dvh)}.photo-head{padding-top:14px;padding-bottom:12px}}
+@media(prefers-reduced-motion:reduce){.rally-photo[open],.photo-stage.reveal .rally-photo-view,.photo-stage.reveal::after,.photo-stage.reveal .photo-sheen,.photo-countdown:not(.hide),.photo-spark,.photo-flash{animation:none!important}.photo-sheen,.photo-spark,.photo-flash{display:none!important}.rally-photo-view,.photo-style{transition:none!important}}
+.lite .rally-photo[open],.lite .photo-stage.reveal .rally-photo-view,.lite .photo-stage.reveal::after{animation:none}.lite .photo-sheen,.lite .photo-spark,.lite .photo-flash{display:none}
+
 
 .effect-tests{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.effect-tests .btn{min-height:48px;padding:10px 8px;white-space:normal;margin:0!important}.effect-test-banner{padding:10px 12px;border:2px solid #a16207;background:#fef3c7;color:#713f12;font-size:14px;font-weight:900;line-height:1.6;border-radius:10px;margin:0 0 12px}
 .own-rally-tools{display:grid;gap:12px;grid-template-columns:minmax(0,1fr);grid-column:1 / -1;align-items:start}@media(min-width:960px){.own-rally-tools{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -4000,8 +4068,8 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
 [data-fs="xl"] .rally-card .rally-foot{font-size:16px}
 [data-fs="lg"] .rally-result h3{font-size:23px}
 [data-fs="xl"] .rally-result h3{font-size:25px}
-[data-fs="lg"] .rally-photo h2{font-size:24px}
-[data-fs="xl"] .rally-photo h2{font-size:26px}
+[data-fs="lg"] .rally-photo h2{font-size:clamp(25px,4.5vw,35px)}
+[data-fs="xl"] .rally-photo h2{font-size:clamp(27px,4.8vw,38px)}
 
 </style>
 </head>
@@ -4916,6 +4984,16 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
       <a class="btn ghost" href="?mode=report" style="text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M8 17V10M13 17V6M18 17v-4"/></svg> 混雑の振り返り</a>
       <a class="btn ghost" href="?mode=board" style="text-decoration:none"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5h20v12H2z"/><path d="M8.5 20.5h7M12 16.5v4"/></svg> 本部モニタ（大画面）</a>
             </div>
+            <div class="own-coop" id="own-line-poster">
+              <h3>来場者向け・公式LINEの案内ポスター</h3>
+              <p class="own-note">マップ・混雑状況・スタンプラリーへの入口を案内します。届いた公式LINEのQRを、大きな白い余白付きで載せています。</p>
+              <div class="own-coop-actions">
+                <a class="btn" href="docs/line-poster-a3.pdf" target="_blank" rel="noopener">A3ポスターを開く・印刷</a>
+                <a class="btn ghost" href="docs/line-poster-a4.pdf" target="_blank" rel="noopener">A4ポスターを開く・印刷</a>
+                <a class="btn ghost" href="docs/line-poster.png" download="黒工祭_LINE案内ポスター.png">画像を保存</a>
+              </div>
+              <p class="own-note">入口や廊下にはA3がおすすめ。縦・カラー・100%で印刷してください。QRはLINEの友だち追加を開きます。</p>
+            </div>
             <div class="own-coop" id="own-coop">
               <h3>混雑状況更新の協力依頼書</h3>
               <p class="own-note">一般向けマップのQRと、当日の更新へのお願いを載せたA4・1枚です。そのまま担当者へ送れます。</p>
@@ -5096,23 +5174,60 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
   <p class="scan-count" id="scan-count" aria-live="polite"></p>
 </div>
 
-<dialog class="rally-photo" id="rally-photo" aria-labelledby="rally-photo-title">
-  <button id="rally-photo-x" type="button" aria-label="撮影画面をとじる" style="position:absolute;right:8px;top:8px;width:44px;height:44px;border:0;background:transparent;color:inherit;font-size:25px;cursor:pointer">×</button>
-  <h2 id="rally-photo-title" tabindex="-1" autofocus>全制覇プリクラ！</h2>
-  <p>全46ブース制覇、おめでとう！！<br>あなた専用の枠で、今日の1枚を残そう。</p>
-  <button class="btn" id="rally-photo-start" type="button">カメラを起動する</button>
-  <button class="btn hide" id="rally-photo-capture" type="button">この写真で撮る！</button>
-  <label class="btn ghost rally-photo-file">写真を1枚選んで作る<input id="rally-photo-file" type="file" accept="image/*" aria-label="記念写真を選ぶ"></label>
-  <button class="btn hide" id="rally-photo-save" type="button">全制覇プリクラを画像で保存</button>
-  <div class="rally-photo-view">
-    <div class="rally-photo-hint" id="rally-photo-hint">カメラを起動するか、写真を1枚選んでね！</div>
-    <video id="rally-photo-video" class="hide" autoplay playsinline muted></video>
-    <canvas id="rally-photo-canvas" class="hide" width="1080" height="1440" aria-label="全制覇の記念写真プレビュー"></canvas>
+<dialog class="rally-photo" id="rally-photo" aria-labelledby="rally-photo-title" aria-describedby="rally-photo-intro">
+  <header class="photo-head">
+    <p class="photo-eyebrow">KUROKO FESTIVAL / COMPLETE STUDIO</p>
+    <h2 id="rally-photo-title" tabindex="-1" autofocus>全制覇プリクラ！</h2>
+    <p id="rally-photo-intro">46ブースを回った、今日のあなたが主役。自分だけの1枚を残そう！！</p>
+    <button id="rally-photo-x" class="photo-x" type="button" aria-label="撮影画面をとじる">×</button>
+  </header>
+  <ol class="photo-steps" aria-label="記念写真の手順">
+    <li id="photo-step-1" aria-current="step"><b>01</b>写真を用意</li><li id="photo-step-2"><b>02</b>自分らしく</li><li id="photo-step-3"><b>03</b>保存する</li>
+  </ol>
+  <div class="photo-layout">
+    <section class="photo-stage" id="photo-stage" aria-label="プリクラのプレビュー">
+      <div class="photo-stage-tag"><span>ONLY YOUR FESTIVAL</span><b id="photo-memory">46 / 46 COMPLETE</b></div>
+      <div class="rally-photo-view" id="rally-photo-view" data-editable="false">
+        <video id="rally-photo-video" class="hide" autoplay playsinline muted></video>
+        <canvas id="rally-photo-canvas" width="1080" height="1440" role="img" aria-label="全制覇の記念写真プレビュー"></canvas>
+        <span class="photo-sheen" aria-hidden="true"></span>
+        <span id="photo-countdown" class="photo-countdown hide" aria-hidden="true"></span>
+      </div>
+      <p class="photo-stage-note" id="rally-photo-hint">あなた専用の枠ができました！ 写真を用意しよう。</p>
+    </section>
+    <section class="photo-controls" aria-label="撮影と写真の調整">
+      <fieldset><legend>好きな雰囲気を選ぼう</legend><div class="photo-styles">
+        <button class="photo-style" type="button" data-photo-style="holo" aria-pressed="true">ホログラム</button>
+        <button class="photo-style" type="button" data-photo-style="neon" aria-pressed="false">ネオン</button>
+        <button class="photo-style" type="button" data-photo-style="pop" aria-pressed="false">ポップ</button>
+      </div></fieldset>
+      <div class="photo-actions">
+        <button class="btn" id="rally-photo-start" type="button">カメラを起動する</button>
+        <button class="btn hide" id="rally-photo-capture" type="button">この写真で撮る！</button>
+        <label class="btn ghost rally-photo-file">写真を1枚選んで作る<input id="rally-photo-file" type="file" accept="image/*" aria-label="記念写真を選ぶ"></label>
+      </div>
+      <div class="photo-camera-options" id="photo-camera-options">
+        <label><input id="photo-timer" type="checkbox">3秒タイマー</label>
+        <button class="btn ghost hide" id="photo-camera-flip" type="button">カメラを切り替え</button>
+      </div>
+      <p class="rally-error hide" id="rally-photo-error" role="alert"></p>
+      <div class="photo-adjust hide" id="photo-adjust">
+        <p class="photo-control-title">写真をぴったり合わせよう</p>
+        <label for="photo-zoom">拡大<input id="photo-zoom" type="range" min="100" max="220" value="100" step="1"><output id="photo-zoom-value" for="photo-zoom">100%</output></label>
+        <label for="photo-pan-x">左右<input id="photo-pan-x" type="range" min="-100" max="100" value="0" step="1"><output id="photo-pan-x-value" for="photo-pan-x">0</output></label>
+        <label for="photo-pan-y">上下<input id="photo-pan-y" type="range" min="-100" max="100" value="0" step="1"><output id="photo-pan-y-value" for="photo-pan-y">0</output></label>
+        <div class="photo-adjust-buttons"><button id="photo-mirror" class="btn ghost" type="button" aria-pressed="false">写真を左右反転</button><button id="photo-reset" class="btn ghost" type="button">位置をリセット</button></div>
+      </div>
+      <div class="photo-finish hide" id="photo-finish">
+        <button class="btn hide" id="rally-photo-save" type="button">全制覇プリクラを画像で保存</button>
+        <button class="btn ghost hide" id="photo-share" type="button">共有・写真アプリに保存</button>
+        <button class="btn ghost hide" id="rally-photo-retake" type="button">撮り直す・写真を選び直す</button>
+      </div>
+      <p class="photo-status" id="photo-status" role="status" aria-live="polite"></p>
+      <p class="photo-privacy">写真は端末内だけで合成します。何度でも調整・撮り直しOK！ 保存画像は静止画です。保存先は端末により「写真」または「ダウンロード」から確認してね。</p>
+    </section>
   </div>
-  <p class="rally-error hide" id="rally-photo-error" role="alert"></p>
-  <button class="btn ghost hide" id="rally-photo-retake" type="button">撮り直す・写真を選び直す</button>
-  <p>写真はこの端末の中だけで合成します。サーバーへ送信しません。保存するまでは撮り直せます。<br>記念画像ではお菓子と交換できません。</p>
-  <button class="btn ghost" id="rally-photo-close" type="button">とじる</button>
+  <footer class="photo-footer"><span>記念画像はお菓子の当たり券には使えません。</span><button class="btn ghost" id="rally-photo-close" type="button">とじる</button></footer>
 </dialog>
 
 <script>
@@ -5125,7 +5240,7 @@ const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
   SCHOOL_URL: 'https://www2.iwate-ed.jp/kst-h/',   // v236：学校の公式サイト（パンフレットの学校名の下に刷る。表紙のQRは、このマップのまま）
-  BUILD: '2026-10-22d',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-22e',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -11747,93 +11862,208 @@ async function redeemRally(){
 }
 
 
-/* 全制覇の確認後だけ開く。写真・動画は端末内のCanvasへ描き、通信するのは獲得記録だけ。 */
-const RALLY_PHOTO={stream:null,entry:null,ready:false,starting:false};
+/* v249：全制覇の記念写真。個人の種・番号を守り、描画と写真はすべて端末内で完結する。 */
+const RALLY_PHOTO={stream:null,entry:null,ready:false,starting:false,session:0,request:0,io:0,source:null,style:'holo',zoom:1,panX:0,panY:0,mirror:false,facing:'user',count:0,timer:0,raf:0,fxTimer:0,drag:null};
+function photoStatus(text){$('#photo-status').textContent=text;}
+function photoError(text){const e=$('#rally-photo-error');e.textContent=text;e.classList.toggle('hide',!text);}
+function cancelPhotoCountdown(){
+  clearTimeout(RALLY_PHOTO.timer);RALLY_PHOTO.timer=0;RALLY_PHOTO.count=0;
+  $('#photo-countdown').classList.add('hide');$('#rally-photo-capture').textContent='この写真で撮る！';
+}
 function stopRallyCamera(){
+  cancelPhotoCountdown();RALLY_PHOTO.request++;RALLY_PHOTO.starting=false;
   if(RALLY_PHOTO.stream){RALLY_PHOTO.stream.getTracks().forEach(t=>t.stop());RALLY_PHOTO.stream=null;}
   const v=$('#rally-photo-video');if(v){v.pause();v.srcObject=null;v.classList.add('hide');}
+  $('#rally-photo-start').disabled=false;$('#rally-photo-start').textContent='カメラを起動する';
+}
+function clearPhotoFx(){
+  clearTimeout(RALLY_PHOTO.fxTimer);$('#photo-stage').classList.remove('reveal');
+  $$('#photo-stage .photo-spark,#photo-stage .photo-flash').forEach(el=>el.remove());
+}
+function closeRallyPhoto(){
+  stopRallyCamera();clearPhotoFx();cancelAnimationFrame(RALLY_PHOTO.raf);RALLY_PHOTO.raf=0;
+  RALLY_PHOTO.session++;RALLY_PHOTO.io++;RALLY_PHOTO.source=null;RALLY_PHOTO.entry=null;RALLY_PHOTO.ready=false;RALLY_PHOTO.drag=null;
+  $('#rally-photo-file').value='';$('#rally-photo-canvas').getContext('2d').clearRect(0,0,1080,1440);
+}
+function photoStep(step){
+  for(let i=1;i<=3;i++){const e=$('#photo-step-'+i);if(i===step)e.setAttribute('aria-current','step');else e.removeAttribute('aria-current');}
+}
+function updatePhotoControls(){
+  const p=RALLY_PHOTO,live=!!p.stream;
+  $$('#rally-photo [data-photo-style]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.photoStyle===p.style)));
+  $('#rally-photo-start').classList.toggle('hide',live||p.ready);
+  $('#rally-photo-capture').classList.toggle('hide',!live);
+  $('#photo-camera-flip').classList.toggle('hide',!live);
+  $('#photo-camera-options').classList.toggle('hide',p.ready);
+  for(const id of ['photo-adjust','photo-finish','rally-photo-save','rally-photo-retake'])$('#'+id).classList.toggle('hide',!p.ready);
+  let share=false;try{share=!!(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File([''],'photo.png',{type:'image/png'})]}));}catch(e){}
+  $('#photo-share').classList.toggle('hide',!p.ready||!share);
+  $('#rally-photo-view').dataset.editable=String(p.ready);
+  $('#rally-photo').dataset.photoState=p.ready?'ready':live?'camera':'choose';
+  for(const [id,v,label]of[['zoom',Math.round(p.zoom*100),Math.round(p.zoom*100)+'%'],['pan-x',Math.round(p.panX*100),Math.round(p.panX*100)],['pan-y',Math.round(p.panY*100),Math.round(p.panY*100)]]){
+    $('#photo-'+id).value=v;$('#photo-'+id+'-value').textContent=label;
+  }
+  $('#photo-mirror').setAttribute('aria-pressed',String(p.mirror));
+  $('#rally-photo-hint').textContent=p.ready?'写真をなぞって位置を調整。枠もあとから変えられるよ！':live?'顔を枠の中へ。準備ができたら撮ろう！':'あなた専用の枠ができました！ 写真を用意しよう。';
+  photoStep(p.ready?2:1);
 }
 function openRallyPhoto(demo){
   const preview=demo===true&&ownToken()&&OWN.state;
   const entry=preview?{demo:true,result:'complete',art:'preview-'+Date.now(),serial:0,stamps:S.booths.map(b=>b.id)}:rallyComplete();if(!entry)return;
+  closeRallyPhoto();Object.assign(RALLY_PHOTO,{entry,style:'holo',zoom:1,panX:0,panY:0,mirror:false,facing:'user'});
   $('#rally-photo-title').textContent=preview?'全制覇プリクラ（テスト表示）':'全制覇プリクラ！';
-  stopRallyCamera();
-  RALLY_PHOTO.entry=entry;RALLY_PHOTO.ready=false;
-  $('#rally-photo-hint').classList.remove('hide');$('#rally-photo-canvas').classList.add('hide');
-  ['capture','save','retake','error'].forEach(k=>$('#rally-photo-'+k).classList.add('hide'));
-  $('#rally-photo-start').classList.remove('hide');$('#rally-photo-file').value='';
+  $('#photo-memory').textContent=preview?'TEST PREVIEW':`MEMORY No. ${String(entry.serial).padStart(6,'0')}`;
+  $('#photo-timer').checked=false;photoError('');photoStatus(preview?'司令塔の見本です。スタンプもお菓子の在庫も使いません。':'46ブース制覇、おめでとう！！');
+  updatePhotoControls();renderRallyPhoto();
   if(!$('#rally-photo').open)$('#rally-photo').showModal();$('#rally-photo').scrollTop=0;$('#rally-photo-title').classList.toggle('quiet',!KEY_USER.on);$('#rally-photo-title').focus({preventScroll:true});
 }
 async function startRallyCamera(){
-  if(!RALLY_PHOTO.entry||RALLY_PHOTO.starting)return;
-  const btn=$('#rally-photo-start'),err=$('#rally-photo-error');RALLY_PHOTO.starting=true;btn.disabled=true;btn.textContent='カメラを確認しています…';err.classList.add('hide');
+  const p=RALLY_PHOTO;if(!p.entry||p.starting)return;
+  stopRallyCamera();p.io++;const session=p.session,request=++p.request;
+  p.starting=true;const btn=$('#rally-photo-start');btn.disabled=true;btn.textContent='カメラを確認しています…';photoError('');photoStatus('カメラの許可を確認してね。写真の選択でも作れます。');
   try{
-    stopRallyCamera();
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('camera');
-    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:1280}},audio:false});
-    if(!$('#rally-photo').open){stream.getTracks().forEach(t=>t.stop());return;}
-    RALLY_PHOTO.stream=stream;const v=$('#rally-photo-video');v.srcObject=stream;await v.play();
-    const blank=document.createElement('canvas');blank.width=blank.height=2;const frame=rallyPhotoCanvas(RALLY_PHOTO.entry,blank,false);$('#rally-photo-canvas').getContext('2d').drawImage(frame,0,0);$('#rally-photo-canvas').classList.remove('hide');
-    v.classList.remove('hide');$('#rally-photo-hint').classList.add('hide');
-    $('#rally-photo-capture').classList.remove('hide');$('#rally-photo-save').classList.add('hide');btn.classList.add('hide');
-  }catch(e){err.textContent='カメラを使えませんでした。カメラの許可を確認するか、「写真を1枚選んで作る」を使ってね。';err.classList.remove('hide');}
-  finally{RALLY_PHOTO.starting=false;btn.disabled=false;btn.textContent='カメラを起動する';}
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:p.facing},width:{ideal:1280},height:{ideal:1280}},audio:false});
+    if(session!==p.session||request!==p.request||!$('#rally-photo').open){stream.getTracks().forEach(t=>t.stop());return;}
+    p.stream=stream;const v=$('#rally-photo-video');v.srcObject=stream;
+    await v.play();
+    if(session!==p.session||request!==p.request)return;
+    p.mirror=p.facing==='user';v.style.transform=p.mirror?'scaleX(-1)':'none';v.classList.remove('hide');
+    renderRallyPhoto();updatePhotoControls();photoStatus('タイマーを使うと、友だちと一緒でも撮りやすいよ！');
+  }catch(e){if(session===p.session&&request===p.request){stopRallyCamera();photoError('カメラを使えませんでした。カメラの許可を確認するか、「写真を1枚選んで作る」を使ってね。');photoStatus('写真の選択からも、同じプリクラを作れます。');updatePhotoControls();}}
+  finally{if(session===p.session&&request===p.request){p.starting=false;btn.disabled=false;btn.textContent='カメラを起動する';}}
 }
-function rallyPhotoCanvas(entry,source,mirror){
+function captureRallyPhoto(){
+  const p=RALLY_PHOTO;if(p.timer||p.count){cancelPhotoCountdown();photoStatus('タイマーを中止しました。準備ができたらもう一度！');return;}
+  if(!p.stream)return;const session=p.session;
+  const capture=()=>{
+    if(session!==p.session||!p.stream||!$('#rally-photo').open)return;
+    try{frameRallyPhoto($('#rally-photo-video'),p.facing==='user');}
+    catch(e){cancelPhotoCountdown();photoError('カメラの準備を待って、もう一度押してください。');}
+  };
+  if(!$('#photo-timer').checked){capture();return;}
+  p.count=3;$('#rally-photo-capture').textContent='タイマーを中止';
+  const tick=()=>{
+    if(session!==p.session||!p.stream||!$('#rally-photo').open){cancelPhotoCountdown();return;}
+    if(!p.count){capture();return;}
+    const e=$('#photo-countdown');e.textContent=p.count;e.classList.remove('hide');photoStatus(`撮影まで ${p.count}秒`);p.count--;p.timer=setTimeout(tick,1000);
+  };tick();
+}
+function rallyPhotoCanvas(entry,source,mirror,opt={}){
   const cv=document.createElement('canvas');cv.width=1080;cv.height=1440;
   const g=cv.getContext('2d'),F=(px,w=800)=>`${w} ${px}px "Hiragino Kaku Gothic ProN","Noto Sans CJK JP",sans-serif`;
+  const style=['holo','neon','pop'].includes(opt.style)?opt.style:'holo';
   let n=hash32(entry.art+'|'+entry.serial);const random=()=>{n=(Math.imul(n,1664525)+1013904223)>>>0;return n/4294967296;};
-  const hue=Math.floor(random()*360),accent=`hsl(${hue} 65% 27%)`,pale=`hsl(${hue} 55% 94%)`;
-  g.fillStyle=pale;g.fillRect(0,0,1080,1440);g.fillStyle=accent;g.fillRect(0,0,1080,218);
-  g.fillStyle='#fff';g.font=F(30);g.fillText('KUROKO FESTIVAL 2026',64,76);g.font=F(78,900);g.fillText('全46ブース制覇！',64,176);
-  const x=76,y=266,w=928,height=920,sw=source.videoWidth||source.naturalWidth||source.width,sh=source.videoHeight||source.naturalHeight||source.height;
-  if(!sw||!sh)throw new Error('写真をまだ読み込めていません');
-  const scale=Math.max(w/sw,height/sh),cw=w/scale,ch=height/scale;
-  g.save();g.beginPath();g.roundRect(x,y,w,height,22);g.clip();
-  if(mirror){g.translate(x+w,y);g.scale(-1,1);}else g.translate(x,y);
-  g.drawImage(source,(sw-cw)/2,(sh-ch)/2,cw,ch,0,0,w,height);g.restore();
-  // 46個の回路模様。位置とつながりは一人ごとの種から決め、顔に重ならない枠の中に描く。
-  g.strokeStyle=accent;g.fillStyle=accent;g.lineWidth=3;
+  const hue=Math.floor(random()*360),dark=style==='neon',ink=dark?'#f5efff':'#192240',accent=`hsl(${hue} 72% ${dark?72:40}%)`;
+  const foil=g.createLinearGradient(0,0,1080,1440);
+  const colors=dark?['#111a38','#33204d','#101f3d','#311d4a']:style==='pop'?['#ffe49a','#ffa7cb','#d6baff','#ffdb88']:['#b5f4ec','#d6c5ff','#f9d5e7','#b5e1ff','#d7f5e3'];
+  colors.forEach((c,i)=>foil.addColorStop(i/(colors.length-1),c));g.fillStyle=foil;g.fillRect(0,0,1080,1440);
+  // 種から配置を決める。写真の中央を飾りで隠さず、46個の回路を余白へ集める。
+  g.strokeStyle=dark?'#ffffff12':'#ffffff50';g.lineWidth=1;
+  for(let x=0;x<1080;x+=36){g.beginPath();g.moveTo(x,0);g.lineTo(x,1440);g.stroke();}
+  for(let y=0;y<1440;y+=36){g.beginPath();g.moveTo(0,y);g.lineTo(1080,y);g.stroke();}
+  g.strokeStyle=dark?'#b6f8ed':'#fff';g.lineWidth=10;g.strokeRect(20,20,1040,1400);
+  g.strokeStyle=dark?'#f0a5ff':accent;g.lineWidth=2;g.strokeRect(32,32,1016,1376);
+  const star=(x,y,r)=>{g.save();g.translate(x,y);g.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4,rr=i%2?r*.22:r;g.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);}g.closePath();g.fill();g.restore();};
+  g.fillStyle=dark?'#91eee4':'#fff';for(let i=0;i<16;i++){const x=i%2?1024+random()*22:28+random()*27,y=90+random()*1260;star(x,y,8+random()*14);}
+  g.fillStyle=ink;g.font=F(25,900);g.fillText('KUROKO FESTIVAL 2026',66,82);g.font=F(19,700);g.fillText('ONE DAY. ALL THE MEMORIES.',66,117);
+  g.font=F(132,900);g.lineJoin='round';g.strokeStyle=dark?'#ec91fa':'#fff';g.lineWidth=16;g.strokeText('全制覇！',66,231);g.fillStyle=ink;g.fillText('全制覇！',66,231);
+  g.save();g.translate(944,143);g.rotate(.13);g.fillStyle=dark?'#bcfff0':'#192240';g.beginPath();g.arc(0,0,81,0,Math.PI*2);g.fill();g.strokeStyle=dark?'#192240':'#e3d4ff';g.lineWidth=2;g.beginPath();g.arc(0,0,70,0,Math.PI*2);g.stroke();g.fillStyle=dark?'#192240':'#fff';g.textAlign='center';g.font=F(51,900);g.fillText('46',0,8);g.font=F(17,800);g.fillText('/ 46 BOOTHS',0,39);g.restore();
+  const x=76,y=266,w=928,h=920;
+  g.save();g.beginPath();g.roundRect(x,y,w,h,22);g.clip();g.clearRect(x,y,w,h);
+  if(source){
+    const sw=source.videoWidth||source.naturalWidth||source.width,sh=source.videoHeight||source.naturalHeight||source.height;if(!sw||!sh)throw new Error('写真をまだ読み込めていません');
+    const zoom=Math.max(1,Math.min(2.2,Number(opt.zoom)||1)),scale=Math.max(w/sw,h/sh)*zoom,cw=w/scale,ch=h/scale;
+    const px=Math.max(-1,Math.min(1,Number(opt.panX)||0)),py=Math.max(-1,Math.min(1,Number(opt.panY)||0));
+    if(mirror){g.translate(x+w,y);g.scale(-1,1);}else g.translate(x,y);
+    g.drawImage(source,(sw-cw)/2+px*(sw-cw)/2,(sh-ch)/2+py*(sh-ch)/2,cw,ch,0,0,w,h);
+  }else if(opt.placeholder!==false){
+    const glow=g.createLinearGradient(0,y,0,y+h);glow.addColorStop(0,'#222847');glow.addColorStop(1,'#454064');g.fillStyle=glow;g.fillRect(x,y,w,h);
+    g.fillStyle='#b6bbd655';g.beginPath();g.arc(540,640,113,0,Math.PI*2);g.fill();g.beginPath();g.ellipse(540,960,250,202,0,Math.PI,Math.PI*2);g.fill();
+    g.textAlign='center';g.fillStyle='#fff';g.font=F(33,900);g.fillText('YOUR ONE SHOT',540,1080);g.font=F(23,600);g.fillText('ここに、今日のあなたを。',540,1126);g.textAlign='start';
+  }g.restore();
+  g.strokeStyle=dark?'#bcfff0':'#fff';g.lineWidth=13;g.beginPath();g.roundRect(x-3,y-3,w+6,h+6,25);g.stroke();g.lineWidth=2;g.strokeStyle=accent;g.stroke();
   for(let i=0;i<46;i++){
-    const left=i<23,yy=284+(i%23)*39,xx=left?32+random()*24:1024+random()*24;
-    g.beginPath();g.arc(xx,yy,3+random()*3,0,Math.PI*2);g.fill();
-    g.beginPath();g.moveTo(xx,yy);g.lineTo(left?64:1016,yy);g.lineTo(left?64:1016,yy+12+random()*18);g.stroke();
+    const left=i<23,yy=286+(i%23)*40,xx=left?34+random()*20:1026+random()*20;g.strokeStyle=accent;g.fillStyle=accent;g.lineWidth=2;
+    g.beginPath();g.arc(xx,yy,3+random()*3,0,Math.PI*2);g.fill();g.beginPath();g.moveTo(xx,yy);g.lineTo(left?62:1018,yy);g.lineTo(left?62:1018,yy+10+random()*14);g.stroke();
   }
-  g.fillStyle=accent;g.textAlign='center';g.font=F(46,900);g.fillText('黒工マスター',540,1264);
-  g.font=F(29);g.fillText('最高の1日をありがとう！！',540,1320);
-  g.fillStyle='#344054';g.font=F(24,700);g.fillText(entry.demo?'TEST PREVIEW / 記念撮影の見本':`MEMORY No. ${String(entry.serial).padStart(6,'0')}  /  ONLY YOUR FESTIVAL`,540,1372);
-  g.font=F(17,600);g.fillText('記念用の画像です。お菓子の当たり券には使えません。',540,1410);
+  const sticker=(cx,cy,word,color,bg,angle)=>{g.save();g.translate(cx,cy);g.rotate(angle);g.font=F(23,900);const tw=g.measureText(word).width;g.fillStyle=bg;g.strokeStyle='#fff';g.lineWidth=6;g.beginPath();g.roundRect(-tw/2-20,-27,tw+40,47,9);g.fill();g.stroke();g.textAlign='center';g.fillStyle=color;g.fillText(word,0,5);g.restore();};
+  sticker(232,280,'ALL CLEAR !!','#18233e',dark?'#c6fff2':'#fff2a8',-.06);sticker(878,1188,'2026 LIMITED','#192240',dark?'#f4c5ff':'#fff',.07);
+  g.save();g.translate(540,1280);g.rotate(-.025);g.fillStyle=dark?'#e1fff8':'#192240';g.beginPath();g.roundRect(-446,-57,892,108,12);g.fill();g.textAlign='center';g.fillStyle=dark?'#192240':'#fff';g.font=F(59,900);g.fillText('黒工マスター',0,19);g.restore();
+  g.textAlign='center';g.fillStyle=ink;g.font=F(27,900);g.fillText('最高の1日をありがとう！！',540,1362);
+  g.font=F(20,800);g.fillText(entry.demo?'TEST PREVIEW / 記念撮影の見本':`MEMORY No. ${String(entry.serial).padStart(6,'0')}  /  ONLY YOUR FESTIVAL`,540,1398);
+  if(entry.demo){g.save();g.translate(540,750);g.rotate(-.2);g.font=F(65,900);g.fillStyle='#ffffffa6';g.strokeStyle='#192240b3';g.lineWidth=3;g.strokeText('TEST PREVIEW',0,0);g.fillText('TEST PREVIEW',0,0);g.restore();}
   return cv;
 }
+function renderRallyPhoto(){
+  const p=RALLY_PHOTO;if(!p.entry)return;
+  const cv=$('#rally-photo-canvas'),image=rallyPhotoCanvas(p.entry,p.ready?p.source:null,p.mirror,{style:p.style,zoom:p.zoom,panX:p.panX,panY:p.panY,placeholder:!p.stream});
+  const g=cv.getContext('2d');g.clearRect(0,0,1080,1440);g.drawImage(image,0,0);cv.classList.remove('hide');
+}
+function queueRallyPhoto(){if(RALLY_PHOTO.raf)return;RALLY_PHOTO.raf=requestAnimationFrame(()=>{RALLY_PHOTO.raf=0;renderRallyPhoto();});}
+function photoReveal(){
+  clearPhotoFx();if(REDUCE_MOTION.matches||document.documentElement.classList.contains('lite'))return;
+  const stage=$('#photo-stage');void stage.offsetWidth;stage.classList.add('reveal');
+  const flash=document.createElement('span');flash.className='photo-flash';flash.setAttribute('aria-hidden','true');$('#rally-photo-view').append(flash);
+  for(let i=0;i<14;i++){const e=document.createElement('i');e.className='photo-spark';e.setAttribute('aria-hidden','true');const a=i*Math.PI*2/14;e.style.setProperty('--dx',Math.cos(a)*150+'px');e.style.setProperty('--dy',Math.sin(a)*200+'px');e.style.setProperty('--spark',['#c4ffee','#e6b5ff','#ffe18e'][i%3]);stage.append(e);}
+  RALLY_PHOTO.fxTimer=setTimeout(clearPhotoFx,1200);
+}
 function frameRallyPhoto(source,mirror){
-  const photo=rallyPhotoCanvas(RALLY_PHOTO.entry,source,mirror),cv=$('#rally-photo-canvas');
-  cv.getContext('2d').drawImage(photo,0,0);RALLY_PHOTO.ready=true;
-  stopRallyCamera();$('#rally-photo-hint').classList.add('hide');cv.classList.remove('hide');
-  $('#rally-photo-capture').classList.add('hide');$('#rally-photo-start').classList.add('hide');
-  $('#rally-photo-save').classList.remove('hide');$('#rally-photo-retake').classList.remove('hide');
+  // 動画は止める前に1フレームを写す。選択画像も長辺2048pxまでに控えて調整時の負荷を抑える。
+  const sw=source.videoWidth||source.naturalWidth||source.width,sh=source.videoHeight||source.naturalHeight||source.height;if(!sw||!sh)throw new Error('photo');
+  const copy=document.createElement('canvas'),scale=Math.min(1,2048/Math.max(sw,sh));copy.width=Math.round(sw*scale);copy.height=Math.round(sh*scale);copy.getContext('2d').drawImage(source,0,0,copy.width,copy.height);
+  stopRallyCamera();const p=RALLY_PHOTO;p.io++;Object.assign(p,{source:copy,mirror:!!mirror,zoom:1,panX:0,panY:0,ready:true});
+  photoError('');renderRallyPhoto();updatePhotoControls();photoStatus('いい感じ！！ 枠と写真を調整したら、画像を保存しよう。');photoReveal();
 }
 async function chooseRallyPhoto(){
-  const file=$('#rally-photo-file').files[0];if(!file||!RALLY_PHOTO.entry)return;
-  const err=$('#rally-photo-error');err.classList.add('hide');
-  if(file.size>20*1024*1024){err.textContent='20MB以下の写真を選んでね。';err.classList.remove('hide');return;}
+  const file=$('#rally-photo-file').files[0],p=RALLY_PHOTO;if(!file||!p.entry)return;
+  cancelPhotoCountdown();const session=p.session,io=++p.io;photoError('');
+  if(file.size>20*1024*1024){photoError('20MB以下の写真を選んでね。');return;}
+  photoStatus('写真を読み込んでいます…');
   try{
-    // 写真選択後のblob URLが読めないWebKit環境でも、端末内のFileReaderで読み込めるようにする。
     const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reader.onabort=reject;reader.readAsDataURL(file);});
+    if(session!==p.session||io!==p.io)return;
     const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=data;});
-    if($('#rally-photo').open)frameRallyPhoto(img,false);
-  }catch(e){err.textContent='写真を読み込めませんでした。JPEGまたはPNGの写真で試してね。';err.classList.remove('hide');}
+    if(session===p.session&&io===p.io&&$('#rally-photo').open)frameRallyPhoto(img,false);
+  }catch(e){if(session===p.session&&io===p.io){photoError('写真を読み込めませんでした。JPEGまたはPNGの写真で試してね。');photoStatus('別の写真を選んで、もう一度試してね。');}}
 }
-async function saveRallyPhoto(){
-  if(!RALLY_PHOTO.ready||saveRallyPhoto.busy)return;
-  saveRallyPhoto.busy=true;const button=$('#rally-photo-save');button.disabled=true;
+async function saveRallyPhoto(share=false){
+  const p=RALLY_PHOTO;if(!p.ready||saveRallyPhoto.busy)return;
+  const session=p.session,entry=p.entry;saveRallyPhoto.busy=true;const button=$('#rally-photo-save');button.disabled=true;$('#photo-share').disabled=true;photoError('');photoStatus('画像を用意しています…');
   try{
-    const blob=await new Promise(resolve=>$('#rally-photo-canvas').toBlob(resolve,'image/png'));if(!blob)throw new Error('image');
-    const file=new File([blob],RALLY_PHOTO.entry.demo?'kuroko-preview.png':`kuroko-complete-${String(RALLY_PHOTO.entry.serial).padStart(6,'0')}.png`,{type:'image/png'});
-    if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:'全46ブース制覇！'});return;}catch(e){if(e.name==='AbortError')return;}}
-    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);toast('全制覇プリクラを保存しました！');
-  }catch(e){$('#rally-photo-error').textContent='保存できませんでした。もう一度お試しください。';$('#rally-photo-error').classList.remove('hide');}
-  finally{saveRallyPhoto.busy=false;button.disabled=false;}
+    cancelAnimationFrame(p.raf);p.raf=0;renderRallyPhoto();
+    const blob=await new Promise(resolve=>$('#rally-photo-canvas').toBlob(resolve,'image/png'));if(!blob)throw new Error('image');if(session!==p.session)return;
+    const file=new File([blob],entry.demo?'kuroko-preview.png':`kuroko-complete-${String(entry.serial).padStart(6,'0')}.png`,{type:'image/png'});
+    if(share===true&&navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+      try{await navigator.share({files:[file],title:'全46ブース制覇！'});if(session===p.session){photoStatus('共有先に渡しました！ 写真アプリの保存先も確認してね。');photoStep(3);}return;}
+      catch(e){if(e.name==='AbortError'){if(session===p.session)photoStatus('共有をとじました。画像はここから何度でも保存できます。');return;}}
+    }
+    if(session!==p.session)return;
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=file.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    photoStatus('保存用の画像を渡しました！「写真」や「ダウンロード」を確認してね。');photoStep(3);
+  }catch(e){if(session===p.session){photoError('保存できませんでした。もう一度お試しください。');photoStatus('画像は残っています。もう一度保存するか、共有から試してね。');}}
+  finally{saveRallyPhoto.busy=false;button.disabled=false;$('#photo-share').disabled=false;}
 }
+function resetPhotoPosition(){Object.assign(RALLY_PHOTO,{zoom:1,panX:0,panY:0});updatePhotoControls();queueRallyPhoto();photoStatus('写真を中央に戻しました。');}
+function initRallyPhotoStudio(){
+  $('#rally-photo-start').addEventListener('click',startRallyCamera);$('#rally-photo-capture').addEventListener('click',captureRallyPhoto);
+  $('#rally-photo-file').addEventListener('change',chooseRallyPhoto);$('#rally-photo-save').addEventListener('click',()=>saveRallyPhoto());$('#photo-share').addEventListener('click',()=>saveRallyPhoto(true));
+  $('#rally-photo-retake').addEventListener('click',()=>{const demo=!!RALLY_PHOTO.entry?.demo,style=RALLY_PHOTO.style;openRallyPhoto(demo);RALLY_PHOTO.style=style;renderRallyPhoto();updatePhotoControls();});
+  for(const id of ['rally-photo-close','rally-photo-x'])$('#'+id).addEventListener('click',()=>$('#rally-photo').close());
+  $('#rally-photo').addEventListener('close',()=>{if($('#rally-photo').open)return;closeRallyPhoto();if(!$('#rally-save').classList.contains('hide'))$('#rally-save').focus({preventScroll:true});});
+  $('#photo-camera-flip').addEventListener('click',()=>{RALLY_PHOTO.facing=RALLY_PHOTO.facing==='user'?'environment':'user';startRallyCamera();});
+  $$('#rally-photo [data-photo-style]').forEach(b=>b.addEventListener('click',()=>{RALLY_PHOTO.style=b.dataset.photoStyle;clearPhotoFx();renderRallyPhoto();updatePhotoControls();photoStatus(b.textContent+'の枠に変更しました！');}));
+  for(const [id,key,factor]of[['zoom','zoom',100],['pan-x','panX',100],['pan-y','panY',100]])$('#photo-'+id).addEventListener('input',e=>{RALLY_PHOTO[key]=Number(e.target.value)/factor;updatePhotoControls();queueRallyPhoto();clearPhotoFx();});
+  $('#photo-mirror').addEventListener('click',()=>{RALLY_PHOTO.mirror=!RALLY_PHOTO.mirror;updatePhotoControls();queueRallyPhoto();photoStatus('写真を左右反転しました。');});$('#photo-reset').addEventListener('click',resetPhotoPosition);
+  const view=$('#rally-photo-view');
+  view.addEventListener('pointerdown',e=>{if(!RALLY_PHOTO.ready||e.button!==0)return;RALLY_PHOTO.drag={id:e.pointerId,x:e.clientX,y:e.clientY,px:RALLY_PHOTO.panX,py:RALLY_PHOTO.panY};view.setPointerCapture(e.pointerId);});
+  view.addEventListener('pointermove',e=>{const d=RALLY_PHOTO.drag;if(!d||d.id!==e.pointerId)return;const r=view.getBoundingClientRect(),clamp=v=>Math.max(-1,Math.min(1,v));RALLY_PHOTO.panX=clamp(d.px+(RALLY_PHOTO.mirror?1:-1)*(e.clientX-d.x)/Math.max(1,r.width*.35));RALLY_PHOTO.panY=clamp(d.py-(e.clientY-d.y)/Math.max(1,r.height*.35));updatePhotoControls();queueRallyPhoto();clearPhotoFx();});
+  for(const event of ['pointerup','pointercancel','lostpointercapture'])view.addEventListener(event,()=>{RALLY_PHOTO.drag=null;});
+  const pausePhoto=()=>{stopRallyCamera();clearPhotoFx();RALLY_PHOTO.drag=null;if($('#rally-photo').open){updatePhotoControls();renderRallyPhoto();if(!RALLY_PHOTO.ready)photoStatus('カメラを停止しました。戻ったらもう一度起動してね。');}};
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)pausePhoto();});window.addEventListener('pagehide',pausePhoto);
+  const motion=()=>{if(REDUCE_MOTION.matches)clearPhotoFx();};if(REDUCE_MOTION.addEventListener)REDUCE_MOTION.addEventListener('change',motion);
+}
+
 
 /**
  * 引換確認コードの表示だけを更新する。
@@ -18251,18 +18481,8 @@ function init(){
   $('#rally-save').addEventListener('click',openRallyPhoto);
   $('#rally-complete').addEventListener('click',completeRally);
   $('#own-effects').addEventListener('click',e=>{const b=e.target.closest('[data-effect-test]');if(b)previewOwnerEffect(b.dataset.effectTest);});
-  $('#rally-photo-start').addEventListener('click',startRallyCamera);
-  $('#rally-photo-capture').addEventListener('click',()=>{
-    try{frameRallyPhoto($('#rally-photo-video'),true);}catch(e){$('#rally-photo-error').textContent='カメラの準備を待って、もう一度押してください。';$('#rally-photo-error').classList.remove('hide');}
-  });
-  $('#rally-photo-file').addEventListener('change',chooseRallyPhoto);
-  $('#rally-photo-save').addEventListener('click',saveRallyPhoto);
-  $('#rally-photo-retake').addEventListener('click',()=>{const demo=!!(RALLY_PHOTO.entry&&RALLY_PHOTO.entry.demo);stopRallyCamera();openRallyPhoto(demo);});
-  $('#rally-photo-close').addEventListener('click',()=>$('#rally-photo').close());
-  $('#rally-photo-x').addEventListener('click',()=>$('#rally-photo').close());
-  $('#rally-photo').addEventListener('close',()=>{stopRallyCamera();if(!$('#rally-save').classList.contains('hide'))$('#rally-save').focus({preventScroll:true});});
-  window.addEventListener('pagehide',stopRallyCamera);
-  document.addEventListener('visibilitychange',()=>{if(document.hidden){stopRallyCamera();if($('#rally-photo').open&&!RALLY_PHOTO.ready){$('#rally-photo-start').classList.remove('hide');$('#rally-photo-capture').classList.add('hide');$('#rally-photo-hint').classList.remove('hide');}}});
+  initRallyPhotoStudio();
+
 
   ['online','offline'].forEach(event=>window.addEventListener(event,()=>{ if(CONFIG.RALLY_ENABLED) renderRally(); }));
   // 記録のリセットは係員の試し用だけ。来場者が押せると、交換したあとに消して
