@@ -5860,7 +5860,7 @@ const ICON_WRENCH= `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill=
 
 /* v246：通常保存・IndexedDBの控え・番号のCookie。認証情報や写真は控えへ入れない。 */
 const STAMP_KEYS = ['kuroko_sid','kuroko_cid','kuroko_stamps_v2','kuroko_spent_v1','kuroko_stamp_at','kuroko_join_from','kuroko_joined','kuroko_migrated','kuroko_cert_at'];
-const STAMP_VAULT = { values:{}, db:null, committed:null, queued:null, failed:new Set(), hadIdentity:false, timer:null, writes:Promise.resolve() };
+const STAMP_VAULT = { values:{}, db:null, committed:null, queued:null, failed:new Set(), hadIdentity:false, sidRevision:0, timer:null, writes:Promise.resolve() };
 function cleanStampValues(raw){
   const out={};if(!raw||typeof raw!=='object'||Array.isArray(raw))return out;
   for(const k of ['kuroko_sid','kuroko_join_from'])if(typeof raw[k]==='string'&&/^[0-9A-Za-z]{6,40}$/.test(raw[k]))out[k]=raw[k];
@@ -5891,7 +5891,7 @@ function mergeStampValues(a,b){
 async function initStampVault(){
   let disk={};for(const k of STAMP_KEYS){try{const v=localStorage.getItem(k);if(v!==null)disk[k]=JSON.parse(v);}catch(e){}}
   disk=cleanStampValues(disk);STAMP_VAULT.values=disk;
-  const initialSid=disk.kuroko_sid||readStampCookie();
+  const initialIdentity={sid:disk.kuroko_sid||readStampCookie(),cookie:readStampCookie(),revision:STAMP_VAULT.sidRevision};
   // DBが壊れた・開かれない場合でも起動を止めない。遅い返事で初期化後の番号を差し替えない。
   const backup=await new Promise(resolve=>{
     let done=false;const end=v=>{if(done)return;done=true;clearTimeout(timer);resolve(v);};
@@ -5899,7 +5899,7 @@ async function initStampVault(){
     try{const req=indexedDB.open('kuroko-stamp-vault:'+location.pathname.replace(/[^/]*$/,''),1);
       req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('backup'))req.result.createObjectStore('backup');};
       req.onerror=()=>end(null);req.onblocked=()=>end(null);
-      req.onsuccess=()=>{if(done){recoverLateStampVault(req.result,initialSid);return;}const db=req.result;STAMP_VAULT.db=db;db.onversionchange=()=>{db.close();STAMP_VAULT.db=null;};
+      req.onsuccess=()=>{if(done){recoverLateStampVault(req.result,initialIdentity);return;}const db=req.result;STAMP_VAULT.db=db;db.onversionchange=()=>{db.close();STAMP_VAULT.db=null;};
         try{const tx=db.transaction('backup','readonly'),get=tx.objectStore('backup').get('current');get.onsuccess=()=>end(get.result);get.onerror=()=>end(null);tx.onabort=()=>end(null);}catch(e){end(null);}};
     }catch(e){end(null);}
   });
@@ -5917,7 +5917,7 @@ async function initStampVault(){
   checkpointStamps();
 }
 // 起動の待ち時間を過ぎたDBも、現在の参加番号を守って予備保存へ復帰させる。
-function recoverLateStampVault(db,initialSid){
+function recoverLateStampVault(db,initialIdentity){
   if(STAMP_VAULT.db){if(STAMP_VAULT.db!==db)db.close();return;}
   let get,tx,done=false;
   const finish=ok=>{if(done)return;done=true;clearTimeout(timer);if(get)get.onsuccess=get.onerror=null;if(tx)tx.onabort=tx.onerror=null;if(!ok){try{if(tx)tx.abort();}catch(e){}db.close();}};
@@ -5929,9 +5929,12 @@ function recoverLateStampVault(db,initialSid){
       if(done)return;
       try{
         const old=cleanStampValues(get.result),current=stampVaultValues();
+        const pending=get.result&&Array.isArray(get.result._localPending)?get.result._localPending:[];
+        const cookie=readStampCookie(),unchanged=STAMP_VAULT.sidRevision===initialIdentity.revision&&current.kuroko_sid===initialIdentity.sid&&cookie===initialIdentity.sid;
+        if(pending.includes('kuroko_sid')&&old.kuroko_sid&&(cookie===old.kuroko_sid||unchanged&&initialIdentity.cookie===old.kuroko_sid))current.kuroko_sid=old.kuroko_sid;
         // 元の番号を確認できないまま新しい番号で操作済みなら、古い控えを上書きしない。
         const foreign=old.kuroko_sid&&current.kuroko_sid&&old.kuroko_sid!==current.kuroko_sid;
-        if(foreign&&!initialSid){finish(false);return;}
+        if(foreign&&!initialIdentity.sid){finish(false);return;}
         const same=!foreign&&(!old.kuroko_sid||!current.kuroko_sid||old.kuroko_sid===current.kuroko_sid);
         const values=same?mergeStampValues(old,current):current;
         STAMP_VAULT.db=db;db.onversionchange=()=>{db.close();if(STAMP_VAULT.db===db)STAMP_VAULT.db=null;};
@@ -6121,7 +6124,7 @@ function safeImg(u){
 // 保存できたかを返す。プライベートモードや容量不足では false（スタンプの保存で使う）
 function store(k, v){
   const critical=STAMP_KEYS.includes(k);
-  if(critical){if(v===undefined)delete STAMP_VAULT.values[k];else STAMP_VAULT.values[k]=v;if(k==='kuroko_sid')stampCookie(v);queueStampVault();}
+  if(critical){if(v===undefined)delete STAMP_VAULT.values[k];else STAMP_VAULT.values[k]=v;if(k==='kuroko_sid'){STAMP_VAULT.sidRevision++;stampCookie(v);}queueStampVault();}
   try{v===undefined?localStorage.removeItem(k):localStorage.setItem(k,JSON.stringify(v));if(critical)STAMP_VAULT.failed.delete(k);return true;}catch(e){if(critical)STAMP_VAULT.failed.add(k);return false;}
 }
 /** この端末を表すランダムな文字列。個人情報は含まない */
@@ -11910,6 +11913,7 @@ function clearPhotoFx(){
 }
 function closeRallyPhoto(){
   stopRallyCamera();clearPhotoFx();cancelAnimationFrame(RALLY_PHOTO.raf);RALLY_PHOTO.raf=0;
+  if(RALLY_PHOTO.source)RALLY_PHOTO.source.width=RALLY_PHOTO.source.height=0;
   RALLY_PHOTO.session++;RALLY_PHOTO.io++;RALLY_PHOTO.source=null;RALLY_PHOTO.entry=null;RALLY_PHOTO.ready=false;RALLY_PHOTO.drag=null;
   $('#rally-photo-file').value='';$('#rally-photo-canvas').getContext('2d').clearRect(0,0,1080,1440);
 }
@@ -12026,7 +12030,7 @@ function rallyPhotoCanvas(entry,source,mirror,opt={}){
 function renderRallyPhoto(){
   const p=RALLY_PHOTO;if(!p.entry)return;
   const cv=$('#rally-photo-canvas'),image=rallyPhotoCanvas(p.entry,p.ready?p.source:null,p.mirror,{style:p.style,zoom:p.zoom,panX:p.panX,panY:p.panY,placeholder:!p.stream});
-  const g=cv.getContext('2d');g.clearRect(0,0,1080,1440);g.drawImage(image,0,0);cv.classList.remove('hide');
+  const g=cv.getContext('2d');g.clearRect(0,0,1080,1440);g.drawImage(image,0,0);image.width=image.height=0;cv.classList.remove('hide');
 }
 function queueRallyPhoto(){if(RALLY_PHOTO.raf)return;RALLY_PHOTO.raf=requestAnimationFrame(()=>{RALLY_PHOTO.raf=0;renderRallyPhoto();});}
 function photoReveal(){
@@ -12040,7 +12044,7 @@ function frameRallyPhoto(source,mirror){
   // 動画は止める前に1フレームを写す。選択画像も長辺2048pxまでに控えて調整時の負荷を抑える。
   const sw=source.videoWidth||source.naturalWidth||source.width,sh=source.videoHeight||source.naturalHeight||source.height;if(!sw||!sh)throw new Error('photo');
   const copy=document.createElement('canvas'),scale=Math.min(1,2048/Math.max(sw,sh));copy.width=Math.round(sw*scale);copy.height=Math.round(sh*scale);copy.getContext('2d').drawImage(source,0,0,copy.width,copy.height);
-  stopRallyCamera();const p=RALLY_PHOTO;p.io++;Object.assign(p,{source:copy,mirror:!!mirror,zoom:1,panX:0,panY:0,ready:true});
+  stopRallyCamera();const p=RALLY_PHOTO;if(p.source)p.source.width=p.source.height=0;p.io++;Object.assign(p,{source:copy,mirror:!!mirror,zoom:1,panX:0,panY:0,ready:true});
   photoError('');renderRallyPhoto();updatePhotoControls();photoStatus('いい感じ！！ 枠と写真を調整したら、画像を保存しよう。');photoReveal();
 }
 async function chooseRallyPhoto(){

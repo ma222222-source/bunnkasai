@@ -42,6 +42,15 @@ test('遅いDB起動：別の参加番号に切替後は、前の記録を混ぜ
  expect(backup.kuroko_sid).toBe('WXYZ6789');expect(backup.kuroko_stamps_v2).toEqual(['1F-03']);expect(backup.kuroko_sid).not.toBe(old);
 });
 
+test('遅いDB起動：容量不足で古い番号だけ通常保存に残っても、Cookieと控えの新番号へ戻る',async({page,context})=>{
+ await mockGas(context);await ready(page);await offline(page);
+ await page.evaluate(()=>{store('kuroko_sid','ABCD2345');earnStamp('1F-02');});await dbSaved(page);
+ const cid=await page.evaluate(async()=>{const set=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(this===localStorage&&k==='kuroko_sid')throw new DOMException('quota','QuotaExceededError');return set.call(this,k,v);};earnStamp('1F-03');store('kuroko_sid','WXYZ6789');await checkpointStamps();return deviceId();});
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('kuroko_sid')))).toBe('ABCD2345');
+ await delayVaultOpen(context);await ready(page);await expect.poll(()=>page.evaluate(()=>stampId()),{timeout:10000}).toBe('WXYZ6789');
+ expect(await page.evaluate(()=>({cid:deviceId(),stamps:[...S.stamps].sort()}))).toEqual({cid,stamps:['1F-02','1F-03']});await dbSaved(page);
+});
+
 test('番号だけ残った0個でも台帳から自動復元し、来場者自身が引くまで抽選しない',async({page,context})=>{
  const g=server(),log={posts:[]};const ids=g.R8_BOOTHS.slice(0,14).map(b=>b[0]);g.__post({action:'ledger',cid:SID,ev:ids.map(id=>({t:'s',id}))});await bridge(context,g,log);
  await context.addInitScript(sid=>{localStorage.setItem('kuroko_sid',JSON.stringify(sid));},SID);await ready(page);
