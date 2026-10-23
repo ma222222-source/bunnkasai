@@ -3172,7 +3172,8 @@ test('ブースが届いた瞬間：地図を描いた直後に、位置を測�
 test('はじめて開いた人：「はじめての方へ」と科のチップは、ブースを待たずに出す（届いた瞬間に地図が下へずれない）', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   const errors = watchErrors(page);
-  await mockGas(page);
+  // 初回案内と科チップの配置を測る。開場後だけ出る混雑警告は別のケースの入力。
+  await mockGas(page, { mutate: j => j.booths.forEach(b => { b.status = '空いています'; b.wait = 0; }) });
   let open; let hold = new Promise(r => { open = r; });
   await page.route(/script\.google(usercontent)?\.com\//, async route => { if (hold) await hold; return route.fallback(); });
   await page.goto('/?tab=map');                               // 案内を見たことのない端末（kuroko_intro_v1 なし）
@@ -3187,6 +3188,7 @@ test('はじめて開いた人：「はじめての方へ」と科のチップ�
   open(); hold = null;
   await ready(page);
   await expect(page.locator('#plan-1 [data-id]').first()).toBeVisible();
+  await expect(page.locator('#banner-alert')).toBeHidden();
   // 届いても、地図の位置は変わらない（以前は、カードと科のチップが割り込んで 400px 以上ずれていた）
   expect(Math.abs((await top()) - y0)).toBeLessThanOrEqual(3);
   await expect(page.locator('#intro-card')).toBeVisible();
