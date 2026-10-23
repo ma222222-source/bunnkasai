@@ -53,7 +53,7 @@ var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記�
 var RALLY_RESET_STATE = {epoch:'',at:0};
 function rallyUseEpoch_(force){
   var cache=CacheService.getScriptCache(),key='rally_reset_state_v254';
-  function read(){var value={epoch:'',at:0};try{var parsed=JSON.parse(props_().getProperty('RALLY_RESET')||'null');if(parsed&&/^[a-z0-9_]{1,40}$/.test(parsed.epoch)&&Number(parsed.at)>0)value={epoch:parsed.epoch,at:Number(parsed.at)};}catch(e){}var raw=JSON.stringify(value);cache.put(key,raw,21600);return raw;}
+  function read(){var value={epoch:'',at:0};try{var parsed=JSON.parse(props_().getProperty('RALLY_RESET')||'null');if(parsed&&/^[a-z0-9_]{1,40}$/.test(parsed.epoch)&&Number(parsed.at)>0)value={epoch:parsed.epoch,at:Number(parsed.at)};}catch(e){}var raw=JSON.stringify(value);try{cache.put(key,raw,21600);}catch(eCache){}return raw;}
   // 数秒ごとの変更確認でプロパティを毎回読まない。初期化とリセットは同じロックで順序を守る。
   var raw=force?read():cache.get(key);
   if(raw==null)raw=withLock_(function(){return cache.get(key)||read();});
@@ -2866,6 +2866,7 @@ function ownerApi_(action, body) {
     if(String(body.epoch||'')!==String(old.epoch||''))throw new Error('reset changed: すでにリセットされています。画面を更新して確認してください');
     var at=Math.max(Date.now(),Number(old.at||0)+1),epoch=at.toString(36)+'_'+Utilities.getUuid().replace(/-/g,'').slice(0,8);
     // 以前のシートは残す。以後の参加記録だけ別のシートへ切り替える。
+    CacheService.getScriptCache().remove('rally_reset_state_v254');
     props_().setProperty('RALLY_RESET',JSON.stringify({epoch:epoch,at:at,requestId:body.requestId}));
     rallyUseEpoch_(true);clearRallyStock_();
     var live=liveRead_();delete live.draw;liveSave_(live);

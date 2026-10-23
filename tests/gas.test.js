@@ -621,6 +621,14 @@ test('全体リセット：古い画面・旧当たり券・旧番号統合か�
  assert.deepStrictEqual(g.__get({ledger:cid}).stamps,[]);
 });
 
+test('全体リセット：世代のキャッシュ保存が失敗しても、以前の回を使い続けない',()=>{
+ const g=freshOwner(),token=ownerIn(g);g.__get();
+ const original=g.CacheService.getScriptCache;g.CacheService.getScriptCache=()=>{const cache=original();return {...cache,put:(key,value,ttl)=>{if(key==='rally_reset_state_v254')throw new Error('cache unavailable');return cache.put(key,value,ttl);}};};
+ const r=g.__post({action:'owner_rally_reset',token,confirm:'全体リセット',requestId:'cache-reset-0001',epoch:''});assert.strictEqual(r.ok,true,JSON.stringify(r));
+ assert.ok(r.rallyReset.epoch);assert.strictEqual(g.__get().rallyReset.epoch,r.rallyReset.epoch);
+ assert.match(g.__post({action:'ledger',cid:'CACHE234',ev:[]}).error,/rally_reset/);
+});
+
 test('係員QR：受付用は従来の受付操作ができるが、司令塔の操作はできない',()=>{
  const g=freshOwner(),cid='staff-device-0001',pass=g.__post({action:'staff_enter',cid,who:'受付'}).staffToken;
  const v=g.__post({action:'visitor',pass,cid,n:1,uid:'staff-visitor-0001'});assert.strictEqual(v.ok,true,JSON.stringify(v));
