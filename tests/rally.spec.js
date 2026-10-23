@@ -259,10 +259,18 @@ test('写真加工：4種のフィルター・明るさ・ひとことが保存�
  const images=[];for(const filter of ['natural','soft','vivid','mono']){await page.locator(`[data-photo-filter="${filter}"]`).click();await expect.poll(()=>page.evaluate(()=>RALLY_PHOTO.raf)).toBe(0);images.push(await page.locator('#rally-photo-canvas').evaluate(c=>c.toDataURL()));}expect(new Set(images).size).toBe(4);
  const gray=await page.locator('#rally-photo-canvas').evaluate(c=>Array.from(c.getContext('2d').getImageData(540,700,1,1).data));expect(gray[0]).toBe(gray[1]);expect(gray[1]).toBe(gray[2]);
  await page.evaluate(()=>window.previousFiltered=RALLY_PHOTO.filtered);await page.locator('#photo-pan-x').focus();await page.keyboard.press('ArrowRight');await expect.poll(()=>page.evaluate(()=>RALLY_PHOTO.raf)).toBe(0);expect(await page.evaluate(()=>RALLY_PHOTO.filtered===previousFiltered)).toBe(true);
+ await page.locator('#photo-bright').focus();await page.keyboard.press('ArrowRight');await page.locator('#photo-caption').fill('リセット確認');
+ await page.locator('#photo-edit-reset').click();await expect(page.locator('#photo-bright-value')).toHaveText('100%');await expect(page.locator('#photo-caption')).toHaveValue('');expect(await page.evaluate(()=>RALLY_PHOTO.filtered)).toBe(null);
+ await page.locator('[data-photo-filter="vivid"]').click();await expect.poll(()=>page.evaluate(()=>!!RALLY_PHOTO.filtered)).toBe(true);
  await page.locator('#photo-bright').focus();await page.keyboard.press('ArrowRight');await expect(page.locator('#photo-bright-value')).toHaveText('101%');await page.locator('#photo-caption').fill('黒工祭、最高！！');await expect.poll(()=>page.evaluate(()=>RALLY_PHOTO.raf)).toBe(0);const edited=await page.locator('#rally-photo-canvas').evaluate(c=>c.toDataURL());expect(edited).not.toBe(images[3]);await page.screenshot({path:path.join(ART,info.project.name+'-photo-edit-controls.png')});
- const download=page.waitForEvent('download');await page.locator('#rally-photo-save').click();const file=await download;expect(fs.readFileSync(await file.path()).toString('base64')).toBe(edited.split(',')[1]);
- await page.locator('#photo-edit-reset').click();await expect(page.locator('#photo-bright-value')).toHaveText('100%');await expect(page.locator('#photo-caption')).toHaveValue('');expect(await page.evaluate(()=>RALLY_PHOTO.filtered)).toBe(null);await page.locator('[data-photo-filter="vivid"]').click();await expect.poll(()=>page.evaluate(()=>!!RALLY_PHOTO.filtered)).toBe(true);await page.locator('#rally-photo-close').click();
- expect(await page.evaluate(()=>({source:!!RALLY_PHOTO.source,filtered:!!RALLY_PHOTO.filtered,caption:RALLY_PHOTO.caption}))).toEqual({source:false,filtered:false,caption:''});expect(posts.some(p=>p.image||p.photo||p.consent)).toBe(false);expect(errors).toEqual([]);
+ // 保存は別ページへ遷移しない。WebKitでダウンロード後の遷移待ちを発生させず、見えている実ボタンを押す。
+ const save=page.locator('#rally-photo-save');await save.scrollIntoViewIfNeeded();const box=await save.boundingBox();expect(box).not.toBeNull();
+ const point={x:box.x+box.width/2,y:box.y+box.height/2};expect(await page.evaluate(p=>document.elementFromPoint(p.x,p.y)?.closest('#rally-photo-save')?.id,point)).toBe('rally-photo-save');
+ const download=page.waitForEvent('download');await page.mouse.click(point.x,point.y);const file=await download;expect(fs.readFileSync(await file.path()).toString('base64')).toBe(edited.split(',')[1]);
+ // 編集の確認を終えてからPNGを受け取り、標準のEscape操作で閉じる。
+ await page.keyboard.press('Escape');
+ await expect(page.locator('#rally-photo')).not.toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>({source:!!RALLY_PHOTO.source,filtered:!!RALLY_PHOTO.filtered,caption:RALLY_PHOTO.caption}))).toEqual({source:false,filtered:false,caption:''});expect(posts.some(p=>p.image||p.photo||p.consent)).toBe(false);expect(errors).toEqual([]);
 });
 
 test('写真の任意協力：同意なしでも保存でき、現在の画像と2項目の同意だけがLINEの下書きを解放する',async({page,context,baseURL},info)=>{
