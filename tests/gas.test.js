@@ -13,6 +13,19 @@ function fresh(props) {
   g.setupR8AndArchiveOthers();
   return g;
 }
+
+test('現行42件：削除した4件は抽選・全制覇に不要、過去のスタンプは保持する',()=>{
+ const g=fresh();for(const id of ['1F-33','1F-58','2F-06','3F-01'])g.removeBooth_(id);
+ const ids=g.__get().booths.map(b=>b.id);assert.strictEqual(ids.length,42);
+ const cid='LIVE0042',ev=ids.map(id=>({t:'s',id}));
+ let res=g.__post({action:'rally_complete',cid,ev:ev.slice(0,-1)});assert.strictEqual(res.ok,false);
+ res=g.__post({action:'rally_complete',cid,ev});assert.strictEqual(res.ok,true);
+ assert.strictEqual(res.rally.entries.filter(e=>e.result==='complete').length,1);
+ assert.strictEqual(g.__post({action:'rally_complete',cid,ev}).duplicate,true);
+ const draw=g.__post({action:'rally_draw',policy:g.RALLY_POLICY,cid,attempt:1,ev:[]});assert.strictEqual(draw.ok,true);
+ const sh=g.__ss.getSheetByName('ブース'),saved=sh.data;sh.data=[saved[0]];
+ assert.throws(()=>g.rallyBoothIds_(),/booths_unavailable/);sh.data=saved;
+});
 const booth = (g, id) => g.__get().booths.find(b => b.id === id);
 const rowOf = (g, id) => {
   const sh = g.__ss.getSheetByName('ブース');

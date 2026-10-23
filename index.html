@@ -4317,14 +4317,14 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
 
       <div class="card rally-card" id="rally-card">
         <div class="card-t">7個集めて、お楽しみ抽選！</div>
-        <p>まずは7個！ たまったら下のボタンで、自分で抽選を引けます。係員の操作は不要です。<br>46個コンプリートで、自分だけの「全制覇プリクラ」を解放！</p>
+        <p><span id="rally-roster-total"></span>まずは7個！ たまったら下のボタンで、自分で抽選を引けます。係員の操作は不要です。<br>全ブースコンプリートで、自分だけの「全制覇プリクラ」を解放！</p>
         <div class="rally-result" id="rally-result" tabindex="-1" aria-live="polite"></div>
         <button class="btn" id="rally-draw" type="button">7個集めて抽選する</button>
-        <button class="btn ghost hide" id="rally-complete" type="button">46個達成！ 全制覇プリクラを解放</button>
+        <button class="btn ghost hide" id="rally-complete" type="button">全ブース達成！ 全制覇プリクラを解放</button>
         <button class="btn ghost hide" id="rally-save" type="button">自分だけの全制覇プリクラを撮る</button>
         <p class="rally-error hide" id="rally-error" role="alert"></p>
         <p class="rally-odds" id="rally-odds"></p>
-        <p class="rally-foot">抽選は7個ごとに1回、最大6回。スタンプは減りません。超大当たり1個・大当たり12個・当たり200個。6回すべてはずれた方には先着200人分の参加賞！ 景品は当選・参加賞の確定時に確保し、なくなり次第終了です。交換場所は<b>電子科塔</b>。発行済みの券は終了後も交換できます。46個で全制覇プリクラ。抽選・交換・全制覇の確認にはインターネット接続が必要です。</p>
+        <p class="rally-foot">抽選は7個ごとに1回、最大6回。スタンプは減りません。超大当たり1個・大当たり12個・当たり200個。6回すべてはずれた方には先着200人分の参加賞！ 景品は当選・参加賞の確定時に確保し、なくなり次第終了です。交換場所は<b>電子科塔</b>。発行済みの券は終了後も交換できます。全ブースで全制覇プリクラ。抽選・交換・全制覇の確認にはインターネット接続が必要です。</p>
       </div>
 
       <div class="card" id="redeem-card">
@@ -4777,7 +4777,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
           <div class="own-rally-tools">
           <div class="card own-rally-card" id="own-effects">
             <div class="card-t">演出だけ試す（条件なし）</div>
-            <p class="own-note">当日の前に、ここから何度でも確認できます。スタンプ0個でも、景品が終了していても試せます。実際の抽選・在庫・スタンプ・交換記録は変わりません。音は端末の効果音設定に従います。プリクラは46個集めずに撮影まで試せます。保存画像にも見本と入ります。</p>
+            <p class="own-note">当日の前に、ここから何度でも確認できます。スタンプ0個でも、景品が終了していても試せます。実際の抽選・在庫・スタンプ・交換記録は変わりません。音は端末の効果音設定に従います。プリクラは全ブース集めずに撮影まで試せます。保存画像にも見本と入ります。</p>
             <div class="effect-tests">
               <button type="button" class="btn ghost" data-effect-test="win">お菓子の当たり</button>
               <button type="button" class="btn ghost" data-effect-test="super">超大当たり</button>
@@ -5205,7 +5205,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
   <header class="photo-head">
     <p class="photo-eyebrow">KUROKO FESTIVAL / COMPLETE STUDIO</p>
     <h2 id="rally-photo-title" tabindex="-1" autofocus>全制覇プリクラ！</h2>
-    <p id="rally-photo-intro">46ブースを回った、今日のあなたが主役。自分だけの1枚を残そう！！</p>
+    <p id="rally-photo-intro">全ブースを回った、今日のあなたが主役。自分だけの1枚を残そう！！</p>
     <button id="rally-photo-x" class="photo-x" type="button" aria-label="撮影画面をとじる">×</button>
   </header>
   <ol class="photo-steps" aria-label="記念写真の手順">
@@ -5213,7 +5213,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
   </ol>
   <div class="photo-layout">
     <section class="photo-stage" id="photo-stage" aria-label="プリクラのプレビュー">
-      <div class="photo-stage-tag"><span>ONLY YOUR FESTIVAL</span><b id="photo-memory">46 / 46 COMPLETE</b></div>
+      <div class="photo-stage-tag"><span>ONLY YOUR FESTIVAL</span><b id="photo-memory">ALL BOOTHS COMPLETE</b></div>
       <div class="rally-photo-view" id="rally-photo-view" data-editable="false">
         <video id="rally-photo-video" class="hide" autoplay playsinline muted></video>
         <canvas id="rally-photo-canvas" width="1080" height="1440" role="img" aria-label="全制覇の記念写真プレビュー"></canvas>
@@ -5288,7 +5288,7 @@ const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
   SCHOOL_URL: 'https://www2.iwate-ed.jp/kst-h/',   // v236：学校の公式サイト（パンフレットの学校名の下に刷る。表紙のQRは、このマップのまま）
-  BUILD: '2026-10-23a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-23b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -5304,7 +5304,7 @@ const CONFIG = {
   // ブースの数が決まったら、実際に配れる数に合わせて調整すること。
   PRIZE_COST: 7,           // v245：7個ごとに1回、最大6回。スタンプは消費しない
   RALLY_ENABLED: true,
-  RALLY_MIN: '2026-10-23a',
+  RALLY_MIN: '2026-10-23b',
   RALLY_POLICY: 'tiered-v251',
   PHOTO_LINE_ID: '@210ukaob',
   PHOTO_PERMISSION_VERSION: 'kuroko-movie-2026-v1',
@@ -9174,7 +9174,7 @@ function renderScanCount(){
   if (!el) return;
   const got = S.booths.filter(b => S.stamps.has(b.id)).length;
   const left = stampsLeft(), need = Math.max(1, CONFIG.PRIZE_COST | 0);
-  if(CONFIG.RALLY_ENABLED){ el.textContent=`いまスタンプ ${got}個・`+(got>=46 ? '全制覇プリクラを解放！' : got>=7 ? '7個ごとにお菓子抽選！' : `あと${7-got}個で抽選！`); return; }
+  if(CONFIG.RALLY_ENABLED){ el.textContent=`いまスタンプ ${got}個・`+(rallyTotal()>0&&got>=rallyTotal() ? '全制覇プリクラを解放！' : got>=7 ? '7個ごとにお菓子抽選！' : `あと${7-got}個で抽選！`); return; }
   el.textContent = !S.booths.length ? '' : `いまスタンプ ${got}個・` + (left >= need ? 'お菓子と交換できます' : `あと${need - left}個でお菓子1個`);
 }
 
@@ -11691,7 +11691,7 @@ function showStampFx(id, fresh){
       : total && got === Math.ceil(total / 2) ? 'ちょうど半分！'
       : (() => { const a = stampRank(got - 1, total), b2 = stampRank(got, total); return fresh && a && b2 && a.name !== b2.name; })() ? `称号「${stampRank(got, total).name}」になりました！`
       : L.shiny ? 'キラスタンプ！' : 'スタンプ獲得！';
-    const goal = CONFIG.RALLY_ENABLED ? (got>=46 ? '全46ブース制覇！ スタンプ画面で自分だけのプリクラを撮れます。' : `7個ごとにお菓子抽選！ スタンプ画面から挑戦できます。`) : done ? 'すべてのブースを回りました。おめでとうございます！'
+    const goal = CONFIG.RALLY_ENABLED ? (rallyTotal()>0&&got>=rallyTotal() ? '全ブース制覇！ スタンプ画面で自分だけのプリクラを撮れます。' : `7個ごとにお菓子抽選！ スタンプ画面から挑戦できます。`) : done ? 'すべてのブースを回りました。おめでとうございます！'
       : left >= need ? `スタンプ${need}個でお菓子1個と交換できます。電子科塔で係の人に見せてください`
       : `あと${need - left}個でお菓子と交換できます`;
     // 次に行く先：まだ行っていない空いているブースのうち、ここからいちばん近いもの（v158：同じ階の先頭から距離順へ）
@@ -11829,7 +11829,7 @@ function stampRank(got, total){
 /* v245：抽選結果・当たり券はサーバーを正とする。端末の保存やスクショだけでは交換を確定しない。 */
 const RALLY = { cid:'', state:null, busy:false, error:'' };
 const RALLY_CARDS = {
-  complete:{ title:'黒工マスター' ,mark:'crown', text:'全46ブース制覇、おめでとう！！',color:'#991b1b' },
+  complete:{ title:'黒工マスター' ,mark:'crown', text:'全ブース制覇、おめでとう！！',color:'#991b1b' },
   miss:{ title:'次の7個で、また挑戦！',mark:'walk',text:'まだまだ文化祭を楽しもう！',color:'#1e3a8a' },
   candy:{ title:'黒工祭ラリー達成', mark:'pack', text:'7つの出会いを集めた、今日の記念に。', color:'#991b1b' },
   explorer:{ title:'黒工探検隊', mark:'walk', text:'気になる場所へ、一歩ずつ。', color:'#14532d' },
@@ -11855,12 +11855,16 @@ function takeRally(state, cid){
   renderRally();
 }
 function rallyReady(){ return !!(S.serverVersion && S.serverVersion >= CONFIG.RALLY_MIN); }
+function rallyTotal(){ return S.booths.length; }
 function rallyGot(){ return S.booths.filter(b => S.stamps.has(b.id)).length; }
 function rallyDraws(){return rallyEntries().filter(e=>e.result!=='complete');}
 function rallyComplete(){return rallyEntries().find(e=>e.result==='complete');}
 function renderRally(){
   if(!CONFIG.RALLY_ENABLED){$('#rally-card').classList.add('hide');return;}
   $('#rally-card').classList.remove('hide');
+  $('#rally-roster-total').textContent=rallyTotal()?'現在'+rallyTotal()+'ブース。':'';
+  $('#rally-photo-intro').textContent='現在の'+rallyTotal()+'ブースを回った、今日のあなたが主役。自分だけの1枚を残そう！！';
+  $('#rally-complete').textContent=rallyTotal()+'個達成！ 全制覇プリクラを解放';
   const got=rallyGot(), draws=rallyDraws(), ticket=rallyTicket(), completed=rallyComplete();
   const tickets=rallyEntries().filter(e=>rallyPrize(e)&&!e.claimedAt), given=rallyEntries().filter(e=>rallyPrize(e)&&e.claimedAt).length;
   const stock=RALLY.cid===stampId()&&RALLY.state&&RALLY.state.stock, checkPart=rallyPartCheck();
@@ -11868,8 +11872,8 @@ function renderRally(){
   const next=(draws.length+1)*7, ready=rallyReady(), box=$('#rally-result'), draw=$('#rally-draw'), save=$('#rally-save'), complete=$('#rally-complete');
   let html;
   if(ticket) html=`<p class="rally-kicker">${RALLY_PRIZES[rallyPrize(ticket)]}！</p><span class="rally-emblem">${mark(rallyPrize(ticket)==='super'?'crown':'pack')}</span><h3>お菓子${tickets.length}個を確保しています！</h3><p><b>交換場所：電子科塔</b><br>係員にこの画面を見せ、種類を確認して1券ずつ交換してください。${ended?'景品の発行は終了しましたが、この券は交換できます。':''}</p><ul class="rally-ticket-list">${tickets.map(e=>`<li><b>${RALLY_PRIZES[rallyPrize(e)]} × 1</b><small>券 ${esc(e.ticket.slice(-8))}</small></li>`).join('')}</ul>`;
-  else if(ended) html='<p class="rally-kicker">お菓子抽選は終了しました</p><h3>景品413個の発行が終了しました！</h3><p>たくさん遊んでくれてありがとう！！ 発行済みの券は電子科塔で交換できます。46個制覇のプリクラには引き続き挑戦できます。</p>';
-  else if(draws.length) html=`<p class="rally-kicker">${draws.slice(-1)[0].result==='miss'?'今回は、はずれ！':'お菓子は交換済みです'}</p><h3>${draws.length>=6?'6回すべて参加しました！':got>=next?'次のお菓子抽選に挑戦できます！':`次の抽選まで あと${next-got}個`}</h3><p>抽選 ${draws.length} / 6回。${got<46?'46個制覇で、自分だけの全制覇プリクラも作れます！':'全46ブース制覇、おめでとう！！'}</p>`;
+  else if(ended) html='<p class="rally-kicker">お菓子抽選は終了しました</p><h3>景品413個の発行が終了しました！</h3><p>たくさん遊んでくれてありがとう！！ 発行済みの券は電子科塔で交換できます。全ブース制覇のプリクラには引き続き挑戦できます。</p>';
+  else if(draws.length) html=`<p class="rally-kicker">${draws.slice(-1)[0].result==='miss'?'今回は、はずれ！':'お菓子は交換済みです'}</p><h3>${draws.length>=6?'6回すべて参加しました！':got>=next?'次のお菓子抽選に挑戦できます！':`次の抽選まで あと${next-got}個`}</h3><p>抽選 ${draws.length} / 6回。${got<rallyTotal()?'全ブース制覇で、自分だけの全制覇プリクラも作れます！':'全ブース制覇、おめでとう！！'}</p>`;
   else html=`<p class="rally-kicker">7個ごとにお菓子抽選！</p><h3>${got>=7?'抽選に参加できます！':`抽選まで あと${7-got}個`}</h3><p>超大当たり・大当たり・当たりに挑戦！ 6回すべてはずれても先着200人に参加賞があります。</p>`;
   if(draws.length===6&&!ticket&&draws.every(e=>e.result==='miss'&&!rallyPrize(e)))html+=`<p>${checkPart?'6回すべてはずれました。下のボタンで参加賞を確認してください。':'6回参加ありがとう！！ 参加賞は先着200人分のため、発行分は終了しました。'}</p>`;
   if(stock&&stock.drawRemaining===0&&!ended)html+='<p><b>超大当たり・大当たり・当たりの発行は終了しました。</b>6回すべてはずれた方への参加賞は残っています。引き続き7個ごとに参加できます。</p>';
@@ -11878,8 +11882,8 @@ function renderRally(){
   draw.disabled=RALLY.busy||(!checkPart&&got<next)||!ready||navigator.onLine===false||ended||(!checkPart&&draws.length>=6);
   draw.textContent=RALLY.busy?'確認しています…':ended?'お菓子抽選は終了しました':navigator.onLine===false?'つながってから抽選できます':!ready?'抽選サーバーの準備を確認中…':checkPart?'6回はずれの参加賞を確認する':draws.length>=6?'6回すべて参加しました':got<next?`あと${next-got}個で次の抽選！`:`お菓子抽選をする！（${draws.length+1}回目）`;
   const wins=draws.filter(e=>e.result==='candy').length, chance=stock&&stock.drawRemaining===0?0:16*Math.pow(.25,wins);
-  $('#rally-odds').textContent=!ready?'新しい抽選サーバーの準備中です。交換場所は電子科塔です。':draws.length>=6?'抽選は6回すべて終了しました。発行済みの券は電子科塔で交換できます。46個集めると全制覇プリクラを解放できます！':`あなたの次の当選率：${Number(chance.toPrecision(4))}％${wins?'（これまでに'+wins+'回当選）':'（まだ当選していません）'}。当選するたび、次からの当選率は4分の1になります。参加賞はこの確率とは別枠です。`;
-  complete.classList.toggle('hide',got<46||!!completed);complete.disabled=RALLY.busy||!ready||navigator.onLine===false;
+  $('#rally-odds').textContent=!ready?'新しい抽選サーバーの準備中です。交換場所は電子科塔です。':draws.length>=6?'抽選は6回すべて終了しました。発行済みの券は電子科塔で交換できます。全ブース集めると全制覇プリクラを解放できます！':`あなたの次の当選率：${Number(chance.toPrecision(4))}％${wins?'（これまでに'+wins+'回当選）':'（まだ当選していません）'}。当選するたび、次からの当選率は4分の1になります。参加賞はこの確率とは別枠です。`;
+  complete.classList.toggle('hide',!rallyTotal()||got<rallyTotal()||!!completed);complete.disabled=RALLY.busy||!ready||navigator.onLine===false;
   save.classList.toggle('hide',!completed);save.disabled=RALLY.busy;
   const er=$('#rally-error');er.classList.toggle('hide',!RALLY.error);er.textContent=RALLY.error;
   $('#redeem-card').classList.toggle('hide',!ticket&&!given);$('#stamp-tally').classList.add('hide');
@@ -11896,17 +11900,17 @@ function renderRallySummary(got,ws){
   const ended=RALLY.cid===stampId()&&RALLY.state&&RALLY.state.stock&&RALLY.state.stock.remaining===0;
   const ready=!ws&&((got>=next&&next<=42)||rallyPartCheck())&&!ended;
   const box=$('#stamp-prize');
-  let html=`<div class="prize-row">${prizeMeter(Math.min(got%7||got&&7,7),7)}<span class="prize-tx">${pending?'お菓子の当たりがあります！':got>=46?'全46ブース制覇！ 自分だけのプリクラへ':ended?'お菓子抽選は終了しました':ready?'7個達成！ お菓子抽選へ':next>42?'全制覇プリクラまで あと'+(46-got)+'個':`次の抽選まで あと <b>${next-got}個</b>`}</span></div><button type="button" class="prize-go" id="rally-prize-go">抽選・全制覇プリクラを見る</button>`;
-  if(got===0)html='<ol class="prize-steps"><li>ブース入口のQRを読む</li><li>7個ごとにお菓子抽選に参加する</li><li>46個集めて全制覇プリクラを撮る</li></ol>'+html;
+  let html=`<div class="prize-row">${prizeMeter(Math.min(got%7||got&&7,7),7)}<span class="prize-tx">${pending?'お菓子の当たりがあります！':rallyTotal()>0&&got>=rallyTotal()?'全ブース制覇！ 自分だけのプリクラへ':ended?'お菓子抽選は終了しました':ready?'7個達成！ お菓子抽選へ':next>42?'全制覇プリクラまで あと'+(rallyTotal()-got)+'個':`次の抽選まで あと <b>${next-got}個</b>`}</span></div><button type="button" class="prize-go" id="rally-prize-go">抽選・全制覇プリクラを見る</button>`;
+  if(got===0)html='<ol class="prize-steps"><li>ブース入口のQRを読む</li><li>7個ごとにお菓子抽選に参加する</li><li>全ブース集めて全制覇プリクラを撮る</li></ol>'+html;
   if(box.innerHTML!==html){box.innerHTML=html;$('#rally-prize-go').addEventListener('click',()=>{$('#rally-card').scrollIntoView({behavior:smoothBehavior(),block:'start'});$('#rally-result').focus({preventScroll:true});});}
-  box.classList.toggle('ready',!!pending||ready||got>=46);
+  box.classList.toggle('ready',!!pending||ready||rallyTotal()>0&&got>=rallyTotal());
   const tab=$('#nav button[data-view="stamp"]');let bd=tab.querySelector('.nav-badge');
   if((pending||ready)&&!bd){bd=document.createElement('span');bd.className='nav-badge';tab.appendChild(bd);}
   if(bd){if(pending||ready)bd.textContent='1';else bd.remove();}
   tab.setAttribute('aria-label',pending?'スタンプ（お菓子の当たりがあります）':ready?'スタンプ（抽選できます）':'スタンプ');
 }
 async function completeRally(){
-  if(RALLY.busy||rallyGot()<46||!rallyReady())return;
+  if(RALLY.busy||(!rallyTotal()||rallyGot()<rallyTotal())||!rallyReady())return;
   const cid=stampId();RALLY.busy=true;RALLY.error='';renderRally();
   try{
     const body={action:'rally_complete',cid,ev:ledgerEvents()},from=loadStr('kuroko_join_from');if(from&&from!==cid)body.from=from;
@@ -12043,7 +12047,7 @@ function openRallyPhoto(demo){
   closeRallyPhoto();Object.assign(RALLY_PHOTO,{entry,style:'holo',filter:'natural',brightness:1,caption:'',zoom:1,panX:0,panY:0,mirror:false,facing:'user'});
   $('#rally-photo-title').textContent=preview?'全制覇プリクラ（テスト表示）':'全制覇プリクラ！';
   $('#photo-memory').textContent=preview?'TEST PREVIEW':`MEMORY No. ${String(entry.serial).padStart(6,'0')}`;
-  $('#photo-timer').checked=false;photoError('');photoStatus(preview?'司令塔の見本です。スタンプもお菓子の在庫も使いません。':'46ブース制覇、おめでとう！！');
+  $('#photo-timer').checked=false;photoError('');photoStatus(preview?'司令塔の見本です。スタンプもお菓子の在庫も使いません。':'全ブース制覇、おめでとう！！');
   updatePhotoControls();renderRallyPhoto();
   if(!$('#rally-photo').open)$('#rally-photo').showModal();$('#rally-photo').scrollTop=0;$('#rally-photo-title').classList.toggle('quiet',!KEY_USER.on);$('#rally-photo-title').focus({preventScroll:true});
 }
@@ -12098,7 +12102,7 @@ function rallyPhotoCanvas(entry,source,mirror,opt={}){
   g.fillStyle=dark?'#91eee4':'#fff';for(let i=0;i<16;i++){const x=i%2?1024+random()*22:28+random()*27,y=90+random()*1260;star(x,y,8+random()*14);}
   g.fillStyle=ink;g.font=F(25,900);g.fillText('KUROKO FESTIVAL 2026',66,82);g.font=F(19,700);g.fillText('ONE DAY. ALL THE MEMORIES.',66,117);
   g.font=F(132,900);g.lineJoin='round';g.strokeStyle=dark?'#ec91fa':'#fff';g.lineWidth=16;g.strokeText('全制覇！',66,231);g.fillStyle=ink;g.fillText('全制覇！',66,231);
-  g.save();g.translate(944,143);g.rotate(.13);g.fillStyle=dark?'#bcfff0':'#192240';g.beginPath();g.arc(0,0,81,0,Math.PI*2);g.fill();g.strokeStyle=dark?'#192240':'#e3d4ff';g.lineWidth=2;g.beginPath();g.arc(0,0,70,0,Math.PI*2);g.stroke();g.fillStyle=dark?'#192240':'#fff';g.textAlign='center';g.font=F(51,900);g.fillText('46',0,8);g.font=F(17,800);g.fillText('/ 46 BOOTHS',0,39);g.restore();
+  g.save();g.translate(944,143);g.rotate(.13);g.fillStyle=dark?'#bcfff0':'#192240';g.beginPath();g.arc(0,0,81,0,Math.PI*2);g.fill();g.strokeStyle=dark?'#192240':'#e3d4ff';g.lineWidth=2;g.beginPath();g.arc(0,0,70,0,Math.PI*2);g.stroke();g.fillStyle=dark?'#192240':'#fff';g.textAlign='center';g.font=F(51,900);g.fillText(String(rallyTotal()),0,8);g.font=F(17,800);g.fillText('/ '+rallyTotal()+' BOOTHS',0,39);g.restore();
   const x=76,y=266,w=928,h=920;
   g.save();g.beginPath();g.roundRect(x,y,w,h,22);g.clip();g.clearRect(x,y,w,h);
   if(source){
@@ -12168,7 +12172,7 @@ async function saveRallyPhoto(share=false){
     if(revision!==p.revision){photoStatus('写真が変わったので、調整後の画像でもう一度保存してね。');return;}
     const file=new File([blob],entry.demo?'kuroko-preview.png':`kuroko-complete-${String(entry.serial).padStart(6,'0')}.png`,{type:'image/png'});
     if(share===true&&navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-      try{await navigator.share({files:[file],title:'全46ブース制覇！'});if(session===p.session){photoStatus('共有先に渡しました！ 写真アプリの保存先も確認してね。');photoStep(3);if(revision===p.revision){p.savedRevision=revision;updatePhotoSubmission();}}return;}
+      try{await navigator.share({files:[file],title:'全ブース制覇！'});if(session===p.session){photoStatus('共有先に渡しました！ 写真アプリの保存先も確認してね。');photoStep(3);if(revision===p.revision){p.savedRevision=revision;updatePhotoSubmission();}}return;}
       catch(e){if(e.name==='AbortError'){if(session===p.session)photoStatus('共有をとじました。画像はここから何度でも保存できます。');return;}}
     }
     if(session!==p.session)return;
@@ -14380,7 +14384,7 @@ function previewOwnerEffect(kind){
   if(!(ownToken()&&OWN.state))return;
   if(kind==='photo'){openRallyPhoto(true);return;}
   if(kind==='redeem'){showPrizeFx(1,false,true);return;}
-  const titles={win:'お菓子の当たり！',super:'超大当たり！！',big:'大当たり！！',participation:'6回挑戦ありがとう！ 参加賞です！！',miss:'今回は、はずれ！',end:'お菓子抽選は終了しました',stamp:'スタンプ獲得！',shiny:'キラスタンプ！',complete:'全46ブース制覇！',lucky:'ラッキーブースでスタンプ！',party:'黒工祭へようこそ！！',calm:'本部からのお知らせ'};
+  const titles={win:'お菓子の当たり！',super:'超大当たり！！',big:'大当たり！！',participation:'6回挑戦ありがとう！ 参加賞です！！',miss:'今回は、はずれ！',end:'お菓子抽選は終了しました',stamp:'スタンプ獲得！',shiny:'キラスタンプ！',complete:'全ブース制覇！',lucky:'ラッキーブースでスタンプ！',party:'黒工祭へようこそ！！',calm:'本部からのお知らせ'};
   const notes={win:'当たり券を電子科塔で景品1個と交換します。',super:'限定1個の超大当たり！ 交換場所は電子科塔です。',big:'限定12個の大当たり！ 交換場所は電子科塔です。',participation:'6回すべてはずれた方の先着200人分です。電子科塔で交換します。',miss:'新しく7個集めると、次の抽選に挑戦できます。',end:'景品413個の発行が終了しました。発行済みの券は電子科塔で交換できます。',complete:'全制覇プリクラが解放されます。',lucky:'いまおすすめのブースでスタンプを集めました。'};
   showLiveFx(['win','super','big','participation'].includes(kind)?'win':'show',titles[kind]||'演出の確認',(notes[kind]||'当日の画面・動きの見本です。')+'（テスト表示：実際の記録・在庫は変わりません）',true,['miss','end','calm'].includes(kind)?'calm':'party');
   const fx=$('#lfx');if(!fx)return;
@@ -17612,7 +17616,7 @@ function renderPamphlet(){
       <ol class="pam-steps">
         <li><b>入口のQRを読む</b>各ブースの入口のQRを、スマホのカメラで読みます。アプリを入れる必要はありません</li>
         <li><b>スタンプがたまる</b>読むたびに1個。スタンプ帳で、回った所が分かります</li>
-        <li><b>7個ごとにお菓子抽選！</b>超大当たり1個・大当たり12個・当たり200個、6回すべてはずれた方の参加賞200個。電子科塔で係員と交換。46個制覇で、全制覇プリクラを保存！</li>
+        <li><b>7個ごとにお菓子抽選！</b>超大当たり1個・大当たり12個・当たり200個、6回すべてはずれた方の参加賞200個。電子科塔で係員と交換。全ブース制覇で、全制覇プリクラを保存！</li>
       </ol>
       ${opt('', ed('flap.note', P.stampNote || '', 'p', 'pam-small', '交換できる場所・時間など（空なら出ません）'))}
       <h3 class="pam-h3">スマホで混み具合が分かります</h3>
