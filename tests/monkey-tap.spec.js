@@ -1,4 +1,4 @@
-const { fillStaffName } = require('./staff-name-helper');
+const { fillStaffName, enterStaff } = require('./staff-name-helper');
 // 本物のタップ・なぞり・キーでのでたらめ操作（v180）。
 // monkey.spec.js は関数を直接呼ぶ。こちらは、見えている「押せる物」やでたらめな場所を実際に押し、
 // なぞり、長押しし、キーを打ち、「戻る」「進む」を押す。来場者の画面と係員の画面（模擬のサーバー）の両方。
@@ -29,7 +29,7 @@ for (const { seed, START, STAFF } of RUNS) {
       try{ navigator.share = async () => {}; }catch(e){}
     }, seed);
     await page.goto(START);
-    if (STAFF) { await page.locator('#pw').fill('test-password-1234'); await fillStaffName(page); await page.locator('#btn-login').click(); }
+    if (STAFF) {  await enterStaff(page); }
     await page.waitForFunction(() => typeof S !== 'undefined' && S.booths.length > 0);
     let s = seed * 7919; const rnd = n => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s % n; };
     const log = []; const bad = [];

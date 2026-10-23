@@ -42,8 +42,9 @@ async function mockGas(page, opt = {}) {
       try { body = JSON.parse(req.postData() || '{}'); } catch (e) {}
       log.posts.push(body);
       // 書き込みだけ失敗させる（係員の「未送信の自動再送」を確かめる）。log.failPosts を途中で false にすると復旧
-      if (log.failPosts && body.action !== 'verify') return route.fulfill({ status: 404, contentType: 'text/html', body: '<html>404</html>' });
+      if (log.failPosts && !['verify','staff_enter'].includes(body.action)) return route.fulfill({ status: 404, contentType: 'text/html', body: '<html>404</html>' });
       const ok = { ok: true, sv: BASE.serverVersion };
+      if(body.action==='staff_enter')return route.fulfill({status:200,headers,contentType:'application/json',body:JSON.stringify(opt.staffError?{ok:false,error:opt.staffError}:{ok:true,staffToken:'staff_'+'a'.repeat(64),sv:BASE.serverVersion})});
       if (body.action === 'verify') return route.fulfill({ status: 200, headers, contentType: 'application/json',
         body: JSON.stringify(opt.verifyOk ? { ok: true, sv: BASE.serverVersion } : { ok: false, error: 'パスワードが違います' }) });
       return route.fulfill({ status: 200, headers, contentType: 'application/json', body: JSON.stringify(ok) });

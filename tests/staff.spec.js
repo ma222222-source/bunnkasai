@@ -1,4 +1,4 @@
-const { fillStaffName } = require('./staff-name-helper');
+const { fillStaffName, enterStaff } = require('./staff-name-helper');
 // 係員コンソール：少ない操作で更新でき、送ったものが正しい形で GAS に届く。送れなかったら端末に残して再送する
 const { test, expect } = require('@playwright/test');
 const { mockGas, watchErrors } = require('./mock');
@@ -9,8 +9,8 @@ async function login(page, opt = {}) {
   if (!opt.grouped) await page.addInitScript(() => localStorage.setItem('kuroko_adm_mode', JSON.stringify('flat')));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?mode=admin');
-  await page.locator('#pw').fill('test-password-1234');
-  await fillStaffName(page); await page.locator('#btn-login').click();
+
+  await enterStaff(page);
   await expect(page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
   await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
   return log;
@@ -187,8 +187,8 @@ test('ログインしたあとブラウザの「戻る」を押しても、パ�
   await page.goto('/?tab=map');
   await expect.poll(() => page.evaluate(() => S.booths.length), { timeout: 15000 }).toBe(46);
   await page.goto('/?mode=admin');
-  await page.locator('#pw').fill('test-password-1234');
-  await fillStaffName(page); await page.locator('#btn-login').click();
+
+  await enterStaff(page);
   await expect(page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
   await page.evaluate(() => history.back());
   await page.waitForTimeout(500);
@@ -277,59 +277,12 @@ test('係員の更新：サーバーが「この中身は受け取れない」�
 });
 
 /* ---------------- v214：係員の画面の7つの仕上げ ---------------- */
-test('①②ログイン：「表示する」で打った字を見られる。全角が入っていたら知らせ、1押しで半角に直せる。入れたあとは欄を空にして隠す', async ({ page }) => {
-  const errors = watchErrors(page);
-  await mockGas(page, { verifyOk: true });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?mode=admin');
-  const pwEl = page.locator('#pw'), show = page.locator('#pw-show'), zen = page.locator('#pw-zen');
-  await expect(pwEl).toHaveAttribute('type', 'password');
-  await expect(zen).toBeHidden();
-  // 「表示する」→ 字が見える。もう一度で隠れる
-  await pwEl.fill('Abc-1234');
-  await show.click();
-  await expect(pwEl).toHaveAttribute('type', 'text');
-  await expect(show).toHaveAttribute('aria-pressed', 'true');
-  await expect(show).toHaveText('かくす');
-  await show.click();
-  await expect(pwEl).toHaveAttribute('type', 'password');
-  await expect(show).toHaveText('表示する');
-  // ボタンは欄の中の右。押す大きさ 44px 以上。字と重ならない
-  const g = await page.evaluate(() => { const a = document.getElementById('pw').getBoundingClientRect(), b = document.getElementById('pw-show').getBoundingClientRect();
-    return { in: b.left >= a.left && b.right <= a.right + 1 && b.top >= a.top - 1 && b.bottom <= a.bottom + 1, h: b.height, w: b.width, pad: parseFloat(getComputedStyle(document.getElementById('pw')).paddingRight) }; });
-  expect(g.in).toBe(true); expect(g.h).toBeGreaterThanOrEqual(44); expect(g.pad).toBeGreaterThanOrEqual(g.w);
-  // 全角：知らせが出る → 「半角に直す」
-  await pwEl.fill('ｔｅｓｔ－ｐａｓｓｗｏｒｄ－１２３４');
-  await expect(zen).toBeVisible();
-  await expect(zen).toContainText('全角');
-  await page.locator('#pw-zen-fix').click();
-  await expect(pwEl).toHaveValue('test-password-1234');
-  await expect(zen).toBeHidden();
-  // 日本語の字（ひらがな・漢字）は、全角の知らせの対象にしない（英数字・記号だけ）
-  await pwEl.fill('あいう漢字');
-  await expect(zen).toBeHidden();
-  // ログインできたら、欄は空・隠す状態に戻る
-  await pwEl.fill('test-password-1234');
-  await show.click();
-  await fillStaffName(page); await page.locator('#btn-login').click();
-  await expect(page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
-  expect(await page.evaluate(() => ({ v: document.getElementById('pw').value, t: document.getElementById('pw').type, s: document.getElementById('pw-show').getAttribute('aria-pressed') }))).toEqual({ v: '', t: 'password', s: 'false' });
-  expect(errors).toEqual([]);
+test('係員の入口：名前だけを入力でき、パスワードの補助操作を表示しない',async({page})=>{
+ const errors=watchErrors(page);await mockGas(page);await page.setViewportSize({width:390,height:844});await page.goto('/?mode=admin');await expect(page.locator('#auth-pw-row')).toBeHidden();await expect(page.locator('#pw-zen')).toBeHidden();await expect(page.locator('#auth-pw-note')).toContainText('パスワードは不要');await enterStaff(page);await expect(page.locator('#v-admin')).toBeVisible();expect(await page.locator('#pw').inputValue()).toBe('');expect(errors).toEqual([]);
 });
 
-test('①ログイン：パスワードが違うときは、確かめる点（表示する・大文字小文字・全角）も言う', async ({ page }) => {
-  await mockGas(page, { verifyOk: false });
-  // 本番のサーバーと同じ返事（unauthorized）にする
-  await page.route(/script\.google(usercontent)?\.com\//, route => route.request().method() === 'POST'
-    ? route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'unauthorized', status: 'error' }) })
-    : route.fallback());
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?mode=admin');
-  await page.locator('#pw').fill('chigau-pass-0000');
-  await fillStaffName(page); await page.locator('#btn-login').click();
-  await expect(page.locator('#auth-err')).toContainText('パスワードが違います');
-  await expect(page.locator('#auth-err')).toContainText('表示する');
-  await expect(page.locator('#auth-err')).toContainText('全角');
+test('係員の入口：通信に失敗したときもパスワードを求めず再試行を案内する',async({page})=>{
+ await mockGas(page,{staffError:'temporary unavailable'});await page.setViewportSize({width:390,height:844});await page.goto('/?mode=admin');await enterStaff(page);await expect(page.locator('#auth-err')).toContainText('通信');await expect(page.locator('#auth-err')).toContainText('パスワードは不要');await expect(page.locator('#auth-pw-row')).toBeHidden();
 });
 
 test('③お菓子の交換コード：あと何秒で変わるかの線が時計に合っている。毎分0秒に番号が変わる（15秒おくれない）', async ({ page }) => {

@@ -28,29 +28,18 @@ async function owner(context) {
   return page;
 }
 
-test('名前登録：空欄では送信せず、パスワードが違う場合は名前を保存しない', async ({ page, context }) => {
-  const errors = watchErrors(page), { posts } = await server(context);
-  await page.goto('/?mode=admin');
-  await page.locator('#pw').fill('wrong-password');
-  await page.locator('#btn-login').click();
-  await expect(page.locator('#auth-err')).toContainText('お名前');
-  await expect(page.locator('#auth-who')).toBeFocused();
-  expect(posts.filter(p => p.action === 'verify')).toHaveLength(0);
-  await page.locator('#auth-who').fill('   ');
-  await page.locator('#btn-login').click();
-  expect(posts.filter(p => p.action === 'verify')).toHaveLength(0);
-  await page.locator('#auth-who').fill('受付 山田');
-  await page.locator('#btn-login').click();
-  await expect(page.locator('#auth-err')).toContainText('パスワードが違います');
-  expect(await page.evaluate(() => localStorage.getItem('kuroko_staff_name'))).toBeNull();
-  expect(errors).toEqual([]);
+test('名前登録：パスワード欄がなく、空の名前は送信せず、名前だけで入れる',async({page,context})=>{
+ const errors=watchErrors(page),{posts,g}=await server(context);await page.goto('/?mode=admin');await expect(page.locator('#auth-pw-row')).toBeHidden();
+ await page.locator('#btn-login').click();await expect(page.locator('#auth-err')).toContainText('お名前');await expect(page.locator('#auth-who')).toBeFocused();expect(posts.filter(p=>p.action==='staff_enter')).toHaveLength(0);
+ await page.locator('#auth-who').fill('   ');await page.locator('#btn-login').click();expect(posts.filter(p=>p.action==='staff_enter')).toHaveLength(0);
+ await page.locator('#auth-who').fill('受付 山田');await page.locator('#btn-login').click();await expect(page.locator('#v-admin')).toBeVisible();expect(g.devList_()[0].label).toBe('受付 山田');expect(posts.filter(p=>p.action==='staff_enter').every(p=>!p.pass)).toBe(true);expect(errors).toEqual([]);
 });
 
 test('名前登録：初回の名前が司令塔に出て、再入室・別タブでも名前を聞き直さない', async ({ page, context }) => {
   const errors = watchErrors(page), { g, posts } = await server(context);
   await page.goto('/?mode=admin');
   await page.locator('#auth-who').fill('受付 山田');
-  await page.locator('#pw').fill(PASS);
+
   await page.locator('#btn-login').click();
   await expect(page.locator('#v-admin')).toBeVisible();
   expect(g.devList_()).toHaveLength(1);
@@ -60,13 +49,13 @@ test('名前登録：初回の名前が司令塔に出て、再入室・別タ�
   await again.goto('/?mode=admin');
   await expect(again.locator('#auth-name-entry')).toBeHidden();
   await expect(again.locator('#auth-name-value')).toHaveText('受付 山田');
-  await again.locator('#pw').fill(PASS);
-  await again.locator('#btn-login').click();
+
+
   await expect(again.locator('#v-admin')).toBeVisible();
   await again.reload();
   await expect(again.locator('#v-admin')).toBeVisible();
   expect(g.devList_()).toHaveLength(1);
-  expect(posts.filter(p => p.action === 'verify').every(p => p.who === '受付 山田')).toBe(true);
+  expect(posts.filter(p => p.action === 'staff_enter').every(p => p.who === '受付 山田')).toBe(true);
   const tower = await owner(context);
   await expect(tower.locator('#own-devs .od-label')).toHaveText('受付 山田');
   expect(errors).toEqual([]);
@@ -77,14 +66,13 @@ test('名前登録：許可待ちでも名前を保存し、再読み込み後�
   await server(context, true);
   await page.goto('/?mode=admin&staffBooth=1F-02');
   await page.locator('#auth-who').fill('機械科 佐藤');
-  await page.locator('#pw').fill(PASS);
+
   await page.locator('#btn-login').click();
   await expect(page.locator('#auth-wait')).toBeVisible();
   await page.reload();
+  await expect(page.locator('#auth-wait')).toBeVisible();
   await expect(page.locator('#auth-name-entry')).toBeHidden();
   await expect(page.locator('#auth-name-value')).toHaveText('機械科 佐藤');
-  await page.locator('#pw').fill(PASS);
-  await page.locator('#btn-login').click();
   await expect(page.locator('#auth-wait')).toBeVisible();
   const tower = await owner(context);
   await expect(tower.locator('#own-devs .od-label')).toHaveText('機械科 佐藤');
@@ -121,28 +109,17 @@ test('名前登録：名前の保存が拒否されても入室でき、次回�
   });
   await page.goto('/?mode=admin');
   await page.locator('#auth-who').fill('受付 山田');
-  await page.locator('#pw').fill(PASS);
+
   await page.locator('#btn-login').click();
   await expect(page.locator('#v-admin')).toBeVisible();
   await expect(page.locator('#toast')).toContainText('名前を保存できません');
   expect(errors).toEqual([]);
 });
 
-test('名前登録：以前のパスワードが残る端末でも、現在のパスワードを入力し直せる', async ({ page, context }) => {
-  const errors = watchErrors(page), { g } = await server(context);
-  await page.addInitScript(() => sessionStorage.setItem('kuroko_pw', 'old-password-1234'));
-  await page.goto('/?mode=admin');
-  await expect(page.locator('#auth-pw-row')).toBeHidden();
-  await page.locator('#auth-who').fill('電子科 高橋');
-  await page.locator('#btn-login').click();
-  await expect(page.locator('#auth-err')).toContainText('パスワードが違います');
-  await expect(page.locator('#auth-pw-row')).toBeVisible();
-  await expect(page.locator('#pw')).toBeFocused();
-  expect(await page.evaluate(() => sessionStorage.getItem('kuroko_pw'))).toBeNull();
-  expect(await page.evaluate(() => localStorage.getItem('kuroko_staff_name'))).toBeNull();
-  await page.locator('#pw').fill(PASS);
-  await page.locator('#btn-login').click();
-  await expect(page.locator('#v-admin')).toBeVisible();
-  expect(g.devList_()[0].label).toBe('電子科 高橋');
-  expect(errors).toEqual([]);
+test('名前登録：以前のパスワードが残る端末も、名前だけで新しい入室に切り替わる',async({page,context})=>{
+ const errors=watchErrors(page),{g,posts}=await server(context);await page.addInitScript(()=>sessionStorage.setItem('kuroko_pw','old-password-1234'));await page.goto('/?mode=admin');await expect(page.locator('#auth-pw-row')).toBeHidden();await page.locator('#auth-who').fill('電子科 高橋');await page.locator('#btn-login').click();await expect(page.locator('#v-admin')).toBeVisible();expect(await page.evaluate(()=>sessionStorage.getItem('kuroko_pw'))).toMatch(/^staff_[a-f0-9]{64}$/);expect(g.devList_()[0].label).toBe('電子科 高橋');expect(posts.filter(p=>p.action==='staff_enter').every(p=>!p.pass)).toBe(true);expect(errors).toEqual([]);
+});
+
+test('入室の期限切れ：名前の再入力なしで入室を取り直し、更新を1回だけ確定する',async({page,context})=>{
+ const {g,posts}=await server(context);await page.goto('/?mode=admin&staffBooth=1F-02');await page.locator('#auth-who').fill('機械科 佐藤');await page.locator('#btn-login').click();await expect(page.locator('#v-admin')).toBeVisible();const token=await page.evaluate(()=>pw());g.__cache.delete(g.staffSessionKey_(token));const c=page.locator('#admin-list .adm-booth');const before=Number(await c.locator('.adm-wait-n').textContent());await c.locator('[data-step="1"]').click();await c.locator('.send').click();await expect.poll(()=>g.__get().booths.find(b=>b.id==='1F-02').wait).toBe(before+1);expect(posts.filter(p=>p.action==='staff_enter')).toHaveLength(2);expect(posts.filter(p=>p.action==='update')).toHaveLength(2);expect(await page.evaluate(()=>pw())).not.toBe(token);await expect(page.locator('#v-admin')).toBeVisible();
 });

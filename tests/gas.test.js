@@ -565,6 +565,101 @@ const ORIGIN_T = 'http://localhost:4173';
 const DEV_A = 'devaaaaaaaaaaaa01', DEV_B = 'devbbbbbbbbbbbb02', DEV_C = 'devcccccccccccc03';
 const freshOwner = props => fresh(Object.assign({ OWNER_PASS: OWNER, OWNER_ORIGINS: ORIGIN_T }, props || {}));
 const ownerIn = g => { const r = g.__post({ action: 'owner_login', opass: OWNER, cid: DEV_A }); assert.strictEqual(r.ok, true, JSON.stringify(r)); return r.token; };
+
+test('係員QR：パスワードなしで名前を登録し、端末と担当ブースに結び付く',()=>{
+ const g=freshOwner({ADMIN_PASS:''}),cid='staff-device-0001';
+ assert.match(g.__post({action:'staff_enter',cid,who:''}).error,/staff name/);
+ assert.match(g.__post({action:'staff_enter',cid:'short',who:'担当'}).error,/denied/);
+ const r=g.__post({action:'staff_enter',cid,who:'機械科 佐藤',booth:'1F-02'});
+ assert.strictEqual(r.ok,true);assert.match(r.staffToken,/^staff_[a-f0-9]{64}$/);
+ assert.strictEqual(g.devList_()[0].label,'機械科 佐藤');assert.strictEqual(g.__props.ADMIN_PASS,'');
+ const update={action:'update',pass:r.staffToken,cid,id:'1F-02',wait:3};
+ assert.strictEqual(g.__post(update).ok,true);
+ assert.match(g.__post({...update,id:'1F-03'}).error,/staff scope/);
+ assert.match(g.__post({...update,cid:'staff-device-0002'}).error,/staff session/);
+ assert.match(g.__post({action:'visitor',pass:r.staffToken,cid,delta:1,uid:'staff-scope-0001'}).error,/staff scope/);
+ assert.strictEqual(booth(g,'1F-02').wait,3);assert.notStrictEqual(booth(g,'1F-03').wait,3);
+});
+
+test('司令塔：担当QRと別のブースも、係員用パスワードなしで変更できる',()=>{
+ const g=freshOwner(),token=ownerIn(g),cid='staff-device-0001';
+ const pass=g.__post({action:'staff_enter',cid,who:'担当',booth:'1F-02'}).staffToken;
+ assert.strictEqual(g.__post({action:'update',pass,cid,id:'1F-03',wait:3}).ok,false);
+ for(const id of ['1F-02','1F-03','3F-04'])assert.strictEqual(g.__post({action:'update',token,cid,id,wait:18}).ok,true);
+ assert.strictEqual(booth(g,'1F-03').status,'混雑しています');
+ assert.match(g.__post({action:'update',token:pass,cid,id:'1F-03',wait:0}).error,/owner session/);
+ assert.match(g.__post({action:'update',token:'a'.repeat(64),cid,id:'1F-03',wait:0}).error,/owner session/);
+});
+
+test('全体リセット：司令塔認証と確認文字が必要。旧記録を保持して新しい回へ切り替える',()=>{
+ const g=freshOwner(),token=ownerIn(g),cid='RESET001',ev=g.__get().booths.map(b=>({t:'s',id:b.id}));
+ g.__post({action:'ledger',cid,ev});g.__post({action:'rally_complete',cid,ev:[]});
+ const oldLedger=JSON.stringify(g.__ss.getSheetByName('スタンプ記録').data),oldRally=JSON.stringify(g.__ss.getSheetByName('ラリー抽選').data);
+ const main=JSON.stringify(g.__ss.getSheetByName('ブース').data),body={action:'owner_rally_reset',token,confirm:'全体リセット',requestId:'reset-request-0001',epoch:''};
+ assert.strictEqual(g.__post({...body,token:PASS}).ok,false);assert.strictEqual(g.__post({...body,confirm:''}).ok,false);assert.strictEqual(g.__props.RALLY_RESET,undefined);
+ const r=g.__post(body);assert.strictEqual(r.ok,true,JSON.stringify(r));assert.ok(r.rallyReset.epoch);assert.strictEqual(r.rally.remaining,413);
+ assert.strictEqual(JSON.stringify(g.__ss.getSheetByName('スタンプ記録').data),oldLedger);assert.strictEqual(JSON.stringify(g.__ss.getSheetByName('ラリー抽選').data),oldRally);assert.strictEqual(JSON.stringify(g.__ss.getSheetByName('ブース').data),main);
+ const empty=g.__get({ledger:cid});assert.deepStrictEqual(empty.stamps,[]);assert.deepStrictEqual(empty.rally.entries,[]);
+ g.__cache.set(g.CACHE_KEY,JSON.stringify({ok:true,booths:[],rallyReset:{epoch:'',at:0}}));assert.strictEqual(g.__get().rallyReset.epoch,r.rallyReset.epoch,'遅れて届いた旧配信キャッシュも使わない');
+ assert.strictEqual(g.__post(body).rallyReset.epoch,r.rallyReset.epoch,'同じ実行番号の再送は二度リセットしない');
+ assert.match(g.__post({...body,requestId:'reset-request-0002'}).error,/reset changed/);
+});
+
+test('全体リセット：古い画面・旧当たり券・旧番号統合から記録を復活させない',()=>{
+ const g=freshOwner(),token=ownerIn(g),cid='RESET002',ev=g.__get().booths.slice(0,7).map(b=>({t:'s',id:b.id}));
+ g.Math=Object.create(Math);g.Math.random=()=>0;
+ const draw=g.__post({action:'rally_draw',policy:g.RALLY_POLICY,cid,attempt:1,ev}),ticket=draw.rally.entries[0].ticket;
+ g.__post({action:'ledger',cid:'RESET003',from:cid,ev:[]});
+ const reset=g.__post({action:'owner_rally_reset',token,confirm:'全体リセット',requestId:'reset-request-0003',epoch:''}),epoch=reset.rallyReset.epoch;
+ for(const action of ['ledger','rally_draw','rally_complete','rally_redeem'])assert.match(g.__post({action,policy:g.RALLY_POLICY,cid,attempt:1,ev,ticket,code:g.rallyCode_(0)}).error,/rally_reset/,action);
+ assert.strictEqual(g.__get({ledger:cid}).cid,cid,'旧番号統合は新しい回へ持ち込まない');
+ assert.strictEqual(g.__post({action:'ledger',cid,ev,rallyEpoch:epoch}).ok,true);
+ assert.strictEqual(g.__get({ledger:cid}).stamps.length,7);
+ assert.strictEqual(g.__post({action:'rally_redeem',policy:g.RALLY_POLICY,cid,ticket,code:g.rallyCode_(0),rallyEpoch:epoch}).ok,false);
+ const next=g.__post({action:'rally_draw',policy:g.RALLY_POLICY,cid,attempt:1,ev:[],rallyEpoch:epoch});assert.strictEqual(next.ok,true);assert.notStrictEqual(next.rally.entries[0].ticket,ticket);
+ assert.strictEqual(g.__post({action:'owner_rally_reset',token,confirm:'全体リセット',requestId:'reset-request-0004',epoch}).ok,true);
+ assert.deepStrictEqual(g.__get({ledger:cid}).stamps,[]);
+});
+
+test('全体リセット：世代のキャッシュ保存が失敗しても、以前の回を使い続けない',()=>{
+ const g=freshOwner(),token=ownerIn(g);g.__get();
+ const original=g.CacheService.getScriptCache;g.CacheService.getScriptCache=()=>{const cache=original();return {...cache,put:(key,value,ttl)=>{if(key==='rally_reset_state_v254')throw new Error('cache unavailable');return cache.put(key,value,ttl);}};};
+ const r=g.__post({action:'owner_rally_reset',token,confirm:'全体リセット',requestId:'cache-reset-0001',epoch:''});assert.strictEqual(r.ok,true,JSON.stringify(r));
+ assert.ok(r.rallyReset.epoch);assert.strictEqual(g.__get().rallyReset.epoch,r.rallyReset.epoch);
+ assert.match(g.__post({action:'ledger',cid:'CACHE234',ev:[]}).error,/rally_reset/);
+ g.__cache.delete('rally_reset_state_v254');
+ const propGetter=g.PropertiesService.getScriptProperties;g.PropertiesService.getScriptProperties=()=>{const props=propGetter();return {...props,getProperty:key=>{if(key==='RALLY_RESET')throw new Error('properties unavailable');return props.getProperty(key);}};};
+ assert.throws(()=>g.__get(),/properties unavailable/,'世代の読取に失敗したら未リセット扱いに戻さない');
+ g.PropertiesService.getScriptProperties=propGetter;assert.strictEqual(g.__get().rallyReset.epoch,r.rallyReset.epoch);
+});
+
+test('係員QR：受付用は従来の受付操作ができるが、司令塔の操作はできない',()=>{
+ const g=freshOwner(),cid='staff-device-0001',pass=g.__post({action:'staff_enter',cid,who:'受付'}).staffToken;
+ const v=g.__post({action:'visitor',pass,cid,n:1,uid:'staff-visitor-0001'});assert.strictEqual(v.ok,true,JSON.stringify(v));
+ for(const action of ['owner_state','owner_set_pass','bulk','notice','upsert','remove']){
+  const r=g.__post({action,pass,token:pass,cid,id:'1F-02',name:'変更',status:'準備中',text:'変更'});
+  assert.strictEqual(r.ok,false,action);assert.match(r.error,/owner session/,action);
+ }
+ assert.strictEqual(g.__post({action:'owner_login',opass:pass,cid}).ok,false);
+ assert.strictEqual(g.__post({action:'owner_state',token:ownerIn(g)}).ok,true);
+ assert.strictEqual(g.__props.ADMIN_PASS,PASS);
+});
+
+test('係員QR：承認待ち・停止を守り、期限切れは更新せず再入室で復帰する',()=>{
+ const g=freshOwner(),cid='staff-device-0001',token=ownerIn(g);
+ g.approvalSave_(true,1);
+ const enter=()=>g.__post({action:'staff_enter',cid,who:'電気科 山田',booth:'1F-02'});
+ assert.match(enter().error,/pending/);
+ assert.strictEqual(g.__post({action:'owner_dev',token,cid,st:'ok'}).ok,true);
+ const pass=enter().staffToken,update={action:'update',pass,cid,id:'1F-02',wait:7};
+ assert.strictEqual(g.__post(update).ok,true);
+ g.__cache.delete(g.staffSessionKey_(pass));
+ assert.match(g.__post({...update,wait:9}).error,/staff session/);assert.strictEqual(booth(g,'1F-02').wait,7);
+ const next=enter().staffToken;assert.notStrictEqual(next,pass);assert.strictEqual(g.__post({...update,pass:next,wait:9}).ok,true);
+ g.__post({action:'owner_dev',token,cid,st:'no'});
+ assert.match(enter().error,/denied/);assert.match(g.__post({...update,pass:next}).error,/denied/);
+ assert.strictEqual(booth(g,'1F-02').wait,9);
+});
 const b64uT = buf => Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 /** パスキーを持った端末のまね（Node の暗号で、本物の認証器と同じ形の返事を作る） */
 function fakeAuthenticator(rp, origin) {
