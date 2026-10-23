@@ -47,7 +47,7 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-10-23a';
+var GAS_VERSION = '2026-10-23b';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
@@ -1884,6 +1884,15 @@ function rallyMerge_(from, to) {
   rallyEntries_(from).forEach(function(r) { sh.getRange(r.row,2).setValue(to); });
   SpreadsheetApp.flush();
 }
+// 現在の公開ブースを正とする。初期登録用R8_BOOTHSでは削除後も全制覇できなくなる。
+function rallyBoothIds_(){
+  var sh=sheet_(SHEET_MAIN),idx=headerIndex_(sh);requireCols_(idx,['id','name','status','time']);
+  if(sh.getLastRow()<2)throw new Error('booths_unavailable: ブース一覧を確認できません');
+  var ids=sh.getRange(2,1,sh.getLastRow()-1,sh.getLastColumn()).getValues().map(function(r){return String(r[idx.id]||'').trim();}).filter(Boolean);
+  ids=ids.filter(function(id,i){return ids.indexOf(id)===i;});
+  if(!ids.length)throw new Error('booths_unavailable: ブース一覧を確認できません');
+  return ids;
+}
 function rallyDraw_(body) {
   if(body.policy!==RALLY_POLICY) throw new Error('rally_update: マップを更新して新しい抽選画面から参加してください');
   var sync=appendLedger_(body);
@@ -1891,7 +1900,7 @@ function rallyDraw_(body) {
     var cid=resolveCid_(cleanCid_(sync.cid)), existing=rallyState_(cid);
     var draws=existing.entries.filter(function(r) { return r.result!=='complete'; }), attempt=Number(body.attempt);
     // 何回目かを明示させる。返事が消えた再送を、次の抽選として消費しない。
-    if (!Number.isInteger(attempt) || attempt<1 || attempt>Math.floor(R8_BOOTHS.length/RALLY_NEED))
+    if (!Number.isInteger(attempt) || attempt<1 || attempt>Math.min(6,Math.floor(rallyBoothIds_().length/RALLY_NEED)))
       throw new Error('bad_attempt: 抽選の回数を確認してください');
     if (attempt<=draws.length) {
       // 旧版ですでに6回外れた人にも、6回目の再確認で参加賞を一度だけ確保する。
@@ -1902,7 +1911,7 @@ function rallyDraw_(body) {
       return { ok:true, cid:cid, duplicate:true, rally:rallyState_(cid) };
     }
     if (attempt!==draws.length+1) throw new Error('stale_attempt: スタンプ帳を更新してからお試しください');
-    var have=ledgerOf_(cid,true), valid={};R8_BOOTHS.forEach(function(b) { valid[b[0]]=true; });
+    var have=ledgerOf_(cid,true), valid={};rallyBoothIds_().forEach(function(id) { valid[id]=true; });
     if (have.stamps.filter(function(id) { return valid[id]; }).length<attempt*RALLY_NEED)
       throw new Error('not_enough: 次の抽選には新しく7個集めてください');
     var stock=rallyStock_(true);
@@ -1929,7 +1938,8 @@ function rallyComplete_(body) {
     var cid=resolveCid_(cleanCid_(sync.cid)), state=rallyState_(cid);
     if(state.entries.some(function(r) {return r.result==='complete';})) return {ok:true,cid:cid,duplicate:true,rally:state};
     var have=ledgerOf_(cid,true);
-    if(!R8_BOOTHS.every(function(b) {return have.stamps.indexOf(b[0])>=0;})) throw new Error('not_complete: 46個すべてのスタンプを集めてください');
+    var ids=rallyBoothIds_();
+    if(!ids.every(function(id) {return have.stamps.indexOf(id)>=0;})) throw new Error('not_complete: 現在の'+ids.length+'ブースすべてのスタンプを集めてください');
     rallyWriteSheet_().appendRow([new Date(),cid,'complete',Utilities.getUuid().replace(/-/g,''),'',Utilities.getUuid().replace(/-/g,''),JSON.stringify(have.stamps)]);
     SpreadsheetApp.flush();
     return {ok:true,cid:cid,rally:rallyState_(cid)};

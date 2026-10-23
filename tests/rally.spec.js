@@ -26,7 +26,7 @@ async function seed(ctx,g,count=7,cid=CID){
  g.__post({action:'ledger',cid,ev:ids.map(id=>({t:'s',id}))});
  await ctx.addInitScript(({ids,cid})=>{localStorage.setItem('kuroko_sid',JSON.stringify(cid));localStorage.setItem('kuroko_stamps_v2',JSON.stringify(ids));},{ids,cid});
 }
-async function open(page,baseURL){await page.goto(baseURL+'/?tab=stamp');await expect(page.locator('#rally-card')).toBeVisible();await expect.poll(()=>page.evaluate(()=>S.serverVersion)).toBe('2026-10-23a');}
+async function open(page,baseURL){await page.goto(baseURL+'/?tab=stamp');await expect(page.locator('#rally-card')).toBeVisible();await expect.poll(()=>page.evaluate(()=>S.serverVersion)).toBe('2026-10-23b');}
 async function draw(page){await expect(page.locator('#rally-draw')).toBeEnabled();await page.locator('#rally-draw').click();await expect.poll(()=>page.evaluate(()=>RALLY.busy)).toBe(false);await expect.poll(()=>page.evaluate(()=>rallyDraws().length)).toBeGreaterThan(0);}
 
 test('7個の抽選：6個では参加できず、7個で当たり。再読込後も券が残り、4桁で1回だけ交換',async({page,context,baseURL})=>{
