@@ -75,7 +75,6 @@ test('紙マップ（?mode=print）：A4で2ページ（46件・両面）', asyn
 test('QR印刷シート：全QRを1つずつA4に印刷し、余分な係員ページを含めない（47枚）', async ({ page }) => {
   await loginTo(page, 'qr');
   await expect.poll(() => page.locator('#qr-grid .qr-img svg').count()).toBe(47);
-  await page.waitForTimeout(500);
   const pdf = await page.pdf({ format: 'A4', printBackground: true });
   const n = pdfPages(pdf);
   expect(n).toBe(47);
