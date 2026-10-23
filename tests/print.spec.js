@@ -1,4 +1,4 @@
-const { fillStaffName } = require('./staff-name-helper');
+const { fillStaffName, enterStaff } = require('./staff-name-helper');
 // 印刷物の番人。刷ったあとでは直せないので、刷る前にここで確かめる。
 // - QR印刷シート（?mode=qr）：全カードの QR を、アプリ自前の読み取り（QR.scanImageData）で実際に読み、
 //   ブースの id・署名（sigOf）・外部ブラウザの引数が正しいこと。小さく刷った場合（1枚 120px 相当）も読めること
@@ -10,8 +10,8 @@ async function loginTo(page, mode) {
   await mockGas(page, { verifyOk: true });
   await page.setViewportSize({ width: 1000, height: 900 });
   await page.goto('/?mode=' + mode);
-  await page.locator('#pw').fill('test-password-1234');
-  await fillStaffName(page); await page.locator('#btn-login').click();
+
+  await enterStaff(page);
   await expect.poll(() => page.evaluate(() => (typeof S !== 'undefined' && S.booths) ? S.booths.length : 0), { timeout: 15000 }).toBe(46);
 }
 

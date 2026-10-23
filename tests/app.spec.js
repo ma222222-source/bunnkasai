@@ -1,4 +1,4 @@
-const { fillStaffName } = require('./staff-name-helper');
+const { fillStaffName, enterStaff } = require('./staff-name-helper');
 // 画面の通しテスト（GAS は mock.js で模擬。本番データには触らない）
 const { test, expect } = require('@playwright/test');
 const { mockGas, watchErrors } = require('./mock');
@@ -140,13 +140,8 @@ for (const [m, sel] of MODES) {
   });
 }
 
-test('係員ログイン：違うパスワードでは入れない', async ({ page }) => {
-  await mockGas(page);
-  await page.goto('/?mode=admin');
-  await page.locator('#pw').fill('wrong-password');
-  await fillStaffName(page); await page.locator('#btn-login').click();
-  await expect(page.locator('#auth-err')).not.toBeEmpty({ timeout: 10000 });
-  await expect(page.locator('#v-admin')).toBeHidden();
+test('係員ログイン：パスワードを求めず、名前だけで入れる',async({page})=>{
+ const log=await mockGas(page);await page.goto('/?mode=admin');await expect(page.locator('#auth-pw-row')).toBeHidden();await enterStaff(page);await expect(page.locator('#v-admin')).toBeVisible();expect(log.posts.filter(p=>p.action==='staff_enter').every(p=>!p.pass)).toBe(true);
 });
 
 test('紙マップ：46件がそろう', async ({ page }) => {
@@ -486,8 +481,8 @@ test('QR印刷シート：開くと全部のQRを読んで「すべて読める�
   await mockGas(page, { verifyOk: true });
   await page.setViewportSize({ width: 1000, height: 900 });
   await page.goto('/?mode=qr');
-  await page.locator('#pw').fill('test-password-1234');
-  await fillStaffName(page); await page.locator('#btn-login').click();
+
+  await enterStaff(page);
   await expect(page.locator('#qr-check')).toHaveAttribute('data-st', 'ok', { timeout: 30000 });
   await expect(page.locator('#qr-check')).toContainText('47枚すべて');
 });
@@ -496,8 +491,8 @@ test('係員：送信していない人数があるときだけ、画面を離�
   await mockGas(page, { verifyOk: true });
   await page.addInitScript(() => localStorage.setItem('kuroko_adm_mode', JSON.stringify('flat')));
   await page.goto('/?mode=admin');
-  await page.locator('#pw').fill('test-password-1234');
-  await fillStaffName(page); await page.locator('#btn-login').click();
+
+  await enterStaff(page);
   await expect.poll(() => page.evaluate(() => S.booths.length)).toBe(46);
   const blocked = () => page.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; });
   expect(await blocked()).toBe(false);
@@ -4868,7 +4863,7 @@ test('リアルタイム（v236）：数秒ごとに「変わったか」だけ�
 
 test('お菓子抽選は7個（v245）：はじめての案内・スタンプ帳に7個の目盛りと抽選への入口が出る', async ({ page }) => {
   await page.setViewportSize({ width:390,height:844 });
-  await mockGas(page,{mutate:j=>{j.serverVersion='2026-10-23b';}});
+  await mockGas(page,{mutate:j=>{j.serverVersion='2026-10-23c';}});
   await page.goto('/?tab=map');await ready(page);
   expect(await page.evaluate(()=>CONFIG.PRIZE_COST)).toBe(7);
   await expect(page.locator('#intro-card [data-prize-n]')).toHaveText('7');

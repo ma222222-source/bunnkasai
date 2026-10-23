@@ -1,4 +1,4 @@
-const { fillStaffName } = require('./staff-name-helper');
+const { fillStaffName, enterStaff } = require('./staff-name-helper');
 // 司令塔（持ち主だけ）の画面テスト（v216）。
 // サーバーは模擬の返事ではなく、Code.gs をそのまま動かす（tests/gas-mock.js）。画面 → 通信 → Code.gs の確かめ、までを通しで見る。
 // パスキー（顔認証・指紋）は、Chromium の「仮の認証器」（CDP の WebAuthn）で本物と同じ署名を作らせる。
@@ -38,8 +38,8 @@ async function device(browser, g) {
 }
 async function staffLogin(page, origin, pass, name) {
   await page.goto(origin + '/?mode=admin');
-  await page.locator('#pw').fill(pass);
-  await fillStaffName(page, name); await page.locator('#btn-login').click();
+
+  await enterStaff(page, name);
 }
 /** 司令塔に入る。tab：入ったあとに開く画面（係員＝パスワードと端末。'' なら、はじめの「ようす」のまま） */
 async function ownerLogin(page, origin, tab = 'staff') {
@@ -111,9 +111,8 @@ test('司令塔：持ち主パスワードで入り、係員のパスワード�
   // 別の端末の係員：古いパスワードは通らない。新しいパスワードで入れる
   const d = await device(browser, g);
   await staffLogin(d.page, origin, PASS);
-  await expect(d.page.locator('#auth-err')).toContainText('パスワードが違います');
-  await d.page.locator('#pw').fill(NEW);
-  await fillStaffName(d.page); await d.page.locator('#btn-login').click();
+  expect(g.__post({action:'verify',pass:PASS,cid:'legacy-device-1234'}).ok).toBe(false);
+  expect(g.__post({action:'verify',pass:NEW,cid:'legacy-device-1234'}).ok).toBe(true);
   await expect(d.page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
   await d.ctx.close();
   // 開き直しても、入ったまま（このタブの中だけ覚えている）。出ると、入口に戻る
@@ -202,8 +201,8 @@ test('司令塔：入れる端末を決める。「許可した端末だけ」�
   const C = await device(browser, g);
   await staffLogin(C.page, origin, PASS);
   await expect(C.page.locator('#v-admin')).toBeVisible({ timeout: 10000 });
-  await B.page.locator('#pw').fill(PASS);
-  await fillStaffName(B.page); await B.page.locator('#btn-login').click();
+
+  await enterStaff(B.page);
   await expect(B.page.locator('#auth-err')).toContainText('止められています');
   await A.ctx.close(); await B.ctx.close(); await C.ctx.close();
   expect(errors).toEqual([]);

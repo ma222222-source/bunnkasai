@@ -47,9 +47,19 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-10-23b';
+var GAS_VERSION = '2026-10-23c';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
+var RALLY_RESET_STATE = {epoch:'',at:0};
+function rallyUseEpoch_(){
+  var state;try{state=JSON.parse(props_().getProperty('RALLY_RESET')||'null');}catch(e){}
+  RALLY_RESET_STATE=state&&/^[a-z0-9_]{1,40}$/.test(state.epoch)&&Number(state.at)>0?{epoch:state.epoch,at:Number(state.at)}:{epoch:'',at:0};
+  var suffix=RALLY_RESET_STATE.epoch?'_'+RALLY_RESET_STATE.epoch:'';
+  SHEET_LEDGER='スタンプ記録'+suffix;SHEET_ALIAS='スタンプ番号の統合'+suffix;SHEET_RALLY='ラリー抽選'+suffix;
+  return RALLY_RESET_STATE;
+}
+function rallyCacheKey_(key){return RALLY_RESET_STATE.epoch?key+'_'+RALLY_RESET_STATE.epoch:key;}
+function rallyEpochNeed_(body){if(RALLY_RESET_STATE.epoch&&String(body.rallyEpoch||'')!==RALLY_RESET_STATE.epoch)throw new Error('rally_reset: スタンプラリーがリセットされました。マップを更新してください');}
 var SHEET_LOG_ARC  = '履歴_保管';        // 履歴シートから移した古い行（消さずにここへ移す）
 var SHEET_REMOVED  = '削除したブース';   // 地図から外したブース行の控え
 var SHEET_NOTICE_LOG = 'お知らせ履歴';  // 出したお知らせの控え
@@ -467,6 +477,7 @@ function setupR8_(archive) {
 
 /* ============================== 共通 ============================== */
 function json_(obj) {
+  if(obj&&typeof obj==='object')obj.rallyReset=RALLY_RESET_STATE;
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
@@ -615,6 +626,7 @@ var GLOBAL_FAIL_SLOW_AT    = 20;
  * （わざと外し続ければ誰でも全係員を止められる状態でもあった）
  */
 function checkPass_(pass, cid, login, who) {
+  if (/^staff_[a-f0-9]{64}$/.test(String(pass || ''))) return staffSessionNeed_(pass, cid, login, who);
   var real = PropertiesService.getScriptProperties().getProperty('ADMIN_PASS');
   if (!real) throw new Error('サーバー側にパスワードが未設定です');
   // 短いパスワードは総当たりで破られる。設定し直すまで受け付けない
@@ -648,8 +660,36 @@ function checkPass_(pass, cid, login, who) {
   deviceGate_(cid, !!login, who);
 }
 
+// 一般係員は名前だけで入室。司令塔とは別の、端末・担当に結び付いた印を使う。
+var STAFF_SESSION_SEC = 21600;
+function staffSessionKey_(token) { return 'stf_' + hexOf_(sha256_(textBytes_(token))); }
+function staffEnter_(body) {
+  var cid=String(body.cid || ''),who=cut_(String(body.who || '').trim(),20),booth=String(body.booth || '').trim().slice(0,80);
+  if (!/^[A-Za-z0-9_-]{12,40}$/.test(cid)) throw new Error('denied: 端末の番号を保存できません。通常のブラウザで開き直してください');
+  if (!who) throw new Error('staff name: お名前・担当を入力してください');
+  deviceGate_(cid,true,who);
+  var token='staff_'+randToken_();
+  CacheService.getScriptCache().put(staffSessionKey_(token),JSON.stringify({cid:cid,booth:booth}),STAFF_SESSION_SEC);
+  return {ok:true,staffToken:token,sv:GAS_VERSION};
+}
+function staffSessionNeed_(token,cid,login,who) {
+  var cache=CacheService.getScriptCache(),key=staffSessionKey_(String(token)),raw=cache.get(key),session;
+  try { session=JSON.parse(raw || 'null'); } catch(e) {}
+  if (!session || !safeEq_(session.cid,String(cid || ''))) throw new Error('staff session: 入室の確認をやり直します');
+  deviceGate_(cid,!!login,who);
+  cache.put(key,JSON.stringify(session),STAFF_SESSION_SEC);
+  return session;
+}
+function staffActionNeed_(body) {
+  if(body.action==='update' && body.token){ownerOnly_(body);return;}
+  var session=checkPass_(body.pass,body.cid);
+  if (session && session.booth && (body.action==='visitor' || String(body.id || '').trim()!==session.booth))
+    throw new Error('staff scope: このQRの担当ブースだけ更新できます');
+}
+
 /* ============================== GET ============================== */
 function doGet(e) {
+  rallyUseEpoch_();
   // ?report=1 で当日の振り返りデータを返す（?date=YYYY-MM-DD で日付指定）
   var param = (e && e.parameter) || {};
   // v236：?gen=1 … 「変わったか」だけを返す（キャッシュの番号を読むだけ。シートもプロパティも読まない）。
@@ -684,7 +724,7 @@ function doGet(e) {
       if (param.date && !/^\d{4}-\d{2}-\d{2}$/.test(String(param.date))) {
         return json_({ ok: false, error: '日付は YYYY-MM-DD の形で指定してください' });
       }
-      var key = 'report_' + (param.date || 'today');
+      var key = rallyCacheKey_('report_' + (param.date || 'today'));
       var c = CacheService.getScriptCache();
       var cached = c.get(key);
       if (cached) return ContentService.createTextOutput(cached)
@@ -810,10 +850,13 @@ function removeWarmTrigger() {
 function bytes_(s) { return unescape(encodeURIComponent(String(s))).length; }
 
 function out_(text) {
+  // リセット前に作り始めた控えが遅れてキャッシュへ届いても、新しい回へ戻さない。
+  if(RALLY_RESET_STATE.epoch){var data;try{data=JSON.parse(text);}catch(e){}if(!data||!data.rallyReset||data.rallyReset.epoch!==RALLY_RESET_STATE.epoch)return json_(buildPayload_());}
   return ContentService.createTextOutput(text).setMimeType(ContentService.MimeType.JSON);
 }
 
 function buildPayload_() {
+  rallyUseEpoch_();
   var sh = sheet_(SHEET_MAIN);
   var idx = headerIndex_(sh);
   requireCols_(idx, ['id', 'name', 'status', 'time']);
@@ -870,6 +913,7 @@ function buildPayload_() {
   return {
     ok: true,
     serverVersion: GAS_VERSION,        // 画面側で「Code.gs を貼り替えたか」を確かめるため
+    rallyReset:RALLY_RESET_STATE,
     updatedAt: new Date().toISOString(),
     // v213：係の人がいちばん最近に更新した時刻。updatedAt は「この返事を作った時刻」なので、
     // 画面の「係の人の更新 ◯分前」に使うと、だれも更新していなくても、いつも「たった今」と出ていた
@@ -1197,6 +1241,7 @@ function reportEvents_(target) {
 
 /* ============================== POST ============================== */
 function doPost(e) {
+  rallyUseEpoch_();
   var body;
   var rawBody = (e && e.postData && e.postData.contents) || '{}';
   // v213：とても大きい送信は、読む前に断る（いたずらで実行時間を使わせない）
@@ -1219,6 +1264,8 @@ function doPost(e) {
     if (String(action).indexOf('owner_') === 0) {
       return json_(ownerApi_(String(action), body));
     }
+
+    if (action === 'staff_enter') return json_(staffEnter_(body));
 
     if (action === 'verify') {
       checkPass_(body.pass, body.cid, true, body.who);      // ログイン：端末を記録する（承認制のときは、許可を待つ）
@@ -1243,7 +1290,7 @@ function doPost(e) {
     }
 
     if (action === 'update') {
-      checkPass_(body.pass, body.cid);
+      staffActionNeed_(body);
       if (!body.id) throw new Error('bad request: ブースの id がありません');
 
       // wait の3状態を区別する：
@@ -1318,7 +1365,7 @@ function doPost(e) {
     }
 
     if (action === 'visitor') {
-      checkPass_(body.pass, body.cid);
+      staffActionNeed_(body);
       var n = Math.round(Number(body.n));
       if (isNaN(n) || n === 0 || Math.abs(n) > 1000) throw new Error('bad count: 人数は 1〜1000（引くときは −1〜−1000）にしてください');
       // uid … 押した1回ごとの番号。電波が悪くて送り直しても、同じ番号は2回数えない
@@ -1633,7 +1680,7 @@ function resolveCid_(cid) {
   var cache = CacheService.getScriptCache();
   var cur = cid;
   for (var i = 0; i < 5; i++) {
-    var k = 'al_' + cur, hit = cache.get(k), to = null;
+    var k = rallyCacheKey_('al_' + cur), hit = cache.get(k), to = null;
     if (hit != null) to = hit === '-' ? null : hit;
     else {
       var sh = ss_().getSheetByName(SHEET_ALIAS);
@@ -1651,13 +1698,13 @@ function resolveCid_(cid) {
 function addAlias_(from, to) {
   if (!from || !to || from === to || resolveCid_(to) === from) return;   // 輪になる付け替えはしない
   appendTo_(SHEET_ALIAS, ['from', 'to', 'timestamp'], [from, to, new Date()], ['A:B']);
-  try { CacheService.getScriptCache().put('al_' + from, to, 600); } catch (eC) {}
+  try { CacheService.getScriptCache().put(rallyCacheKey_('al_' + from), to, 600); } catch (eC) {}
 }
 function ledgerCacheGet_(cid) {
-  try { var v = CacheService.getScriptCache().get('lg_' + cid); return v ? JSON.parse(v) : null; } catch (e) { return null; }
+  try { var v = CacheService.getScriptCache().get(rallyCacheKey_('lg_' + cid)); return v ? JSON.parse(v) : null; } catch (e) { return null; }
 }
 function ledgerCachePut_(cid, l) {
-  try { CacheService.getScriptCache().put('lg_' + cid, JSON.stringify({ stamps: l.stamps, spent: l.spent }), LEDGER_CACHE_SEC); } catch (e) {}
+  try { CacheService.getScriptCache().put(rallyCacheKey_('lg_' + cid), JSON.stringify({ stamps: l.stamps, spent: l.spent }), LEDGER_CACHE_SEC); } catch (e) {}
 }
 /**
  * シートを取る。無ければ見出しつきで作る。textCols の列（'A:A' など）は文字のまま持たせる。
@@ -1740,6 +1787,7 @@ function readLedger_(cidRaw) {
  * 同じ端末・同じスタンプの「獲得」は1回だけ記録する。
  */
 function appendLedger_(body) {
+  rallyEpochNeed_(body);
   var cid = resolveCid_(cleanCid_(body.cid));
   var own = Array.isArray(body.ev) ? body.ev.slice(0, 400) : [];   // 端末の中身をまるごと送ってくる（最大 ブース数×2）
   // いたずらでシートを埋められないよう、全体で1分あたりの追記行数に上限を置く
@@ -1829,7 +1877,7 @@ function rallyPrize_(r) {
   if(r.result==='candy') return r.art==='prize:super'?'super':r.art==='prize:big'?'big':'normal';
   return r.result==='miss'&&r.art==='prize:participation'?'participation':'';
 }
-function clearRallyStock_(){var c=CacheService.getScriptCache();c.remove('rally_stock_v251');c.remove('rally_stock_v245');}
+function clearRallyStock_(){var c=CacheService.getScriptCache();c.remove(rallyCacheKey_('rally_stock_v251'));c.remove('rally_stock_v245');}
 function rallySheet_() {
   var sh=ss_().getSheetByName(SHEET_RALLY);
   // 種類は既存のart列に保存するため、この列も含めて照合し、在庫を誤分類しない。
@@ -1859,7 +1907,7 @@ function rallyState_(cid) {
     }) };
 }
 function rallyStock_(fresh) {
-  var cache=CacheService.getScriptCache(), cached=cache.get('rally_stock_v251');
+  var cache=CacheService.getScriptCache(), cached=cache.get(rallyCacheKey_('rally_stock_v251'));
   if (!fresh && cached) { try { return JSON.parse(cached); } catch(e) {} }
   var sh = rallySheet_(), won=0, given=0, players=0;
   var prizes=RALLY_PRIZES.map(function(p){return {id:p.id,label:p.label,limit:p.limit,issued:0,given:0,held:0,remaining:p.limit};});
@@ -1875,7 +1923,7 @@ function rallyStock_(fresh) {
   var stock={limit:RALLY_LIMIT,issued:won,given:given,held:won-given,players:players,prizes:prizes,
     remaining:prizes.reduce(function(n,p){return n+p.remaining;},0),
     drawRemaining:prizes.filter(function(p){return p.id!=='participation';}).reduce(function(n,p){return n+p.remaining;},0)};
-  try { cache.put('rally_stock_v251',JSON.stringify(stock),10); } catch(e) {}
+  try { cache.put(rallyCacheKey_('rally_stock_v251'),JSON.stringify(stock),10); } catch(e) {}
   return stock;
 }
 // 番号をつなぐ操作と同じロック内で券も移す。新しい番号で引き直せず、未交換の券も失わない。
@@ -1952,6 +2000,7 @@ function rallyCode_(off) {
   return ('000'+((h>>>0)%10000)).slice(-4);
 }
 function rallyRedeem_(body) {
+  rallyEpochNeed_(body);
   var code=String(body.code||'');
   if (!/^\d{4}$/.test(code) || ![0,-1,1,-2,2].some(function(off) { return rallyCode_(off)===code; }))
     throw new Error('bad_code: 係員の画面に出ている今の4桁を入れてください');
@@ -2409,7 +2458,7 @@ function devList_() {
 function ownerStateOut_() {
   var ap = approvalState_();
   var ap0 = props_().getProperty('ADMIN_PASS') || '';
-  return { ok: true, approval: ap.on, devices: devList_(), keys: ownerKeysPublic_(),
+  return { ok: true, approval: ap.on, rallyReset:RALLY_RESET_STATE, devices: devList_(), keys: ownerKeysPublic_(),
     passLen: ap0.length, passAt: props_().getProperty('ADMIN_PASS_AT') || '',
     live: liveOwner_(), rally: rallyStock_(),
     log: ownerLog_(),                  // v221：さいきんの操作（新しい順に8件）
@@ -2805,6 +2854,20 @@ function ownerApi_(action, body) {
 
   // ここから下は、司令塔に入っている人だけ
   ownerNeed_(body.token);
+  if(action==='owner_rally_reset')return withLock_(function(){
+    var old={};try{old=JSON.parse(props_().getProperty('RALLY_RESET')||'{}');}catch(e){}
+    if(body.confirm!=='全体リセット'||!/^[A-Za-z0-9_-]{12,64}$/.test(String(body.requestId||'')))throw new Error('reset confirm: 確認欄に全体リセットと入力してください');
+    if(old.requestId===body.requestId){rallyUseEpoch_();return ownerStateOut_();}
+    if(String(body.epoch||'')!==String(old.epoch||''))throw new Error('reset changed: すでにリセットされています。画面を更新して確認してください');
+    var at=Math.max(Date.now(),Number(old.at||0)+1),epoch=at.toString(36)+'_'+Utilities.getUuid().replace(/-/g,'').slice(0,8);
+    // 以前のシートは残す。以後の参加記録だけ別のシートへ切り替える。
+    props_().setProperty('RALLY_RESET',JSON.stringify({epoch:epoch,at:at,requestId:body.requestId}));
+    rallyUseEpoch_();clearRallyStock_();
+    var live=liveRead_();delete live.draw;liveSave_(live);
+    var cache=CacheService.getScriptCache();cache.remove(CACHE_KEY);cache.remove(CACHE_BAK);clearCache_();
+    liveLog_('スタンプラリーを全体リセット（以前の記録はシートに保持）');
+    return ownerStateOut_();
+  });
   if (action === 'owner_state') return ownerStateOut_();
   if (action === 'owner_logout') {
     try { CacheService.getScriptCache().remove(ownerSessionKey_(String(body.token))); } catch (eL) {}
