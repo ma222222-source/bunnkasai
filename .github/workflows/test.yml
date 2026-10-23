@@ -8,7 +8,11 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # ブラウザの部品の取り込み（apt）が混んでいると10分以上かかり、15分で打ち切られたことがある（v176・v179）
+    # package-lock.jsonのPlaywrightと同じ公式イメージ。毎回aptでOS部品を取る待ちを避ける。
+    # Playwright更新時は、このタグと下の版チェックも一緒に更新する。
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --init --ipc=host
     timeout-minutes: 50
     defaults:
       run:
@@ -21,22 +25,11 @@ jobs:
           cache: npm
           cache-dependency-path: tests/package-lock.json
       - run: npm ci
-      # ブラウザ本体の取り込み（速い）と、OS の部品の取り込み（apt。混んでいると10分以上かかる）を分ける。
-      # apt が止まったら打ち切って、3回までやり直す。打ち切っても apt 自身は裏で動き続けて次の回の邪魔をする
-      #（「Could not get lock」で3回とも失敗したことがある）ので、やり直す前に必ず止めて後始末をする。
-      # テストの前の準備なので、やり直しても結果は変わらない
-      - run: npx playwright install chromium webkit
-      - run: |
-          for i in 1 2 3; do
-            if timeout -k 20 660 npx playwright install-deps chromium webkit; then exit 0; fi
-            echo "install-deps failed ($i), cleaning up and retrying"
-            sudo pkill -9 -f 'apt-get|apt |dpkg' || true
-            sleep 5
-            sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock /var/lib/apt/lists/lock
-            sudo dpkg --configure -a || true
-            sleep 10
-          done
-          exit 1
+      - name: Check image version and browser runtime
+        run: |
+          node -e "if(require('@playwright/test/package.json').version!=='1.63.0')throw Error('Update the Playwright container tag to match package-lock.json')"
+          python3 --version
+          node -e "(async()=>{for(const type of ['chromium','webkit']){const b=await require('playwright')[type].launch();await b.close();console.log(type+' ready');}})().catch(e=>{console.error(e);process.exit(1)})"
       - run: npm test
       - if: failure()
         uses: actions/upload-artifact@v4

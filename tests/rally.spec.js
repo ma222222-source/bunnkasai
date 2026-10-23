@@ -26,7 +26,7 @@ async function seed(ctx,g,count=7,cid=CID){
  g.__post({action:'ledger',cid,ev:ids.map(id=>({t:'s',id}))});
  await ctx.addInitScript(({ids,cid})=>{localStorage.setItem('kuroko_sid',JSON.stringify(cid));localStorage.setItem('kuroko_stamps_v2',JSON.stringify(ids));},{ids,cid});
 }
-async function open(page,baseURL){await page.goto(baseURL+'/?tab=stamp');await expect(page.locator('#rally-card')).toBeVisible();await expect.poll(()=>page.evaluate(()=>S.serverVersion)).toBe('2026-10-22a');}
+async function open(page,baseURL){await page.goto(baseURL+'/?tab=stamp');await expect(page.locator('#rally-card')).toBeVisible();await expect.poll(()=>page.evaluate(()=>S.serverVersion)).toBe('2026-10-23a');}
 async function draw(page){await expect(page.locator('#rally-draw')).toBeEnabled();await page.locator('#rally-draw').click();await expect.poll(()=>page.evaluate(()=>RALLY.busy)).toBe(false);await expect.poll(()=>page.evaluate(()=>rallyDraws().length)).toBeGreaterThan(0);}
 
 test('7個の抽選：6個では参加できず、7個で当たり。再読込後も券が残り、4桁で1回だけ交換',async({page,context,baseURL})=>{
@@ -38,9 +38,55 @@ test('7個の抽選：6個では参加できず、7個で当たり。再読込�
  await draw(page);await expect(page.locator('#rally-result')).toContainText('お菓子1個を確保');
  expect(g.rallyStock_().issued).toBe(1);await reopen();await expect(page.locator('#rally-result')).toContainText('お菓子1個を確保');
  await page.locator('#redeem-open').click();await page.locator('#staff-code').fill(await page.evaluate(()=>redeemCode()));await page.locator('#redeem-ok').click();
- await expect(page.locator('#pfx')).toContainText('お菓子を1個');await expect(page.locator('#pfx')).toContainText('スタンプと記念カードはそのまま');
+ await expect(page.locator('#pfx')).toContainText('超大当たりの景品を1個');await expect(page.locator('#pfx')).toContainText('スタンプと記念カードはそのまま');
  expect(await page.evaluate(()=>S.stamps.size)).toBe(7);expect(await page.evaluate(()=>S.spent.length)).toBe(0);
  expect(g.rallyStock_().given).toBe(1);await page.keyboard.press('Escape');await reopen();await expect(page.locator('#rally-result')).toContainText('交換済み');expect(errors.flat()).toEqual([]);
+});
+
+test('新景品：超大当たり・大当たりの券と当選後の確率、電子科塔で種類別に交換',async({page,context,baseURL},info)=>{
+ const g=server(),errors=watchErrors(page);await bridge(context,g);await seed(context,g,21);await open(page,baseURL);
+ await expect(page.locator('#rally-odds')).toContainText('16％');await draw(page);
+ await expect(page.locator('#rally-result .rally-ticket-list')).toContainText('超大当たり × 1');await expect(page.locator('#rally-odds')).toContainText('4％');
+ g.Math.random=()=>0.08;await page.locator('#rally-draw').click();await expect.poll(()=>page.evaluate(()=>rallyDraws().length)).toBe(2);expect(g.rallyStock_(true).issued).toBe(1);
+ g.Math.random=()=>0;await page.locator('#rally-draw').click();await expect.poll(()=>page.evaluate(()=>rallyDraws().length)).toBe(3);
+ await expect(page.locator('#rally-result .rally-ticket-list li')).toHaveCount(2);await expect(page.locator('#rally-odds')).toContainText('1％');
+ await expect(page.locator('#redeem-msg')).toContainText('電子科塔');await expect(page.locator('#redeem-msg')).toContainText('超大当たり');
+ await page.locator('#rally-card').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(ART,info.project.name+'-tiered-tickets.png')});
+ await page.locator('#redeem-open').click();await page.locator('#staff-code').fill(g.rallyCode_(0));await expect(page.locator('#redeem-ok')).toHaveText('超大当たりを交換する');await page.locator('#redeem-ok').click();
+ await expect(page.locator('#pfx')).toContainText('超大当たりの景品');await page.keyboard.press('Escape');
+ await expect(page.locator('#redeem-msg')).toContainText('大当たり');expect(g.rallyStock_(true).prizes[0].given).toBe(1);expect(g.rallyStock_(true).prizes[1].given).toBe(0);expect(errors).toEqual([]);
+});
+
+test('参加賞：6回すべてはずれたら自動で1個確保し、再読込後も電子科塔で交換できる',async({page,context,baseURL},info)=>{
+ // 6回の抽選・3画面幅の撮影・アクセシビリティ監査・再読込・交換を含む一連の検証。
+ test.setTimeout(90000);
+ const g=server(0.9),errors=watchErrors(page);await bridge(context,g);await seed(context,g,42);await open(page,baseURL);
+ for(let i=1;i<=6;i++){await page.locator('#rally-draw').click();await expect.poll(()=>page.evaluate(()=>rallyDraws().length)).toBe(i);}
+ await expect(page.locator('#rally-result .rally-ticket-list')).toContainText('参加賞 × 1');await expect(page.locator('#rally-draw')).toBeDisabled();await expect(page.locator('#redeem-msg')).toContainText('「参加賞」1個');
+ for(const width of [320,390,1280]){await page.setViewportSize({width,height:900});await page.locator('#rally-card').scrollIntoViewIfNeeded();expect(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)).toBeLessThanOrEqual(1);await page.screenshot({path:path.join(ART,info.project.name+'-participation-'+width+'.png')});}
+ const AxeBuilder=require('@axe-core/playwright').default;const a=await new AxeBuilder({page}).include('#rally-card').include('#redeem-card').withTags(['wcag2a','wcag2aa']).analyze();expect(a.violations.filter(v=>v.impact==='critical'||v.impact==='serious')).toEqual([]);
+ await page.reload();await expect(page.locator('#redeem-msg')).toContainText('「参加賞」1個');await page.locator('#redeem-open').click();await page.locator('#staff-code').fill(g.rallyCode_(0));await page.locator('#redeem-ok').click();await expect(page.locator('#pfx')).toContainText('参加賞の景品');
+ expect(g.rallyStock_(true).prizes[3].issued).toBe(1);expect(g.rallyStock_(true).prizes[3].given).toBe(1);expect(errors).toEqual([]);
+});
+
+test('旧記録：6回はずれの参加賞を再確認しても7回目にはならず、券は1枚だけ',async({page,context,baseURL})=>{
+ const g=server(.9);await bridge(context,g);await seed(context,g,42);const sh=g.rallyWriteSheet_();for(let i=1;i<=6;i++)sh.appendRow([new Date(),CID,'miss','old-'+i,'','','']);g.__cache.clear();await open(page,baseURL);
+ await expect(page.locator('#rally-draw')).toHaveText('6回はずれの参加賞を確認する');await page.locator('#rally-draw').click();await expect(page.locator('#rally-result .rally-ticket-list')).toContainText('参加賞');
+ expect(await page.evaluate(()=>rallyDraws().length)).toBe(6);expect(g.rallyStock_(true).prizes[3].issued).toBe(1);await expect(page.locator('#rally-draw')).toBeDisabled();
+});
+
+test('参加賞終了：6回はずれても先着分終了を説明し、交換券を作らない',async({page,context,baseURL})=>{
+ const g=server(.9);await bridge(context,g);await seed(context,g,42);const sh=g.rallyWriteSheet_();for(let i=0;i<200;i++)sh.appendRow([new Date(),'PREPART'+i,'miss','part-'+i,'','prize:participation','']);g.__cache.clear();await open(page,baseURL);
+ for(let i=1;i<=6;i++){await page.locator('#rally-draw').click();await expect.poll(()=>page.evaluate(()=>rallyDraws().length)).toBe(i);}
+ await expect(page.locator('#rally-result')).toContainText('先着200人分');await expect(page.locator('#rally-result')).toContainText('終了しました');await expect(page.locator('#redeem-card')).toBeHidden();expect(g.rallyStock_(true).prizes[3].issued).toBe(200);
+});
+
+test('狭い交換画面：320px・特大文字でも4桁が欠けず、景品名つきのボタンを押せる',async({page,context,baseURL},info)=>{
+ const g=server();await bridge(context,g);await seed(context,g);await open(page,baseURL);await draw(page);
+ await page.setViewportSize({width:320,height:900});await page.evaluate(()=>document.documentElement.dataset.fs='xl');await page.locator('#redeem-open').click();await page.locator('#staff-code').fill(g.rallyCode_(0));
+ const metrics=await page.locator('#staff-code').evaluate(el=>{const s=getComputedStyle(el),c=document.createElement('canvas').getContext('2d');c.font=s.font;return {width:el.clientWidth,needed:c.measureText(el.value).width+parseFloat(s.paddingLeft)+parseFloat(s.paddingRight)+4*(parseFloat(s.letterSpacing)||0),overflow:document.documentElement.scrollWidth-innerWidth};});
+ expect(metrics.width).toBeGreaterThanOrEqual(metrics.needed);expect(metrics.overflow).toBeLessThanOrEqual(1);await expect(page.locator('#redeem-ok')).toHaveText('超大当たりを交換する');
+ await page.locator('#redeem-pad').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(ART,info.project.name+'-redeem-xl-320.png')});await page.locator('#redeem-ok').click();await expect(page.locator('#pfx')).toContainText('超大当たりの景品');
 });
 
 
@@ -112,19 +158,20 @@ test('PC・スマホ：320・390・768・1280pxと特大文字で抽選、当た
  expect(errors).toEqual([]);
 });
 
-test('司令塔：500個の上限・未交換の当たり・交換済みが見える',async({page,context,baseURL})=>{
- const g=server();await bridge(context,g);g.__post({action:'rally_draw',cid:CID,attempt:1,ev:g.R8_BOOTHS.slice(0,7).map(b=>({t:'s',id:b[0]}))});
+test('司令塔：景品413個の内訳・未交換の当たり・交換済みが見える',async({page,context,baseURL})=>{
+ const g=server();await bridge(context,g);g.__post({action:'rally_draw',policy:g.RALLY_POLICY,cid:CID,attempt:1,ev:g.R8_BOOTHS.slice(0,7).map(b=>({t:'s',id:b[0]}))});
  await page.goto(baseURL+'/?mode=owner');await page.locator('#own-pw').fill('owner-himitsu-123456');await page.locator('#own-login').click();await expect(page.locator('#own-main')).toBeVisible();await page.locator('#owntab-event').click();
- await expect(page.locator('#own-rally-stock')).toContainText('499');await expect(page.locator('#own-rally-stock')).toContainText('未交換の当たり1個');
+ await expect(page.locator('#own-rally-stock')).toContainText('合計413個');await expect(page.locator('#own-rally-stock')).toContainText('未交換の当たり1個');
+ await expect(page.locator('#own-rally-stock .rally-stock-grid > div')).toHaveCount(4);await expect(page.locator('#own-rally')).toContainText('電子科塔');
 });
 
-test('司令塔：全11種の演出を試しても実際の抽選・在庫・交換・スタンプは増えず、見本の撮影もできる',async({page,context,baseURL},info)=>{
+test('司令塔：全14種の演出を試しても実際の抽選・在庫・交換・スタンプは増えず、見本の撮影もできる',async({page,context,baseURL},info)=>{
  test.setTimeout(90000);
  const g=server(),opt={posts:[]},errors=watchErrors(page);await bridge(context,g,opt);
- const sheet=g.rallyWriteSheet_();for(let i=0;i<500;i++)sheet.appendRow([new Date().toISOString(),'FULL'+i,'candy','filled-'+i,'','', '']);g.__cache.clear();expect(g.rallyStock_(true).remaining).toBe(0);
+ const sheet=g.rallyWriteSheet_();for(const p of g.RALLY_PRIZES)for(let i=0;i<p.limit;i++)sheet.appendRow([new Date().toISOString(),'FULL'+p.id+i,p.id==='participation'?'miss':'candy','filled-'+p.id+i,'','prize:'+p.id,'']);g.__cache.clear();expect(g.rallyStock_(true).remaining).toBe(0);
  await page.goto(baseURL+'/?mode=owner');await page.locator('#own-pw').fill('owner-himitsu-123456');await page.locator('#own-login').click();await expect(page.locator('#own-main')).toBeVisible();await page.locator('#owntab-event').click();
  const state=JSON.stringify(g.rallyStock_(true));const start=opt.posts.length;
- const types=await page.locator('#own-effects [data-effect-test]').evaluateAll(bs=>bs.map(b=>b.dataset.effectTest));expect(types.length).toBe(11);
+ const types=await page.locator('#own-effects [data-effect-test]').evaluateAll(bs=>bs.map(b=>b.dataset.effectTest));expect(types.length).toBe(14);
  for(const kind of types){
   await page.locator(`[data-effect-test="${kind}"]`).click();
   if(kind==='photo'){
@@ -177,7 +224,9 @@ test('プリクラ選択：壊れた写真は元の画像を保ち、共有の�
  expect(await page.evaluate(()=>$('#rally-photo-canvas').toDataURL())).toBe(original);
  await page.evaluate(()=>{Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>true});Object.defineProperty(navigator,'share',{configurable:true,value:async()=>{throw new DOMException('cancel','AbortError');}});updatePhotoControls();});
  await page.locator('#photo-share').click();await expect(page.locator('#photo-status')).toContainText('共有をとじました');await expect(page.locator('#photo-step-3')).not.toHaveAttribute('aria-current','step');await expect(page.locator('#rally-photo-save')).toBeEnabled();
- await page.locator('#rally-photo-close').click();expect(await page.evaluate(()=>({source:!!RALLY_PHOTO.source,entry:!!RALLY_PHOTO.entry}))).toEqual({source:false,entry:false});
+ await page.locator('#rally-photo-close').click();await expect(page.locator('#rally-photo')).not.toBeVisible();
+ // dialogのcloseイベントは次のタスク。後始末を即時値ではなく完了まで確認する。
+ await expect.poll(()=>page.evaluate(()=>({source:!!RALLY_PHOTO.source,entry:!!RALLY_PHOTO.entry}))).toEqual({source:false,entry:false});
 });
 
 test('プリクラの遅い写真：閉じて開き直した後に、前の選択結果が混入しない',async({page,context,baseURL})=>{
@@ -203,6 +252,43 @@ test('プリクラのタイマー：最後の1秒も中止でき、撮影・閉�
  await expect.poll(()=>page.evaluate(()=>latePhotoStream.getTracks()[0].readyState)).toBe('ended');await expect(page.locator('#rally-photo-start')).toBeVisible();await expect(page.locator('#rally-photo-capture')).toBeHidden();
  await page.evaluate(()=>{const c=document.createElement('canvas');c.width=300;c.height=400;c.getContext('2d').fillRect(0,0,300,400);window.failedPlayStream=c.captureStream(5);Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,value:async()=>failedPlayStream});$('#rally-photo-video').play=async()=>{throw new DOMException('cannot play','NotSupportedError');};});
  await page.locator('#rally-photo-start').click();await expect(page.locator('#rally-photo-error')).toContainText('写真を1枚選んで作る');await expect(page.locator('#rally-photo-start')).toBeEnabled();expect(await page.evaluate(()=>failedPlayStream.getTracks()[0].readyState)).toBe('ended');
+});
+
+test('写真加工：4種のフィルター・明るさ・ひとことが保存画像に反映し、加工の控えを再利用・解放する',async({page,context,baseURL},info)=>{
+ test.setTimeout(90000);const g=server(),errors=watchErrors(page),posts=[];await bridge(context,g,{posts});await seed(context,g,46);await open(page,baseURL);await page.locator('#rally-complete').click();await page.locator('#rally-photo-file').setInputFiles(await samplePhoto(page));await expect(page.locator('#photo-adjust')).toBeVisible();await page.locator('#photo-edit summary').click();
+ const images=[];for(const filter of ['natural','soft','vivid','mono']){await page.locator(`[data-photo-filter="${filter}"]`).click();await expect.poll(()=>page.evaluate(()=>RALLY_PHOTO.raf)).toBe(0);images.push(await page.locator('#rally-photo-canvas').evaluate(c=>c.toDataURL()));}expect(new Set(images).size).toBe(4);
+ const gray=await page.locator('#rally-photo-canvas').evaluate(c=>Array.from(c.getContext('2d').getImageData(540,700,1,1).data));expect(gray[0]).toBe(gray[1]);expect(gray[1]).toBe(gray[2]);
+ await page.evaluate(()=>window.previousFiltered=RALLY_PHOTO.filtered);await page.locator('#photo-pan-x').focus();await page.keyboard.press('ArrowRight');await expect.poll(()=>page.evaluate(()=>RALLY_PHOTO.raf)).toBe(0);expect(await page.evaluate(()=>RALLY_PHOTO.filtered===previousFiltered)).toBe(true);
+ await page.locator('#photo-bright').focus();await page.keyboard.press('ArrowRight');await expect(page.locator('#photo-bright-value')).toHaveText('101%');await page.locator('#photo-caption').fill('黒工祭、最高！！');await expect.poll(()=>page.evaluate(()=>RALLY_PHOTO.raf)).toBe(0);const edited=await page.locator('#rally-photo-canvas').evaluate(c=>c.toDataURL());expect(edited).not.toBe(images[3]);await page.screenshot({path:path.join(ART,info.project.name+'-photo-edit-controls.png')});
+ const download=page.waitForEvent('download');await page.locator('#rally-photo-save').click();const file=await download;expect(fs.readFileSync(await file.path()).toString('base64')).toBe(edited.split(',')[1]);
+ await page.locator('#photo-edit-reset').click();await expect(page.locator('#photo-bright-value')).toHaveText('100%');await expect(page.locator('#photo-caption')).toHaveValue('');expect(await page.evaluate(()=>RALLY_PHOTO.filtered)).toBe(null);await page.locator('[data-photo-filter="vivid"]').click();await expect.poll(()=>page.evaluate(()=>!!RALLY_PHOTO.filtered)).toBe(true);await page.locator('#rally-photo-close').click();
+ expect(await page.evaluate(()=>({source:!!RALLY_PHOTO.source,filtered:!!RALLY_PHOTO.filtered,caption:RALLY_PHOTO.caption}))).toEqual({source:false,filtered:false,caption:''});expect(posts.some(p=>p.image||p.photo||p.consent)).toBe(false);expect(errors).toEqual([]);
+});
+
+test('写真の任意協力：同意なしでも保存でき、現在の画像と2項目の同意だけがLINEの下書きを解放する',async({page,context,baseURL},info)=>{
+ test.setTimeout(90000);const g=server(),errors=watchErrors(page);await bridge(context,g);await seed(context,g,46);await open(page,baseURL);await page.locator('#rally-complete').click();await page.locator('#rally-photo-file').setInputFiles(await samplePhoto(page));await expect(page.locator('#photo-consent-use')).not.toBeChecked();await expect(page.locator('#photo-consent-people')).not.toBeChecked();
+ const d=page.waitForEvent('download');await page.locator('#rally-photo-save').click();await d;await expect(page.locator('#photo-contribute')).toHaveAttribute('open','');await expect(page.locator('#photo-submit-line')).toHaveAttribute('aria-disabled','true');await expect(page.locator('#photo-submit-line')).not.toHaveAttribute('href');
+ await page.locator('#photo-consent-use').check();await expect(page.locator('#photo-submit-line')).toHaveAttribute('aria-disabled','true');await page.locator('#photo-consent-people').check();await expect(page.locator('#photo-submit-line')).toHaveAttribute('aria-disabled','false');const href=await page.locator('#photo-submit-line').getAttribute('href');expect(href).toContain('https://line.me/R/oaMessage/%40210ukaob/?');const text=decodeURIComponent(href.split('/?')[1]);expect(text).toContain('記念番号：');expect(text).toContain('WebやSNSでの公開');expect(text).toContain('kuroko-movie-2026-v1');expect(text).not.toContain('data:image');
+ // 外部アプリを開かず、リンクの操作と案内の更新を確認する。
+ await page.evaluate(()=>document.querySelector('#photo-submit-line').addEventListener('click',e=>e.preventDefault(),{capture:true}));await page.locator('#photo-submit-line').click();await expect(page.locator('#photo-status')).toContainText('画像を添付');
+ await page.locator('#photo-edit summary').click();await page.locator('#photo-caption').fill('また来年！');await expect(page.locator('#photo-consent-use')).not.toBeChecked();await expect(page.locator('#photo-consent-people')).not.toBeChecked();await expect(page.locator('#photo-submit-line')).not.toHaveAttribute('href');await page.locator('#photo-consent-use').check();await page.locator('#photo-consent-people').check();await expect(page.locator('#photo-submit-line')).toHaveAttribute('aria-disabled','true');
+ await page.locator('#rally-photo-close').click();await page.locator('#rally-save').click();await expect(page.locator('#photo-consent-use')).not.toBeChecked();await expect(page.locator('#photo-consent-text')).toHaveValue('');expect(errors).toEqual([]);
+});
+
+test('写真保存の競合：PNG準備中の変更から古い画像の保存済み扱いや利用許可を引き継がない',async({page,context,baseURL})=>{
+ const g=server();await bridge(context,g);await seed(context,g,46);await open(page,baseURL);await page.locator('#rally-complete').click();await page.locator('#rally-photo-file').setInputFiles(await samplePhoto(page));await page.locator('#photo-edit summary').click();const downloads=[];page.on('download',d=>downloads.push(d.suggestedFilename()));
+ await page.evaluate(()=>{const original=HTMLCanvasElement.prototype.toBlob;HTMLCanvasElement.prototype.toBlob=function(cb,...args){return original.call(this,blob=>{window.releasePhotoBlob=()=>cb(blob);},...args);};});await page.locator('#rally-photo-save').click();await expect.poll(()=>page.evaluate(()=>typeof releasePhotoBlob)).toBe('function');await page.locator('#photo-caption').fill('保存の前に調整');await page.evaluate(()=>releasePhotoBlob());await expect.poll(()=>page.evaluate(()=>saveRallyPhoto.busy)).toBe(false);expect(downloads).toEqual([]);expect(await page.evaluate(()=>RALLY_PHOTO.savedRevision)).toBe(-1);await expect(page.locator('#photo-status')).toContainText('写真が変わった');await expect(page.locator('#photo-submit-line')).not.toHaveAttribute('href');
+});
+
+test('写真協力の表示：320・390・1280pxで同意文と操作がはみ出さず、読み上げとコントラストを保つ',async({page,context,baseURL},info)=>{
+ test.setTimeout(90000);const g=server();await bridge(context,g);await seed(context,g,46);await open(page,baseURL);await page.locator('#rally-complete').click();await page.locator('#rally-photo-file').setInputFiles(await samplePhoto(page));const d=page.waitForEvent('download');await page.locator('#rally-photo-save').click();await d;await page.locator('#photo-consent-use').check();await page.locator('#photo-consent-people').check();
+ for(const width of [320,390,1280]){await page.setViewportSize({width,height:900});await page.locator('#photo-contribute').scrollIntoViewIfNeeded();expect(await page.locator('#rally-photo').evaluate(el=>el.scrollWidth-el.clientWidth)).toBeLessThanOrEqual(1);await page.screenshot({path:path.join(ART,info.project.name+'-photo-permission-'+width+'.png')});}
+ const AxeBuilder=require('@axe-core/playwright').default;const a=await new AxeBuilder({page}).include('#rally-photo').withTags(['wcag2a','wcag2aa']).analyze();expect(a.violations.filter(v=>v.impact==='critical'||v.impact==='serious')).toEqual([]);
+});
+
+test('写真協力の見本：司令塔で加工・保存しても利用許可やLINEの送信リンクを発行しない',async({page,context,baseURL})=>{
+ const g=server(),posts=[];await bridge(context,g,{posts});await page.goto(baseURL+'/?mode=owner');await page.locator('#own-pw').fill('owner-himitsu-123456');await page.locator('#own-login').click();await page.locator('#own-main').waitFor({state:'visible'});await page.locator('#owntab-event').click();await page.locator('[data-effect-test="photo"]').click();await page.locator('#rally-photo-file').setInputFiles(await samplePhoto(page));
+ const d=page.waitForEvent('download');await page.locator('#rally-photo-save').click();expect((await d).suggestedFilename()).toBe('kuroko-preview.png');await page.locator('#photo-contribute summary').click();await page.locator('#photo-consent-use').check();await page.locator('#photo-consent-people').check();await expect(page.locator('#photo-submit-line')).not.toHaveAttribute('href');await expect(page.locator('#photo-submit-note')).toContainText('テスト表示');await expect(page.locator('#photo-consent-text')).toHaveValue('');expect(g.rallyStock_(true).issued).toBe(0);expect(posts.some(p=>p.action==='rally_complete'||p.action==='rally_draw'||p.photo||p.image)).toBe(false);
 });
 
 test('プリクラの見た目：狭い画面・横向き・特大文字・暗い配色と動きを減らす設定で操作できる',async({page,context,baseURL},info)=>{
