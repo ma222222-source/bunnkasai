@@ -12,7 +12,7 @@ async function bridge(ctx,g,opt={}){
  });
 }
 async function enter(page,url='/?mode=owner'){
- await page.goto(url);if(url.includes('mode=admin')){await page.locator('#auth-who').fill('担当者');await page.locator('#btn-login').click();await expect(page.locator('#v-admin')).toBeVisible();await page.locator('#btn-open-owner').click();}
+ await page.goto(url);if(url.includes('mode=admin')){if(!url.includes('staffBooth=')){await page.locator('#auth-who').fill('担当者');await page.locator('#btn-login').click();}await expect(page.locator('#v-admin')).toBeVisible();await page.locator('#btn-open-owner').click();}
  await page.locator('#own-pw').fill(OWNER);await page.locator('#own-login').click();await expect(page.locator('#own-main')).toBeVisible();
 }
 async function openReset(page){await page.locator('#owntab-setup').click();await page.locator('#own-rally-reset summary').click();}

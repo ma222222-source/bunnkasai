@@ -4653,7 +4653,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
     <section class="view" id="v-staffqr">
       <div class="card no-print">
         <h2 class="card-t">ブース担当者用QR・操作手順</h2>
-        <p class="adm-hint">1ブースにつきA4・1枚。QRを読むと担当ブースが決まり、初回の名前登録後、そのブースだけが自動で開きます。係員用の紙なので、来場者には掲示しないでください。</p>
+        <p class="adm-hint">1ブースにつきA4・1枚。QRを読むと、名前・パスワードの入力なしで、そのブースだけが自動で開きます。係員用の紙なので、来場者には掲示しないでください。</p>
         <label class="staff-filter-label" for="staff-print-select">印刷するブース</label>
         <select class="field" id="staff-print-select"><option value="">全ブース</option></select>
         <p id="staff-print-count" class="adm-hint" role="status"></p>
@@ -4986,7 +4986,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
           <div class="card">
             <div class="card-t">入れる端末</div>
             <div class="seg own-seg" role="group" aria-label="だれが入れるか">
-              <button type="button" id="own-mode-off" aria-pressed="true">名前を登録した係員</button>
+              <button type="button" id="own-mode-off" aria-pressed="true">係員用QRから入室</button>
               <button type="button" id="own-mode-on" aria-pressed="false">許可した端末だけ</button>
             </div>
             <p class="own-note" id="own-mode-note"></p>
@@ -5316,7 +5316,7 @@ const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
   SCHOOL_URL: 'https://www2.iwate-ed.jp/kst-h/',   // v236：学校の公式サイト（パンフレットの学校名の下に刷る。表紙のQRは、このマップのまま）
-  BUILD: '2026-10-23c',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-24a',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
@@ -14483,8 +14483,8 @@ function renderOwner(){
   $('#own-mode-off').setAttribute('aria-pressed', String(!st.approval));
   $('#own-mode-on').setAttribute('aria-pressed', String(!!st.approval));
   $('#own-mode-note').textContent = st.approval
-    ? '名前を登録したあと、下の一覧で「許可する」を押した端末だけが入れます。新しい端末は「許可を待っています」と出ます。'
-    : '係員用QRから初回に名前を登録すると入れます。次回からは自動で入室します。「止める」を押した端末は入れません。';
+    ? '下の一覧で「許可する」を押した端末だけが入れます。専用QRは担当・端末番号で自動登録します。新しい端末は「許可を待っています」と出ます。'
+    : 'ブース専用QRを読むだけで入れます。名前・パスワードの入力は不要です。「止める」を押した端末は入れません。';
   const rank = d => d.st === 'wait' ? 0 : d.st === 'no' ? 2 : 1;
   const devs = (st.devices || []).slice().sort((a, b) => rank(a) - rank(b) || String(b.last || '').localeCompare(String(a.last || '')));
   const me = deviceId();
@@ -14705,7 +14705,7 @@ async function ownSetPass(){
 async function ownSetMode(on){
   if (!OWN.state || !!OWN.state.approval === !!on) return;
   if (on && !confirm('「許可した端末だけ」にします。\n・いま一覧にある端末（止めたもの以外）は、そのまま入れます。\n・これから来る新しい端末は、ここで「許可する」を押すまで入れません。\nあなたが許可しないと、だれも新しく入れなくなります。よろしいですか？')) return;
-  if (!on && !confirm('係員用QRから名前を登録すれば入れる設定に戻します（止めた端末を除く）。よろしいですか？')) return;
+  if (!on && !confirm('ブース専用QRを読むだけで入れる設定に戻します（止めた端末を除く）。よろしいですか？')) return;
   // v218：返事が来るまで、切り替えを押せなくして「切り替えています…」（押せたのかが分からなかった）
   const seg = $('.own-seg'), note = $('#own-mode-note');
   seg.setAttribute('aria-busy', 'true'); note.textContent = '切り替えています…';
@@ -15622,7 +15622,8 @@ function initOwnerLive(){
 }
 
 /* ---- 係員のログイン：端末の許可を待つ（司令塔で「許可した端末だけ」にしているとき） ---- */
-function staffName(){ return (loadStr('kuroko_staff_name') || '').trim().slice(0, 20); }
+function qrStaffName(){return S.staffBooth?('QR '+(/^[1-3]F-\d{2}$/.test(S.staffBooth)?S.staffBooth:'担当確認')+' · '+deviceId().slice(-4).toUpperCase()).slice(0,20):'';}
+function staffName(){ return (loadStr('kuroko_staff_name') || '').trim().slice(0, 20) || qrStaffName(); }
 function staffLoginName(){ return staffName() || ($('#auth-who').value || '').trim().slice(0, 20); }
 function renderStaffName(){
   const name=staffName();
@@ -15630,10 +15631,12 @@ function renderStaffName(){
   $('#auth-name-saved').classList.toggle('hide',!name);
   $('#auth-name-value').textContent=name;
   $('#auth-pw-row').classList.add('hide');$('#pw-zen').classList.add('hide');
-  $('#auth-pw-note').textContent='パスワードは不要です。初回だけ名前を登録すると、次回から自動で入れます。';
+  $('#auth-pw-note').textContent=S.staffBooth?'このQRの担当として自動で入ります。名前・パスワードの入力は不要です。':'パスワードは不要です。初回だけ名前を登録すると、次回から自動で入れます。';
+  $('#auth-name-saved small').textContent=loadStr('kuroko_staff_name')?'このブラウザに保存済みです。名前の入力は不要です。':'担当ブースと端末番号で自動登録します。名前の入力は不要です。';
   $('#btn-login').textContent=name?'管理画面に入る':'名前を登録して入る';
 }
 function rememberStaffName(name){
+  if(S.staffBooth && !loadStr('kuroko_staff_name') && name===qrStaffName()){renderStaffName();return;}
   const saved = store('kuroko_staff_name', name);
   renderStaffName();
   if (!saved) toast('このブラウザでは名前を保存できません。次回も入力してください', null, 6000);
@@ -17459,11 +17462,11 @@ function renderStaffQr(){
       <div class="staff-sheet-label"><span>黒工文化祭 2026｜ブース担当者用</span><span>来場者への掲示はしない</span></div>
       <h2>${esc(n)}　${esc(b.name)}</h2>
       <p class="staff-sheet-place">${esc(flLabel(b))}・${esc(roomLabel(b) || b.id)}${planCode(b) ? '｜平面図 ' + esc(planCode(b)) : ''}｜部屋ID ${esc(b.id)}</p>
-      <div class="staff-sheet-hero"><div><h3>このブースの<br>混雑状況を更新する</h3><p>右のQRをスマホのカメラで読み取ります。<br>初回だけ名前を登録すると、上のブースが開きます。<br><b>ブースを探す・選ぶ操作は不要です。</b></p></div>
+      <div class="staff-sheet-hero"><div><h3>このブースの<br>混雑状況を更新する</h3><p>右のQRをスマホのカメラで読み取ります。<br>名前・パスワードの入力なしで、上のブースが開きます。<br><b>ブースを探す・選ぶ操作は不要です。</b></p></div>
         <div class="staff-sheet-qr">${QR.svgSafe(url, 200)}<span>係員の管理画面を開く</span></div></div>
       <h3>当日の操作手順</h3>
       <ol>
-        <li><b>QRを読み取って管理画面を開く（パスワード不要）</b><span>初回だけ名前・担当を登録します。同じブラウザなら次回から入力なしで、このブースが自動で開きます。</span></li>
+        <li><b>QRを読み取るだけで管理画面が開く</b><span>名前・パスワード・ブース選びの入力はありません。担当ブースと端末番号で登録し、このブースが自動で開きます。</span></li>
         <li><b>画面のブース名が、この紙と同じか確認</b><span>担当以外の名前なら送信せず、本部に確認してください。「許可を待っています」と出たら、画面の端末番号を本部へ伝えます。許可後は自動で開きます。</span></li>
         <li><b>待ち列を数え、＋1・＋5／−1・−5で人数を合わせる</b><span>人数が合ったら「送信」を押します。混雑度は人数から自動で決まります。数えられないときは「空き／やや混雑／混雑」を押しても更新できます。</span></li>
         <li><b>「ブース名 → 空き（5人）」などの送信結果を確認</b><span>押し間違えた直後は「元に戻す」。人数が変わったら更新し、変わらなくても15分に1回は送信してください。</span></li>
@@ -17564,7 +17567,7 @@ function renderQrSheet(){
       <h4 class="staff-h">ブース担当（<b>更新</b>）</h4>
       <ol class="staff-steps">
         <li>上のQRを読み取り、開いたページをホーム画面に追加する</li>
-        <li>初回だけ名前・担当を登録する。パスワードは不要で、同じブラウザなら次回から自動で入れます</li>
+        <li>ブース専用QRは名前・パスワードの入力なしで開きます。共通QRでは初回だけ名前・担当を登録します</li>
         <li>専用QR・手順の紙を受け取っている人は、そのQRから開くと担当ブースが自動で決まります。共通QRから開いたときは、初回だけ担当ブースを選びます</li>
         <li>待ち列を数えて <b>＋1 / ＋5</b> で人数を合わせ、<b>送信</b> を押す<br>
             <span class="staff-note">人数から混雑度が自動で決まります：
@@ -18613,6 +18616,7 @@ function init(){
   S.assigned = new Set(idList('kuroko_assigned_v2'));
   { const q = new URLSearchParams(location.search);
     if (q.get('mode') === 'admin' && q.has('staffBooth')) S.staffBooth = q.get('staffBooth') || 'invalid'; }
+  renderStaffName();
   renderStaffTarget();
   S.admOpen = new Set(strList('kuroko_adm_open'));
   { const m = load('kuroko_adm_mode', 'floor'); S.admMode = ['floor', 'dept', 'flat'].indexOf(m) >= 0 ? m : 'floor'; }
