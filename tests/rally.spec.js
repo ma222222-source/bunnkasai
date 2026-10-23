@@ -304,8 +304,13 @@ test('プリクラの見た目：狭い画面・横向き・特大文字・暗�
  await page.emulateMedia({reducedMotion:'no-preference'});
  const entryOpacity=await page.evaluate(()=>{const d=$('#rally-photo');d.style.animation='none';const rule=[...document.styleSheets].flatMap(s=>[...s.cssRules]).find(r=>r.name==='photo-studio-in');if(!rule)throw new Error('入口のキーフレームがありません');const frames=[...rule.cssRules].map(r=>Object.fromEntries([...r.style].map(k=>[k,r.style.getPropertyValue(k)])));const a=d.animate(frames,{duration:320,fill:'both'});a.pause();const values=[0,80,160,240,320].map(ms=>{a.currentTime=ms;return Number(getComputedStyle(d).opacity);});a.cancel();d.style.animation='';return values;});
  expect(entryOpacity).toEqual([1,1,1,1,1]);
- await page.emulateMedia({reducedMotion:'reduce'});await page.locator('#rally-photo-file').setInputFiles(await samplePhoto(page));await expect(page.locator('#rally-photo-save')).toBeVisible();
- expect(await page.locator('#photo-stage .photo-spark').count()).toBe(0);
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await expect.poll(()=>page.evaluate(()=>REDUCE_MOTION.matches&&matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true);
+ // 通常表示で作られた演出の片付けを待ち、設定変更後の写真では新しく作られないことを確かめる。
+ await expect(page.locator('#photo-stage .photo-spark')).toHaveCount(0);
+ await page.locator('#rally-photo-file').setInputFiles(await samplePhoto(page));await expect(page.locator('#rally-photo-save')).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>RALLY_PHOTO.ready)).toBe(true);
+ await expect(page.locator('#photo-stage .photo-spark')).toHaveCount(0);
  const AxeBuilder=require('@axe-core/playwright').default;fs.mkdirSync(ART,{recursive:true});
  for(const [width,height]of [[320,780],[375,812],[390,844],[844,390],[1440,960]]){
   await page.setViewportSize({width,height});await page.evaluate(()=>document.documentElement.dataset.fs='xl');
