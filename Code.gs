@@ -51,8 +51,13 @@ var GAS_VERSION = '2026-10-23c';
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var RALLY_RESET_STATE = {epoch:'',at:0};
-function rallyUseEpoch_(){
-  var state;try{state=JSON.parse(props_().getProperty('RALLY_RESET')||'null');}catch(e){}
+function rallyUseEpoch_(force){
+  var cache=CacheService.getScriptCache(),key='rally_reset_state_v254';
+  function read(){var value={epoch:'',at:0};try{var parsed=JSON.parse(props_().getProperty('RALLY_RESET')||'null');if(parsed&&/^[a-z0-9_]{1,40}$/.test(parsed.epoch)&&Number(parsed.at)>0)value={epoch:parsed.epoch,at:Number(parsed.at)};}catch(e){}var raw=JSON.stringify(value);cache.put(key,raw,21600);return raw;}
+  // 数秒ごとの変更確認でプロパティを毎回読まない。初期化とリセットは同じロックで順序を守る。
+  var raw=force?read():cache.get(key);
+  if(raw==null)raw=withLock_(function(){return cache.get(key)||read();});
+  var state;try{state=JSON.parse(raw);}catch(e){}
   RALLY_RESET_STATE=state&&/^[a-z0-9_]{1,40}$/.test(state.epoch)&&Number(state.at)>0?{epoch:state.epoch,at:Number(state.at)}:{epoch:'',at:0};
   var suffix=RALLY_RESET_STATE.epoch?'_'+RALLY_RESET_STATE.epoch:'';
   SHEET_LEDGER='スタンプ記録'+suffix;SHEET_ALIAS='スタンプ番号の統合'+suffix;SHEET_RALLY='ラリー抽選'+suffix;
@@ -2857,12 +2862,12 @@ function ownerApi_(action, body) {
   if(action==='owner_rally_reset')return withLock_(function(){
     var old={};try{old=JSON.parse(props_().getProperty('RALLY_RESET')||'{}');}catch(e){}
     if(body.confirm!=='全体リセット'||!/^[A-Za-z0-9_-]{12,64}$/.test(String(body.requestId||'')))throw new Error('reset confirm: 確認欄に全体リセットと入力してください');
-    if(old.requestId===body.requestId){rallyUseEpoch_();return ownerStateOut_();}
+    if(old.requestId===body.requestId){rallyUseEpoch_(true);return ownerStateOut_();}
     if(String(body.epoch||'')!==String(old.epoch||''))throw new Error('reset changed: すでにリセットされています。画面を更新して確認してください');
     var at=Math.max(Date.now(),Number(old.at||0)+1),epoch=at.toString(36)+'_'+Utilities.getUuid().replace(/-/g,'').slice(0,8);
     // 以前のシートは残す。以後の参加記録だけ別のシートへ切り替える。
     props_().setProperty('RALLY_RESET',JSON.stringify({epoch:epoch,at:at,requestId:body.requestId}));
-    rallyUseEpoch_();clearRallyStock_();
+    rallyUseEpoch_(true);clearRallyStock_();
     var live=liveRead_();delete live.draw;liveSave_(live);
     var cache=CacheService.getScriptCache();cache.remove(CACHE_KEY);cache.remove(CACHE_BAK);clearCache_();
     liveLog_('スタンプラリーを全体リセット（以前の記録はシートに保持）');
