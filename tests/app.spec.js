@@ -4323,7 +4323,11 @@ test('ラッキーブース（v227）：地図の番号の丸が金色・一覧�
   await expect(page.locator('#booth-list .booth').first()).toHaveAttribute('id', 'booth-1F-05');
   await page.locator('#sort-name').click();
   await expect(page.locator('#booth-list .booth').first()).not.toHaveAttribute('id', 'booth-1F-05');
+  await expect(page.locator('#sort-name')).toHaveAttribute('aria-pressed', 'true');
+  // 名前順への切替で一覧先頭へ滑らかに移動する。移動中のタッチはスクロールとして取り消されるため、到着後に次を押す。
+  await expect.poll(()=>page.locator('#booth-list').evaluate(el=>Math.round(el.getBoundingClientRect().top))).toBe(120);
   await page.locator('#sort-free').click();
+  await expect(page.locator('#sort-free')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#booth-list .booth').first()).toHaveAttribute('id', 'booth-1F-05');
   // ラッキーブースが終わったら、ふつうの並びに戻る（一覧のいちばん上を見ているとき。下まで読んでいる途中は、指の下が入れ替わらないよう並べ替えない決まり）
   await page.evaluate(() => { window.scrollTo(0, 0); S.live.lucky.until = Date.now() - 1; renderLive(); });

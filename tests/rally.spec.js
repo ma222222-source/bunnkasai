@@ -224,7 +224,9 @@ test('プリクラ選択：壊れた写真は元の画像を保ち、共有の�
  expect(await page.evaluate(()=>$('#rally-photo-canvas').toDataURL())).toBe(original);
  await page.evaluate(()=>{Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>true});Object.defineProperty(navigator,'share',{configurable:true,value:async()=>{throw new DOMException('cancel','AbortError');}});updatePhotoControls();});
  await page.locator('#photo-share').click();await expect(page.locator('#photo-status')).toContainText('共有をとじました');await expect(page.locator('#photo-step-3')).not.toHaveAttribute('aria-current','step');await expect(page.locator('#rally-photo-save')).toBeEnabled();
- await page.locator('#rally-photo-close').click();expect(await page.evaluate(()=>({source:!!RALLY_PHOTO.source,entry:!!RALLY_PHOTO.entry}))).toEqual({source:false,entry:false});
+ await page.locator('#rally-photo-close').click();await expect(page.locator('#rally-photo')).not.toBeVisible();
+ // dialogのcloseイベントは次のタスク。後始末を即時値ではなく完了まで確認する。
+ await expect.poll(()=>page.evaluate(()=>({source:!!RALLY_PHOTO.source,entry:!!RALLY_PHOTO.entry}))).toEqual({source:false,entry:false});
 });
 
 test('プリクラの遅い写真：閉じて開き直した後に、前の選択結果が混入しない',async({page,context,baseURL})=>{
