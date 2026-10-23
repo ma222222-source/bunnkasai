@@ -2942,7 +2942,7 @@ body.board-mode .app{min-height:0;height:100dvh;overflow:hidden}
 
 /* ========================= QR印刷シート ========================= */
 .qr-grid{display:block}
-.qr-page{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:18px}
+.qr-page{display:block;margin:0 auto 18px;max-width:620px}
 .qr-page-no{grid-column:1 / -1;font-size:11px;font-weight:800;color:var(--text-mute)}
 .qr-one{display:block;margin:8px auto 0;min-height:40px;padding:0 12px;border-radius:999px;border:1.5px solid #999;background:#fff;color:#111;
   font:inherit;font-size:11px;font-weight:800;cursor:pointer}
@@ -3180,21 +3180,17 @@ html.sheet-open{overflow:hidden}
   .card{box-shadow:none}
   .head,.nav,.no-print,#banner-notice,#banner-alert,#banner-offline,#banner-update,#banner-hours,.toast{display:none !important}
   main{padding:0}
-  /* 1ページ2段だと40ブースで10ページになる。QRは40mm角あればスマホで読めるので、
-     1枚を85mm弱に収めて3段（=1ページ6枚）にする。 */
-  /* v178：1ページ＝箱1つ（6枚・2列×3段）。箱の高さは A4 の刷れる高さ（297−余白10×2＝277mm）より少し低くして、
-     端数で次のページへこぼれないようにする。箱ごとに必ず改ページ */
+  /* 掲示用はA4縦1枚にQRを1つ。印刷可能な277mmより少し低くして、必ず紙ごとに改ページする。 */
   .qr-grid{display:block}
-  .qr-page{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,1fr);gap:0;height:275mm;margin:0;
+  .qr-page{display:block;max-width:none;height:275mm;margin:0;
     break-after:page;page-break-after:always;break-inside:avoid;page-break-inside:avoid}
-  .qr-page:last-child{break-after:auto;page-break-after:auto;height:auto;grid-template-rows:repeat(3,91.6mm)}
-  .qr-card{border:none;outline:1px dashed #888;outline-offset:-.5px;border-radius:0;box-shadow:none;padding:4mm;overflow:hidden;
+  .qr-page:last-child{break-after:auto;page-break-after:auto}
+  .qr-card{border:1mm solid #111;border-radius:4mm;box-shadow:none;padding:10mm;height:275mm;box-sizing:border-box;overflow:hidden;
     display:flex;flex-direction:column;align-items:center;justify-content:center;break-inside:avoid;page-break-inside:avoid}
   .qr-card .qr-img{line-height:0}
-  .qr-card .qr-img svg{width:48mm;max-width:48mm;height:48mm}
-  .qr-card.top .qr-img svg{width:44mm;max-width:44mm;height:44mm}
+  .qr-card .qr-img svg,.qr-card.top .qr-img svg{width:130mm;max-width:130mm;height:130mm}
   .qr-card.top code{font-size:8pt !important;margin-top:1mm !important}
-  .qr-card.top .qr-where{font-size:7.5pt}
+  .qr-card.top .qr-where{font-size:13pt}
   .qr-card .qr-img svg,.qr-card .qr-img svg *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   /* 1枚だけ刷る：ほかのカード・係員の手順を消して、A4 に1枚を大きく */
   body.print-one .qr-page{display:block;height:auto;break-after:auto;page-break-after:auto}
@@ -3205,14 +3201,14 @@ html.sheet-open{overflow:hidden}
   body.print-one .qr-card.one .qr-where{font-size:16pt;padding:2mm 6mm}
   body.print-one .qr-card.one .qr-cta{font-size:18pt !important;margin-top:6mm}
   body.print-one .qr-card.one span{font-size:13pt}
-  .qr-card b{margin-bottom:2mm}
-  .qr-card figcaption{margin-top:2mm}
-  .qr-where{margin-bottom:2mm;padding:1mm 3mm}
+  .qr-card b{font-size:30pt;margin:4mm 0 6mm;overflow-wrap:anywhere}
+  .qr-card figcaption{margin-top:5mm}
+  .qr-card span{font-size:13pt;margin-top:2mm}
+  .qr-where{margin-bottom:2mm;padding:2mm 4mm;max-width:100%;box-sizing:border-box}
   .qr-card code{font-size:6pt}
   .qr-card.top code{font-size:9.5pt}
-  .qr-card b{font-size:13pt}
-  .qr-where{font-size:8pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .qr-cta{font-size:9pt !important}
+  .qr-where{font-size:13pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .qr-cta{font-size:17pt !important}
   /* 紙のマップはA4縦1枚に収まる。1階の地図は縦長なので縦向きが最適 */
   @page{size:A4 portrait}
   .sheet{border:none;padding:0}
@@ -4627,22 +4623,22 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
         <div class="card-t"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg> QRコード印刷シート</div>
         <p style="font-size:11.5px;color:var(--text-dim);font-weight:600;line-height:1.7">
           各ブースの入口に貼るQRです。読み取ると そのブースの詳細が開き、スタンプが自動で入ります。<br>
-          A4に貼れるサイズで出力されます。<span id="qr-count"></span><br>
+          1つのQRをA4用紙1枚に大きく出力します。<span id="qr-count"></span><br>
           <span class="qr-check" id="qr-check" role="status" aria-live="polite"></span>
           <b>ブース名や場所を変えたあとは刷り直してください。</b>QRには部屋IDが入っています。
         </p>
         <!-- v178：刷る前の設定（ここを間違えるとQRが小さくなる・切れる） -->
         <ul class="print-tips">
           <li><b>用紙：A4・縦</b>、<b>倍率：100%（実際のサイズ）</b>。「用紙に合わせる」「縮小」は使わない</li>
-          <li>1ページに6枚（2列×3段）。点線で切って貼ります。どのページも同じ位置に点線が来ます</li>
+          <li><b>1ページにQRを1つ</b>、約13cm角で大きく印刷します。切らずにそのまま各ブースの入口へ貼れます</li>
           <li>「ヘッダーとフッター」はオフに（日付やアドレスが紙に入るのを防ぐ）</li>
           <li>白黒でも刷れます。刷ったら<b>1枚をスマホのカメラで読んで</b>確かめてください</li>
           <li>やぶれた・よごれた1枚は、そのカードの「この1枚だけ大きく刷る」で刷り直せます</li>
         </ul>
-        <button class="btn" id="btn-print" style="margin-top:10px">印刷する</button>
+        <button class="btn" id="btn-print" style="margin-top:10px">全QRをA4・1枚ずつ印刷する</button>
       </div>
       <div id="qr-grid" class="qr-grid"></div>
-      <div id="qr-staff"></div>
+      <div id="qr-staff" class="no-print"></div>
     </section>
 
 
@@ -17429,9 +17425,7 @@ function renderQrSheet(){
       : 'ブースがまだ1件もありません。先に「地図でブースを割り当てる」で決めてください。';
   }
   setPrintReady('#btn-print', S.booths.length > 0);
-  // v178：1ページ6枚（2列×3段）ずつ、ページの箱（.qr-page）に入れる。
-  // ブラウザまかせの改ページだと、Safari などでカードが2ページに割れることがあった。箱ごとに必ず改ページする。
-  // どのページも同じ位置に切り取り線が来るので、重ねてまとめて切れる
+  // 各ブースの掲示用。1つのQRをA4縦1ページに収め、カードの途中では改ページしない。
   const card = (it, i) => `
     <figure class="qr-card${it.top ? ' top' : ''}" data-qi="${i}">
       <div class="qr-where">${esc(it.where)}</div>
@@ -17444,7 +17438,7 @@ function renderQrSheet(){
       </figcaption>
       <button type="button" class="qr-one no-print" data-one="${i}">この1枚だけ大きく刷る</button>
     </figure>`;
-  const PER = 6, pages = [];
+  const PER = 1, pages = [];
   for (let i = 0; i < items.length; i += PER) pages.push(items.slice(i, i + PER).map((it, k) => card(it, i + k)).join(''));
   $('#qr-grid').innerHTML = pages.map((h, i) =>
     `<div class="qr-page" data-page="${i + 1}"><div class="qr-page-no no-print">${i + 1} / ${pages.length} ページ</div>${h}</div>`).join('');

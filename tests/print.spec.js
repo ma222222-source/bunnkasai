@@ -72,18 +72,17 @@ test('紙マップ（?mode=print）：A4で2ページ（46件・両面）', asyn
   expect(pdfPages(pdf)).toBe(2);
 });
 
-test('QR印刷シート：A4で9ページ以内（47枚）', async ({ page }) => {
+test('QR印刷シート：全QRを1つずつA4に印刷し、余分な係員ページを含めない（47枚）', async ({ page }) => {
   await loginTo(page, 'qr');
   await expect.poll(() => page.locator('#qr-grid .qr-img svg').count()).toBe(47);
   await page.waitForTimeout(500);
   const pdf = await page.pdf({ format: 'A4', printBackground: true });
   const n = pdfPages(pdf);
-  expect(n).toBeGreaterThan(0);
-  expect(n).toBeLessThanOrEqual(9);
+  expect(n).toBe(47);
 });
 
 /* ---------------- v178：QR をしっかり刷る ---------------- */
-test('QR印刷シート：1ページ6枚の箱に入り、どのカードも箱からはみ出さない（刷る大きさで確かめる）', async ({ page }) => {
+test('QR印刷シート：全ページにQRが1つずつ大きく入り、名前・案内もはみ出さない', async ({ page }) => {
   await loginTo(page, 'qr');
   await page.evaluate(() => { window.publicBase = () => 'https://ma222222-source.github.io/bunnkasai/'; renderQrSheet(); });
   await expect.poll(() => page.locator('#qr-grid .qr-img svg').count()).toBe(47);
@@ -101,12 +100,11 @@ test('QR印刷シート：1ページ6枚の箱に入り、どのカードも箱�
       breaks: pages.slice(0, -1).every(p => /page|always/.test(getComputedStyle(p).breakAfter))
     };
   });
-  expect(r.n).toBe(8);
-  expect(r.perPage.slice(0, 7).every(n => n === 6)).toBe(true);
-  expect(r.perPage[7]).toBe(5);
+  expect(r.n).toBe(47);
+  expect(r.perPage.every(n => n === 1)).toBe(true);
   expect(r.tooTall).toBe(0);
   expect(r.over).toBe(0);
-  expect(Math.min(...r.qrMm)).toBeGreaterThanOrEqual(43);          // どのQRも 43mm 以上
+  expect(Math.min(...r.qrMm)).toBeGreaterThanOrEqual(129);          // どのQRも約13cm角
   expect(r.breaks).toBe(true);
 });
 
