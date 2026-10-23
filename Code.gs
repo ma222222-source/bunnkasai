@@ -53,7 +53,7 @@ var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記�
 var RALLY_RESET_STATE = {epoch:'',at:0};
 function rallyUseEpoch_(force){
   var cache=CacheService.getScriptCache(),key='rally_reset_state_v254';
-  function read(){var value={epoch:'',at:0};try{var parsed=JSON.parse(props_().getProperty('RALLY_RESET')||'null');if(parsed&&/^[a-z0-9_]{1,40}$/.test(parsed.epoch)&&Number(parsed.at)>0)value={epoch:parsed.epoch,at:Number(parsed.at)};}catch(e){}var raw=JSON.stringify(value);try{cache.put(key,raw,21600);}catch(eCache){}return raw;}
+  function read(){var value={epoch:'',at:0},stored=props_().getProperty('RALLY_RESET');try{var parsed=JSON.parse(stored||'null');if(parsed&&/^[a-z0-9_]{1,40}$/.test(parsed.epoch)&&Number(parsed.at)>0)value={epoch:parsed.epoch,at:Number(parsed.at)};}catch(e){}var raw=JSON.stringify(value);try{cache.put(key,raw,21600);}catch(eCache){}return raw;}
   // 数秒ごとの変更確認でプロパティを毎回読まない。初期化とリセットは同じロックで順序を守る。
   var raw=force?read():cache.get(key);
   if(raw==null)raw=withLock_(function(){return cache.get(key)||read();});

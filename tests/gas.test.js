@@ -627,6 +627,10 @@ test('全体リセット：世代のキャッシュ保存が失敗しても、�
  const r=g.__post({action:'owner_rally_reset',token,confirm:'全体リセット',requestId:'cache-reset-0001',epoch:''});assert.strictEqual(r.ok,true,JSON.stringify(r));
  assert.ok(r.rallyReset.epoch);assert.strictEqual(g.__get().rallyReset.epoch,r.rallyReset.epoch);
  assert.match(g.__post({action:'ledger',cid:'CACHE234',ev:[]}).error,/rally_reset/);
+ g.__cache.delete('rally_reset_state_v254');
+ const propGetter=g.PropertiesService.getScriptProperties;g.PropertiesService.getScriptProperties=()=>{const props=propGetter();return {...props,getProperty:key=>{if(key==='RALLY_RESET')throw new Error('properties unavailable');return props.getProperty(key);}};};
+ assert.throws(()=>g.__get(),/properties unavailable/,'世代の読取に失敗したら未リセット扱いに戻さない');
+ g.PropertiesService.getScriptProperties=propGetter;assert.strictEqual(g.__get().rallyReset.epoch,r.rallyReset.epoch);
 });
 
 test('係員QR：受付用は従来の受付操作ができるが、司令塔の操作はできない',()=>{
