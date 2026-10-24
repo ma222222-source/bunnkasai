@@ -1915,22 +1915,23 @@ function appendEvents_(cid, ev, fresh) {
 var SHEET_RALLY = 'ラリー抽選';
 var RALLY_HEAD = ['timestamp', 'cid', 'result', 'ticket', 'claimedAt', 'art', 'stamps'];
 var RALLY_NEED = 7;
-var RALLY_POLICY = 'tiered-v251';
-var RALLY_LIMIT = 413;
+var RALLY_POLICY = 'tiered-v256';
+var RALLY_LIMIT = 243;
 var RALLY_PRIZES = [
   {id:'super',label:'超大当たり',limit:1},
   {id:'big',label:'大当たり',limit:12},
-  {id:'normal',label:'当たり',limit:200},
-  {id:'participation',label:'参加賞',limit:200}
+  {id:'middle',label:'中当たり',limit:30},
+  {id:'normal',label:'当たり',limit:100},
+  {id:'participation',label:'参加賞',limit:100}
 ];
-// 参加者500人が平均3回なら約212.64個の当たりを見込む。実際の上限は213個で必ず止める。
+// 参加者500人が平均3回なら約212.64個の当たりを見込む。実際の当たり上限は143個で必ず止める（参加賞100個は別枠）。
 // 当選済みは交換前でも当選回数ごとに1/4。参加賞は確率抽選には混ぜない。
 function rallyChance_(wins) { return 0.16*Math.pow(0.25,Math.max(0,wins)); }
 function rallyPrize_(r) {
-  if(r.result==='candy') return r.art==='prize:super'?'super':r.art==='prize:big'?'big':'normal';
+  if(r.result==='candy') return r.art==='prize:super'?'super':r.art==='prize:big'?'big':r.art==='prize:middle'?'middle':'normal';
   return r.result==='miss'&&r.art==='prize:participation'?'participation':'';
 }
-function clearRallyStock_(){var c=CacheService.getScriptCache();c.remove(rallyCacheKey_('rally_stock_v251'));c.remove('rally_stock_v245');}
+function clearRallyStock_(){var c=CacheService.getScriptCache();c.remove(rallyCacheKey_('rally_stock_v256'));c.remove('rally_stock_v245');}
 function rallySheet_() {
   var sh=ss_().getSheetByName(SHEET_RALLY);
   // 種類は既存のart列に保存するため、この列も含めて照合し、在庫を誤分類しない。
@@ -1960,7 +1961,7 @@ function rallyState_(cid) {
     }) };
 }
 function rallyStock_(fresh) {
-  var cache=CacheService.getScriptCache(), cached=cache.get(rallyCacheKey_('rally_stock_v251'));
+  var cache=CacheService.getScriptCache(), cached=cache.get(rallyCacheKey_('rally_stock_v256'));
   if (!fresh && cached) { try { return JSON.parse(cached); } catch(e) {} }
   var sh = rallySheet_(), won=0, given=0, players=0;
   var prizes=RALLY_PRIZES.map(function(p){return {id:p.id,label:p.label,limit:p.limit,issued:0,given:0,held:0,remaining:p.limit};});
@@ -1976,7 +1977,7 @@ function rallyStock_(fresh) {
   var stock={limit:RALLY_LIMIT,issued:won,given:given,held:won-given,players:players,prizes:prizes,
     remaining:prizes.reduce(function(n,p){return n+p.remaining;},0),
     drawRemaining:prizes.filter(function(p){return p.id!=='participation';}).reduce(function(n,p){return n+p.remaining;},0)};
-  try { cache.put(rallyCacheKey_('rally_stock_v251'),JSON.stringify(stock),10); } catch(e) {}
+  try { cache.put(rallyCacheKey_('rally_stock_v256'),JSON.stringify(stock),10); } catch(e) {}
   return stock;
 }
 // 番号をつなぐ操作と同じロック内で券も移す。新しい番号で引き直せず、未交換の券も失わない。
@@ -2026,7 +2027,7 @@ function rallyDraw_(body) {
       });
       if(prize)result='candy';
     }
-    if(result==='miss'&&attempt===6&&wins===0&&stock.prizes[3].remaining>0)prize='participation';
+    if(result==='miss'&&attempt===6&&wins===0&&stock.prizes.filter(function(p){return p.id==='participation';})[0].remaining>0)prize='participation';
     // 6回目の外れと参加賞は同じ1行。途中で返事が消えても二重発行しない。
     clearRallyStock_();rallyWriteSheet_().appendRow([new Date(),cid,result,ticket,'',prize?'prize:'+prize:'','']);
     SpreadsheetApp.flush();clearRallyStock_();
