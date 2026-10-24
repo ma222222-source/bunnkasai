@@ -47,7 +47,8 @@ var SHEET_LOG      = '履歴';
 var SHEET_NOTICE   = 'お知らせ';
 var SHEET_VISITORS = '来場者';
 /** この Code.gs の版。係員画面が「サーバーが古いまま」を見分けるのに使う（貼り替えたら新バージョンでデプロイ） */
-var GAS_VERSION = '2026-10-23c';
+var GAS_VERSION = '2026-10-24a';
+var LINE_STAMP_CHANNEL = '2010429448'; // 公開されているLINEログインチャネルID。秘密鍵は使わない。
 var SHEET_LEDGER   = 'スタンプ記録';     // 来場者のスタンプ獲得・お菓子交換の控え（消さない）
 var SHEET_ALIAS    = 'スタンプ番号の統合'; // 番号をつないだ記録（旧番号→新番号）。旧番号で開いても新番号に乗り換える
 var RALLY_RESET_STATE = {epoch:'',at:0};
@@ -1271,6 +1272,7 @@ function doPost(e) {
     }
 
     if (action === 'staff_enter') return json_(staffEnter_(body));
+    if (action === 'line_stamp') return json_(lineStamp_(body));
 
     if (action === 'verify') {
       checkPass_(body.pass, body.cid, true, body.who);      // ログイン：端末を記録する（承認制のときは、許可を待つ）
@@ -1674,6 +1676,47 @@ function cleanBoothId_(v) {
   if (!/^[0-9A-Za-z_-]{1,24}$/.test(c)) return '';
   return c;
 }
+/** LINEの本人確認はサーバーで行う。トークン・名前・メール・生のLINE IDは保存しない。 */
+function lineStamp_(body) {
+  var token = typeof body.idToken === 'string' ? body.idToken : '';
+  if (!token || token.length > 8192) throw new Error('line_auth: LINEでログインし直してください');
+  var response;
+  try { response = UrlFetchApp.fetch('https://api.line.me/oauth2/v2.1/verify', {
+    method:'post', payload:{id_token:token, client_id:LINE_STAMP_CHANNEL}, muteHttpExceptions:true
+  }); } catch (err) { throw new Error('line_network: LINEの確認に接続できません。もう一度お試しください'); }
+  var identity;
+  try { identity = JSON.parse(response.getContentText()); } catch (err) {}
+  if (response.getResponseCode() !== 200 || !identity || identity.iss !== 'https://access.line.me' ||
+      String(identity.aud) !== LINE_STAMP_CHANNEL || !/^U[0-9a-f]{32}$/i.test(String(identity.sub || '')) ||
+      !(Number(identity.exp) > Date.now()/1000)) throw new Error('line_auth: LINEでログインし直してください');
+  rallyEpochNeed_(body);
+  var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.newBlob(LINE_STAMP_CHANNEL+'|'+identity.sub).getBytes());
+  var key = bytes.map(function(b){return ('0'+(b&255).toString(16)).slice(-2);}).join('');
+  // 対応表は全体リセットでも維持する。スタンプ・抽選・券は既存の世代別台帳を使う。
+  var binding = withLock_(function(){
+    var sh = sheetOrCreate_('スタンプLINE連携',['lineKey','sid','createdAt'],['A:B']);
+    var rows = sh.getLastRow() < 2 ? [] : sh.getRange(2,1,sh.getLastRow()-1,2).getValues();
+    var found = rows.filter(function(r){return String(r[0]) === key;})[0], sid;
+    if (found) sid = cleanCid_(String(found[1]));
+    else {
+      var alphabet='23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+      for (var n=0;n<20;n++) {
+        var random = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.newBlob(Utilities.getUuid()).getBytes());
+        sid='K'; for(var i=0;i<7;i++) sid+=alphabet[(random[i]&255)%alphabet.length];
+        if (!rows.some(function(r){return String(r[1])===sid;}) && !ledgerOf_(sid,true).stamps.length && resolveCid_(sid)===sid) break;
+        sid='';
+      }
+      if(!sid) throw new Error('busy: もう一度お試しください');
+      sh.appendRow([key,sid,new Date()]); SpreadsheetApp.flush();
+    }
+    var from=''; try{from=body.from?resolveCid_(cleanCid_(body.from)):'';}catch(err){}
+    var foreign=from && rows.some(function(r){return String(r[0])!==key && resolveCid_(String(r[1]))===from;});
+    return {sid:resolveCid_(sid),from:foreign?'':from,acceptLocal:!!from&&!foreign};
+  });
+  var saved=appendLedger_({cid:binding.sid,from:binding.from,ev:binding.acceptLocal?body.ev:[],rallyEpoch:body.rallyEpoch});
+  saved.lineLinked=true;
+  return saved;
+}
 function ledgerSheet_() {
   // 番号とブースidは文字のまま持つ（「2345E678」のような番号が数値に化けないように）
   return sheetOrCreate_(SHEET_LEDGER, LEDGER_HEAD, ['B:B', 'D:D']);
@@ -1856,7 +1899,12 @@ function appendEvents_(cid, ev, fresh) {
     if (t === 's') { hs[id] = 1; have.stamps.push(id); } else { hr[id] = 1; have.spent.push(id); }
     added++;
   });
-  if (added) ledgerCachePut_(cid, have);
+  if (added) {
+    // 書き戻しが未確定のまま「保存済み」を返さない。失敗時は控えを捨て、次の再送でシートを読み直す。
+    try { SpreadsheetApp.flush(); }
+    catch (err) { try { CacheService.getScriptCache().remove(rallyCacheKey_('lg_'+cid)); } catch (cacheErr) {} throw new Error('save_retry: 保存を確認できませんでした。もう一度お試しください'); }
+    ledgerCachePut_(cid, have);
+  }
   // 台帳の中身をそのまま返す。送った側はこれを足し込めば、別のアプリで増えた分も1往復で揃う。
   // cid は統合後の番号（旧番号で送ってきた端末は、これを見て乗り換える）
   return { ok: true, cid: cid, added: added, stamps: have.stamps, spent: have.spent };
@@ -1867,22 +1915,23 @@ function appendEvents_(cid, ev, fresh) {
 var SHEET_RALLY = 'ラリー抽選';
 var RALLY_HEAD = ['timestamp', 'cid', 'result', 'ticket', 'claimedAt', 'art', 'stamps'];
 var RALLY_NEED = 7;
-var RALLY_POLICY = 'tiered-v251';
-var RALLY_LIMIT = 413;
+var RALLY_POLICY = 'tiered-v256';
+var RALLY_LIMIT = 243;
 var RALLY_PRIZES = [
   {id:'super',label:'超大当たり',limit:1},
   {id:'big',label:'大当たり',limit:12},
-  {id:'normal',label:'当たり',limit:200},
-  {id:'participation',label:'参加賞',limit:200}
+  {id:'middle',label:'中当たり',limit:30},
+  {id:'normal',label:'当たり',limit:100},
+  {id:'participation',label:'参加賞',limit:100}
 ];
-// 参加者500人が平均3回なら約212.64個の当たりを見込む。実際の上限は213個で必ず止める。
+// 参加者500人が平均3回なら約212.64個の当たりを見込む。実際の当たり上限は143個で必ず止める（参加賞100個は別枠）。
 // 当選済みは交換前でも当選回数ごとに1/4。参加賞は確率抽選には混ぜない。
 function rallyChance_(wins) { return 0.16*Math.pow(0.25,Math.max(0,wins)); }
 function rallyPrize_(r) {
-  if(r.result==='candy') return r.art==='prize:super'?'super':r.art==='prize:big'?'big':'normal';
+  if(r.result==='candy') return r.art==='prize:super'?'super':r.art==='prize:big'?'big':r.art==='prize:middle'?'middle':'normal';
   return r.result==='miss'&&r.art==='prize:participation'?'participation':'';
 }
-function clearRallyStock_(){var c=CacheService.getScriptCache();c.remove(rallyCacheKey_('rally_stock_v251'));c.remove('rally_stock_v245');}
+function clearRallyStock_(){var c=CacheService.getScriptCache();c.remove(rallyCacheKey_('rally_stock_v256'));c.remove('rally_stock_v245');}
 function rallySheet_() {
   var sh=ss_().getSheetByName(SHEET_RALLY);
   // 種類は既存のart列に保存するため、この列も含めて照合し、在庫を誤分類しない。
@@ -1912,7 +1961,7 @@ function rallyState_(cid) {
     }) };
 }
 function rallyStock_(fresh) {
-  var cache=CacheService.getScriptCache(), cached=cache.get(rallyCacheKey_('rally_stock_v251'));
+  var cache=CacheService.getScriptCache(), cached=cache.get(rallyCacheKey_('rally_stock_v256'));
   if (!fresh && cached) { try { return JSON.parse(cached); } catch(e) {} }
   var sh = rallySheet_(), won=0, given=0, players=0;
   var prizes=RALLY_PRIZES.map(function(p){return {id:p.id,label:p.label,limit:p.limit,issued:0,given:0,held:0,remaining:p.limit};});
@@ -1928,7 +1977,7 @@ function rallyStock_(fresh) {
   var stock={limit:RALLY_LIMIT,issued:won,given:given,held:won-given,players:players,prizes:prizes,
     remaining:prizes.reduce(function(n,p){return n+p.remaining;},0),
     drawRemaining:prizes.filter(function(p){return p.id!=='participation';}).reduce(function(n,p){return n+p.remaining;},0)};
-  try { cache.put(rallyCacheKey_('rally_stock_v251'),JSON.stringify(stock),10); } catch(e) {}
+  try { cache.put(rallyCacheKey_('rally_stock_v256'),JSON.stringify(stock),10); } catch(e) {}
   return stock;
 }
 // 番号をつなぐ操作と同じロック内で券も移す。新しい番号で引き直せず、未交換の券も失わない。
@@ -1978,7 +2027,7 @@ function rallyDraw_(body) {
       });
       if(prize)result='candy';
     }
-    if(result==='miss'&&attempt===6&&wins===0&&stock.prizes[3].remaining>0)prize='participation';
+    if(result==='miss'&&attempt===6&&wins===0&&stock.prizes.filter(function(p){return p.id==='participation';})[0].remaining>0)prize='participation';
     // 6回目の外れと参加賞は同じ1行。途中で返事が消えても二重発行しない。
     clearRallyStock_();rallyWriteSheet_().appendRow([new Date(),cid,result,ticket,'',prize?'prize:'+prize:'','']);
     SpreadsheetApp.flush();clearRallyStock_();

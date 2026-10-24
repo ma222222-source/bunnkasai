@@ -44,8 +44,9 @@ test('専用QR：探さず担当1件に入り、保存済みの別担当・受�
   });
   await page.goto('/?mode=admin&staffBooth=1F-02&openExternalBrowser=1');
   await expect(page.locator('#auth-booth')).toContainText('旋盤の加工実演');
-  await expect(page.locator('#v-admin')).not.toBeVisible();
-  await login(page);
+  await expect(page.locator('#v-admin')).toBeVisible();
+  await expect(page.locator('#auth-name-entry')).toBeHidden();
+  expect(log.posts.find(p=>p.action==='staff_enter').who).toMatch(/^QR 1F-02 · [A-Z0-9]{4}$/);
   await expect(page.locator('#admpane-update')).toBeVisible();
   await expect(page.locator('#admin-list .adm-booth')).toHaveCount(1);
   const card = page.locator('#admin-list .adm-booth');

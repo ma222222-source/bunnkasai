@@ -3966,6 +3966,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
 /* v245：結果は色だけに頼らず見出しと操作で区別する。券は画像に書き出さない。 */
 .rally-card{border:2px solid var(--accent);scroll-margin-top:90px}
 .rally-card p{font-size:14px;line-height:1.8}
+.prize-pickup{margin:14px 0 18px;padding:18px 12px;border:3px solid var(--accent);border-radius:14px;background:var(--surface-2);text-align:center}.prize-pickup strong{display:block;color:var(--accent);font-size:clamp(23px,6vw,32px);font-weight:950;line-height:1.5;overflow-wrap:anywhere}.rally-card .prize-pickup p{margin:5px 0;font-size:14px}.prize-pickup b{font-size:clamp(17px,4.6vw,22px);font-weight:900}
 .rally-result{margin:14px 0;padding:18px 14px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-2)}
 .rally-result h3{font-size:21px;line-height:1.5;margin:8px 0}
 .rally-result .rally-kicker{font-size:12px;font-weight:900;letter-spacing:.12em;margin:0;color:var(--text-dim)}
@@ -3979,7 +3980,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
 .rally-ticket-list{display:grid;gap:8px;padding:0;list-style:none;margin:14px 0}
 .rally-ticket-list li{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
 .rally-ticket-list small{font-size:12px;color:var(--text-dim);overflow-wrap:anywhere}
-.rally-odds{padding:12px;border-radius:10px;background:var(--surface-2);font-size:13px;line-height:1.8}
+.rally-history{margin-top:18px;border-top:1px solid var(--border);padding-top:16px}.rally-history h3{font-size:17px;margin:0 0 8px}.rally-history ol{list-style:none;padding:0;margin:0;display:grid;gap:7px}.rally-history li{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:11px 12px;border:1px solid var(--border);border-radius:10px;line-height:1.5}.rally-history small{display:block;font-size:12px;color:var(--text-dim)}.rally-history li[data-prize="yes"]{border-color:var(--accent);background:var(--surface-2)}.rally-history .history-state{text-align:right;font-size:12px}.rally-history p{font-size:13px;margin:8px 0}.rally-history .pending{color:var(--text-dim)}
 .rally-stock-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
 .rally-stock-grid div{padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2)}
 .rally-stock-grid dt{font-weight:850;font-size:14px}.rally-stock-grid dd{margin:6px 0 0;font-size:13px;line-height:1.7}
@@ -4320,14 +4321,15 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
 
       <div class="card rally-card" id="rally-card">
         <div class="card-t">7個集めて、お楽しみ抽選！</div>
+        <aside class="prize-pickup" aria-label="お菓子の交換場所"><p>お菓子の交換はこちら！</p><strong>電子科ゲームコーナー</strong><p>当たり券・参加賞の画面を見せて、<br><b>スタッフにお声がけください！</b></p></aside>
         <p><span id="rally-roster-total"></span>まずは7個！ たまったら下のボタンで、自分で抽選を引けます。係員の操作は不要です。<br>全ブースコンプリートで、自分だけの「全制覇プリクラ」を解放！</p>
         <div class="rally-result" id="rally-result" tabindex="-1" aria-live="polite"></div>
         <button class="btn" id="rally-draw" type="button">7個集めて抽選する</button>
         <button class="btn ghost hide" id="rally-complete" type="button">全ブース達成！ 全制覇プリクラを解放</button>
         <button class="btn ghost hide" id="rally-save" type="button">自分だけの全制覇プリクラを撮る</button>
         <p class="rally-error hide" id="rally-error" role="alert"></p>
-        <p class="rally-odds" id="rally-odds"></p>
-        <p class="rally-foot">抽選は7個ごとに1回、最大6回。スタンプは減りません。超大当たり1個・大当たり12個・当たり200個。6回すべてはずれた方には先着200人分の参加賞！ 景品は当選・参加賞の確定時に確保し、なくなり次第終了です。交換場所は<b>電子科塔</b>。発行済みの券は終了後も交換できます。全ブースで全制覇プリクラ。抽選・交換・全制覇の確認にはインターネット接続が必要です。</p>
+        <section class="rally-history" aria-labelledby="rally-history-title"><h3 id="rally-history-title">あなたの抽選結果</h3><p id="rally-history-status" role="status"></p><ol id="rally-history"></ol><button type="button" class="btn ghost" id="rally-refresh">抽選結果を再確認する</button></section>
+        <p class="rally-foot">抽選は7個ごとに1回、最大6回。スタンプは減りません。超大当たり1個・大当たり12個・中当たり30個・当たり100個。6回すべてはずれた方には先着100人分の参加賞！ 景品は当選・参加賞の確定時に確保し、なくなり次第終了です。交換場所は<b>電子科ゲームコーナー</b>。発行済みの券は終了後も交換できます。全ブースで全制覇プリクラ。抽選・交換・全制覇の確認にはインターネット接続が必要です。</p>
       </div>
 
       <div class="card" id="redeem-card">
@@ -4360,6 +4362,8 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
           <button class="btn ghost sid-copy" id="sid-copy" type="button">コピー</button>
         </div>
         <p class="sid-sync" id="sid-sync" data-st="none" role="status" aria-live="polite"></p>
+        <button class="btn" id="sid-line" type="button" style="width:100%;margin-top:8px;background:#067a36;color:#fff">LINEで記録を保存・復元する</button>
+        <p class="small-note sid-save-note" id="sid-line-note">LINEと連携すると、タスク終了後も公式LINEのマップから同じアカウントの続きに戻れます。初回だけLINEの同意が必要です。連携先は文化祭運営の「黒工Ai部」です。名前・メールは保存しません。</p>
         <div class="sid-save-actions">
           <button class="btn ghost" id="sid-save" type="button">復元用ファイルを保存</button>
           <button class="btn ghost" id="sid-check" type="button">保存を確認する</button>
@@ -4653,7 +4657,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
     <section class="view" id="v-staffqr">
       <div class="card no-print">
         <h2 class="card-t">ブース担当者用QR・操作手順</h2>
-        <p class="adm-hint">1ブースにつきA4・1枚。QRを読むと担当ブースが決まり、初回の名前登録後、そのブースだけが自動で開きます。係員用の紙なので、来場者には掲示しないでください。</p>
+        <p class="adm-hint">1ブースにつきA4・1枚。QRを読むと、名前・パスワードの入力なしで、そのブースだけが自動で開きます。係員用の紙なので、来場者には掲示しないでください。</p>
         <label class="staff-filter-label" for="staff-print-select">印刷するブース</label>
         <select class="field" id="staff-print-select"><option value="">全ブース</option></select>
         <p id="staff-print-count" class="adm-hint" role="status"></p>
@@ -4797,6 +4801,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
               <button type="button" class="btn ghost" data-effect-test="win">お菓子の当たり</button>
               <button type="button" class="btn ghost" data-effect-test="super">超大当たり</button>
               <button type="button" class="btn ghost" data-effect-test="big">大当たり</button>
+              <button type="button" class="btn ghost" data-effect-test="middle">中当たり</button>
               <button type="button" class="btn ghost" data-effect-test="participation">6回はずれ・参加賞</button>
               <button type="button" class="btn ghost" data-effect-test="miss">抽選のはずれ</button>
               <button type="button" class="btn ghost" data-effect-test="end">景品がすべて終了</button>
@@ -4812,7 +4817,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
           </div>
           <div class="card own-rally-card" id="own-rally">
             <div class="card-t">7個ごとにお菓子抽選・残り</div>
-            <p class="own-note">交換場所：<b>電子科塔</b>。7個ごとに1回、最大6回。超大当たり1個・大当たり12個・当たり200個、6回すべてはずれた方の参加賞200個（先着）。確保済みの券も在庫に数えます。</p>
+            <p class="own-note">交換場所：<b>電子科ゲームコーナー</b>。7個ごとに1回、最大6回。超大当たり1個・大当たり12個・中当たり30個・当たり100個、6回すべてはずれた方の参加賞100個（先着）。確保済みの券も在庫に数えます。</p>
             <p class="own-note">参加者500人想定。未当選は1回16％。当選するたび、次からの当選率は直前の4分の1（4％、1％…）。交換前の当たりも含みます。当選時の種類は残数の比で決まり、上限を超えません。参加賞は当選確率とは別枠です。</p>
             <p id="own-rally-stock" class="own-state" aria-live="polite">読み込み中…</p>
             <p class="own-note">未交換の当たりも1個ずつ確保しています。係員は来場者の当たり画面を開き、いつもの4桁を入力し、「交換しました」を確認してから1個渡してください。画像・スクリーンショットだけでは交換しません。</p>
@@ -4986,7 +4991,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
           <div class="card">
             <div class="card-t">入れる端末</div>
             <div class="seg own-seg" role="group" aria-label="だれが入れるか">
-              <button type="button" id="own-mode-off" aria-pressed="true">名前を登録した係員</button>
+              <button type="button" id="own-mode-off" aria-pressed="true">係員用QRから入室</button>
               <button type="button" id="own-mode-on" aria-pressed="false">許可した端末だけ</button>
             </div>
             <p class="own-note" id="own-mode-note"></p>
@@ -5000,7 +5005,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
           <details class="card rally-reset-card" id="own-rally-reset">
             <summary class="chk-sum">スタンプラリーを全体リセット</summary>
             <div style="padding:0 12px 12px;display:grid;gap:12px">
-              <p class="own-note">全員のスタンプ・抽選履歴・当たり券・交換済み・全制覇をリセットし、景品の枠を超大当たり1・大当たり12・当たり200・参加賞200に戻します。ブース情報・混雑・来場者数・係員の名前は変わりません。</p>
+              <p class="own-note">全員のスタンプ・抽選履歴・当たり券・交換済み・全制覇をリセットし、景品の枠を超大当たり1・大当たり12・中当たり30・当たり100・参加賞100に戻します。ブース情報・混雑・来場者数・係員の名前は変わりません。</p>
               <p class="own-note">発行済みの当たり券も使えなくなります。配ったお菓子は戻らないため、当日の開始前・練習終了時に使ってください。過去の記録は元のシートに残し、新しい記録を別シートへ切り替えます。</p>
               <p class="own-note">接続中の端末は次の通信時、オフラインの端末は再接続時に反映します。以前の画面は更新が必要です。</p>
               <p class="own-note" id="own-reset-last"></p>
@@ -5316,9 +5321,10 @@ const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
   SCHOOL_URL: 'https://www2.iwate-ed.jp/kst-h/',   // v236：学校の公式サイト（パンフレットの学校名の下に刷る。表紙のQRは、このマップのまま）
-  BUILD: '2026-10-23c',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-24b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
+  LINE_STAMP_URL: 'https://liff.line.me/2010429448-BHqMzuIn',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
   // スタンプラリーの合言葉。QRのURLに短い署名を入れ、手で打ったURLでは
   // スタンプが付かないようにする。引換確認コードの元にもなる。
@@ -5333,7 +5339,7 @@ const CONFIG = {
   PRIZE_COST: 7,           // v245：7個ごとに1回、最大6回。スタンプは消費しない
   RALLY_ENABLED: true,
   RALLY_MIN: '2026-10-23b',
-  RALLY_POLICY: 'tiered-v251',
+  RALLY_POLICY: 'tiered-v256',
   PHOTO_LINE_ID: '@210ukaob',
   PHOTO_PERMISSION_VERSION: 'kuroko-movie-2026-v1',
   POLL_MS: 12000,          // 通常のポーリング間隔（画面を開いたまま放置しているとき）。v236：20000 → 12000（リアルタイムに近づける）
@@ -6323,7 +6329,7 @@ function applyRallyReset(reset){
   store('kuroko_rally_reset',applyRallyReset.state);
   S.stamps.clear();S.spent=[];store('kuroko_stamps_v2',[]);store('kuroko_spent_v1',[]);store('kuroko_stamp_at',{});
   for(const k of ['kuroko_join_from','kuroko_pushed_fp','kuroko_pushed_at','kuroko_cert_at'])store(k,undefined);
-  RALLY.state=null;RALLY.cid='';RALLY.error='';S.justStamp=null;
+  RALLY.state=null;RALLY.cid='';RALLY.error='';RALLY.cached=false;RALLY.requestedSid='';S.justStamp=null;
   if(window.__booted===true){if($('#rally-photo').open)closeRallyPhoto();renderAll();if(had)toast('本部でスタンプラリーをリセットしました。新しく集め直せます',null,8000);}
   checkpointStamps();return true;
 }
@@ -11214,8 +11220,8 @@ async function pullLedger(gap){
       store('kuroko_pulled_at', Date.now());
       if(empty)pullLedger._emptySid=sid;
     }
-  }catch(e){ /* 次の機会に */ }
-  finally{ pullLedger._on = false; renderSyncBadge(); }
+  }catch(e){ RALLY.syncError=true; }
+  finally{ pullLedger._on = false; renderSyncBadge();if(window.__booted===true)renderRally(); }
   return changed;
 }
 /**
@@ -11245,9 +11251,38 @@ function lineContinueUrl(){
   if(S.stamps.size||S.spent.length||STAMP_VAULT.hadIdentity){u.searchParams.set('restore',stampId());u.searchParams.set('tab','stamp');}
   return u.toString();
 }
+async function openLineStamp(){
+  const button=$('#sid-line');if(button.disabled)return;button.disabled=true;
+  try{
+    await checkpointStamps();await flushLedger(true);
+    const until=Date.now()+16000;
+    while(flushLedger._on&&Date.now()<until)await new Promise(r=>setTimeout(r,100));
+    if((S.stamps.size||S.spent.length)&&load('kuroko_pushed_fp','')!==ledgerFp())throw Error('まだサーバーへの保存を確認できません。通信を確認してもう一度押してください。');
+    const target=new URL(CONFIG.LINE_STAMP_URL);target.searchParams.set('from',stampId());target.searchParams.set('tab','stamp');location.assign(target.href);
+  }catch(e){toast(String(e.message||e),null,8000);}finally{button.disabled=false;}
+}
+/** LINEの確認済みの台帳へ切り替える。古い端末の別アカウントの記録は混ぜない。 */
+async function restoreLineStartup(){
+  const q=new URLSearchParams(location.search),sid=q.get('lineStamp');if(!sid||!/^[0-9A-Za-z]{6,40}$/.test(sid))return null;
+  let record;try{record=JSON.parse(sessionStorage.getItem('kuroko_line_transfer')||'null');sessionStorage.removeItem('kuroko_line_transfer');}catch(e){}
+  try{
+    if(!record||record.cid!==sid||!record.lineLinked||!record.rallyReset||record.rallyReset.at<rallyResetMarker().at)record=await fetchLedger(sid);
+    if(!record||record.ok===false||!Array.isArray(record.stamps)||!Array.isArray(record.spent))throw Error('記録を確認できませんでした');
+    if(record.rallyReset&&!applyRallyReset(record.rallyReset))throw Error('記録の更新を確認してください');
+    const clean=cleanStampValues({kuroko_sid:record.cid||sid,kuroko_stamps_v2:record.stamps,kuroko_spent_v1:record.spent});
+    store('kuroko_sid',clean.kuroko_sid);store('kuroko_stamps_v2',clean.kuroko_stamps_v2);store('kuroko_spent_v1',clean.kuroko_spent_v1);store('kuroko_stamp_at',{});
+    for(const k of ['kuroko_join_from','kuroko_pushed_fp','kuroko_cert_at'])store(k,undefined);
+    store('kuroko_migrated',1);store('kuroko_line_sid',clean.kuroko_sid);STAMP_VAULT.hadIdentity=true;
+    S.stamps=new Set(clean.kuroko_stamps_v2);S.spent=clean.kuroko_spent_v1;RALLY.cid='';RALLY.state=null;
+    await checkpointStamps();
+    const url=new URL(location.href);url.searchParams.delete('lineStamp');history.replaceState(history.state,'',url.pathname+url.search+url.hash);
+    return record;
+  }catch(e){restoreLineStartup.error='LINEの記録を読み込めませんでした。通信を確認して「LINEで記録を保存・復元する」からもう一度お試しください。';return null;}
+}
 function renderLineEntry(){
   const box=$('#line-entry');if(!box)return;
-  const show=openedIn()==='LINE'&&!new URLSearchParams(location.search).get('mode');box.classList.toggle('hide',!show);if(!show)return;
+  const linked=!!loadStr('kuroko_line_sid')&&loadStr('kuroko_line_sid')===loadStr('kuroko_sid');
+  const show=openedIn()==='LINE'&&!new URLSearchParams(location.search).get('mode')&&!linked;box.classList.toggle('hide',!show);if(!show)return;
   const has=!!(S.stamps.size||S.spent.length),saved=!has||load('kuroko_pushed_fp','')===ledgerFp();
   const a=$('#line-continue'),button=$('#line-prepare');a.classList.toggle('hide',!saved);button.classList.toggle('hide',saved);
   if(saved)a.href=lineContinueUrl();else a.removeAttribute('href');
@@ -11256,6 +11291,9 @@ function renderLineEntry(){
 /** スタンプ画面・獲得演出の「保存の状態」表示 */
 function renderSyncBadge(state){
   renderLineEntry();
+  const lineLinked=!!loadStr('kuroko_line_sid')&&loadStr('kuroko_line_sid')===loadStr('kuroko_sid');
+  $('#sid-line').textContent=lineLinked?'LINE連携済み・記録を読み直す':'LINEで記録を保存・復元する';
+  $('#sid-line-note').textContent=lineLinked?'LINE連携済みです！ 公式LINEのマップから開くと、同じアカウントのスタンプ・抽選結果を戻せます。通信で保存が完了した記録が対象です。名前・メールは保存しません。':'LINEと連携すると、タスク終了後も公式LINEのマップから同じアカウントの続きに戻れます。初回だけLINEの同意が必要です。連携先は文化祭運営の「黒工Ai部」です。名前・メールは保存しません。';
   const pushed = load('kuroko_pushed_fp', '') === ledgerFp();
   const nothing = !S.stamps.size && !S.spent.length;
   const localSafe=nothing||stampsSavedLocally();
@@ -11753,7 +11791,7 @@ function showStampFx(id, fresh){
       : (() => { const a = stampRank(got - 1, total), b2 = stampRank(got, total); return fresh && a && b2 && a.name !== b2.name; })() ? `称号「${stampRank(got, total).name}」になりました！`
       : L.shiny ? 'キラスタンプ！' : 'スタンプ獲得！';
     const goal = CONFIG.RALLY_ENABLED ? (rallyTotal()>0&&got>=rallyTotal() ? '全ブース制覇！ スタンプ画面で自分だけのプリクラを撮れます。' : `7個ごとにお菓子抽選！ スタンプ画面から挑戦できます。`) : done ? 'すべてのブースを回りました。おめでとうございます！'
-      : left >= need ? `スタンプ${need}個でお菓子1個と交換できます。電子科塔で係の人に見せてください`
+      : left >= need ? `スタンプ${need}個でお菓子1個と交換できます。電子科ゲームコーナーで係の人に見せてください`
       : `あと${need - left}個でお菓子と交換できます`;
     // 次に行く先：まだ行っていない空いているブースのうち、ここからいちばん近いもの（v158：同じ階の先頭から距離順へ）
     const cand = S.booths.filter(x => !S.stamps.has(x.id) && lvOf(x).lv === 0 && isVenue(x));
@@ -11898,22 +11936,27 @@ const RALLY_CARDS = {
   festival:{ title:'文化祭エンジョイ隊', mark:'flame', text:'今日の「楽しかった！」を持ち帰ろう。', color:'#7c2d12' }
 };
 function rallyEntries(){ return RALLY.cid === stampId() && RALLY.state ? RALLY.state.entries : []; }
-const RALLY_PRIZES={super:'超大当たり',big:'大当たり',normal:'当たり',participation:'参加賞'};
-function rallyPrize(e){return e&&(RALLY_PRIZES[e.prize]?e.prize:e.result==='candy'?(e.art==='prize:super'?'super':e.art==='prize:big'?'big':'normal'):e.result==='miss'&&e.art==='prize:participation'?'participation':'');}
+const RALLY_PRIZES={super:'超大当たり',big:'大当たり',middle:'中当たり',normal:'当たり',participation:'参加賞'};
+function rallyPrize(e){return e&&(RALLY_PRIZES[e.prize]?e.prize:e.result==='candy'?(e.art==='prize:super'?'super':e.art==='prize:big'?'big':e.art==='prize:middle'?'middle':'normal'):e.result==='miss'&&e.art==='prize:participation'?'participation':'');}
 function rallyTicket(){ return rallyEntries().find(e => rallyPrize(e) && !e.claimedAt); }
 function rallyPartCheck(){const d=rallyDraws(),s=RALLY.cid===stampId()&&RALLY.state&&RALLY.state.stock;return d.length===6&&d.every(e=>e.result==='miss'&&!rallyPrize(e))&&!!(s&&s.prizes&&s.prizes.some(p=>p.id==='participation'&&p.remaining>0));}
-function takeRally(state, cid){
+function takeRally(state, cid, cached){
   cid = cid || stampId();
   if (cid !== stampId() || !state || !Array.isArray(state.entries)) return;
-  const prev = RALLY.cid === cid && RALLY.state ? RALLY.state.entries : [];
+  const prev = RALLY.cid === cid && RALLY.state && !RALLY.cached ? RALLY.state.entries : [];
   const all = new Map(prev.map(e => [e.ticket, e]));
   state.entries.forEach(e => {
     if (!e || typeof e.ticket !== 'string' || !RALLY_CARDS[e.result]) return;
     const old=all.get(e.ticket);
     all.set(e.ticket, { ticket:e.ticket, result:e.result, prize:rallyPrize(old)||rallyPrize(e), claimedAt:old && old.claimedAt || e.claimedAt || '', art:String(rallyPrize(old)&&old.art||e.art||''), serial:Number(e.serial)||0, stamps:Array.isArray(e.stamps)?e.stamps.filter(id=>typeof id==='string'):[] });
   });
-  RALLY.cid=cid; RALLY.state={ entries:Array.from(all.values()), stock:state.stock || (RALLY.state && RALLY.state.stock) };
+  RALLY.cid=cid;RALLY.cached=!!cached;RALLY.syncError=false; RALLY.state={ entries:Array.from(all.values()), stock:state.stock || (RALLY.state && RALLY.state.stock) };
+  if(!cached)store('kuroko_rally_cache_v1',{cid,epoch:rallyResetMarker().epoch,state:RALLY.state,at:Date.now()});
   renderRally();
+}
+function restoreRallyCache(){
+  const cache=load('kuroko_rally_cache_v1',null);
+  if(cache&&cache.cid===stampId()&&cache.epoch===rallyResetMarker().epoch&&cache.state&&Array.isArray(cache.state.entries)&&cache.state.entries.length<=30)takeRally(cache.state,cache.cid,true);
 }
 function rallyReady(){ return !!(S.serverVersion && S.serverVersion >= CONFIG.RALLY_MIN); }
 function rallyTotal(){ return S.booths.length; }
@@ -11927,34 +11970,52 @@ function renderRally(){
   $('#rally-photo-intro').textContent='現在の'+rallyTotal()+'ブースを回った、今日のあなたが主役。自分だけの1枚を残そう！！';
   $('#rally-complete').textContent=rallyTotal()+'個達成！ 全制覇プリクラを解放';
   const got=rallyGot(), draws=rallyDraws(), ticket=rallyTicket(), completed=rallyComplete();
+  const historyReady=RALLY.cid===stampId()&&!!RALLY.state&&!RALLY.cached;
+  if(!historyReady&&got>=7&&RALLY.requestedSid!==stampId()){RALLY.requestedSid=stampId();setTimeout(()=>pullLedger(true),0);}
   const tickets=rallyEntries().filter(e=>rallyPrize(e)&&!e.claimedAt), given=rallyEntries().filter(e=>rallyPrize(e)&&e.claimedAt).length;
   const stock=RALLY.cid===stampId()&&RALLY.state&&RALLY.state.stock, checkPart=rallyPartCheck();
   const ended=RALLY.cid===stampId()&&RALLY.state&&RALLY.state.stock&&RALLY.state.stock.remaining===0;
   const next=(draws.length+1)*7, ready=rallyReady(), box=$('#rally-result'), draw=$('#rally-draw'), save=$('#rally-save'), complete=$('#rally-complete');
   let html;
-  if(ticket) html=`<p class="rally-kicker">${RALLY_PRIZES[rallyPrize(ticket)]}！</p><span class="rally-emblem">${mark(rallyPrize(ticket)==='super'?'crown':'pack')}</span><h3>お菓子${tickets.length}個を確保しています！</h3><p><b>交換場所：電子科塔</b><br>係員にこの画面を見せ、種類を確認して1券ずつ交換してください。${ended?'景品の発行は終了しましたが、この券は交換できます。':''}</p><ul class="rally-ticket-list">${tickets.map(e=>`<li><b>${RALLY_PRIZES[rallyPrize(e)]} × 1</b><small>券 ${esc(e.ticket.slice(-8))}</small></li>`).join('')}</ul>`;
-  else if(ended) html='<p class="rally-kicker">お菓子抽選は終了しました</p><h3>景品413個の発行が終了しました！</h3><p>たくさん遊んでくれてありがとう！！ 発行済みの券は電子科塔で交換できます。全ブース制覇のプリクラには引き続き挑戦できます。</p>';
+  if(ticket) html=`<p class="rally-kicker">${RALLY_PRIZES[rallyPrize(ticket)]}！</p><span class="rally-emblem">${mark(rallyPrize(ticket)==='super'?'crown':'pack')}</span><h3>お菓子${tickets.length}個を確保しています！</h3><p><b>交換場所：電子科ゲームコーナー</b><br>この画面を見せて、スタッフにお声がけください！ 景品の種類を確認し、1券ずつ交換します。${ended?'景品の発行は終了しましたが、この券は交換できます。':''}</p><ul class="rally-ticket-list">${tickets.map(e=>`<li><b>${RALLY_PRIZES[rallyPrize(e)]} × 1</b><small>券 ${esc(e.ticket.slice(-8))}</small></li>`).join('')}</ul>`;
+  else if(ended) html='<p class="rally-kicker">お菓子抽選は終了しました</p><h3>景品243個の発行が終了しました！</h3><p>たくさん遊んでくれてありがとう！！ 発行済みの券は電子科ゲームコーナーで交換できます。全ブース制覇のプリクラには引き続き挑戦できます。</p>';
   else if(draws.length) html=`<p class="rally-kicker">${draws.slice(-1)[0].result==='miss'?'今回は、はずれ！':'お菓子は交換済みです'}</p><h3>${draws.length>=6?'6回すべて参加しました！':got>=next?'次のお菓子抽選に挑戦できます！':`次の抽選まで あと${next-got}個`}</h3><p>抽選 ${draws.length} / 6回。${got<rallyTotal()?'全ブース制覇で、自分だけの全制覇プリクラも作れます！':'全ブース制覇、おめでとう！！'}</p>`;
-  else html=`<p class="rally-kicker">7個ごとにお菓子抽選！</p><h3>${got>=7?'抽選に参加できます！':`抽選まで あと${7-got}個`}</h3><p>超大当たり・大当たり・当たりに挑戦！ 6回すべてはずれても先着200人に参加賞があります。</p>`;
-  if(draws.length===6&&!ticket&&draws.every(e=>e.result==='miss'&&!rallyPrize(e)))html+=`<p>${checkPart?'6回すべてはずれました。下のボタンで参加賞を確認してください。':'6回参加ありがとう！！ 参加賞は先着200人分のため、発行分は終了しました。'}</p>`;
-  if(stock&&stock.drawRemaining===0&&!ended)html+='<p><b>超大当たり・大当たり・当たりの発行は終了しました。</b>6回すべてはずれた方への参加賞は残っています。引き続き7個ごとに参加できます。</p>';
+  else html=`<p class="rally-kicker">7個ごとにお菓子抽選！</p><h3>${got>=7?'抽選に参加できます！':`抽選まで あと${7-got}個`}</h3><p>超大当たり・大当たり・中当たり・当たりに挑戦！ 6回すべてはずれても先着100人に参加賞があります。</p>`;
+  if(draws.length===6&&!ticket&&draws.every(e=>e.result==='miss'&&!rallyPrize(e)))html+=`<p>${checkPart?'6回すべてはずれました。下のボタンで参加賞を確認してください。':'6回参加ありがとう！！ 参加賞は先着100人分のため、発行分は終了しました。'}</p>`;
+  if(stock&&stock.drawRemaining===0&&!ended)html+='<p><b>超大当たり・大当たり・中当たり・当たりの発行は終了しました。</b>6回すべてはずれた方への参加賞は残っています。引き続き7個ごとに参加できます。</p>';
+  if(RALLY.cached)html='<p><b>前回確認した結果です。最新の当たり・交換状況は通信で確認してください。</b></p>'+html;
   if(box.innerHTML!==html) box.innerHTML=html;
   box.dataset.result=ticket?'candy':ended?'ended':draws.length?'miss':'ready';
   draw.disabled=RALLY.busy||(!checkPart&&got<next)||!ready||navigator.onLine===false||ended||(!checkPart&&draws.length>=6);
   draw.textContent=RALLY.busy?'確認しています…':ended?'お菓子抽選は終了しました':navigator.onLine===false?'つながってから抽選できます':!ready?'抽選サーバーの準備を確認中…':checkPart?'6回はずれの参加賞を確認する':draws.length>=6?'6回すべて参加しました':got<next?`あと${next-got}個で次の抽選！`:`お菓子抽選をする！（${draws.length+1}回目）`;
-  const wins=draws.filter(e=>e.result==='candy').length, chance=stock&&stock.drawRemaining===0?0:16*Math.pow(.25,wins);
-  $('#rally-odds').textContent=!ready?'新しい抽選サーバーの準備中です。交換場所は電子科塔です。':draws.length>=6?'抽選は6回すべて終了しました。発行済みの券は電子科塔で交換できます。全ブース集めると全制覇プリクラを解放できます！':`あなたの次の当選率：${Number(chance.toPrecision(4))}％${wins?'（これまでに'+wins+'回当選）':'（まだ当選していません）'}。当選するたび、次からの当選率は4分の1になります。参加賞はこの確率とは別枠です。`;
+  if(!historyReady&&got>=7){draw.disabled=true;draw.textContent=RALLY.syncError?'下のボタンで抽選結果を再確認してください':'これまでの抽選結果を確認中…';}
+  renderRallyHistory(historyReady,got,draws,completed);
   complete.classList.toggle('hide',!rallyTotal()||got<rallyTotal()||!!completed);complete.disabled=RALLY.busy||!ready||navigator.onLine===false;
   save.classList.toggle('hide',!completed);save.disabled=RALLY.busy;
   const er=$('#rally-error');er.classList.toggle('hide',!RALLY.error);er.textContent=RALLY.error;
   $('#redeem-card').classList.toggle('hide',!ticket&&!given);$('#stamp-tally').classList.add('hide');
-  $('#redeem-msg').textContent=ticket?`交換場所：電子科塔。次に交換するのは「${RALLY_PRIZES[rallyPrize(ticket)]}」1個です。景品の種類を確認し、係員に今の4桁を入力してもらってください。`:'お菓子を受け取りました。ありがとうございました！';
+  $('#redeem-msg').textContent=ticket?`交換場所：電子科ゲームコーナー。次に交換するのは「${RALLY_PRIZES[rallyPrize(ticket)]}」1個です。景品の種類を確認し、係員に今の4桁を入力してもらってください。`:'お菓子を受け取りました。ありがとうございました！';
   $('#redeem-ok').textContent=ticket?`${RALLY_PRIZES[rallyPrize(ticket)]}を交換する`:'交換する';
   const open=$('#redeem-open');open.disabled=!ticket||RALLY.busy||!ready||navigator.onLine===false;
   open.textContent=navigator.onLine===false?'交換にはインターネット接続が必要です':'お菓子と交換する';
+  open.disabled=open.disabled||!historyReady;
   open.classList.toggle('hide',!ticket||!$('#redeem-pad').classList.contains('hide'));
   const log=$('#redeem-log');log.classList.toggle('hide',!given);log.textContent=`お菓子${given}個を交換済みです`;
   if(!ticket){$('#redeem-pad').classList.add('hide');$('#staff-code').value='';}
+}
+function renderRallyHistory(known,got,draws,completed){
+  const state=$('#rally-history-status'),list=$('#rally-history');
+  state.textContent=RALLY.cached?'前回確認した結果を表示しています。通信で最新の当たり・交換状況を再確認してください。':!known?(RALLY.syncError?'結果を確認できませんでした。通信を確認して、下のボタンで再確認してください。':got>=7?'過去の結果をスプレッドシートから確認しています…':'抽選すると、当たり・はずれ・交換状況がここに残ります。'):draws.length?`${draws.length}回の結果を確認しました。未交換のお菓子は電子科ゲームコーナーへ！`:'まだ抽選していません。7個たまると、自分で引けます！';
+  let html=draws.map((e,i)=>{const prize=rallyPrize(e),result=prize?RALLY_PRIZES[prize]:e.result==='miss'?'はずれ':(RALLY_CARDS[e.result]?.title||'抽選済み');return `<li data-prize="${prize?'yes':'no'}"><span><small>${i+1}回目</small><b>${esc(result)}</b></span><span class="history-state">${prize?(e.claimedAt?'交換済み':'未交換・電子科ゲームコーナーで交換'):'抽選済み'}${prize?'<small>券 '+esc(e.ticket.slice(-8))+'</small>':''}</span></li>`;}).join('');
+  if(known)for(let i=draws.length;i<6;i++)html+=`<li class="pending"><span>${i+1}回目</span><span class="history-state">${got>=(i+1)*7?'抽選できます':(i+1)*7+'個で抽選'}・未抽選</span></li>`;
+  if(completed)html+='<li data-prize="yes"><b>全ブース制覇</b><span class="history-state">全制覇プリクラ解放済み</span></li>';
+  if(list.innerHTML!==html)list.innerHTML=html;
+  $('#rally-refresh').disabled=RALLY.busy||!!pullLedger._on||!!flushLedger._on||navigator.onLine===false;
+}
+async function refreshRallyResults(){
+  const button=$('#rally-refresh');button.disabled=true;
+  try{await flushLedger(true);const until=Date.now()+16000;while(flushLedger._on&&Date.now()<until)await new Promise(r=>setTimeout(r,100));await pullLedger(true);}
+  finally{renderRally();}
 }
 function renderRallySummary(got,ws){
   renderRally();const pending=rallyTicket(),next=(rallyDraws().length+1)*7;
@@ -14030,7 +14091,7 @@ function remindPrize(){
     if (CONFIG.RALLY_ENABLED ? !rallyTicket() : stampsLeft() < need) return;
     if (loadStr('kuroko_prize_remind') === ymd(d)) return;
     store('kuroko_prize_remind', ymd(d));
-    toast(CONFIG.RALLY_ENABLED ? `本日は ${st.day.close} までです。お菓子の引換券があります。電子科塔で交換をお願いします！` : `本日は ${st.day.close} までです。お菓子と交換できるスタンプがあります（スタンプ画面の「お菓子と交換する」）`,
+    toast(CONFIG.RALLY_ENABLED ? `本日は ${st.day.close} までです。お菓子の引換券があります。電子科ゲームコーナーで交換をお願いします！` : `本日は ${st.day.close} までです。お菓子と交換できるスタンプがあります（スタンプ画面の「お菓子と交換する」）`,
       { label:'スタンプを見る', fn: () => switchView('stamp') }, 10000);
   }catch(e){}
 }
@@ -14446,9 +14507,9 @@ function previewOwnerEffect(kind){
   if(!(ownToken()&&OWN.state))return;
   if(kind==='photo'){openRallyPhoto(true);return;}
   if(kind==='redeem'){showPrizeFx(1,false,true);return;}
-  const titles={win:'お菓子の当たり！',super:'超大当たり！！',big:'大当たり！！',participation:'6回挑戦ありがとう！ 参加賞です！！',miss:'今回は、はずれ！',end:'お菓子抽選は終了しました',stamp:'スタンプ獲得！',shiny:'キラスタンプ！',complete:'全ブース制覇！',lucky:'ラッキーブースでスタンプ！',party:'黒工祭へようこそ！！',calm:'本部からのお知らせ'};
-  const notes={win:'当たり券を電子科塔で景品1個と交換します。',super:'限定1個の超大当たり！ 交換場所は電子科塔です。',big:'限定12個の大当たり！ 交換場所は電子科塔です。',participation:'6回すべてはずれた方の先着200人分です。電子科塔で交換します。',miss:'新しく7個集めると、次の抽選に挑戦できます。',end:'景品413個の発行が終了しました。発行済みの券は電子科塔で交換できます。',complete:'全制覇プリクラが解放されます。',lucky:'いまおすすめのブースでスタンプを集めました。'};
-  showLiveFx(['win','super','big','participation'].includes(kind)?'win':'show',titles[kind]||'演出の確認',(notes[kind]||'当日の画面・動きの見本です。')+'（テスト表示：実際の記録・在庫は変わりません）',true,['miss','end','calm'].includes(kind)?'calm':'party');
+  const titles={win:'お菓子の当たり！',super:'超大当たり！！',big:'大当たり！！',middle:'中当たり！！',participation:'6回挑戦ありがとう！ 参加賞です！！',miss:'今回は、はずれ！',end:'お菓子抽選は終了しました',stamp:'スタンプ獲得！',shiny:'キラスタンプ！',complete:'全ブース制覇！',lucky:'ラッキーブースでスタンプ！',party:'黒工祭へようこそ！！',calm:'本部からのお知らせ'};
+  const notes={win:'当たり券を電子科ゲームコーナーで景品1個と交換します。',super:'限定1個の超大当たり！ 交換場所は電子科ゲームコーナーです。',big:'限定12個の大当たり！ 交換場所は電子科ゲームコーナーです。',middle:'限定30個の中当たり！ 交換場所は電子科ゲームコーナーです。',participation:'6回すべてはずれた方の先着100人分です。電子科ゲームコーナーで交換します。',miss:'新しく7個集めると、次の抽選に挑戦できます。',end:'景品243個の発行が終了しました。発行済みの券は電子科ゲームコーナーで交換できます。',complete:'全制覇プリクラが解放されます。',lucky:'いまおすすめのブースでスタンプを集めました。'};
+  showLiveFx(['win','super','big','middle','participation'].includes(kind)?'win':'show',titles[kind]||'演出の確認',(notes[kind]||'当日の画面・動きの見本です。')+'（テスト表示：実際の記録・在庫は変わりません）',true,['miss','end','calm'].includes(kind)?'calm':'party');
   const fx=$('#lfx');if(!fx)return;
   const banner=document.createElement('p');banner.className='effect-test-banner';banner.textContent='テスト表示・この端末だけの見本です';fx.querySelector('.lfx-card').prepend(banner);
   if(kind==='stamp'||kind==='shiny'){
@@ -14483,8 +14544,8 @@ function renderOwner(){
   $('#own-mode-off').setAttribute('aria-pressed', String(!st.approval));
   $('#own-mode-on').setAttribute('aria-pressed', String(!!st.approval));
   $('#own-mode-note').textContent = st.approval
-    ? '名前を登録したあと、下の一覧で「許可する」を押した端末だけが入れます。新しい端末は「許可を待っています」と出ます。'
-    : '係員用QRから初回に名前を登録すると入れます。次回からは自動で入室します。「止める」を押した端末は入れません。';
+    ? '下の一覧で「許可する」を押した端末だけが入れます。専用QRは担当・端末番号で自動登録します。新しい端末は「許可を待っています」と出ます。'
+    : 'ブース専用QRを読むだけで入れます。名前・パスワードの入力は不要です。「止める」を押した端末は入れません。';
   const rank = d => d.st === 'wait' ? 0 : d.st === 'no' ? 2 : 1;
   const devs = (st.devices || []).slice().sort((a, b) => rank(a) - rank(b) || String(b.last || '').localeCompare(String(a.last || '')));
   const me = deviceId();
@@ -14705,7 +14766,7 @@ async function ownSetPass(){
 async function ownSetMode(on){
   if (!OWN.state || !!OWN.state.approval === !!on) return;
   if (on && !confirm('「許可した端末だけ」にします。\n・いま一覧にある端末（止めたもの以外）は、そのまま入れます。\n・これから来る新しい端末は、ここで「許可する」を押すまで入れません。\nあなたが許可しないと、だれも新しく入れなくなります。よろしいですか？')) return;
-  if (!on && !confirm('係員用QRから名前を登録すれば入れる設定に戻します（止めた端末を除く）。よろしいですか？')) return;
+  if (!on && !confirm('ブース専用QRを読むだけで入れる設定に戻します（止めた端末を除く）。よろしいですか？')) return;
   // v218：返事が来るまで、切り替えを押せなくして「切り替えています…」（押せたのかが分からなかった）
   const seg = $('.own-seg'), note = $('#own-mode-note');
   seg.setAttribute('aria-busy', 'true'); note.textContent = '切り替えています…';
@@ -15622,7 +15683,8 @@ function initOwnerLive(){
 }
 
 /* ---- 係員のログイン：端末の許可を待つ（司令塔で「許可した端末だけ」にしているとき） ---- */
-function staffName(){ return (loadStr('kuroko_staff_name') || '').trim().slice(0, 20); }
+function qrStaffName(){return S.staffBooth?('QR '+(/^[1-3]F-\d{2}$/.test(S.staffBooth)?S.staffBooth:'担当確認')+' · '+deviceId().slice(-4).toUpperCase()).slice(0,20):'';}
+function staffName(){ return (loadStr('kuroko_staff_name') || '').trim().slice(0, 20) || qrStaffName(); }
 function staffLoginName(){ return staffName() || ($('#auth-who').value || '').trim().slice(0, 20); }
 function renderStaffName(){
   const name=staffName();
@@ -15630,10 +15692,12 @@ function renderStaffName(){
   $('#auth-name-saved').classList.toggle('hide',!name);
   $('#auth-name-value').textContent=name;
   $('#auth-pw-row').classList.add('hide');$('#pw-zen').classList.add('hide');
-  $('#auth-pw-note').textContent='パスワードは不要です。初回だけ名前を登録すると、次回から自動で入れます。';
+  $('#auth-pw-note').textContent=S.staffBooth?'このQRの担当として自動で入ります。名前・パスワードの入力は不要です。':'パスワードは不要です。初回だけ名前を登録すると、次回から自動で入れます。';
+  $('#auth-name-saved small').textContent=loadStr('kuroko_staff_name')?'このブラウザに保存済みです。名前の入力は不要です。':'担当ブースと端末番号で自動登録します。名前の入力は不要です。';
   $('#btn-login').textContent=name?'管理画面に入る':'名前を登録して入る';
 }
 function rememberStaffName(name){
+  if(S.staffBooth && !loadStr('kuroko_staff_name') && name===qrStaffName()){renderStaffName();return;}
   const saved = store('kuroko_staff_name', name);
   renderStaffName();
   if (!saved) toast('このブラウザでは名前を保存できません。次回も入力してください', null, 6000);
@@ -17459,11 +17523,11 @@ function renderStaffQr(){
       <div class="staff-sheet-label"><span>黒工文化祭 2026｜ブース担当者用</span><span>来場者への掲示はしない</span></div>
       <h2>${esc(n)}　${esc(b.name)}</h2>
       <p class="staff-sheet-place">${esc(flLabel(b))}・${esc(roomLabel(b) || b.id)}${planCode(b) ? '｜平面図 ' + esc(planCode(b)) : ''}｜部屋ID ${esc(b.id)}</p>
-      <div class="staff-sheet-hero"><div><h3>このブースの<br>混雑状況を更新する</h3><p>右のQRをスマホのカメラで読み取ります。<br>初回だけ名前を登録すると、上のブースが開きます。<br><b>ブースを探す・選ぶ操作は不要です。</b></p></div>
+      <div class="staff-sheet-hero"><div><h3>このブースの<br>混雑状況を更新する</h3><p>右のQRをスマホのカメラで読み取ります。<br>名前・パスワードの入力なしで、上のブースが開きます。<br><b>ブースを探す・選ぶ操作は不要です。</b></p></div>
         <div class="staff-sheet-qr">${QR.svgSafe(url, 200)}<span>係員の管理画面を開く</span></div></div>
       <h3>当日の操作手順</h3>
       <ol>
-        <li><b>QRを読み取って管理画面を開く（パスワード不要）</b><span>初回だけ名前・担当を登録します。同じブラウザなら次回から入力なしで、このブースが自動で開きます。</span></li>
+        <li><b>QRを読み取るだけで管理画面が開く</b><span>名前・パスワード・ブース選びの入力はありません。担当ブースと端末番号で登録し、このブースが自動で開きます。</span></li>
         <li><b>画面のブース名が、この紙と同じか確認</b><span>担当以外の名前なら送信せず、本部に確認してください。「許可を待っています」と出たら、画面の端末番号を本部へ伝えます。許可後は自動で開きます。</span></li>
         <li><b>待ち列を数え、＋1・＋5／−1・−5で人数を合わせる</b><span>人数が合ったら「送信」を押します。混雑度は人数から自動で決まります。数えられないときは「空き／やや混雑／混雑」を押しても更新できます。</span></li>
         <li><b>「ブース名 → 空き（5人）」などの送信結果を確認</b><span>押し間違えた直後は「元に戻す」。人数が変わったら更新し、変わらなくても15分に1回は送信してください。</span></li>
@@ -17564,7 +17628,7 @@ function renderQrSheet(){
       <h4 class="staff-h">ブース担当（<b>更新</b>）</h4>
       <ol class="staff-steps">
         <li>上のQRを読み取り、開いたページをホーム画面に追加する</li>
-        <li>初回だけ名前・担当を登録する。パスワードは不要で、同じブラウザなら次回から自動で入れます</li>
+        <li>ブース専用QRは名前・パスワードの入力なしで開きます。共通QRでは初回だけ名前・担当を登録します</li>
         <li>専用QR・手順の紙を受け取っている人は、そのQRから開くと担当ブースが自動で決まります。共通QRから開いたときは、初回だけ担当ブースを選びます</li>
         <li>待ち列を数えて <b>＋1 / ＋5</b> で人数を合わせ、<b>送信</b> を押す<br>
             <span class="staff-note">人数から混雑度が自動で決まります：
@@ -17707,7 +17771,7 @@ function renderPamphlet(){
       <ol class="pam-steps">
         <li><b>入口のQRを読む</b>各ブースの入口のQRを、スマホのカメラで読みます。アプリを入れる必要はありません</li>
         <li><b>スタンプがたまる</b>読むたびに1個。スタンプ帳で、回った所が分かります</li>
-        <li><b>7個ごとにお菓子抽選！</b>超大当たり1個・大当たり12個・当たり200個、6回すべてはずれた方の参加賞200個。電子科塔で係員と交換。全ブース制覇で、全制覇プリクラを保存！</li>
+        <li><b>7個ごとにお菓子抽選！</b>超大当たり1個・大当たり12個・中当たり30個・当たり100個、6回すべてはずれた方の参加賞100個。電子科ゲームコーナーで係員と交換。全ブース制覇で、全制覇プリクラを保存！</li>
       </ol>
       ${opt('', ed('flap.note', P.stampNote || '', 'p', 'pam-small', '交換できる場所・時間など（空なら出ません）'))}
       <h3 class="pam-h3">スマホで混み具合が分かります</h3>
@@ -18613,6 +18677,7 @@ function init(){
   S.assigned = new Set(idList('kuroko_assigned_v2'));
   { const q = new URLSearchParams(location.search);
     if (q.get('mode') === 'admin' && q.has('staffBooth')) S.staffBooth = q.get('staffBooth') || 'invalid'; }
+  renderStaffName();
   renderStaffTarget();
   S.admOpen = new Set(strList('kuroko_adm_open'));
   { const m = load('kuroko_adm_mode', 'floor'); S.admMode = ['floor', 'dept', 'flat'].indexOf(m) >= 0 ? m : 'floor'; }
@@ -18720,6 +18785,7 @@ function init(){
   { const t = $('#stamp-todo'); if (t) t.addEventListener('click', () => showTodo()); }
   $('#stamp-share').addEventListener('click', shareStamps);
   $('#rally-draw').addEventListener('click',drawRally);
+  $('#rally-refresh').addEventListener('click',refreshRallyResults);
   $('#rally-save').addEventListener('click',openRallyPhoto);
   $('#rally-complete').addEventListener('click',completeRally);
   $('#own-effects').addEventListener('click',e=>{const b=e.target.closest('[data-effect-test]');if(b)previewOwnerEffect(b.dataset.effectTest);});
@@ -18752,6 +18818,7 @@ function init(){
     }finally{button.disabled=false;button.textContent='スタンプを保存して引き継ぐ';}
   });
   $('#sid-save').addEventListener('click',saveStampBackup);
+  $('#sid-line').addEventListener('click',openLineStamp);
   $('#sid-import').addEventListener('click',()=>$('#sid-file').click());
   $('#sid-file').addEventListener('change',async()=>{
     const input=$('#sid-file'),el=$('#sid-file-status');if(!input.files[0])return;
@@ -19479,7 +19546,8 @@ function repairAndReload(){
 // 何かの拍子に初期化が失敗しても真っ白にはせず、状況と復旧手段を出す
 document.addEventListener('DOMContentLoaded', async () => {
   await initStampVault();
-  try{ init(); window.__booted = true; }
+  const lineRecord=await restoreLineStartup();
+  try{ init(); window.__booted = true;if(lineRecord&&lineRecord.rally)takeRally(lineRecord.rally,lineRecord.cid);else restoreRallyCache();if(restoreLineStartup.error)toast(restoreLineStartup.error,null,10000); }
   catch(e){
     window.__booted = 'failed';            // 下の案内を出すので、最後の砦（boot-rescue）は出さない
     console.error(e);

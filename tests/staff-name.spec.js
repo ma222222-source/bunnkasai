@@ -61,13 +61,11 @@ test('名前登録：初回の名前が司令塔に出て、再入室・別タ�
   expect(errors).toEqual([]);
 });
 
-test('名前登録：許可待ちでも名前を保存し、再読み込み後は入力せず承認を待てる', async ({ page, context }) => {
+test('専用QR：登録済みの名前を保ち、再読み込み後も入力せず承認を待てる', async ({ page, context }) => {
   const errors = watchErrors(page);
   await server(context, true);
+  await page.addInitScript(()=>localStorage.setItem('kuroko_staff_name',JSON.stringify('機械科 佐藤')));
   await page.goto('/?mode=admin&staffBooth=1F-02');
-  await page.locator('#auth-who').fill('機械科 佐藤');
-
-  await page.locator('#btn-login').click();
   await expect(page.locator('#auth-wait')).toBeVisible();
   await page.reload();
   await expect(page.locator('#auth-wait')).toBeVisible();
@@ -121,5 +119,13 @@ test('名前登録：以前のパスワードが残る端末も、名前だけ�
 });
 
 test('入室の期限切れ：名前の再入力なしで入室を取り直し、更新を1回だけ確定する',async({page,context})=>{
- const {g,posts}=await server(context);await page.goto('/?mode=admin&staffBooth=1F-02');await page.locator('#auth-who').fill('機械科 佐藤');await page.locator('#btn-login').click();await expect(page.locator('#v-admin')).toBeVisible();const token=await page.evaluate(()=>pw());g.__cache.delete(g.staffSessionKey_(token));const c=page.locator('#admin-list .adm-booth');const before=Number(await c.locator('.adm-wait-n').textContent());await c.locator('[data-step="1"]').click();await c.locator('.send').click();await expect.poll(()=>g.__get().booths.find(b=>b.id==='1F-02').wait).toBe(before+1);expect(posts.filter(p=>p.action==='staff_enter')).toHaveLength(2);expect(posts.filter(p=>p.action==='update')).toHaveLength(2);expect(await page.evaluate(()=>pw())).not.toBe(token);await expect(page.locator('#v-admin')).toBeVisible();
+ const {g,posts}=await server(context);await page.goto('/?mode=admin&staffBooth=1F-02');await expect(page.locator('#v-admin')).toBeVisible();const token=await page.evaluate(()=>pw());g.__cache.delete(g.staffSessionKey_(token));const c=page.locator('#admin-list .adm-booth');const before=Number(await c.locator('.adm-wait-n').textContent());await c.locator('[data-step="1"]').click();await c.locator('.send').click();await expect.poll(()=>g.__get().booths.find(b=>b.id==='1F-02').wait).toBe(before+1);expect(posts.filter(p=>p.action==='staff_enter')).toHaveLength(2);expect(posts.filter(p=>p.action==='update')).toHaveLength(2);expect(await page.evaluate(()=>pw())).not.toBe(token);await expect(page.locator('#v-admin')).toBeVisible();
+});
+
+test('専用QR：初回も入力・クリックなしで開き、別の専用QRの担当だけ切り替える',async({page,context})=>{
+ const {g,posts}=await server(context);await page.goto('/?mode=admin&staffBooth=1F-02');await expect(page.locator('#v-admin')).toBeVisible();await expect(page.locator('#auth-name-entry')).toBeHidden();const who=g.devList_()[0].label;expect(who).toMatch(/^QR 1F-02 · [A-Z0-9]{4}$/);expect(await page.evaluate(()=>loadStr('kuroko_staff_name'))).toBeNull();await page.goto('/?mode=admin&staffBooth=1F-05');await expect(page.locator('#admin-list .adm-booth')).toHaveAttribute('data-id','1F-05');expect(g.devList_()[0].label).toBe(who);expect(await page.evaluate(()=>staffName())).toBe(who.replace('1F-02','1F-05'));expect(posts.filter(p=>p.action==='staff_enter').at(-1).who).toBe(who.replace('1F-02','1F-05'));expect(g.devList_()).toHaveLength(1);expect(posts.filter(p=>p.action==='staff_enter').every(p=>!p.pass)).toBe(true);const tower=await owner(context);await expect(tower.locator('#own-devs .od-label')).toHaveText(who);
+});
+
+test('専用QR：名前を保存できない端末でも入力を求めず、停止された端末は通さない',async({page,context})=>{
+ const {g,posts}=await server(context);await page.addInitScript(()=>{const set=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k==='kuroko_staff_name')throw Error('denied');return set.call(this,k,v)}});await page.goto('/?mode=admin&staffBooth=1F-02');await expect(page.locator('#v-admin')).toBeVisible();const cid=posts.find(p=>p.action==='staff_enter').cid;const token=g.__post({action:'owner_login',opass:OWNER}).token;expect(g.__post({action:'owner_dev',token,cid,st:'no'}).ok).toBe(true);await page.reload();await expect(page.locator('#v-admin')).toBeHidden();await expect(page.locator('#auth-err')).toContainText('本部');await expect(page.locator('#auth-name-entry')).toBeHidden();
 });

@@ -41,6 +41,13 @@ test('sw.js・Code.gs に構文エラーが無い', () => {
   new vm.Script(sw, { filename: 'sw.js' });
   new vm.Script(gs, { filename: 'Code.gs' });
 });
+test('LINE保存専用ページ：公式SDKだけを使い、GAS URL・チャネルID・構文が一致する',()=>{
+ const bridge=read('line-stamp.js'),page=read('line-stamp.html');new vm.Script(bridge,{filename:'line-stamp.js'});
+ assert.strictEqual((bridge.match(/LINE_STAMP_GAS='([^']+)'/)||[])[1],(html.match(/GAS_URL: '([^']+)'/)||[])[1]);
+ const channel=(gs.match(/LINE_STAMP_CHANNEL = '([^']+)'/)||[])[1];assert.ok(bridge.includes("LINE_STAMP_LIFF='"+channel+'-'));
+ const external=[...page.matchAll(/<script[^>]+src="(https:[^"]+)"/g)].map(m=>m[1]);assert.deepStrictEqual(external,['https://static.line-scdn.net/liff/edge/2/sdk.js']);
+ assert.ok(!/setItem\([^\n]*idToken/.test(bridge),'ID token must not be persisted');
+});
 test('manifest.json・appsscript.json が JSON として読める', () => {
   JSON.parse(read('manifest.json'));
   JSON.parse(read('appsscript.json'));

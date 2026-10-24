@@ -56,7 +56,7 @@ async function mockGas(page, opt = {}) {
     }
     if (url.searchParams.get('ledger')) {
       return route.fulfill({ status: 200, headers, contentType: 'application/json',
-        body: JSON.stringify({ ok: true, sv: BASE.serverVersion, cid: url.searchParams.get('ledger'), stamps: [], spent: [] }) });
+        body: JSON.stringify({ ok: true, sv: BASE.serverVersion, cid: url.searchParams.get('ledger'), stamps: [], spent: [], ...(opt.rally ? {rally:opt.rally} : {}) }) });
     }
     if (url.searchParams.get('report') && opt.report) {
       return route.fulfill({ status: 200, headers, contentType: 'application/json', body: JSON.stringify(opt.report) });

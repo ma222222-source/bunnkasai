@@ -4863,7 +4863,8 @@ test('リアルタイム（v236）：数秒ごとに「変わったか」だけ�
 
 test('お菓子抽選は7個（v245）：はじめての案内・スタンプ帳に7個の目盛りと抽選への入口が出る', async ({ page }) => {
   await page.setViewportSize({ width:390,height:844 });
-  await mockGas(page,{mutate:j=>{j.serverVersion='2026-10-23c';}});
+  // 新仕様では過去の抽選結果を確認してから引ける。新規参加者の空の履歴もサーバー応答で確認する。
+  await mockGas(page,{mutate:j=>{j.serverVersion='2026-10-24a';},rally:{entries:[],stock:{limit:243,remaining:243,drawRemaining:143}}});
   await page.goto('/?tab=map');await ready(page);
   expect(await page.evaluate(()=>CONFIG.PRIZE_COST)).toBe(7);
   await expect(page.locator('#intro-card [data-prize-n]')).toHaveText('7');

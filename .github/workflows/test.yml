@@ -6,7 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
 jobs:
-  test:
+  test-shards:
+    name: test shard ${{ matrix.shard }}/4
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     runs-on: ubuntu-latest
     # package-lock.jsonのPlaywrightと同じ公式イメージ。毎回aptでOS部品を取る待ちを避ける。
     # Playwright更新時は、このタグと下の版チェックも一緒に更新する。
@@ -30,10 +35,20 @@ jobs:
           node -e "if(require('@playwright/test/package.json').version!=='1.63.0')throw Error('Update the Playwright container tag to match package-lock.json')"
           python3 --version
           node -e "(async()=>{for(const type of ['chromium','webkit']){const b=await require('playwright')[type].launch();await b.close();console.log(type+' ready');}})().catch(e=>{console.error(e);process.exit(1)})"
-      - run: npm test
+      - run: npm test -- --shard=${{ matrix.shard }}/4
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: test-results-${{ matrix.shard }}
           path: tests/test-results
           retention-days: 7
+  test:
+    # 従来の必須チェック名を維持。全分割が成功したときだけ公開の条件を満たす。
+    needs: test-shards
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every shard to pass
+        env:
+          SHARD_RESULT: ${{ needs.test-shards.result }}
+        run: test "$SHARD_RESULT" = success

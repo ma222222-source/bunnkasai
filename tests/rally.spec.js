@@ -26,7 +26,7 @@ async function seed(ctx,g,count=7,cid=CID){
  g.__post({action:'ledger',cid,ev:ids.map(id=>({t:'s',id}))});
  await ctx.addInitScript(({ids,cid})=>{localStorage.setItem('kuroko_sid',JSON.stringify(cid));localStorage.setItem('kuroko_stamps_v2',JSON.stringify(ids));},{ids,cid});
 }
-async function open(page,baseURL){await page.goto(baseURL+'/?tab=stamp');await expect(page.locator('#rally-card')).toBeVisible();await expect.poll(()=>page.evaluate(()=>S.serverVersion)).toBe('2026-10-23c');}
+async function open(page,baseURL){await page.goto(baseURL+'/?tab=stamp');await expect(page.locator('#rally-card')).toBeVisible();await expect.poll(()=>page.evaluate(()=>S.serverVersion)).toBe('2026-10-24a');}
 async function draw(page){await expect(page.locator('#rally-draw')).toBeEnabled();await page.locator('#rally-draw').click();await expect.poll(()=>page.evaluate(()=>RALLY.busy)).toBe(false);await expect.poll(()=>page.evaluate(()=>rallyDraws().length)).toBeGreaterThan(0);}
 
 test('7個の抽選：6個では参加できず、7個で当たり。再読込後も券が残り、4桁で1回だけ交換',async({page,context,baseURL})=>{
@@ -43,21 +43,30 @@ test('7個の抽選：6個では参加できず、7個で当たり。再読込�
  expect(g.rallyStock_().given).toBe(1);await page.keyboard.press('Escape');await reopen();await expect(page.locator('#rally-result')).toContainText('交換済み');expect(errors.flat()).toEqual([]);
 });
 
-test('新景品：超大当たり・大当たりの券と当選後の確率、電子科塔で種類別に交換',async({page,context,baseURL},info)=>{
+test('新景品：超大当たり・大当たりの券を表示し確率は載せず、電子科ゲームコーナーで種類別に交換',async({page,context,baseURL},info)=>{
  const g=server(),errors=watchErrors(page);await bridge(context,g);await seed(context,g,21);await open(page,baseURL);
- await expect(page.locator('#rally-odds')).toContainText('16％');await draw(page);
- await expect(page.locator('#rally-result .rally-ticket-list')).toContainText('超大当たり × 1');await expect(page.locator('#rally-odds')).toContainText('4％');
+ await expect(page.locator('.prize-pickup')).toBeVisible();await expect(page.locator('.prize-pickup')).toContainText('電子科ゲームコーナー');await expect(page.locator('.prize-pickup')).toContainText('スタッフにお声がけください');expect(await page.locator('.prize-pickup strong').evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(23);
+ await expect(page.locator('#rally-odds')).toHaveCount(0);await expect(page.locator('#rally-card')).not.toContainText(/当選率|当選確率|[0-9]+[％%]/);await draw(page);
+ await expect(page.locator('#rally-result .rally-ticket-list')).toContainText('超大当たり × 1');await expect(page.locator('#rally-card')).not.toContainText(/当選率|当選確率|[0-9]+[％%]/);
  g.Math.random=()=>0.08;await page.locator('#rally-draw').click();await expect.poll(()=>page.evaluate(()=>rallyDraws().length)).toBe(2);expect(g.rallyStock_(true).issued).toBe(1);
  g.Math.random=()=>0;await page.locator('#rally-draw').click();await expect.poll(()=>page.evaluate(()=>rallyDraws().length)).toBe(3);
- await expect(page.locator('#rally-result .rally-ticket-list li')).toHaveCount(2);await expect(page.locator('#rally-odds')).toContainText('1％');
- await expect(page.locator('#redeem-msg')).toContainText('電子科塔');await expect(page.locator('#redeem-msg')).toContainText('超大当たり');
+ await expect(page.locator('#rally-result .rally-ticket-list li')).toHaveCount(2);await expect(page.locator('#rally-card')).not.toContainText(/当選率|当選確率|[0-9]+[％%]/);
+ await expect(page.locator('#redeem-msg')).toContainText('電子科ゲームコーナー');await expect(page.locator('#redeem-msg')).toContainText('超大当たり');
  await page.locator('#rally-card').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(ART,info.project.name+'-tiered-tickets.png')});
  await page.locator('#redeem-open').click();await page.locator('#staff-code').fill(g.rallyCode_(0));await expect(page.locator('#redeem-ok')).toHaveText('超大当たりを交換する');await page.locator('#redeem-ok').click();
  await expect(page.locator('#pfx')).toContainText('超大当たりの景品');await page.keyboard.press('Escape');
  await expect(page.locator('#redeem-msg')).toContainText('大当たり');expect(g.rallyStock_(true).prizes[0].given).toBe(1);expect(g.rallyStock_(true).prizes[1].given).toBe(0);expect(errors).toEqual([]);
 });
 
-test('参加賞：6回すべてはずれたら自動で1個確保し、再読込後も電子科塔で交換できる',async({page,context,baseURL},info)=>{
+test('中当たり：別枠の券・全結果・再読込・交換が中当たりとして表示される',async({page,context,baseURL})=>{
+ const g=server();let calls=0;g.Math.random=()=>calls++%2===0?0:0.1;await bridge(context,g);await seed(context,g,7);await open(page,baseURL);await draw(page);
+ await expect(page.locator('#rally-result .rally-ticket-list')).toContainText('中当たり × 1');await expect(page.locator('#rally-history')).toContainText('中当たり');
+ await page.reload();await expect(page.locator('#redeem-msg')).toContainText('「中当たり」1個');
+ await page.locator('#redeem-open').click();await page.locator('#staff-code').fill(g.rallyCode_(0));await expect(page.locator('#redeem-ok')).toHaveText('中当たりを交換する');await page.locator('#redeem-ok').click();
+ await expect(page.locator('#pfx')).toContainText('中当たりの景品');await page.keyboard.press('Escape');await expect(page.locator('#rally-history')).toContainText('交換済み');expect(g.rallyStock_(true).prizes.find(p=>p.id==='middle').given).toBe(1);
+});
+
+test('参加賞：6回すべてはずれたら自動で1個確保し、再読込後も電子科ゲームコーナーで交換できる',async({page,context,baseURL},info)=>{
  // 6回の抽選・3画面幅の撮影・アクセシビリティ監査・再読込・交換を含む一連の検証。
  test.setTimeout(90000);
  const g=server(0.9),errors=watchErrors(page);await bridge(context,g);await seed(context,g,42);await open(page,baseURL);
@@ -66,19 +75,19 @@ test('参加賞：6回すべてはずれたら自動で1個確保し、再読込
  for(const width of [320,390,1280]){await page.setViewportSize({width,height:900});await page.locator('#rally-card').scrollIntoViewIfNeeded();expect(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)).toBeLessThanOrEqual(1);await page.screenshot({path:path.join(ART,info.project.name+'-participation-'+width+'.png')});}
  const AxeBuilder=require('@axe-core/playwright').default;const a=await new AxeBuilder({page}).include('#rally-card').include('#redeem-card').withTags(['wcag2a','wcag2aa']).analyze();expect(a.violations.filter(v=>v.impact==='critical'||v.impact==='serious')).toEqual([]);
  await page.reload();await expect(page.locator('#redeem-msg')).toContainText('「参加賞」1個');await page.locator('#redeem-open').click();await page.locator('#staff-code').fill(g.rallyCode_(0));await page.locator('#redeem-ok').click();await expect(page.locator('#pfx')).toContainText('参加賞の景品');
- expect(g.rallyStock_(true).prizes[3].issued).toBe(1);expect(g.rallyStock_(true).prizes[3].given).toBe(1);expect(errors).toEqual([]);
+ expect(g.rallyStock_(true).prizes.find(p=>p.id==='participation').issued).toBe(1);expect(g.rallyStock_(true).prizes.find(p=>p.id==='participation').given).toBe(1);expect(errors).toEqual([]);
 });
 
 test('旧記録：6回はずれの参加賞を再確認しても7回目にはならず、券は1枚だけ',async({page,context,baseURL})=>{
  const g=server(.9);await bridge(context,g);await seed(context,g,42);const sh=g.rallyWriteSheet_();for(let i=1;i<=6;i++)sh.appendRow([new Date(),CID,'miss','old-'+i,'','','']);g.__cache.clear();await open(page,baseURL);
  await expect(page.locator('#rally-draw')).toHaveText('6回はずれの参加賞を確認する');await page.locator('#rally-draw').click();await expect(page.locator('#rally-result .rally-ticket-list')).toContainText('参加賞');
- expect(await page.evaluate(()=>rallyDraws().length)).toBe(6);expect(g.rallyStock_(true).prizes[3].issued).toBe(1);await expect(page.locator('#rally-draw')).toBeDisabled();
+ expect(await page.evaluate(()=>rallyDraws().length)).toBe(6);expect(g.rallyStock_(true).prizes.find(p=>p.id==='participation').issued).toBe(1);await expect(page.locator('#rally-draw')).toBeDisabled();
 });
 
 test('参加賞終了：6回はずれても先着分終了を説明し、交換券を作らない',async({page,context,baseURL})=>{
- const g=server(.9);await bridge(context,g);await seed(context,g,42);const sh=g.rallyWriteSheet_();for(let i=0;i<200;i++)sh.appendRow([new Date(),'PREPART'+i,'miss','part-'+i,'','prize:participation','']);g.__cache.clear();await open(page,baseURL);
+ const g=server(.9);await bridge(context,g);await seed(context,g,42);const sh=g.rallyWriteSheet_();for(let i=0;i<100;i++)sh.appendRow([new Date(),'PREPART'+i,'miss','part-'+i,'','prize:participation','']);g.__cache.clear();await open(page,baseURL);
  for(let i=1;i<=6;i++){await page.locator('#rally-draw').click();await expect.poll(()=>page.evaluate(()=>rallyDraws().length)).toBe(i);}
- await expect(page.locator('#rally-result')).toContainText('先着200人分');await expect(page.locator('#rally-result')).toContainText('終了しました');await expect(page.locator('#redeem-card')).toBeHidden();expect(g.rallyStock_(true).prizes[3].issued).toBe(200);
+ await expect(page.locator('#rally-result')).toContainText('先着100人分');await expect(page.locator('#rally-result')).toContainText('終了しました');await expect(page.locator('#redeem-card')).toBeHidden();expect(g.rallyStock_(true).prizes.find(p=>p.id==='participation').issued).toBe(100);
 });
 
 test('狭い交換画面：320px・特大文字でも4桁が欠けず、景品名つきのボタンを押せる',async({page,context,baseURL},info)=>{
@@ -158,20 +167,20 @@ test('PC・スマホ：320・390・768・1280pxと特大文字で抽選、当た
  expect(errors).toEqual([]);
 });
 
-test('司令塔：景品413個の内訳・未交換の当たり・交換済みが見える',async({page,context,baseURL})=>{
+test('司令塔：景品243個の内訳・未交換の当たり・交換済みが見える',async({page,context,baseURL})=>{
  const g=server();await bridge(context,g);g.__post({action:'rally_draw',policy:g.RALLY_POLICY,cid:CID,attempt:1,ev:g.R8_BOOTHS.slice(0,7).map(b=>({t:'s',id:b[0]}))});
  await page.goto(baseURL+'/?mode=owner');await page.locator('#own-pw').fill('owner-himitsu-123456');await page.locator('#own-login').click();await expect(page.locator('#own-main')).toBeVisible();await page.locator('#owntab-event').click();
- await expect(page.locator('#own-rally-stock')).toContainText('合計413個');await expect(page.locator('#own-rally-stock')).toContainText('未交換の当たり1個');
- await expect(page.locator('#own-rally-stock .rally-stock-grid > div')).toHaveCount(4);await expect(page.locator('#own-rally')).toContainText('電子科塔');
+ await expect(page.locator('#own-rally-stock')).toContainText('合計243個');await expect(page.locator('#own-rally-stock')).toContainText('未交換の当たり1個');
+ await expect(page.locator('#own-rally-stock .rally-stock-grid > div')).toHaveCount(5);await expect(page.locator('#own-rally')).toContainText('電子科ゲームコーナー');
 });
 
-test('司令塔：全14種の演出を試しても実際の抽選・在庫・交換・スタンプは増えず、見本の撮影もできる',async({page,context,baseURL},info)=>{
+test('司令塔：全15種の演出を試しても実際の抽選・在庫・交換・スタンプは増えず、見本の撮影もできる',async({page,context,baseURL},info)=>{
  test.setTimeout(90000);
  const g=server(),opt={posts:[]},errors=watchErrors(page);await bridge(context,g,opt);
  const sheet=g.rallyWriteSheet_();for(const p of g.RALLY_PRIZES)for(let i=0;i<p.limit;i++)sheet.appendRow([new Date().toISOString(),'FULL'+p.id+i,p.id==='participation'?'miss':'candy','filled-'+p.id+i,'','prize:'+p.id,'']);g.__cache.clear();expect(g.rallyStock_(true).remaining).toBe(0);
  await page.goto(baseURL+'/?mode=owner');await page.locator('#own-pw').fill('owner-himitsu-123456');await page.locator('#own-login').click();await expect(page.locator('#own-main')).toBeVisible();await page.locator('#owntab-event').click();
  const state=JSON.stringify(g.rallyStock_(true));const start=opt.posts.length;
- const types=await page.locator('#own-effects [data-effect-test]').evaluateAll(bs=>bs.map(b=>b.dataset.effectTest));expect(types.length).toBe(14);
+ const types=await page.locator('#own-effects [data-effect-test]').evaluateAll(bs=>bs.map(b=>b.dataset.effectTest));expect(types.length).toBe(15);
  for(const kind of types){
   await page.locator(`[data-effect-test="${kind}"]`).click();
   if(kind==='photo'){

@@ -2,6 +2,35 @@ const {test,expect,chromium,webkit,devices}=require('@playwright/test');
 const {loadGas}=require('./gas-mock');const {mockGas,watchErrors}=require('./mock');
 const fs=require('fs'),os=require('os'),path=require('path');
 const SID='ABCD2345';
+test('抽選履歴：圏外の再起動では前回の結果を残し、再確認後に最新の交換済みへ更新する',async({page,context})=>{
+ const g=server(),log={};const ids=g.R8_BOOTHS.slice(0,7).map(b=>b[0]);g.__post({action:'ledger',cid:SID,ev:ids.map(id=>({t:'s',id}))});const win=g.__post({action:'rally_draw',policy:g.RALLY_POLICY,cid:SID,attempt:1,ev:[]});
+ await bridge(context,g,log);await context.addInitScript(sid=>{if(!localStorage.getItem('kuroko_sid'))localStorage.setItem('kuroko_sid',JSON.stringify(sid));},SID);await ready(page);await expect(page.locator('#rally-history li').first()).toContainText('未交換');
+ log.offline=true;await context.addInitScript(()=>Object.defineProperty(navigator,'onLine',{value:false,configurable:true}));await page.reload();await page.waitForFunction(()=>window.__booted===true);await expect(page.locator('#rally-history li').first()).toContainText('超大当たり');await expect(page.locator('#rally-history-status')).toContainText('前回確認した結果');await expect(page.locator('#redeem-open')).toBeDisabled();
+ g.__post({action:'rally_redeem',policy:g.RALLY_POLICY,cid:SID,ticket:win.rally.entries[0].ticket,code:g.rallyCode_(0)});log.offline=false;await page.evaluate(()=>{Object.defineProperty(navigator,'onLine',{value:true,configurable:true});renderRally();});await page.locator('#rally-refresh').click();await expect(page.locator('#rally-history li').first()).toContainText('交換済み');await expect(page.locator('#rally-history-status')).not.toContainText('前回確認した結果');
+});
+async function lineSdk(context,g){
+ g.UrlFetchApp={fetch:()=>({getResponseCode:()=>200,getContentText:()=>JSON.stringify({iss:'https://access.line.me',aud:'2010429448',sub:'U'+'a'.repeat(32),exp:Date.now()/1000+3600})})};
+ await bridge(context,g);
+ await context.route('https://static.line-scdn.net/liff/edge/2/sdk.js',r=>r.fulfill({contentType:'application/javascript',body:"window.liff={init:async()=>{},isLoggedIn:()=>true,getIDToken:()=>'test-id-token'}"}));
+}
+test('LINE連携：端末の保存が全てない新しいブラウザでも、同じLINEでスタンプと全抽選結果が戻る',async({page,context,browser})=>{
+ const g=server(),ids=g.R8_BOOTHS.slice(0,21).map(b=>b[0]);g.__post({action:'ledger',cid:SID,ev:ids.map(id=>({t:'s',id}))});
+ const first=g.__post({action:'rally_draw',policy:g.RALLY_POLICY,cid:SID,attempt:1,ev:[]});g.__post({action:'rally_redeem',policy:g.RALLY_POLICY,cid:SID,ticket:first.rally.entries[0].ticket,code:g.rallyCode_(0)});
+ g.Math.random=()=>.9;for(let attempt=2;attempt<=3;attempt++)g.__post({action:'rally_draw',policy:g.RALLY_POLICY,cid:SID,attempt,ev:[]});
+ await lineSdk(context,g);await page.goto('/line-stamp.html?from='+SID);await page.waitForFunction(()=>window.__booted===true&&S.stamps.size===21);
+ const cid=await page.evaluate(()=>stampId());expect(cid).not.toBe(SID);await expect(page.locator('#rally-history li')).toHaveCount(6);await expect(page.locator('#rally-history li').nth(0)).toContainText('超大当たり');await expect(page.locator('#rally-history li').nth(0)).toContainText('交換済み');await expect(page.locator('#rally-history li').nth(1)).toContainText('はずれ');expect(await page.evaluate(()=>sessionStorage.getItem('kuroko_line_transfer'))).toBeNull();
+ const fresh=await browser.newContext({serviceWorkers:'block'});try{await lineSdk(fresh,g);const next=await fresh.newPage();await next.goto('/line-stamp.html');await next.waitForFunction(()=>window.__booted===true&&S.stamps.size===21);expect(await next.evaluate(()=>stampId())).toBe(cid);await expect(next.locator('#rally-history li')).toHaveCount(6);await expect(next.locator('#rally-history li').nth(2)).toContainText('はずれ');await expect(next.locator('#rally-history li').nth(3)).toContainText('未抽選');expect(await next.evaluate(()=>JSON.stringify({...localStorage,...sessionStorage}))).not.toContain('test-id-token');}finally{await fresh.close();}
+});
+test('LINE連携：0個の初参加とセッション保存が使えない環境でも同じ番号へ復元する',async({page,context})=>{
+ const g=server();await lineSdk(context,g);await context.addInitScript(()=>{const set=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(this===sessionStorage&&k==='kuroko_line_transfer')throw Error('denied');return set.call(this,k,v);};});
+ await page.goto('/line-stamp.html');await page.waitForFunction(()=>window.__booted===true&&S.booths.length===46);expect(await page.evaluate(()=>S.stamps.size)).toBe(0);expect(await page.evaluate(()=>loadStr('kuroko_line_sid'))).toBe(await page.evaluate(()=>stampId()));await expect(page.locator('#rally-history-status')).toContainText('まだ抽選していません');
+});
+test('抽選履歴：結果確認前に引かせず、取得後は未交換の当たり・全はずれ・全制覇を表示する',async({page,context})=>{
+ const g=server(),ids=g.R8_BOOTHS.map(b=>b[0]);g.__post({action:'ledger',cid:SID,ev:ids.map(id=>({t:'s',id}))});g.__post({action:'rally_draw',policy:g.RALLY_POLICY,cid:SID,attempt:1,ev:[]});g.Math.random=()=>.9;for(let attempt=2;attempt<=6;attempt++)g.__post({action:'rally_draw',policy:g.RALLY_POLICY,cid:SID,attempt,ev:[]});g.__post({action:'rally_complete',cid:SID,ev:[]});
+ await bridge(context,g);let release;const hold=new Promise(r=>release=r);await context.route(/script\.google(usercontent)?\.com\//,async r=>{if((r.request().method()==='GET'&&new URL(r.request().url()).searchParams.has('ledger'))||(r.request().method()==='POST'&&JSON.parse(r.request().postData()||'{}').action==='ledger'))await hold;return r.fallback();});
+ await context.addInitScript(({sid,ids})=>{localStorage.setItem('kuroko_sid',JSON.stringify(sid));localStorage.setItem('kuroko_stamps_v2',JSON.stringify(ids));},{sid:SID,ids});
+ try{await ready(page);await expect(page.locator('#rally-draw')).toBeDisabled();await expect(page.locator('#rally-draw')).toContainText('結果を確認中');release();await expect(page.locator('#rally-history li')).toHaveCount(7);await expect(page.locator('#rally-history li').first()).toContainText('未交換');await expect(page.locator('#rally-history li').nth(5)).toContainText('はずれ');await expect(page.locator('#rally-history li').last()).toContainText('全制覇プリクラ');}finally{release();}
+});
 function server(){const g=loadGas({props:{ADMIN_PASS:'test-password-1234',OWNER_PASS:'owner-himitsu-123456'}});g.setupR8AndArchiveOthers();g.Math=Object.create(Math);g.Math.random=()=>0;return g;}
 async function bridge(context,g,log={}){
  await context.route('**/*',r=>/^(?:https?:\/\/(?:127\.0\.0\.1|localhost)(?::|\/)|blob:|data:|about:)/.test(r.request().url())?r.continue():r.abort());
