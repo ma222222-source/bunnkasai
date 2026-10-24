@@ -3979,6 +3979,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
 .rally-ticket-list{display:grid;gap:8px;padding:0;list-style:none;margin:14px 0}
 .rally-ticket-list li{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
 .rally-ticket-list small{font-size:12px;color:var(--text-dim);overflow-wrap:anywhere}
+.rally-history{margin-top:18px;border-top:1px solid var(--border);padding-top:16px}.rally-history h3{font-size:17px;margin:0 0 8px}.rally-history ol{list-style:none;padding:0;margin:0;display:grid;gap:7px}.rally-history li{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:11px 12px;border:1px solid var(--border);border-radius:10px;line-height:1.5}.rally-history small{display:block;font-size:12px;color:var(--text-dim)}.rally-history li[data-prize="yes"]{border-color:var(--accent);background:var(--surface-2)}.rally-history .history-state{text-align:right;font-size:12px}.rally-history p{font-size:13px;margin:8px 0}.rally-history .pending{color:var(--text-dim)}
 .rally-odds{padding:12px;border-radius:10px;background:var(--surface-2);font-size:13px;line-height:1.8}
 .rally-stock-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
 .rally-stock-grid div{padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2)}
@@ -4327,6 +4328,7 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
         <button class="btn ghost hide" id="rally-save" type="button">自分だけの全制覇プリクラを撮る</button>
         <p class="rally-error hide" id="rally-error" role="alert"></p>
         <p class="rally-odds" id="rally-odds"></p>
+        <section class="rally-history" aria-labelledby="rally-history-title"><h3 id="rally-history-title">あなたの抽選結果</h3><p id="rally-history-status" role="status"></p><ol id="rally-history"></ol><button type="button" class="btn ghost" id="rally-refresh">抽選結果を再確認する</button></section>
         <p class="rally-foot">抽選は7個ごとに1回、最大6回。スタンプは減りません。超大当たり1個・大当たり12個・当たり200個。6回すべてはずれた方には先着200人分の参加賞！ 景品は当選・参加賞の確定時に確保し、なくなり次第終了です。交換場所は<b>電子科塔</b>。発行済みの券は終了後も交換できます。全ブースで全制覇プリクラ。抽選・交換・全制覇の確認にはインターネット接続が必要です。</p>
       </div>
 
@@ -4360,6 +4362,8 @@ button.rank-chip{cursor:pointer;font-family:inherit;color:inherit;min-height:28p
           <button class="btn ghost sid-copy" id="sid-copy" type="button">コピー</button>
         </div>
         <p class="sid-sync" id="sid-sync" data-st="none" role="status" aria-live="polite"></p>
+        <button class="btn" id="sid-line" type="button" style="width:100%;margin-top:8px;background:#067a36;color:#fff">LINEで記録を保存・復元する</button>
+        <p class="small-note sid-save-note" id="sid-line-note">LINEと連携すると、タスク終了後も公式LINEのマップから同じアカウントの続きに戻れます。初回だけLINEの同意が必要です。連携先は文化祭運営の「黒工Ai部」です。名前・メールは保存しません。</p>
         <div class="sid-save-actions">
           <button class="btn ghost" id="sid-save" type="button">復元用ファイルを保存</button>
           <button class="btn ghost" id="sid-check" type="button">保存を確認する</button>
@@ -5316,9 +5320,10 @@ const CONFIG = {
   // この画面が前提とする Code.gs の版（Code.gs の GAS_VERSION）。これより古いと係員画面で知らせる
   GAS_MIN: '2026-09-28a',
   SCHOOL_URL: 'https://www2.iwate-ed.jp/kst-h/',   // v236：学校の公式サイト（パンフレットの学校名の下に刷る。表紙のQRは、このマップのまま）
-  BUILD: '2026-10-24a',    // ファイルを更新したらここも変える。画面下部に表示され、
+  BUILD: '2026-10-24b',    // ファイルを更新したらここも変える。画面下部に表示され、
                            // 「新しいのが反映されていない」の切り分けに使える
   GAS_URL: 'https://script.google.com/macros/s/AKfycbyUZHslRZ6m6S57v25jhUfZy8m_tP6f_cjyunYr196zL6VTF03BHUKTJMZyAJ5q9WBd/exec',
+  LINE_STAMP_URL: 'https://liff.line.me/2010429448-BHqMzuIn',
   LIFF_ID: '',             // 使わない。外部ブラウザ方針とLIFFは両立しない
   // スタンプラリーの合言葉。QRのURLに短い署名を入れ、手で打ったURLでは
   // スタンプが付かないようにする。引換確認コードの元にもなる。
@@ -6323,7 +6328,7 @@ function applyRallyReset(reset){
   store('kuroko_rally_reset',applyRallyReset.state);
   S.stamps.clear();S.spent=[];store('kuroko_stamps_v2',[]);store('kuroko_spent_v1',[]);store('kuroko_stamp_at',{});
   for(const k of ['kuroko_join_from','kuroko_pushed_fp','kuroko_pushed_at','kuroko_cert_at'])store(k,undefined);
-  RALLY.state=null;RALLY.cid='';RALLY.error='';S.justStamp=null;
+  RALLY.state=null;RALLY.cid='';RALLY.error='';RALLY.cached=false;RALLY.requestedSid='';S.justStamp=null;
   if(window.__booted===true){if($('#rally-photo').open)closeRallyPhoto();renderAll();if(had)toast('本部でスタンプラリーをリセットしました。新しく集め直せます',null,8000);}
   checkpointStamps();return true;
 }
@@ -11214,8 +11219,8 @@ async function pullLedger(gap){
       store('kuroko_pulled_at', Date.now());
       if(empty)pullLedger._emptySid=sid;
     }
-  }catch(e){ /* 次の機会に */ }
-  finally{ pullLedger._on = false; renderSyncBadge(); }
+  }catch(e){ RALLY.syncError=true; }
+  finally{ pullLedger._on = false; renderSyncBadge();if(window.__booted===true)renderRally(); }
   return changed;
 }
 /**
@@ -11245,9 +11250,38 @@ function lineContinueUrl(){
   if(S.stamps.size||S.spent.length||STAMP_VAULT.hadIdentity){u.searchParams.set('restore',stampId());u.searchParams.set('tab','stamp');}
   return u.toString();
 }
+async function openLineStamp(){
+  const button=$('#sid-line');if(button.disabled)return;button.disabled=true;
+  try{
+    await checkpointStamps();await flushLedger(true);
+    const until=Date.now()+16000;
+    while(flushLedger._on&&Date.now()<until)await new Promise(r=>setTimeout(r,100));
+    if((S.stamps.size||S.spent.length)&&load('kuroko_pushed_fp','')!==ledgerFp())throw Error('まだサーバーへの保存を確認できません。通信を確認してもう一度押してください。');
+    const target=new URL(CONFIG.LINE_STAMP_URL);target.searchParams.set('from',stampId());target.searchParams.set('tab','stamp');location.assign(target.href);
+  }catch(e){toast(String(e.message||e),null,8000);}finally{button.disabled=false;}
+}
+/** LINEの確認済みの台帳へ切り替える。古い端末の別アカウントの記録は混ぜない。 */
+async function restoreLineStartup(){
+  const q=new URLSearchParams(location.search),sid=q.get('lineStamp');if(!sid||!/^[0-9A-Za-z]{6,40}$/.test(sid))return null;
+  let record;try{record=JSON.parse(sessionStorage.getItem('kuroko_line_transfer')||'null');sessionStorage.removeItem('kuroko_line_transfer');}catch(e){}
+  try{
+    if(!record||record.cid!==sid||!record.lineLinked||!record.rallyReset||record.rallyReset.at<rallyResetMarker().at)record=await fetchLedger(sid);
+    if(!record||record.ok===false||!Array.isArray(record.stamps)||!Array.isArray(record.spent))throw Error('記録を確認できませんでした');
+    if(record.rallyReset&&!applyRallyReset(record.rallyReset))throw Error('記録の更新を確認してください');
+    const clean=cleanStampValues({kuroko_sid:record.cid||sid,kuroko_stamps_v2:record.stamps,kuroko_spent_v1:record.spent});
+    store('kuroko_sid',clean.kuroko_sid);store('kuroko_stamps_v2',clean.kuroko_stamps_v2);store('kuroko_spent_v1',clean.kuroko_spent_v1);store('kuroko_stamp_at',{});
+    for(const k of ['kuroko_join_from','kuroko_pushed_fp','kuroko_cert_at'])store(k,undefined);
+    store('kuroko_migrated',1);store('kuroko_line_sid',clean.kuroko_sid);STAMP_VAULT.hadIdentity=true;
+    S.stamps=new Set(clean.kuroko_stamps_v2);S.spent=clean.kuroko_spent_v1;RALLY.cid='';RALLY.state=null;
+    await checkpointStamps();
+    const url=new URL(location.href);url.searchParams.delete('lineStamp');history.replaceState(history.state,'',url.pathname+url.search+url.hash);
+    return record;
+  }catch(e){restoreLineStartup.error='LINEの記録を読み込めませんでした。通信を確認して「LINEで記録を保存・復元する」からもう一度お試しください。';return null;}
+}
 function renderLineEntry(){
   const box=$('#line-entry');if(!box)return;
-  const show=openedIn()==='LINE'&&!new URLSearchParams(location.search).get('mode');box.classList.toggle('hide',!show);if(!show)return;
+  const linked=!!loadStr('kuroko_line_sid')&&loadStr('kuroko_line_sid')===loadStr('kuroko_sid');
+  const show=openedIn()==='LINE'&&!new URLSearchParams(location.search).get('mode')&&!linked;box.classList.toggle('hide',!show);if(!show)return;
   const has=!!(S.stamps.size||S.spent.length),saved=!has||load('kuroko_pushed_fp','')===ledgerFp();
   const a=$('#line-continue'),button=$('#line-prepare');a.classList.toggle('hide',!saved);button.classList.toggle('hide',saved);
   if(saved)a.href=lineContinueUrl();else a.removeAttribute('href');
@@ -11256,6 +11290,9 @@ function renderLineEntry(){
 /** スタンプ画面・獲得演出の「保存の状態」表示 */
 function renderSyncBadge(state){
   renderLineEntry();
+  const lineLinked=!!loadStr('kuroko_line_sid')&&loadStr('kuroko_line_sid')===loadStr('kuroko_sid');
+  $('#sid-line').textContent=lineLinked?'LINE連携済み・記録を読み直す':'LINEで記録を保存・復元する';
+  $('#sid-line-note').textContent=lineLinked?'LINE連携済みです！ 公式LINEのマップから開くと、同じアカウントのスタンプ・抽選結果を戻せます。通信で保存が完了した記録が対象です。名前・メールは保存しません。':'LINEと連携すると、タスク終了後も公式LINEのマップから同じアカウントの続きに戻れます。初回だけLINEの同意が必要です。連携先は文化祭運営の「黒工Ai部」です。名前・メールは保存しません。';
   const pushed = load('kuroko_pushed_fp', '') === ledgerFp();
   const nothing = !S.stamps.size && !S.spent.length;
   const localSafe=nothing||stampsSavedLocally();
@@ -11902,18 +11939,23 @@ const RALLY_PRIZES={super:'超大当たり',big:'大当たり',normal:'当たり
 function rallyPrize(e){return e&&(RALLY_PRIZES[e.prize]?e.prize:e.result==='candy'?(e.art==='prize:super'?'super':e.art==='prize:big'?'big':'normal'):e.result==='miss'&&e.art==='prize:participation'?'participation':'');}
 function rallyTicket(){ return rallyEntries().find(e => rallyPrize(e) && !e.claimedAt); }
 function rallyPartCheck(){const d=rallyDraws(),s=RALLY.cid===stampId()&&RALLY.state&&RALLY.state.stock;return d.length===6&&d.every(e=>e.result==='miss'&&!rallyPrize(e))&&!!(s&&s.prizes&&s.prizes.some(p=>p.id==='participation'&&p.remaining>0));}
-function takeRally(state, cid){
+function takeRally(state, cid, cached){
   cid = cid || stampId();
   if (cid !== stampId() || !state || !Array.isArray(state.entries)) return;
-  const prev = RALLY.cid === cid && RALLY.state ? RALLY.state.entries : [];
+  const prev = RALLY.cid === cid && RALLY.state && !RALLY.cached ? RALLY.state.entries : [];
   const all = new Map(prev.map(e => [e.ticket, e]));
   state.entries.forEach(e => {
     if (!e || typeof e.ticket !== 'string' || !RALLY_CARDS[e.result]) return;
     const old=all.get(e.ticket);
     all.set(e.ticket, { ticket:e.ticket, result:e.result, prize:rallyPrize(old)||rallyPrize(e), claimedAt:old && old.claimedAt || e.claimedAt || '', art:String(rallyPrize(old)&&old.art||e.art||''), serial:Number(e.serial)||0, stamps:Array.isArray(e.stamps)?e.stamps.filter(id=>typeof id==='string'):[] });
   });
-  RALLY.cid=cid; RALLY.state={ entries:Array.from(all.values()), stock:state.stock || (RALLY.state && RALLY.state.stock) };
+  RALLY.cid=cid;RALLY.cached=!!cached;RALLY.syncError=false; RALLY.state={ entries:Array.from(all.values()), stock:state.stock || (RALLY.state && RALLY.state.stock) };
+  if(!cached)store('kuroko_rally_cache_v1',{cid,epoch:rallyResetMarker().epoch,state:RALLY.state,at:Date.now()});
   renderRally();
+}
+function restoreRallyCache(){
+  const cache=load('kuroko_rally_cache_v1',null);
+  if(cache&&cache.cid===stampId()&&cache.epoch===rallyResetMarker().epoch&&cache.state&&Array.isArray(cache.state.entries)&&cache.state.entries.length<=30)takeRally(cache.state,cache.cid,true);
 }
 function rallyReady(){ return !!(S.serverVersion && S.serverVersion >= CONFIG.RALLY_MIN); }
 function rallyTotal(){ return S.booths.length; }
@@ -11927,6 +11969,8 @@ function renderRally(){
   $('#rally-photo-intro').textContent='現在の'+rallyTotal()+'ブースを回った、今日のあなたが主役。自分だけの1枚を残そう！！';
   $('#rally-complete').textContent=rallyTotal()+'個達成！ 全制覇プリクラを解放';
   const got=rallyGot(), draws=rallyDraws(), ticket=rallyTicket(), completed=rallyComplete();
+  const historyReady=RALLY.cid===stampId()&&!!RALLY.state&&!RALLY.cached;
+  if(!historyReady&&got>=7&&RALLY.requestedSid!==stampId()){RALLY.requestedSid=stampId();setTimeout(()=>pullLedger(true),0);}
   const tickets=rallyEntries().filter(e=>rallyPrize(e)&&!e.claimedAt), given=rallyEntries().filter(e=>rallyPrize(e)&&e.claimedAt).length;
   const stock=RALLY.cid===stampId()&&RALLY.state&&RALLY.state.stock, checkPart=rallyPartCheck();
   const ended=RALLY.cid===stampId()&&RALLY.state&&RALLY.state.stock&&RALLY.state.stock.remaining===0;
@@ -11938,10 +11982,13 @@ function renderRally(){
   else html=`<p class="rally-kicker">7個ごとにお菓子抽選！</p><h3>${got>=7?'抽選に参加できます！':`抽選まで あと${7-got}個`}</h3><p>超大当たり・大当たり・当たりに挑戦！ 6回すべてはずれても先着200人に参加賞があります。</p>`;
   if(draws.length===6&&!ticket&&draws.every(e=>e.result==='miss'&&!rallyPrize(e)))html+=`<p>${checkPart?'6回すべてはずれました。下のボタンで参加賞を確認してください。':'6回参加ありがとう！！ 参加賞は先着200人分のため、発行分は終了しました。'}</p>`;
   if(stock&&stock.drawRemaining===0&&!ended)html+='<p><b>超大当たり・大当たり・当たりの発行は終了しました。</b>6回すべてはずれた方への参加賞は残っています。引き続き7個ごとに参加できます。</p>';
+  if(RALLY.cached)html='<p><b>前回確認した結果です。最新の当たり・交換状況は通信で確認してください。</b></p>'+html;
   if(box.innerHTML!==html) box.innerHTML=html;
   box.dataset.result=ticket?'candy':ended?'ended':draws.length?'miss':'ready';
   draw.disabled=RALLY.busy||(!checkPart&&got<next)||!ready||navigator.onLine===false||ended||(!checkPart&&draws.length>=6);
   draw.textContent=RALLY.busy?'確認しています…':ended?'お菓子抽選は終了しました':navigator.onLine===false?'つながってから抽選できます':!ready?'抽選サーバーの準備を確認中…':checkPart?'6回はずれの参加賞を確認する':draws.length>=6?'6回すべて参加しました':got<next?`あと${next-got}個で次の抽選！`:`お菓子抽選をする！（${draws.length+1}回目）`;
+  if(!historyReady&&got>=7){draw.disabled=true;draw.textContent=RALLY.syncError?'下のボタンで抽選結果を再確認してください':'これまでの抽選結果を確認中…';}
+  renderRallyHistory(historyReady,got,draws,completed);
   const wins=draws.filter(e=>e.result==='candy').length, chance=stock&&stock.drawRemaining===0?0:16*Math.pow(.25,wins);
   $('#rally-odds').textContent=!ready?'新しい抽選サーバーの準備中です。交換場所は電子科塔です。':draws.length>=6?'抽選は6回すべて終了しました。発行済みの券は電子科塔で交換できます。全ブース集めると全制覇プリクラを解放できます！':`あなたの次の当選率：${Number(chance.toPrecision(4))}％${wins?'（これまでに'+wins+'回当選）':'（まだ当選していません）'}。当選するたび、次からの当選率は4分の1になります。参加賞はこの確率とは別枠です。`;
   complete.classList.toggle('hide',!rallyTotal()||got<rallyTotal()||!!completed);complete.disabled=RALLY.busy||!ready||navigator.onLine===false;
@@ -11952,9 +11999,24 @@ function renderRally(){
   $('#redeem-ok').textContent=ticket?`${RALLY_PRIZES[rallyPrize(ticket)]}を交換する`:'交換する';
   const open=$('#redeem-open');open.disabled=!ticket||RALLY.busy||!ready||navigator.onLine===false;
   open.textContent=navigator.onLine===false?'交換にはインターネット接続が必要です':'お菓子と交換する';
+  open.disabled=open.disabled||!historyReady;
   open.classList.toggle('hide',!ticket||!$('#redeem-pad').classList.contains('hide'));
   const log=$('#redeem-log');log.classList.toggle('hide',!given);log.textContent=`お菓子${given}個を交換済みです`;
   if(!ticket){$('#redeem-pad').classList.add('hide');$('#staff-code').value='';}
+}
+function renderRallyHistory(known,got,draws,completed){
+  const state=$('#rally-history-status'),list=$('#rally-history');
+  state.textContent=RALLY.cached?'前回確認した結果を表示しています。通信で最新の当たり・交換状況を再確認してください。':!known?(RALLY.syncError?'結果を確認できませんでした。通信を確認して、下のボタンで再確認してください。':got>=7?'過去の結果をスプレッドシートから確認しています…':'抽選すると、当たり・はずれ・交換状況がここに残ります。'):draws.length?`${draws.length}回の結果を確認しました。未交換のお菓子は電子科塔へ！`:'まだ抽選していません。7個たまると、自分で引けます！';
+  let html=draws.map((e,i)=>{const prize=rallyPrize(e),result=prize?RALLY_PRIZES[prize]:e.result==='miss'?'はずれ':(RALLY_CARDS[e.result]?.title||'抽選済み');return `<li data-prize="${prize?'yes':'no'}"><span><small>${i+1}回目</small><b>${esc(result)}</b></span><span class="history-state">${prize?(e.claimedAt?'交換済み':'未交換・電子科塔で交換'):'抽選済み'}${prize?'<small>券 '+esc(e.ticket.slice(-8))+'</small>':''}</span></li>`;}).join('');
+  if(known)for(let i=draws.length;i<6;i++)html+=`<li class="pending"><span>${i+1}回目</span><span class="history-state">${got>=(i+1)*7?'抽選できます':(i+1)*7+'個で抽選'}・未抽選</span></li>`;
+  if(completed)html+='<li data-prize="yes"><b>全ブース制覇</b><span class="history-state">全制覇プリクラ解放済み</span></li>';
+  if(list.innerHTML!==html)list.innerHTML=html;
+  $('#rally-refresh').disabled=RALLY.busy||!!pullLedger._on||!!flushLedger._on||navigator.onLine===false;
+}
+async function refreshRallyResults(){
+  const button=$('#rally-refresh');button.disabled=true;
+  try{await flushLedger(true);const until=Date.now()+16000;while(flushLedger._on&&Date.now()<until)await new Promise(r=>setTimeout(r,100));await pullLedger(true);}
+  finally{renderRally();}
 }
 function renderRallySummary(got,ws){
   renderRally();const pending=rallyTicket(),next=(rallyDraws().length+1)*7;
@@ -18724,6 +18786,7 @@ function init(){
   { const t = $('#stamp-todo'); if (t) t.addEventListener('click', () => showTodo()); }
   $('#stamp-share').addEventListener('click', shareStamps);
   $('#rally-draw').addEventListener('click',drawRally);
+  $('#rally-refresh').addEventListener('click',refreshRallyResults);
   $('#rally-save').addEventListener('click',openRallyPhoto);
   $('#rally-complete').addEventListener('click',completeRally);
   $('#own-effects').addEventListener('click',e=>{const b=e.target.closest('[data-effect-test]');if(b)previewOwnerEffect(b.dataset.effectTest);});
@@ -18756,6 +18819,7 @@ function init(){
     }finally{button.disabled=false;button.textContent='スタンプを保存して引き継ぐ';}
   });
   $('#sid-save').addEventListener('click',saveStampBackup);
+  $('#sid-line').addEventListener('click',openLineStamp);
   $('#sid-import').addEventListener('click',()=>$('#sid-file').click());
   $('#sid-file').addEventListener('change',async()=>{
     const input=$('#sid-file'),el=$('#sid-file-status');if(!input.files[0])return;
@@ -19483,7 +19547,8 @@ function repairAndReload(){
 // 何かの拍子に初期化が失敗しても真っ白にはせず、状況と復旧手段を出す
 document.addEventListener('DOMContentLoaded', async () => {
   await initStampVault();
-  try{ init(); window.__booted = true; }
+  const lineRecord=await restoreLineStartup();
+  try{ init(); window.__booted = true;if(lineRecord&&lineRecord.rally)takeRally(lineRecord.rally,lineRecord.cid);else restoreRallyCache();if(restoreLineStartup.error)toast(restoreLineStartup.error,null,10000); }
   catch(e){
     window.__booted = 'failed';            // 下の案内を出すので、最後の砦（boot-rescue）は出さない
     console.error(e);

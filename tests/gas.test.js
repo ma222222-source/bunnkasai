@@ -7,6 +7,31 @@ const assert = require('node:assert');
 const { loadGas } = require('./gas-mock');
 
 const PASS = 'test-pass-1234';
+test('台帳の保存確定：シートへの確定に失敗したときは保存成功を返さず、再送で1個として読み直す',()=>{
+ const g=fresh(),cid='FLUSH234';g.__get({ledger:cid});const real=g.SpreadsheetApp.flush;let failing=true;g.SpreadsheetApp.flush=()=>{if(failing)throw Error('write failed');return real();};
+ const body={action:'ledger',cid,ev:[{t:'s',id:'1F-02'}]},failed=g.__post(body);assert.equal(failed.ok,false);assert.match(failed.error,/save_retry/);assert.equal(g.__cache.has('lg_'+cid),false);
+ failing=false;const saved=g.__post(body);assert.equal(saved.ok,true);assert.deepEqual(saved.stamps,['1F-02']);assert.equal(g.ledgerRead_(cid).stamps.length,1);
+});
+function lineIdentity(g,sub='U'+'a'.repeat(32),extra={}){
+  g.UrlFetchApp={fetch:(url,opts)=>{assert.equal(url,'https://api.line.me/oauth2/v2.1/verify');assert.equal(opts.payload.client_id,'2010429448');assert.equal(opts.payload.id_token,'test-id-token');return {getResponseCode:()=>200,getContentText:()=>JSON.stringify({iss:'https://access.line.me',aud:'2010429448',sub,exp:Date.now()/1000+3600,...extra})};}};
+}
+test('LINE保存：本人確認した同じLINEを空のブラウザから開いても同じ台帳・抽選を復元する',()=>{
+ const g=fresh();lineIdentity(g);const ids=g.R8_BOOTHS.slice(0,7).map(b=>b[0]);g.__post({action:'ledger',cid:'ANON2345',ev:ids.map(id=>({t:'s',id}))});
+ const first=g.__post({action:'line_stamp',idToken:'test-id-token',from:'ANON2345',ev:[]});assert.equal(first.ok,true);assert.equal(first.lineLinked,true);assert.equal(first.stamps.length,7);assert.notEqual(first.cid,'ANON2345');
+ g.Math=Object.create(Math);g.Math.random=()=>0;g.__post({action:'rally_draw',policy:g.RALLY_POLICY,cid:first.cid,attempt:1,ev:[]});
+ const again=g.__post({action:'line_stamp',idToken:'test-id-token',ev:[]});assert.equal(again.cid,first.cid);assert.equal(again.stamps.length,7);assert.equal(again.rally.entries.length,1);assert.equal(again.rally.entries[0].result,'candy');
+ const table=g.__ss.getSheetByName('スタンプLINE連携').data;assert.equal(table.length,2);assert.match(table[1][0],/^[a-f0-9]{64}$/);assert.ok(!JSON.stringify(table).includes('test-id-token'));assert.ok(!JSON.stringify(table).includes('U'+'a'.repeat(32)));
+});
+test('LINE保存：無効・期限切れ・別チャネル・検証先の障害では記録を結び付けない',()=>{
+ for(const extra of [{exp:1},{aud:'different'},{iss:'https://evil.example'},{sub:'forged'}]){const g=fresh();lineIdentity(g,undefined,extra);const r=g.__post({action:'line_stamp',idToken:'test-id-token',ev:[]});assert.equal(r.ok,false);assert.ok(!g.__ss.getSheetByName('スタンプLINE連携'));}
+ const g=fresh();g.UrlFetchApp={fetch:()=>{throw Error('sensitive-token');}};const r=g.__post({action:'line_stamp',idToken:'test-id-token'});assert.equal(r.ok,false);assert.ok(!JSON.stringify(r).includes('sensitive-token'));
+});
+test('LINE保存：同じ端末で別のLINEを使っても以前のLINEの記録を混ぜず、全体リセット後は空の同じ番号へ戻る',()=>{
+ const g=fresh({OWNER_PASS:'owner-himitsu-123456'});lineIdentity(g);const first=g.__post({action:'line_stamp',idToken:'test-id-token',from:'ANON2345',ev:[{t:'s',id:'1F-02'}]});assert.equal(first.stamps.length,1);
+ lineIdentity(g,'U'+'b'.repeat(32));const other=g.__post({action:'line_stamp',idToken:'test-id-token',from:first.cid,ev:[{t:'s',id:'1F-02'}]});assert.notEqual(other.cid,first.cid);assert.equal(other.stamps.length,0);
+ const token=g.__post({action:'owner_login',opass:'owner-himitsu-123456'}).token;const reset=g.__post({action:'owner_rally_reset',token,requestId:'line-reset-0001',epoch:'',confirm:'全体リセット'});assert.equal(reset.ok,true);
+ lineIdentity(g);const restored=g.__post({action:'line_stamp',idToken:'test-id-token',rallyEpoch:reset.rallyReset.epoch,ev:[]});assert.equal(restored.cid,first.cid);assert.equal(restored.stamps.length,0);assert.equal(g.__ss.getSheetByName('スタンプLINE連携').data.length,3);
+});
 /** 46ブースが入った新しい環境 */
 function fresh(props) {
   const g = loadGas({ props: Object.assign({ ADMIN_PASS: PASS }, props || {}) });
