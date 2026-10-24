@@ -43,13 +43,13 @@ test('7個の抽選：6個では参加できず、7個で当たり。再読込�
  expect(g.rallyStock_().given).toBe(1);await page.keyboard.press('Escape');await reopen();await expect(page.locator('#rally-result')).toContainText('交換済み');expect(errors.flat()).toEqual([]);
 });
 
-test('新景品：超大当たり・大当たりの券と当選後の確率、電子科塔で種類別に交換',async({page,context,baseURL},info)=>{
+test('新景品：超大当たり・大当たりの券を表示し確率は載せず、電子科塔で種類別に交換',async({page,context,baseURL},info)=>{
  const g=server(),errors=watchErrors(page);await bridge(context,g);await seed(context,g,21);await open(page,baseURL);
- await expect(page.locator('#rally-odds')).toContainText('16％');await draw(page);
- await expect(page.locator('#rally-result .rally-ticket-list')).toContainText('超大当たり × 1');await expect(page.locator('#rally-odds')).toContainText('4％');
+ await expect(page.locator('#rally-odds')).toHaveCount(0);await expect(page.locator('#rally-card')).not.toContainText(/当選率|当選確率|[0-9]+[％%]/);await draw(page);
+ await expect(page.locator('#rally-result .rally-ticket-list')).toContainText('超大当たり × 1');await expect(page.locator('#rally-card')).not.toContainText(/当選率|当選確率|[0-9]+[％%]/);
  g.Math.random=()=>0.08;await page.locator('#rally-draw').click();await expect.poll(()=>page.evaluate(()=>rallyDraws().length)).toBe(2);expect(g.rallyStock_(true).issued).toBe(1);
  g.Math.random=()=>0;await page.locator('#rally-draw').click();await expect.poll(()=>page.evaluate(()=>rallyDraws().length)).toBe(3);
- await expect(page.locator('#rally-result .rally-ticket-list li')).toHaveCount(2);await expect(page.locator('#rally-odds')).toContainText('1％');
+ await expect(page.locator('#rally-result .rally-ticket-list li')).toHaveCount(2);await expect(page.locator('#rally-card')).not.toContainText(/当選率|当選確率|[0-9]+[％%]/);
  await expect(page.locator('#redeem-msg')).toContainText('電子科塔');await expect(page.locator('#redeem-msg')).toContainText('超大当たり');
  await page.locator('#rally-card').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(ART,info.project.name+'-tiered-tickets.png')});
  await page.locator('#redeem-open').click();await page.locator('#staff-code').fill(g.rallyCode_(0));await expect(page.locator('#redeem-ok')).toHaveText('超大当たりを交換する');await page.locator('#redeem-ok').click();
